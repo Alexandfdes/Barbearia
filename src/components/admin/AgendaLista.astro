@@ -22,10 +22,10 @@ interface Props {
 const { appts, role } = Astro.props;
 
 function statusInfo(a: Appt): { border: string; label: string; cls: string } {
-  if (a.isLate && a.status === 'confirmed') return { border: 'border-l-red-500',    label: 'Atrasado',     cls: 'text-red-400' };
-  if (a.status === 'completed')             return { border: 'border-l-teal-light', label: '✓ Concluído',  cls: 'text-teal-light/80' };
-  if (a.status === 'cancelled')             return { border: 'border-l-red-500/60', label: '✕ Cancelado',  cls: 'text-red-400/80' };
-  if (a.status === 'no_show')               return { border: 'border-l-amber-500/70', label: '✗ No-show',  cls: 'text-amber-400/80' };
+  if (a.isLate && a.status === 'confirmed') return { border: 'border-l-red-500',    label: 'Atrasado',     cls: 'text-red-600' };
+  if (a.status === 'completed')             return { border: 'border-l-teal-light', label: '✓ Concluído',  cls: 'text-teal/80' };
+  if (a.status === 'cancelled')             return { border: 'border-l-red-500/60', label: '✕ Cancelado',  cls: 'text-red-600/80' };
+  if (a.status === 'no_show')               return { border: 'border-l-amber-500/70', label: '✗ No-show',  cls: 'text-amber-600/80' };
   return { border: 'border-l-teal', label: '', cls: '' };
 }
 ---
@@ -41,29 +41,29 @@ function statusInfo(a: Appt): { border: string; label: string; cls: string } {
         data-id={String(a.id)}
         data-list-appt={String(a.id)}
         class:list={[
-          'w-full text-left flex items-center gap-3 bg-dark-card border border-white/10 border-l-[3px] rounded-md px-4 py-3 hover:border-teal/40 transition-colors',
+          'w-full text-left flex items-center gap-3 bg-white border border-slate-200 border-l-[3px] rounded-md px-4 py-3 hover:border-teal/40 transition-colors',
           st.border,
           muted && 'opacity-70',
         ]}
       >
         <div class="w-12 shrink-0">
-          <p class:list={['text-sm font-bold tabular-nums', muted ? 'text-neutral-500' : 'text-neutral-100']}>{a.timeLocal}</p>
-          <p class="text-[10px] text-neutral-600 tabular-nums">{a.endTimeLocal}</p>
+          <p class:list={['text-sm font-bold tabular-nums', muted ? 'text-slate-500' : 'text-slate-900']}>{a.timeLocal}</p>
+          <p class="text-[10px] text-slate-400 tabular-nums">{a.endTimeLocal}</p>
         </div>
 
         <div class="flex-1 min-w-0">
-          <p class:list={['text-sm font-medium truncate', muted ? 'text-neutral-500 line-through decoration-1' : 'text-neutral-100']}>
+          <p class:list={['text-sm font-medium truncate', muted ? 'text-slate-500 line-through decoration-1' : 'text-slate-900']}>
             {a.customerName}
           </p>
-          <p class="text-xs text-neutral-500 truncate">
+          <p class="text-xs text-slate-500 truncate">
             {a.serviceName}
-            {role === 'admin' && <span class="text-neutral-600"> · {a.barberName.split(' ')[0]}</span>}
-            <span class="text-neutral-600"> · {a.durationMinutes}min</span>
+            {role === 'admin' && <span class="text-slate-400"> · {a.barberName.split(' ')[0]}</span>}
+            <span class="text-slate-400"> · {a.durationMinutes}min</span>
           </p>
         </div>
 
         <div class="text-right shrink-0">
-          <p class:list={['text-sm font-semibold tabular-nums', muted ? 'text-neutral-600' : 'text-teal-light']}>{a.price}</p>
+          <p class:list={['text-sm font-semibold tabular-nums', muted ? 'text-slate-400' : 'text-teal']}>{a.price}</p>
           <p data-list-status class:list={['text-[10px] tabular-nums', st.cls]}>{st.label}</p>
         </div>
       </button>

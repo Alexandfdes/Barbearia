@@ -104,8 +104,8 @@ const clientData = { selectedBarberId, isAdmin };
   <main class="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
     <div>
-      <h1 class="text-lg font-medium text-neutral-100">Horários de Expediente</h1>
-      <p class="text-sm text-neutral-500 mt-1">
+      <h1 class="text-lg font-medium text-slate-900">Horários de Expediente</h1>
+      <p class="text-sm text-slate-500 mt-1">
         {isAdmin
           ? 'Defina os turnos de cada barbeiro por dia. Manhã e tarde com intervalo, ou marque "Sem pausa" pra trabalhar direto.'
           : 'Configure seus turnos por dia. Manhã e tarde com intervalo, ou marque "Sem pausa" pra trabalhar direto.'}
@@ -120,8 +120,8 @@ const clientData = { selectedBarberId, isAdmin };
              class:list={[
                'text-xs px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap',
                selectedBarberId === b.id
-                 ? 'bg-teal/20 border-teal/40 text-teal-light'
-                 : 'border-white/10 text-neutral-400 hover:text-neutral-200'
+                 ? 'bg-teal/20 border-teal/40 text-teal'
+                 : 'border-slate-200 text-slate-500 hover:text-slate-800'
              ]}>
             {b.name.split(' ')[0]}
           </a>
@@ -130,14 +130,14 @@ const clientData = { selectedBarberId, isAdmin };
     )}
 
     <!-- Cabeçalho do barbeiro selecionado -->
-    <div class="bg-dark-card border border-white/5 rounded-lg p-4">
+    <div class="bg-white border border-slate-200 rounded-lg p-4">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 bg-teal/15 border border-teal/30 rounded-full flex items-center justify-center text-teal-light text-sm font-bold">
+        <div class="w-10 h-10 bg-teal/15 border border-teal/30 rounded-full flex items-center justify-center text-teal text-sm font-bold">
           {(selectedBarber?.name ?? '?')[0].toUpperCase()}
         </div>
         <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium text-neutral-100">{selectedBarber?.name ?? 'Barbeiro'}</p>
-          <p class="text-xs text-neutral-500" id="configured-count">
+          <p class="text-sm font-medium text-slate-900">{selectedBarber?.name ?? 'Barbeiro'}</p>
+          <p class="text-xs text-slate-500" id="configured-count">
             {configuredDays} {configuredDays === 1 ? 'dia configurado' : 'dias configurados'}
           </p>
         </div>
@@ -155,13 +155,13 @@ const clientData = { selectedBarberId, isAdmin };
           ];
           return (
             <div class:list={[
-              'bg-dark-card border rounded-lg transition-colors',
-              anyOn ? 'border-white/5' : 'border-white/[0.03] opacity-60'
+              'bg-white border rounded-lg transition-colors',
+              anyOn ? 'border-slate-200' : 'border-white/[0.03] opacity-60'
             ]} data-day={String(day.weekday)}>
 
               <div class="flex items-center justify-between px-4 pt-3 pb-1 gap-3">
-                <p class="text-sm font-medium text-neutral-100">{day.label}</p>
-                <p class="text-[11px] text-neutral-500 tabular-nums truncate" data-summary={String(day.weekday)}>
+                <p class="text-sm font-medium text-slate-900">{day.label}</p>
+                <p class="text-[11px] text-slate-500 tabular-nums truncate" data-summary={String(day.weekday)}>
                   {summaryText(day)}
                 </p>
               </div>
@@ -186,7 +186,7 @@ const clientData = { selectedBarberId, isAdmin };
                       aria-label={`${s.label} ${day.label}`}
                       class:list={[
                         'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
-                        s.shift.enabled ? 'bg-teal' : 'bg-neutral-700'
+                        s.shift.enabled ? 'bg-teal' : 'bg-slate-200'
                       ]}
                     >
                       <span class:list={[
@@ -196,7 +196,7 @@ const clientData = { selectedBarberId, isAdmin };
                     </button>
 
                     <span
-                      class="w-12 shrink-0 text-xs text-neutral-400"
+                      class="w-12 shrink-0 text-xs text-slate-500"
                       data-shift-label
                       data-weekday={String(day.weekday)}
                       data-period={s.period}
@@ -209,9 +209,9 @@ const clientData = { selectedBarberId, isAdmin };
                       data-period={s.period}
                       value={s.shift.start}
                       disabled={!s.shift.enabled}
-                      class="w-28 bg-dark-surface border border-white/10 rounded px-2 py-1.5 text-xs text-neutral-200 text-center focus:outline-none focus:border-teal/50 disabled:opacity-40 disabled:cursor-not-allowed tabular-nums"
+                      class="w-28 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 text-center focus:outline-none focus:border-teal/50 disabled:opacity-40 disabled:cursor-not-allowed tabular-nums"
                     />
-                    <span class="text-neutral-600 text-xs">→</span>
+                    <span class="text-slate-400 text-xs">→</span>
                     <input
                       type="time"
                       data-shift-end
@@ -219,7 +219,7 @@ const clientData = { selectedBarberId, isAdmin };
                       data-period={s.period}
                       value={s.shift.end}
                       disabled={!s.shift.enabled}
-                      class="w-28 bg-dark-surface border border-white/10 rounded px-2 py-1.5 text-xs text-neutral-200 text-center focus:outline-none focus:border-teal/50 disabled:opacity-40 disabled:cursor-not-allowed tabular-nums"
+                      class="w-28 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 text-center focus:outline-none focus:border-teal/50 disabled:opacity-40 disabled:cursor-not-allowed tabular-nums"
                     />
                   </div>
                 ))}
@@ -230,9 +230,9 @@ const clientData = { selectedBarberId, isAdmin };
                     data-continuous
                     data-weekday={String(day.weekday)}
                     checked={day.continuous}
-                    class="w-3.5 h-3.5 rounded border-white/20 bg-dark-surface accent-teal cursor-pointer"
+                    class="w-3.5 h-3.5 rounded border-slate-300 bg-slate-100 accent-teal cursor-pointer"
                   />
-                  <span class="text-[11px] text-neutral-500">Sem pausa (dia contínuo)</span>
+                  <span class="text-[11px] text-slate-500">Sem pausa (dia contínuo)</span>
                 </label>
               </div>
             </div>
@@ -242,7 +242,7 @@ const clientData = { selectedBarberId, isAdmin };
 
       <!-- Feedback + botão salvar -->
       <div class="flex items-center justify-between gap-3 pt-3">
-        <span id="save-feedback" class="text-xs text-neutral-600"></span>
+        <span id="save-feedback" class="text-xs text-slate-400"></span>
         <button
           type="submit"
           id="save-btn"
@@ -282,7 +282,7 @@ const clientData = { selectedBarberId, isAdmin };
     if (!toggle) return;
     toggle.setAttribute('aria-pressed', String(on));
     toggle.classList.toggle('bg-teal', on);
-    toggle.classList.toggle('bg-neutral-700', !on);
+    toggle.classList.toggle('bg-slate-200', !on);
     const thumb = toggle.querySelector('span');
     thumb?.classList.toggle('translate-x-4', on);
     thumb?.classList.toggle('translate-x-0.5', !on);
@@ -301,7 +301,7 @@ const clientData = { selectedBarberId, isAdmin };
     const anyOn = mOn || tOn;
 
     card.classList.toggle('opacity-60', !anyOn);
-    card.classList.toggle('border-white/5', anyOn);
+    card.classList.toggle('border-slate-200', anyOn);
     card.classList.toggle('border-white/[0.03]', !anyOn);
 
     const summary = card.querySelector(`[data-summary="${weekday}"]`);
@@ -371,7 +371,7 @@ const clientData = { selectedBarberId, isAdmin };
 
   function fail(msg) {
     feedback.textContent = `✕ ${msg}`;
-    feedback.className = 'text-xs text-red-400';
+    feedback.className = 'text-xs text-red-600';
   }
 
   form?.addEventListener('submit', async (e) => {
@@ -414,7 +414,7 @@ const clientData = { selectedBarberId, isAdmin };
 
       if (res.ok) {
         feedback.textContent = '✓ Horários salvos';
-        feedback.className = 'text-xs text-teal-light';
+        feedback.className = 'text-xs text-teal';
         setTimeout(() => location.reload(), 700);
       } else {
         fail(data.error ?? 'Erro ao salvar');

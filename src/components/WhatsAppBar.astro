@@ -1,6 +1,8 @@
 ---
-import { getWhatsAppUrl } from '../config';
-const whatsappUrl = getWhatsAppUrl("Olá! Quero agendar um horário na Barbearia Bayron.");
+import { getSettings, waUrl } from '../lib/settings';
+
+const s = getSettings();
+const whatsappUrl = waUrl(`Olá! Quero agendar um horário na ${s.businessName}.`);
 ---
 
 <!-- Floating circle button — all screen sizes -->

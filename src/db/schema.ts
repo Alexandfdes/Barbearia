@@ -162,3 +162,50 @@ export const reservations = sqliteTable('reservations', {
 }, (table) => [
   index('reservations_status_idx').on(table.status),
 ]);
+
+// Configuração da barbearia — LINHA ÚNICA, sempre id = 1.
+// Colunas tipadas em vez de chave-valor: ver ARQUITETURA-PRODUTO-V1 D2. O custo
+// aceito é uma migration por configuração nova.
+// A fronteira entre isto e variável de ambiente está em D7: aqui mora o que o
+// dono edita no painel; em env mora o que quebra o site se ele editar errado
+// (DATABASE_PATH, SESSION_SECRET, SITE_URL, TZ).
+//
+// businessHours é o horário de VITRINE (texto de marketing). O horário que
+// manda no agendamento continua sendo a tabela workingHours — as duas divergem
+// legitimamente, e o caso do Bayron prova isso.
+export const settings = sqliteTable('settings', {
+  id: integer('id').primaryKey(),
+  businessName: text('business_name').notNull(),
+  shortName: text('short_name').notNull(),
+  tagline: text('tagline'),
+  heroSubtitle: text('hero_subtitle'),
+  aboutText: text('about_text'),
+  whatsappNumber: text('whatsapp_number').notNull(),
+  /** Como o número aparece ESCRITO na tela. Formatação de telefone é por país;
+   *  guardar o texto pronto evita um formatador que erraria fora do Brasil. */
+  whatsappDisplay: text('whatsapp_display'),
+  instagramUrl: text('instagram_url'),
+  instagramHandle: text('instagram_handle'),
+  addressStreet: text('address_street').notNull(),
+  addressCity: text('address_city').notNull(),
+  mapsUrl: text('maps_url'),
+  mapsEmbedQuery: text('maps_embed_query'),
+  /** JSON de BusinessHour[] — ver src/lib/settings.ts */
+  businessHours: text('business_hours').notNull().default('[]'),
+  seoTitle: text('seo_title'),
+  seoDescription: text('seo_description'),
+  accentColor: text('accent_color').notNull().default('#0f766e'),
+  accentHover: text('accent_hover').notNull().default('#0d9488'),
+  accentLight: text('accent_light').notNull().default('#5eead4'),
+  /** Caminhos de mídia no volume — preenchidos na Fase 2. Null = usa o asset do build. */
+  logoPath: text('logo_path'),
+  heroPath: text('hero_path'),
+  ogPath: text('og_path'),
+  faviconPath: text('favicon_path'),
+  googleReviewsUrl: text('google_reviews_url'),
+  /** Texto, não número: preserva o "5.0" exatamente como é exibido. */
+  googleRating: text('google_rating'),
+  googleReviewCount: integer('google_review_count'),
+  productsSectionTitle: text('products_section_title').notNull().default('Produtos'),
+  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
+});

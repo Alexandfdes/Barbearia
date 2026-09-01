@@ -415,10 +415,10 @@ const clientData = {
 
 
   <!-- Date navigation header -->
-  <div class="border-b border-white/5 px-4 py-3">
+  <div class="border-b border-slate-200 px-4 py-3">
     <div class="max-w-4xl mx-auto flex items-center justify-between gap-3">
       <a href={`/admin/dia/${prevDate}${filterQs}`}
-         class="text-neutral-400 hover:text-neutral-200 transition-colors p-2 -ml-2 rounded hover:bg-white/5"
+         class="text-slate-500 hover:text-slate-800 transition-colors p-2 -ml-2 rounded hover:bg-slate-100"
          aria-label="Dia anterior">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
@@ -427,13 +427,13 @@ const clientData = {
 
       <div class="relative flex items-center gap-3 min-w-0">
         <div class="text-center min-w-0">
-          <p class="text-sm font-medium text-neutral-200 truncate">
-            {weekday}{isToday && <span class="text-teal-light"> · Hoje</span>}
+          <p class="text-sm font-medium text-slate-800 truncate">
+            {weekday}{isToday && <span class="text-teal"> · Hoje</span>}
           </p>
-          <p class="text-xs text-neutral-500 truncate">{formattedDate}</p>
+          <p class="text-xs text-slate-500 truncate">{formattedDate}</p>
         </div>
         <button id="cal-toggle" type="button"
-                class="inline-flex items-center text-neutral-400 hover:text-teal-light transition-colors p-1.5 rounded hover:bg-white/5"
+                class="inline-flex items-center text-slate-500 hover:text-teal transition-colors p-1.5 rounded hover:bg-slate-100"
                 aria-label="Escolher data">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
             <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -442,19 +442,19 @@ const clientData = {
 
         <!-- Calendário custom popover -->
         <div id="cal-popover"
-             class="hidden absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 bg-dark-card border border-white/10 rounded-lg shadow-2xl shadow-black/50 w-[300px] p-3 select-none">
+             class="hidden absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 bg-white border border-slate-200 rounded-lg shadow-2xl shadow-black/50 w-[300px] p-3 select-none">
           <!-- Header: mês/ano e setas -->
           <div class="flex items-center justify-between mb-3 px-1">
             <button id="cal-prev" type="button"
-                    class="p-1.5 rounded text-neutral-400 hover:text-neutral-100 hover:bg-white/5 transition-colors"
+                    class="p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                     aria-label="Mês anterior">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
               </svg>
             </button>
-            <p id="cal-title" class="text-sm font-medium text-neutral-100 tabular-nums">—</p>
+            <p id="cal-title" class="text-sm font-medium text-slate-900 tabular-nums">—</p>
             <button id="cal-next" type="button"
-                    class="p-1.5 rounded text-neutral-400 hover:text-neutral-100 hover:bg-white/5 transition-colors"
+                    class="p-1.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                     aria-label="Próximo mês">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
@@ -464,26 +464,26 @@ const clientData = {
 
           <!-- Dias da semana -->
           <div class="grid grid-cols-7 gap-1 mb-1 px-1">
-            <span class="text-[10px] text-center text-neutral-600 uppercase tracking-wider py-1">D</span>
-            <span class="text-[10px] text-center text-neutral-600 uppercase tracking-wider py-1">S</span>
-            <span class="text-[10px] text-center text-neutral-600 uppercase tracking-wider py-1">T</span>
-            <span class="text-[10px] text-center text-neutral-600 uppercase tracking-wider py-1">Q</span>
-            <span class="text-[10px] text-center text-neutral-600 uppercase tracking-wider py-1">Q</span>
-            <span class="text-[10px] text-center text-neutral-600 uppercase tracking-wider py-1">S</span>
-            <span class="text-[10px] text-center text-neutral-600 uppercase tracking-wider py-1">S</span>
+            <span class="text-[10px] text-center text-slate-400 uppercase tracking-wider py-1">D</span>
+            <span class="text-[10px] text-center text-slate-400 uppercase tracking-wider py-1">S</span>
+            <span class="text-[10px] text-center text-slate-400 uppercase tracking-wider py-1">T</span>
+            <span class="text-[10px] text-center text-slate-400 uppercase tracking-wider py-1">Q</span>
+            <span class="text-[10px] text-center text-slate-400 uppercase tracking-wider py-1">Q</span>
+            <span class="text-[10px] text-center text-slate-400 uppercase tracking-wider py-1">S</span>
+            <span class="text-[10px] text-center text-slate-400 uppercase tracking-wider py-1">S</span>
           </div>
 
           <!-- Grid de dias (renderizado via JS) -->
           <div id="cal-grid" class="grid grid-cols-7 gap-1 px-1"></div>
 
           <!-- Footer -->
-          <div class="flex items-center justify-between mt-3 pt-3 border-t border-white/5 px-1">
+          <div class="flex items-center justify-between mt-3 pt-3 border-t border-slate-200 px-1">
             <button id="cal-today" type="button"
-                    class="text-xs text-teal-light hover:text-teal font-medium transition-colors">
+                    class="text-xs text-teal hover:text-teal font-medium transition-colors">
               Hoje
             </button>
             <button id="cal-close" type="button"
-                    class="text-xs text-neutral-500 hover:text-neutral-200 transition-colors">
+                    class="text-xs text-slate-500 hover:text-slate-800 transition-colors">
               Fechar
             </button>
           </div>
@@ -491,7 +491,7 @@ const clientData = {
       </div>
 
       <a href={`/admin/dia/${nextDate}${filterQs}`}
-         class="text-neutral-400 hover:text-neutral-200 transition-colors p-2 -mr-2 rounded hover:bg-white/5"
+         class="text-slate-500 hover:text-slate-800 transition-colors p-2 -mr-2 rounded hover:bg-slate-100"
          aria-label="Próximo dia">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
@@ -502,7 +502,7 @@ const clientData = {
     {!isToday && (
       <div class="max-w-4xl mx-auto mt-2 text-center">
         <a href={`/admin/dia/${todayStr}${filterQs}`}
-           class="text-xs text-teal-light hover:text-teal underline-offset-2 hover:underline">
+           class="text-xs text-teal hover:text-teal underline-offset-2 hover:underline">
           ← Voltar para hoje
         </a>
       </div>
@@ -511,17 +511,17 @@ const clientData = {
 
   <!-- Barber filter tabs (admin only) -->
   {session.role === 'admin' && (
-    <div class="border-b border-white/5 px-4 py-2.5 overflow-x-auto">
+    <div class="border-b border-slate-200 px-4 py-2.5 overflow-x-auto">
       <div class="max-w-4xl mx-auto flex gap-2 min-w-max">
         <a href={`/admin/dia/${date}`}
            class:list={['text-xs px-3 py-1.5 rounded-full border transition-colors',
-             !filterBarberId ? 'bg-teal/20 border-teal/40 text-teal-light' : 'border-white/10 text-neutral-400 hover:text-neutral-200']}>
+             !filterBarberId ? 'bg-teal/20 border-teal/40 text-teal' : 'border-slate-200 text-slate-500 hover:text-slate-800']}>
           Todos
         </a>
         {allBarbers.map(b => (
           <a href={`/admin/dia/${date}?barber=${b.id}`}
              class:list={['text-xs px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap',
-               filterBarberId === b.id ? 'bg-teal/20 border-teal/40 text-teal-light' : 'border-white/10 text-neutral-400 hover:text-neutral-200']}>
+               filterBarberId === b.id ? 'bg-teal/20 border-teal/40 text-teal' : 'border-slate-200 text-slate-500 hover:text-slate-800']}>
             {b.name.split(' ')[0]}
           </a>
         ))}
@@ -533,36 +533,36 @@ const clientData = {
 
     <!-- Stats: receita prevista -->
     <section class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <div class="bg-dark-card border border-teal/20 rounded-lg p-4 sm:col-span-2">
-        <p class="text-xs text-neutral-500 uppercase tracking-widest">Receita prevista do dia</p>
-        <p class="text-3xl font-bold text-teal-light mt-1 tabular-nums">{revenueLabel}</p>
-        <p class="text-xs text-neutral-500 mt-0.5">
+      <div class="bg-white border border-teal/20 rounded-lg p-4 sm:col-span-2">
+        <p class="text-xs text-slate-500 uppercase tracking-widest">Receita prevista do dia</p>
+        <p class="text-3xl font-bold text-teal mt-1 tabular-nums">{revenueLabel}</p>
+        <p class="text-xs text-slate-500 mt-0.5">
           {revenueCount} {revenueCount === 1 ? 'agendamento' : 'agendamentos'} considerados (confirmados + concluídos)
         </p>
       </div>
       {nextAppt ? (
-        <a href={`#appt-${nextAppt.id}`} class="bg-dark-card border border-white/5 hover:border-teal/30 rounded-lg p-4 transition-colors group">
-          <p class="text-xs text-neutral-500 uppercase tracking-widest">Próximo</p>
-          <p class="text-xl font-bold text-neutral-100 mt-1 tabular-nums">{nextAppt.timeLocal}</p>
-          <p class="text-xs text-neutral-400 mt-0.5 truncate">{nextAppt.customerName}</p>
-          <p class="text-xs text-neutral-600 truncate">{nextAppt.serviceName}</p>
+        <a href={`#appt-${nextAppt.id}`} class="bg-white border border-slate-200 hover:border-teal/30 rounded-lg p-4 transition-colors group">
+          <p class="text-xs text-slate-500 uppercase tracking-widest">Próximo</p>
+          <p class="text-xl font-bold text-slate-900 mt-1 tabular-nums">{nextAppt.timeLocal}</p>
+          <p class="text-xs text-slate-500 mt-0.5 truncate">{nextAppt.customerName}</p>
+          <p class="text-xs text-slate-400 truncate">{nextAppt.serviceName}</p>
         </a>
       ) : (
-        <div class="bg-dark-card border border-white/5 rounded-lg p-4 flex flex-col justify-center">
-          <p class="text-xs text-neutral-500 uppercase tracking-widest">Próximo</p>
-          <p class="text-sm text-neutral-500 mt-1">Sem próximos hoje</p>
+        <div class="bg-white border border-slate-200 rounded-lg p-4 flex flex-col justify-center">
+          <p class="text-xs text-slate-500 uppercase tracking-widest">Próximo</p>
+          <p class="text-sm text-slate-500 mt-1">Sem próximos hoje</p>
         </div>
       )}
     </section>
 
     <!-- Insight de ocupação da próxima semana (admin) -->
     {occupancyInsight && (
-      <div class="bg-dark-card border border-amber-500/20 rounded-lg px-4 py-3 flex items-center gap-3">
+      <div class="bg-white border border-amber-500/20 rounded-lg px-4 py-3 flex items-center gap-3">
         <span class="text-base shrink-0">📉</span>
-        <p class="text-xs text-neutral-400 leading-relaxed">
-          <span class="text-neutral-200 font-medium">Semana que vem:</span>
+        <p class="text-xs text-slate-500 leading-relaxed">
+          <span class="text-slate-800 font-medium">Semana que vem:</span>
           {' '}{occupancyInsight.text} está
-          <span class="text-amber-400 font-semibold"> {occupancyInsight.pct}% vazia</span>
+          <span class="text-amber-600 font-semibold"> {occupancyInsight.pct}% vazia</span>
           {' '}— bom alvo pra uma promoção.
         </p>
       </div>
@@ -571,23 +571,23 @@ const clientData = {
     <!-- Timeline -->
     <section>
       <div class="flex items-center justify-between mb-3 gap-3">
-        <p class="text-xs text-neutral-500 uppercase tracking-widest">
+        <p class="text-xs text-slate-500 uppercase tracking-widest">
           Agenda do dia {apptList.length > 0 && `(${apptList.length})`}
         </p>
         <div class="flex items-center gap-3">
-          <p class="text-[10px] text-neutral-600 uppercase tracking-widest hidden sm:block">
+          <p class="text-[10px] text-slate-400 uppercase tracking-widest hidden sm:block">
             {String(START_HOUR).padStart(2, '0')}:00 → {String(END_HOUR).padStart(2, '0')}:00
           </p>
         </div>
       </div>
 
       {(apptList.length === 0 && blockList.length === 0) ? (
-        <div class="bg-dark-card border border-white/5 rounded-lg py-14 px-6 flex flex-col items-center text-center">
-          <svg class="w-10 h-10 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <div class="bg-white border border-slate-200 rounded-lg py-14 px-6 flex flex-col items-center text-center">
+          <svg class="w-10 h-10 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
           </svg>
-          <p class="text-sm font-medium text-neutral-300 mt-3">Nenhum agendamento para este dia</p>
-          <p class="text-xs text-neutral-500 mt-1">
+          <p class="text-sm font-medium text-slate-700 mt-3">Nenhum agendamento para este dia</p>
+          <p class="text-xs text-slate-500 mt-1">
             Dia livre · expediente {String(START_HOUR).padStart(2, '0')}:00 → {String(END_HOUR).padStart(2, '0')}:00
           </p>
           <div class="flex flex-wrap gap-2 mt-5 justify-center">
@@ -599,7 +599,7 @@ const clientData = {
               Agendar
             </button>
             <button type="button" data-empty-block
-              class="flex items-center gap-2 text-xs px-4 py-2 border border-white/10 hover:border-red-500/30 text-neutral-400 hover:text-red-400 rounded transition-colors">
+              class="flex items-center gap-2 text-xs px-4 py-2 border border-slate-200 hover:border-red-500/30 text-slate-500 hover:text-red-600 rounded transition-colors">
               <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
               </svg>
@@ -610,14 +610,14 @@ const clientData = {
       ) : (
         <div class="space-y-2">
           {blockList.map(b => (
-            <div class="flex items-center gap-3 bg-dark-card border border-white/10 border-l-[3px] border-l-neutral-600/60 rounded-md px-4 py-3">
+            <div class="flex items-center gap-3 bg-white border border-slate-200 border-l-[3px] border-l-neutral-600/60 rounded-md px-4 py-3">
               <div class="w-12 shrink-0">
-                <p class="text-sm font-bold tabular-nums text-neutral-400">{b.timeLocal}</p>
-                <p class="text-[10px] text-neutral-600 tabular-nums">{b.endTimeLocal}</p>
+                <p class="text-sm font-bold tabular-nums text-slate-500">{b.timeLocal}</p>
+                <p class="text-[10px] text-slate-400 tabular-nums">{b.endTimeLocal}</p>
               </div>
               <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-neutral-400 truncate">{b.reason || 'Horário bloqueado'}</p>
-                <p class="text-[10px] text-neutral-600 uppercase tracking-widest">Bloqueio</p>
+                <p class="text-sm font-medium text-slate-500 truncate">{b.reason || 'Horário bloqueado'}</p>
+                <p class="text-[10px] text-slate-400 uppercase tracking-widest">Bloqueio</p>
               </div>
             </div>
           ))}
@@ -629,29 +629,29 @@ const clientData = {
     <!-- Vendas de produto avulsas do dia -->
     <section>
       <div class="flex items-center justify-between mb-3 gap-3">
-        <p class="text-xs text-neutral-500 uppercase tracking-widest">Produtos vendidos</p>
-        <p class="text-xs text-neutral-600" id="sales-count">
+        <p class="text-xs text-slate-500 uppercase tracking-widest">Produtos vendidos</p>
+        <p class="text-xs text-slate-400" id="sales-count">
           {saleRows.length > 0 ? `${saleRows.length} ${saleRows.length === 1 ? 'venda' : 'vendas'} · R$ ${Math.round(salesCents / 100)}` : ''}
         </p>
       </div>
       <div id="sales-list" class="space-y-2">
         {saleRows.map(sv => (
-          <div class="flex items-center gap-3 bg-dark-card border border-white/5 rounded-md px-4 py-2.5"
+          <div class="flex items-center gap-3 bg-white border border-slate-200 rounded-md px-4 py-2.5"
                data-sale-id={String(sv.id)} data-cents={String(sv.priceCents)}>
             <div class="flex-1 min-w-0">
-              <p class="text-sm text-neutral-200 truncate">
-                {sv.name}{sv.quantity > 1 && <span class="text-neutral-500"> ×{sv.quantity}</span>}
+              <p class="text-sm text-slate-800 truncate">
+                {sv.name}{sv.quantity > 1 && <span class="text-slate-500"> ×{sv.quantity}</span>}
               </p>
               {session.role === 'admin' && (
-                <p class="text-[10px] text-neutral-600">{sv.barberName.split(' ')[0]}</p>
+                <p class="text-[10px] text-slate-400">{sv.barberName.split(' ')[0]}</p>
               )}
             </div>
-            <span class="text-sm font-semibold text-teal-light tabular-nums shrink-0">R$ {Math.round(sv.priceCents / 100)}</span>
-            <button type="button" data-sale-remove={String(sv.id)} class="text-neutral-600 hover:text-red-400 transition-colors shrink-0" aria-label="Remover venda">✕</button>
+            <span class="text-sm font-semibold text-teal tabular-nums shrink-0">R$ {Math.round(sv.priceCents / 100)}</span>
+            <button type="button" data-sale-remove={String(sv.id)} class="text-slate-400 hover:text-red-600 transition-colors shrink-0" aria-label="Remover venda">✕</button>
           </div>
         ))}
       </div>
-      <p id="sales-empty" class:list={['text-xs text-neutral-600 italic', saleRows.length > 0 && 'hidden']}>
+      <p id="sales-empty" class:list={['text-xs text-slate-400 italic', saleRows.length > 0 && 'hidden']}>
         Nenhum produto vendido avulso neste dia.
       </p>
     </section>
@@ -659,21 +659,21 @@ const clientData = {
     <!-- Bottom action buttons -->
     <div class="flex gap-3">
       <button id="btn-manual"
-        class="flex-1 flex items-center justify-center gap-2 border border-white/10 hover:border-teal/30 text-neutral-400 hover:text-teal-light text-sm font-medium py-3 rounded-md transition-colors">
+        class="flex-1 flex items-center justify-center gap-2 border border-slate-200 hover:border-teal/30 text-slate-500 hover:text-teal text-sm font-medium py-3 rounded-md transition-colors">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
         </svg>
         Agendamento manual
       </button>
       <button id="btn-block"
-        class="flex-1 flex items-center justify-center gap-2 border border-white/10 hover:border-red-500/30 text-neutral-400 hover:text-red-400 text-sm font-medium py-3 rounded-md transition-colors">
+        class="flex-1 flex items-center justify-center gap-2 border border-slate-200 hover:border-red-500/30 text-slate-500 hover:text-red-600 text-sm font-medium py-3 rounded-md transition-colors">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
         </svg>
         Bloquear horário
       </button>
       <button id="btn-sale"
-        class="flex-1 flex items-center justify-center gap-2 border border-white/10 hover:border-teal/30 text-neutral-400 hover:text-teal-light text-sm font-medium py-3 rounded-md transition-colors">
+        class="flex-1 flex items-center justify-center gap-2 border border-slate-200 hover:border-teal/30 text-slate-500 hover:text-teal text-sm font-medium py-3 rounded-md transition-colors">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
         </svg>
@@ -684,24 +684,24 @@ const clientData = {
     <!-- Modal: venda de produto avulsa -->
     <div id="sale-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4">
       <div class="absolute inset-0 bg-black/70" data-sale-close></div>
-      <div class="relative bg-dark-card border border-white/10 rounded-lg p-5 w-full max-w-sm space-y-4">
+      <div class="relative bg-white border border-slate-200 rounded-lg p-5 w-full max-w-sm space-y-4">
         <div class="flex items-center justify-between">
-          <p class="text-sm font-medium text-neutral-200">Vender produto</p>
-          <button type="button" data-sale-close class="text-neutral-500 hover:text-neutral-300 text-xs transition-colors">✕ fechar</button>
+          <p class="text-sm font-medium text-slate-800">Vender produto</p>
+          <button type="button" data-sale-close class="text-slate-500 hover:text-slate-700 text-xs transition-colors">✕ fechar</button>
         </div>
 
         {session.role === 'admin' && (
           <div>
-            <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Barbeiro</label>
-            <select id="sale-barber" class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50">
+            <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Barbeiro</label>
+            <select id="sale-barber" class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50">
               {allBarbers.map(b => <option value={String(b.id)} selected={filterBarberId === b.id}>{b.name}</option>)}
             </select>
           </div>
         )}
 
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Produto</label>
-          <select id="sale-product" class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50">
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Produto</label>
+          <select id="sale-product" class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50">
             {clientData.products.map(p => (
               <option value={p.name} data-cents={String(p.priceCents)}>{p.name} — R$ {Math.round(p.priceCents / 100)}</option>
             ))}
@@ -710,30 +710,30 @@ const clientData = {
         </div>
 
         <div id="sale-name-wrap" class="hidden">
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Nome do produto</label>
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Nome do produto</label>
           <input id="sale-name" type="text" maxlength="100" placeholder="Ex.: Pomada modeladora"
-                 class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50" />
+                 class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50" />
         </div>
 
         <div class="flex gap-3">
           <div class="w-20">
-            <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Qtd</label>
+            <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Qtd</label>
             <input id="sale-qty" type="number" min="1" max="99" value="1"
-                   class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 text-center focus:outline-none focus:border-teal/50 tabular-nums" />
+                   class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 text-center focus:outline-none focus:border-teal/50 tabular-nums" />
           </div>
           <div class="flex-1">
-            <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Preço unit. (R$)</label>
+            <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Preço unit. (R$)</label>
             <input id="sale-price" type="number" min="0" step="0.01"
-                   class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 text-center focus:outline-none focus:border-teal/50 tabular-nums" />
+                   class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 text-center focus:outline-none focus:border-teal/50 tabular-nums" />
           </div>
         </div>
 
         <div class="flex items-center justify-between pt-1">
-          <span class="text-xs text-neutral-500 uppercase tracking-widest">Total</span>
-          <span id="sale-total" class="text-lg font-bold text-teal-light tabular-nums">R$ 0</span>
+          <span class="text-xs text-slate-500 uppercase tracking-widest">Total</span>
+          <span id="sale-total" class="text-lg font-bold text-teal tabular-nums">R$ 0</span>
         </div>
 
-        <div id="sale-error" class="hidden text-red-400 text-xs text-center"></div>
+        <div id="sale-error" class="hidden text-red-600 text-xs text-center"></div>
 
         <button id="sale-confirm" type="button"
           class="w-full bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest text-xs py-3 rounded transition-colors disabled:opacity-50">
@@ -743,16 +743,16 @@ const clientData = {
     </div>
 
     <!-- Manual booking form -->
-    <div id="form-manual" class="hidden border border-teal/20 bg-dark-card rounded-md p-5 space-y-4">
+    <div id="form-manual" class="hidden border border-teal/20 bg-white rounded-md p-5 space-y-4">
       <div class="flex items-center justify-between">
-        <p class="text-sm font-medium text-neutral-200">Novo agendamento manual</p>
-        <button id="close-manual" class="text-neutral-500 hover:text-neutral-300 text-xs transition-colors">✕ fechar</button>
+        <p class="text-sm font-medium text-slate-800">Novo agendamento manual</p>
+        <button id="close-manual" class="text-slate-500 hover:text-slate-700 text-xs transition-colors">✕ fechar</button>
       </div>
 
       {session.role === 'admin' && (
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Barbeiro</label>
-          <select id="m-barber" class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50">
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Barbeiro</label>
+          <select id="m-barber" class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50">
             <option value="">Selecione</option>
             {allBarbers.map(b => (
               <option value={String(b.id)}>{b.name.split(' ')[0]}</option>
@@ -762,33 +762,33 @@ const clientData = {
       )}
 
       <div>
-        <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Serviço</label>
-        <select id="m-service" class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50">
+        <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Serviço</label>
+        <select id="m-service" class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50">
           <option value="">Selecione</option>
         </select>
       </div>
 
       <div>
-        <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Horário disponível</label>
-        <div id="m-slots-wrap" class="text-xs text-neutral-500">
+        <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Horário disponível</label>
+        <div id="m-slots-wrap" class="text-xs text-slate-500">
           Selecione barbeiro e serviço primeiro.
         </div>
       </div>
 
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Nome do cliente</label>
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Nome do cliente</label>
           <input id="m-name" type="text" placeholder="Nome completo"
-            class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-teal/50" />
+            class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
         </div>
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">WhatsApp</label>
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">WhatsApp</label>
           <input id="m-phone" type="tel" placeholder="(84) 9xxxx-xxxx"
-            class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-teal/50" />
+            class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
         </div>
       </div>
 
-      <div id="m-error" class="hidden text-red-400 text-xs text-center py-1"></div>
+      <div id="m-error" class="hidden text-red-600 text-xs text-center py-1"></div>
 
       <button id="m-submit"
         class="w-full bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest py-3 rounded transition-colors text-sm disabled:opacity-50">
@@ -797,16 +797,16 @@ const clientData = {
     </div>
 
     <!-- Block time form -->
-    <div id="form-block" class="hidden border border-red-500/20 bg-dark-card rounded-md p-5 space-y-4">
+    <div id="form-block" class="hidden border border-red-500/20 bg-white rounded-md p-5 space-y-4">
       <div class="flex items-center justify-between">
-        <p class="text-sm font-medium text-neutral-200">Bloquear horário</p>
-        <button id="close-block" class="text-neutral-500 hover:text-neutral-300 text-xs transition-colors">✕ fechar</button>
+        <p class="text-sm font-medium text-slate-800">Bloquear horário</p>
+        <button id="close-block" class="text-slate-500 hover:text-slate-700 text-xs transition-colors">✕ fechar</button>
       </div>
 
       {session.role === 'admin' && (
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Aplicar para</label>
-          <select id="b-barber" class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50">
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Aplicar para</label>
+          <select id="b-barber" class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50">
             <option value="">Todos (feriado)</option>
             {allBarbers.map(b => (
               <option value={String(b.id)}>{b.name.split(' ')[0]}</option>
@@ -817,24 +817,24 @@ const clientData = {
 
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Início</label>
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Início</label>
           <input id="b-start" type="time" value="09:00"
-            class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50" />
+            class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50" />
         </div>
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Fim</label>
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Fim</label>
           <input id="b-end" type="time" value="18:00"
-            class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50" />
+            class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50" />
         </div>
       </div>
 
       <div>
-        <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Motivo (opcional)</label>
+        <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Motivo (opcional)</label>
         <input id="b-reason" type="text" placeholder="ex: Almoço, Folga, Feriado..."
-          class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-teal/50" />
+          class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
       </div>
 
-      <div id="b-error" class="hidden text-red-400 text-xs text-center py-1"></div>
+      <div id="b-error" class="hidden text-red-600 text-xs text-center py-1"></div>
 
       <button id="b-submit"
         class="w-full bg-red-600 hover:bg-red-700 text-white font-bold uppercase tracking-widest py-3 rounded transition-colors text-sm disabled:opacity-50">
@@ -848,12 +848,12 @@ const clientData = {
 
   <!-- Modal de confirmação genérico (cancelar etc.) -->
   <div id="confirm-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-    <div class="bg-dark-card border border-white/10 rounded-lg shadow-2xl max-w-sm w-full p-6">
-      <p id="confirm-title" class="text-base font-medium text-neutral-100 mb-2">Confirmar?</p>
-      <p id="confirm-message" class="text-sm text-neutral-400 mb-5 leading-relaxed">Tem certeza?</p>
+    <div class="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-sm w-full p-6">
+      <p id="confirm-title" class="text-base font-medium text-slate-900 mb-2">Confirmar?</p>
+      <p id="confirm-message" class="text-sm text-slate-500 mb-5 leading-relaxed">Tem certeza?</p>
       <div class="flex gap-2 justify-end">
         <button id="confirm-cancel"
-                class="px-4 py-2 rounded text-sm font-medium text-neutral-300 border border-white/10 hover:bg-white/5 transition-colors">
+                class="px-4 py-2 rounded text-sm font-medium text-slate-700 border border-slate-200 hover:bg-slate-100 transition-colors">
           Voltar
         </button>
         <button id="confirm-ok"
@@ -866,17 +866,17 @@ const clientData = {
 
   <!-- Modal de detalhes do agendamento -->
   <div id="detail-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm">
-    <div class="modal-scroll bg-dark-card border border-white/10 rounded-t-lg sm:rounded-lg shadow-2xl w-full max-w-md sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
+    <div class="modal-scroll bg-white border border-slate-200 rounded-t-lg sm:rounded-lg shadow-2xl w-full max-w-md sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto">
       <!-- Header -->
-      <div class="flex items-start justify-between gap-4 p-5 border-b border-white/5">
+      <div class="flex items-start justify-between gap-4 p-5 border-b border-slate-200">
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2 min-w-0">
-            <p id="dm-name" class="text-lg font-bold text-neutral-100 truncate">—</p>
-            <span id="dm-birthday" class="hidden shrink-0 text-[10px] font-bold text-amber-200 bg-amber-500/15 border border-amber-400/30 px-1.5 py-0.5 rounded-full whitespace-nowrap"></span>
+            <p id="dm-name" class="text-lg font-bold text-slate-900 truncate">—</p>
+            <span id="dm-birthday" class="hidden shrink-0 text-[10px] font-bold text-amber-800 bg-amber-500/15 border border-amber-400/30 px-1.5 py-0.5 rounded-full whitespace-nowrap"></span>
           </div>
-          <p id="dm-service" class="text-sm text-neutral-400 truncate">—</p>
+          <p id="dm-service" class="text-sm text-slate-500 truncate">—</p>
         </div>
-        <button id="dm-close" class="text-neutral-500 hover:text-neutral-200 text-xl leading-none -mt-1 -mr-1 p-1">×</button>
+        <button id="dm-close" class="text-slate-500 hover:text-slate-800 text-xl leading-none -mt-1 -mr-1 p-1">×</button>
       </div>
 
       <!-- Info -->
@@ -886,46 +886,46 @@ const clientData = {
         <div class="space-y-4">
         <!-- Horário + duração + valor -->
         <div class="grid grid-cols-3 gap-3 text-center">
-          <div class="bg-dark-surface border border-white/5 rounded p-3">
-            <p class="text-[10px] text-neutral-500 uppercase tracking-widest">Horário</p>
-            <p id="dm-time" class="text-base font-bold text-teal-light tabular-nums mt-1">—</p>
+          <div class="bg-slate-100 border border-slate-200 rounded p-3">
+            <p class="text-[10px] text-slate-500 uppercase tracking-widest">Horário</p>
+            <p id="dm-time" class="text-base font-bold text-teal tabular-nums mt-1">—</p>
           </div>
-          <div class="bg-dark-surface border border-white/5 rounded p-3">
-            <p class="text-[10px] text-neutral-500 uppercase tracking-widest">Duração</p>
-            <p id="dm-duration" class="text-base font-bold text-neutral-200 tabular-nums mt-1">—</p>
+          <div class="bg-slate-100 border border-slate-200 rounded p-3">
+            <p class="text-[10px] text-slate-500 uppercase tracking-widest">Duração</p>
+            <p id="dm-duration" class="text-base font-bold text-slate-800 tabular-nums mt-1">—</p>
           </div>
-          <div class="bg-dark-surface border border-white/5 rounded p-3">
-            <p class="text-[10px] text-neutral-500 uppercase tracking-widest">Valor</p>
-            <p id="dm-price" class="text-base font-bold text-neutral-200 tabular-nums mt-1">—</p>
+          <div class="bg-slate-100 border border-slate-200 rounded p-3">
+            <p class="text-[10px] text-slate-500 uppercase tracking-widest">Valor</p>
+            <p id="dm-price" class="text-base font-bold text-slate-800 tabular-nums mt-1">—</p>
           </div>
         </div>
 
         <!-- Ficha do cliente -->
         <div>
-          <p class="text-[10px] text-neutral-500 uppercase tracking-widest mb-1.5">Cliente</p>
-          <div id="dm-stats" class="text-xs text-neutral-600 italic">Carregando…</div>
+          <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-1.5">Cliente</p>
+          <div id="dm-stats" class="text-xs text-slate-400 italic">Carregando…</div>
         </div>
 
         <!-- Contato -->
         <div>
-          <p class="text-[10px] text-neutral-500 uppercase tracking-widest mb-1.5">Contato</p>
+          <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-1.5">Contato</p>
           <div class="flex items-center gap-2">
             <a id="dm-tel" href="#"
-               class="flex-1 bg-dark-surface border border-white/5 hover:border-teal/30 rounded px-3 py-2 text-sm text-neutral-200 tabular-nums transition-colors flex items-center gap-2">
-              <svg class="w-4 h-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+               class="flex-1 bg-slate-100 border border-slate-200 hover:border-teal/30 rounded px-3 py-2 text-sm text-slate-800 tabular-nums transition-colors flex items-center gap-2">
+              <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
               </svg>
               <span id="dm-phone">—</span>
             </a>
             <button id="dm-copy-phone" type="button"
-                    class="px-2.5 py-2 rounded border border-white/10 hover:border-teal/30 text-neutral-400 hover:text-teal-light transition-colors text-xs"
+                    class="px-2.5 py-2 rounded border border-slate-200 hover:border-teal/30 text-slate-500 hover:text-teal transition-colors text-xs"
                     title="Copiar telefone">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
               </svg>
             </button>
             <button id="dm-whatsapp" type="button" data-action="wa-menu" data-id=""
-               class="px-2.5 py-2 rounded border border-green-500/30 hover:bg-green-500/10 text-green-400 transition-colors"
+               class="px-2.5 py-2 rounded border border-green-500/30 hover:bg-green-500/10 text-green-600 transition-colors"
                title="Mensagens rápidas no WhatsApp">
               <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884"/>
@@ -936,13 +936,13 @@ const clientData = {
 
         <!-- Notas -->
         <div>
-          <p class="text-[10px] text-neutral-500 uppercase tracking-widest mb-1.5">Notas internas</p>
+          <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-1.5">Notas internas</p>
           <textarea id="dm-notes" rows="3" placeholder="Ex: alérgico a barba feita com lâmina..."
-                    class="w-full bg-dark-surface border border-white/10 focus:border-teal/40 rounded px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 outline-none resize-none transition-colors"></textarea>
+                    class="w-full bg-slate-100 border border-slate-200 focus:border-teal/40 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 outline-none resize-none transition-colors"></textarea>
           <div class="flex items-center justify-between mt-1.5 h-4">
-            <span id="dm-notes-status" class="text-[10px] text-neutral-600"></span>
+            <span id="dm-notes-status" class="text-[10px] text-slate-400"></span>
             <button id="dm-notes-save"
-                    class="text-[10px] text-teal-light hover:text-teal font-medium uppercase tracking-widest hidden">
+                    class="text-[10px] text-teal hover:text-teal font-medium uppercase tracking-widest hidden">
               Salvar notas
             </button>
           </div>
@@ -954,47 +954,47 @@ const clientData = {
         <!-- Histórico do cliente -->
         <div>
           <div class="flex items-center justify-between mb-1.5">
-            <p class="text-[10px] text-neutral-500 uppercase tracking-widest">Histórico</p>
-            <span id="dm-history-count" class="text-[10px] text-neutral-600 tabular-nums"></span>
+            <p class="text-[10px] text-slate-500 uppercase tracking-widest">Histórico</p>
+            <span id="dm-history-count" class="text-[10px] text-slate-400 tabular-nums"></span>
           </div>
           <div id="dm-history" class="space-y-1.5 text-xs">
-            <p class="text-neutral-600 italic">Carregando...</p>
+            <p class="text-slate-400 italic">Carregando...</p>
           </div>
         </div>
 
         <!-- Editar cliente (collapsible) -->
         <details class="group">
-          <summary class="cursor-pointer text-[10px] text-neutral-500 hover:text-neutral-300 uppercase tracking-widest list-none flex items-center gap-1 transition-colors">
+          <summary class="cursor-pointer text-[10px] text-slate-500 hover:text-slate-700 uppercase tracking-widest list-none flex items-center gap-1 transition-colors">
             <svg class="w-3 h-3 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
             </svg>
             Editar dados do cliente
           </summary>
-          <div class="mt-3 space-y-2 border-l border-white/5 pl-3">
+          <div class="mt-3 space-y-2 border-l border-slate-200 pl-3">
             <div>
-              <label class="block text-[10px] text-neutral-500 uppercase tracking-widest mb-1">Nome completo</label>
+              <label class="block text-[10px] text-slate-500 uppercase tracking-widest mb-1">Nome completo</label>
               <input id="dm-edit-name" type="text"
-                     class="w-full bg-dark-surface border border-white/10 focus:border-teal/40 rounded px-3 py-2 text-sm text-neutral-200 outline-none transition-colors" />
+                     class="w-full bg-slate-100 border border-slate-200 focus:border-teal/40 rounded px-3 py-2 text-sm text-slate-800 outline-none transition-colors" />
             </div>
             <div class="space-y-3">
               <div>
-                <label class="block text-[10px] text-neutral-500 uppercase tracking-widest mb-1">Telefone</label>
+                <label class="block text-[10px] text-slate-500 uppercase tracking-widest mb-1">Telefone</label>
                 <input id="dm-edit-phone" type="tel" inputmode="numeric" maxlength="16" placeholder="(84) 99999-9999"
-                       class="w-full bg-dark-surface border border-white/10 focus:border-teal/40 rounded px-3 py-2 text-sm text-neutral-200 tabular-nums outline-none transition-colors" />
+                       class="w-full bg-slate-100 border border-slate-200 focus:border-teal/40 rounded px-3 py-2 text-sm text-slate-800 tabular-nums outline-none transition-colors" />
               </div>
               <div>
-                <label class="block text-[10px] text-neutral-500 uppercase tracking-widest mb-1">Nascimento</label>
+                <label class="block text-[10px] text-slate-500 uppercase tracking-widest mb-1">Nascimento</label>
                 <input id="dm-edit-birthdate" type="text" inputmode="numeric" maxlength="10" placeholder="dd/mm/aaaa"
-                       class="w-full bg-dark-surface border border-white/10 focus:border-teal/40 rounded px-3 py-2 text-sm text-neutral-200 tabular-nums outline-none transition-colors" />
+                       class="w-full bg-slate-100 border border-slate-200 focus:border-teal/40 rounded px-3 py-2 text-sm text-slate-800 tabular-nums outline-none transition-colors" />
               </div>
             </div>
-            <p class="text-[10px] text-neutral-600 leading-relaxed">
+            <p class="text-[10px] text-slate-400 leading-relaxed">
               A alteração propaga pra todos os agendamentos com este telefone.
             </p>
             <div class="flex items-center justify-between h-5">
-              <span id="dm-edit-status" class="text-[10px] text-neutral-600"></span>
+              <span id="dm-edit-status" class="text-[10px] text-slate-400"></span>
               <button id="dm-edit-save"
-                      class="text-[10px] text-teal-light hover:text-teal font-medium uppercase tracking-widest hidden">
+                      class="text-[10px] text-teal hover:text-teal font-medium uppercase tracking-widest hidden">
                 Salvar
               </button>
             </div>
@@ -1006,11 +1006,11 @@ const clientData = {
         <div class="space-y-4 sm:col-span-2 lg:col-span-1">
         <!-- Mover horário -->
         <div>
-          <p class="text-[10px] text-neutral-500 uppercase tracking-widest mb-1.5">Mover horário</p>
+          <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-1.5">Mover horário</p>
           <div class="space-y-2">
             <input id="dm-move-date" type="date"
-                   class="w-full bg-dark-surface border border-white/10 focus:border-teal/40 rounded px-3 py-2 text-sm text-neutral-200 outline-none transition-colors" />
-            <div id="dm-move-slots" class="text-xs text-neutral-500 min-h-[2rem]">
+                   class="w-full bg-slate-100 border border-slate-200 focus:border-teal/40 rounded px-3 py-2 text-sm text-slate-800 outline-none transition-colors" />
+            <div id="dm-move-slots" class="text-xs text-slate-500 min-h-[2rem]">
               Selecione uma data acima.
             </div>
             <button id="dm-move-confirm" disabled
@@ -1025,23 +1025,23 @@ const clientData = {
 
       <!-- Última modificação (auditoria) -->
       <div id="dm-audit" class="hidden px-5 pb-2 -mt-2">
-        <p class="text-[10px] text-neutral-600">
-          Última alteração: <span id="dm-audit-text" class="text-neutral-500">—</span>
+        <p class="text-[10px] text-slate-400">
+          Última alteração: <span id="dm-audit-text" class="text-slate-500">—</span>
         </p>
       </div>
 
       <!-- Footer com ações principais (fixo no rodapé do modal) -->
-      <div class="border-t border-white/5 p-4 flex gap-2 sticky bottom-0 bg-dark-card z-10">
+      <div class="border-t border-slate-200 p-4 flex gap-2 sticky bottom-0 bg-white z-10">
         <button data-action="complete" data-id="" id="dm-complete"
-                class="flex-1 border border-teal/30 hover:bg-teal/15 text-teal-light text-xs font-bold uppercase tracking-widest py-2.5 rounded transition-colors">
+                class="flex-1 border border-teal/30 hover:bg-teal/15 text-teal text-xs font-bold uppercase tracking-widest py-2.5 rounded transition-colors">
           ✓ Concluir
         </button>
         <button data-action="no-show" data-id="" id="dm-noshow"
-                class="flex-1 border border-amber-500/25 hover:bg-amber-500/10 text-amber-400 text-xs font-bold uppercase tracking-widest py-2.5 rounded transition-colors">
+                class="flex-1 border border-amber-500/25 hover:bg-amber-500/10 text-amber-600 text-xs font-bold uppercase tracking-widest py-2.5 rounded transition-colors">
           No-show
         </button>
         <button data-action="cancel" data-id="" id="dm-cancel"
-                class="flex-1 border border-red-500/25 hover:bg-red-500/10 text-red-400 text-xs font-bold uppercase tracking-widest py-2.5 rounded transition-colors">
+                class="flex-1 border border-red-500/25 hover:bg-red-500/10 text-red-600 text-xs font-bold uppercase tracking-widest py-2.5 rounded transition-colors">
           Cancelar
         </button>
       </div>
@@ -1050,77 +1050,77 @@ const clientData = {
 
   <!-- Modal: fechar comanda -->
   <div id="comanda-modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm">
-    <div class="bg-dark-card border border-white/10 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
-      <div class="flex items-center justify-between px-5 py-4 border-b border-white/5">
+    <div class="bg-white border border-slate-200 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
         <div class="min-w-0">
-          <h3 class="text-base font-medium text-neutral-100">Fechar atendimento</h3>
-          <p id="cm-appt" class="text-xs text-neutral-500 mt-0.5 truncate">—</p>
+          <h3 class="text-base font-medium text-slate-900">Fechar atendimento</h3>
+          <p id="cm-appt" class="text-xs text-slate-500 mt-0.5 truncate">—</p>
         </div>
-        <button id="cm-close" class="text-neutral-500 hover:text-neutral-300 shrink-0 ml-3" aria-label="Fechar">
+        <button id="cm-close" class="text-slate-500 hover:text-slate-700 shrink-0 ml-3" aria-label="Fechar">
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
 
       <div class="px-5 py-4 space-y-4">
         <div class="flex items-center justify-between text-sm">
-          <span id="cm-main-name" class="text-neutral-300 truncate">Serviço</span>
-          <span id="cm-main-price" class="text-neutral-200 tabular-nums shrink-0 ml-3">R$ 0</span>
+          <span id="cm-main-name" class="text-slate-700 truncate">Serviço</span>
+          <span id="cm-main-price" class="text-slate-800 tabular-nums shrink-0 ml-3">R$ 0</span>
         </div>
 
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Adicionar serviço extra</label>
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Adicionar serviço extra</label>
           <div class="flex gap-2">
-            <select id="cm-extra-select" class="flex-1 min-w-0 bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50">
+            <select id="cm-extra-select" class="flex-1 min-w-0 bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50">
               <option value="">Selecione…</option>
             </select>
-            <button id="cm-extra-add" class="shrink-0 px-3 py-2 border border-teal/30 text-teal-light text-sm rounded hover:bg-teal/10 transition-colors">Adicionar</button>
+            <button id="cm-extra-add" class="shrink-0 px-3 py-2 border border-teal/30 text-teal text-sm rounded hover:bg-teal/10 transition-colors">Adicionar</button>
           </div>
         </div>
 
         <div id="cm-extras" class="space-y-2"></div>
 
-        <div class="flex items-center justify-between pt-3 border-t border-white/5">
-          <span class="text-sm text-neutral-400">Total</span>
-          <span id="cm-total" class="text-lg font-bold text-teal-light tabular-nums">R$ 0</span>
+        <div class="flex items-center justify-between pt-3 border-t border-slate-200">
+          <span class="text-sm text-slate-500">Total</span>
+          <span id="cm-total" class="text-lg font-bold text-teal tabular-nums">R$ 0</span>
         </div>
       </div>
 
-      <div class="flex gap-2 px-5 py-4 border-t border-white/5">
+      <div class="flex gap-2 px-5 py-4 border-t border-slate-200">
         <button id="cm-confirm" class="flex-1 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest py-2.5 rounded text-xs transition-colors">Concluir e fechar</button>
-        <button id="cm-cancel" class="px-4 border border-white/10 text-neutral-400 hover:text-neutral-200 rounded text-xs transition-colors">Cancelar</button>
+        <button id="cm-cancel" class="px-4 border border-slate-200 text-slate-500 hover:text-slate-800 rounded text-xs transition-colors">Cancelar</button>
       </div>
     </div>
   </div>
 
   <!-- Modal: ação rápida no espaço vazio da timeline -->
   <div id="express-modal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm">
-    <div class="bg-dark-card border border-white/10 rounded-t-lg sm:rounded-lg shadow-2xl max-w-sm w-full p-5">
+    <div class="bg-white border border-slate-200 rounded-t-lg sm:rounded-lg shadow-2xl max-w-sm w-full p-5">
       <div class="flex items-start justify-between gap-3 mb-4">
-        <p class="text-sm font-medium text-neutral-100">
-          <span id="ex-time" class="text-teal-light tabular-nums">—</span> — o que fazer?
+        <p class="text-sm font-medium text-slate-900">
+          <span id="ex-time" class="text-teal tabular-nums">—</span> — o que fazer?
         </p>
-        <button id="ex-close" type="button" class="text-neutral-500 hover:text-neutral-200 text-xl leading-none -mt-1 -mr-1 p-1">×</button>
+        <button id="ex-close" type="button" class="text-slate-500 hover:text-slate-800 text-xl leading-none -mt-1 -mr-1 p-1">×</button>
       </div>
 
       <div class="space-y-2">
         <button id="ex-agendar" type="button"
-           class="w-full text-left bg-dark-surface border border-white/5 hover:border-teal/40 rounded-md px-3 py-2.5 transition-colors group">
-          <p class="text-sm font-medium text-neutral-200 group-hover:text-teal-light transition-colors">📅 Encaixar cliente</p>
-          <p class="text-[11px] text-neutral-500 mt-0.5">Barbeiro e horário já preenchidos — só escolher serviço, nome e telefone</p>
+           class="w-full text-left bg-slate-100 border border-slate-200 hover:border-teal/40 rounded-md px-3 py-2.5 transition-colors group">
+          <p class="text-sm font-medium text-slate-800 group-hover:text-teal transition-colors">📅 Encaixar cliente</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">Barbeiro e horário já preenchidos — só escolher serviço, nome e telefone</p>
         </button>
         <button id="ex-block-30" type="button" data-ex-minutes="30"
-           class="w-full text-left bg-dark-surface border border-white/5 hover:border-red-500/40 rounded-md px-3 py-2.5 transition-colors group disabled:opacity-40 disabled:cursor-not-allowed">
-          <p class="text-sm font-medium text-neutral-200 group-hover:text-red-400 transition-colors">☕ Bloquear 30 min</p>
-          <p class="text-[11px] text-neutral-500 mt-0.5">Café, descanso, encaixe pessoal</p>
+           class="w-full text-left bg-slate-100 border border-slate-200 hover:border-red-500/40 rounded-md px-3 py-2.5 transition-colors group disabled:opacity-40 disabled:cursor-not-allowed">
+          <p class="text-sm font-medium text-slate-800 group-hover:text-red-600 transition-colors">☕ Bloquear 30 min</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">Café, descanso, encaixe pessoal</p>
         </button>
         <button id="ex-block-60" type="button" data-ex-minutes="60"
-           class="w-full text-left bg-dark-surface border border-white/5 hover:border-red-500/40 rounded-md px-3 py-2.5 transition-colors group disabled:opacity-40 disabled:cursor-not-allowed">
-          <p class="text-sm font-medium text-neutral-200 group-hover:text-red-400 transition-colors">🍽️ Bloquear 1 hora</p>
-          <p class="text-[11px] text-neutral-500 mt-0.5">Almoço, emergência</p>
+           class="w-full text-left bg-slate-100 border border-slate-200 hover:border-red-500/40 rounded-md px-3 py-2.5 transition-colors group disabled:opacity-40 disabled:cursor-not-allowed">
+          <p class="text-sm font-medium text-slate-800 group-hover:text-red-600 transition-colors">🍽️ Bloquear 1 hora</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">Almoço, emergência</p>
         </button>
       </div>
 
-      <p id="ex-hint" class="hidden text-[11px] text-amber-400/80 mt-3">
+      <p id="ex-hint" class="hidden text-[11px] text-amber-600/80 mt-3">
         Na visão "Todos", filtre por um barbeiro para usar o bloqueio rápido.
       </p>
     </div>
@@ -1128,33 +1128,33 @@ const clientData = {
 
   <!-- Modal: mensagens rápidas WhatsApp -->
   <div id="wa-modal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm">
-    <div class="bg-dark-card border border-white/10 rounded-t-lg sm:rounded-lg shadow-2xl max-w-sm w-full p-5">
+    <div class="bg-white border border-slate-200 rounded-t-lg sm:rounded-lg shadow-2xl max-w-sm w-full p-5">
       <div class="flex items-start justify-between gap-3 mb-1">
-        <p class="text-sm font-medium text-neutral-100">Enviar WhatsApp</p>
-        <button id="wa-close" type="button" class="text-neutral-500 hover:text-neutral-200 text-xl leading-none -mt-1 -mr-1 p-1">×</button>
+        <p class="text-sm font-medium text-slate-900">Enviar WhatsApp</p>
+        <button id="wa-close" type="button" class="text-slate-500 hover:text-slate-800 text-xl leading-none -mt-1 -mr-1 p-1">×</button>
       </div>
-      <p id="wa-sub" class="text-xs text-neutral-500 mb-4 truncate">—</p>
+      <p id="wa-sub" class="text-xs text-slate-500 mb-4 truncate">—</p>
 
       <div class="space-y-2">
         <a id="wa-opt-lembrete" href="#" target="_blank" rel="noopener"
-           class="block bg-dark-surface border border-white/5 hover:border-green-500/40 rounded-md px-3 py-2.5 transition-colors group">
-          <p class="text-sm font-medium text-neutral-200 group-hover:text-green-400 transition-colors">🔔 Lembrete do horário</p>
-          <p data-wa-preview class="text-[11px] text-neutral-500 mt-0.5 line-clamp-2">—</p>
+           class="block bg-slate-100 border border-slate-200 hover:border-green-500/40 rounded-md px-3 py-2.5 transition-colors group">
+          <p class="text-sm font-medium text-slate-800 group-hover:text-green-600 transition-colors">🔔 Lembrete do horário</p>
+          <p data-wa-preview class="text-[11px] text-slate-500 mt-0.5 line-clamp-2">—</p>
         </a>
         <a id="wa-opt-atraso-cliente" href="#" target="_blank" rel="noopener"
-           class="block bg-dark-surface border border-white/5 hover:border-green-500/40 rounded-md px-3 py-2.5 transition-colors group">
-          <p class="text-sm font-medium text-neutral-200 group-hover:text-green-400 transition-colors">🏃 Cliente atrasado — está a caminho?</p>
-          <p data-wa-preview class="text-[11px] text-neutral-500 mt-0.5 line-clamp-2">—</p>
+           class="block bg-slate-100 border border-slate-200 hover:border-green-500/40 rounded-md px-3 py-2.5 transition-colors group">
+          <p class="text-sm font-medium text-slate-800 group-hover:text-green-600 transition-colors">🏃 Cliente atrasado — está a caminho?</p>
+          <p data-wa-preview class="text-[11px] text-slate-500 mt-0.5 line-clamp-2">—</p>
         </a>
         <a id="wa-opt-atraso-barbeiro" href="#" target="_blank" rel="noopener"
-           class="block bg-dark-surface border border-white/5 hover:border-green-500/40 rounded-md px-3 py-2.5 transition-colors group">
-          <p class="text-sm font-medium text-neutral-200 group-hover:text-green-400 transition-colors">⏳ Avisar meu atraso (+15 min)</p>
-          <p data-wa-preview class="text-[11px] text-neutral-500 mt-0.5 line-clamp-2">—</p>
+           class="block bg-slate-100 border border-slate-200 hover:border-green-500/40 rounded-md px-3 py-2.5 transition-colors group">
+          <p class="text-sm font-medium text-slate-800 group-hover:text-green-600 transition-colors">⏳ Avisar meu atraso (+15 min)</p>
+          <p data-wa-preview class="text-[11px] text-slate-500 mt-0.5 line-clamp-2">—</p>
         </a>
         <a id="wa-opt-livre" href="#" target="_blank" rel="noopener"
-           class="block bg-dark-surface border border-white/5 hover:border-green-500/40 rounded-md px-3 py-2.5 transition-colors group">
-          <p class="text-sm font-medium text-neutral-200 group-hover:text-green-400 transition-colors">💬 Conversa em branco</p>
-          <p class="text-[11px] text-neutral-500 mt-0.5">Abre o chat sem mensagem pronta</p>
+           class="block bg-slate-100 border border-slate-200 hover:border-green-500/40 rounded-md px-3 py-2.5 transition-colors group">
+          <p class="text-sm font-medium text-slate-800 group-hover:text-green-600 transition-colors">💬 Conversa em branco</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">Abre o chat sem mensagem pronta</p>
         </a>
       </div>
     </div>
@@ -1301,13 +1301,13 @@ const clientData = {
         if (isSelected) {
           cell.className += ' bg-teal text-white font-bold ring-2 ring-teal/30';
         } else if (isToday) {
-          cell.className += ' border border-teal/50 text-teal-light font-semibold hover:bg-teal/10';
+          cell.className += ' border border-teal/50 text-teal font-semibold hover:bg-teal/10';
         } else if (!inMonth) {
-          cell.className += ' text-neutral-700 hover:bg-white/5';
+          cell.className += ' text-slate-300 hover:bg-slate-100';
         } else if (isSunday) {
-          cell.className += ' text-neutral-500 hover:bg-white/5';
+          cell.className += ' text-slate-500 hover:bg-slate-100';
         } else {
-          cell.className += ' text-neutral-300 hover:bg-white/10';
+          cell.className += ' text-slate-700 hover:bg-white/10';
         }
 
         cell.addEventListener('click', () => {
@@ -1381,9 +1381,9 @@ const clientData = {
     const container = document.getElementById('toast-container');
     if (!container) return;
     const el = document.createElement('div');
-    const color = kind === 'error'   ? 'border-red-500/30 bg-red-950/80 text-red-200'
-               : kind === 'success' ? 'border-teal/30 bg-teal/15 text-teal-light'
-               :                       'border-white/10 bg-dark-card text-neutral-200';
+    const color = kind === 'error'   ? 'border-red-500/30 bg-red-600 text-white'
+               : kind === 'success' ? 'border-teal/30 bg-teal/15 text-teal'
+               :                       'border-slate-200 bg-white text-slate-800';
     el.className = `pointer-events-auto px-4 py-2.5 rounded-md border backdrop-blur-sm text-sm shadow-lg transition-all duration-300 ${color}`;
     el.textContent = msg;
     el.style.opacity = '0';
@@ -1434,19 +1434,19 @@ const clientData = {
       row.classList.add('opacity-70');
       const nameEl = row.querySelector('.min-w-0 > p:first-child');
       if (nameEl) {
-        nameEl.classList.remove('text-neutral-100');
-        nameEl.classList.add('text-neutral-500', 'line-through', 'decoration-1');
+        nameEl.classList.remove('text-slate-900');
+        nameEl.classList.add('text-slate-500', 'line-through', 'decoration-1');
       }
       const priceEl = row.querySelector('.text-right > p:first-child');
       if (priceEl) {
-        priceEl.classList.remove('text-teal-light');
-        priceEl.classList.add('text-neutral-600');
+        priceEl.classList.remove('text-teal');
+        priceEl.classList.add('text-slate-400');
       }
       const badge = row.querySelector('[data-list-status]');
       if (badge) {
-        if (newStatus === 'completed')      { badge.textContent = '✓ Concluído'; badge.className = 'text-[10px] tabular-nums text-teal-light/80'; }
-        else if (newStatus === 'cancelled') { badge.textContent = '✕ Cancelado'; badge.className = 'text-[10px] tabular-nums text-red-400/80'; }
-        else if (newStatus === 'no_show')   { badge.textContent = '✗ No-show';   badge.className = 'text-[10px] tabular-nums text-amber-400/80'; }
+        if (newStatus === 'completed')      { badge.textContent = '✓ Concluído'; badge.className = 'text-[10px] tabular-nums text-teal/80'; }
+        else if (newStatus === 'cancelled') { badge.textContent = '✕ Cancelado'; badge.className = 'text-[10px] tabular-nums text-red-600/80'; }
+        else if (newStatus === 'no_show')   { badge.textContent = '✗ No-show';   badge.className = 'text-[10px] tabular-nums text-amber-600/80'; }
       }
     }
 
@@ -1468,9 +1468,9 @@ const clientData = {
     }
     // Vendas de produto avulsas do dia entram na receita (não no contador de agendamentos)
     total += clientData.salesCents || 0;
-    const rev = document.querySelector('section [class*="text-teal-light"][class*="text-3xl"]');
+    const rev = document.querySelector('section [class*="text-teal"][class*="text-3xl"]');
     if (rev) rev.textContent = `R$ ${(total / 100).toFixed(0)}`;
-    const countEl = document.querySelector('section .text-xs.text-neutral-500.mt-0\\.5');
+    const countEl = document.querySelector('section .text-xs.text-slate-500.mt-0\\.5');
     if (countEl) countEl.textContent = `${count} ${count === 1 ? 'agendamento' : 'agendamentos'} considerados (confirmados + concluídos)`;
   }
 
@@ -1704,13 +1704,13 @@ const clientData = {
     // Primeira visita: só existe o agendamento atual.
     if (!stats || (total ?? stats.totalCount) <= 1) {
       dmStats.className = '';
-      dmStats.innerHTML = '<p class="text-xs text-teal-light bg-teal/10 border border-teal/20 rounded px-3 py-2">✨ Primeira visita deste cliente</p>';
+      dmStats.innerHTML = '<p class="text-xs text-teal bg-teal/10 border border-teal/20 rounded px-3 py-2">✨ Primeira visita deste cliente</p>';
       return;
     }
 
-    const riskColor = stats.noShowRate >= 25 ? 'text-red-400'
-                    : stats.noShowRate >= 10 ? 'text-amber-400'
-                    : 'text-neutral-200';
+    const riskColor = stats.noShowRate >= 25 ? 'text-red-600'
+                    : stats.noShowRate >= 10 ? 'text-amber-600'
+                    : 'text-slate-800';
 
     let since = '';
     if (stats.firstVisitAt) {
@@ -1718,40 +1718,40 @@ const clientData = {
       since = d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit', timeZone: 'America/Fortaleza' });
     }
 
-    const cell = (label, value, cls = 'text-neutral-200') => `
-      <div class="bg-dark-surface border border-white/5 rounded p-2 text-center">
-        <p class="text-[9px] text-neutral-500 uppercase tracking-wider">${label}</p>
+    const cell = (label, value, cls = 'text-slate-800') => `
+      <div class="bg-slate-100 border border-slate-200 rounded p-2 text-center">
+        <p class="text-[9px] text-slate-500 uppercase tracking-wider">${label}</p>
         <p class="text-sm font-bold ${cls} tabular-nums mt-0.5">${value}</p>
       </div>`;
 
     dmStats.className = '';
     dmStats.innerHTML = `
       <div class="grid grid-cols-3 gap-2">
-        ${cell('Gasto total', brl(stats.totalSpentCents), 'text-teal-light')}
+        ${cell('Gasto total', brl(stats.totalSpentCents), 'text-teal')}
         ${cell('Visitas', String(stats.completedCount))}
         ${cell('Faltas', `${stats.noShowCount}${stats.noShowRate ? ` · ${stats.noShowRate}%` : ''}`, riskColor)}
       </div>
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px] text-neutral-500">
-        ${stats.favoriteService ? `<span>Favorito: <span class="text-neutral-300">${stats.favoriteService}</span></span>` : ''}
-        ${since ? `<span>Cliente desde <span class="text-neutral-300">${since}</span></span>` : ''}
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px] text-slate-500">
+        ${stats.favoriteService ? `<span>Favorito: <span class="text-slate-700">${stats.favoriteService}</span></span>` : ''}
+        ${since ? `<span>Cliente desde <span class="text-slate-700">${since}</span></span>` : ''}
       </div>`;
   }
 
   async function loadHistory(id) {
     if (!dmHistory) return;
-    dmHistory.innerHTML = '<p class="text-neutral-600 italic">Carregando...</p>';
+    dmHistory.innerHTML = '<p class="text-slate-400 italic">Carregando...</p>';
     if (dmHistoryCount) dmHistoryCount.textContent = '';
     try {
       const res = await fetch(`/api/admin/appointments/${id}/history?limit=5`);
       const data = await res.json();
       if (!res.ok) {
-        dmHistory.innerHTML = '<p class="text-red-400">Erro ao carregar histórico</p>';
-        if (dmStats) { dmStats.className = 'text-xs text-neutral-600 italic'; dmStats.textContent = ''; }
+        dmHistory.innerHTML = '<p class="text-red-600">Erro ao carregar histórico</p>';
+        if (dmStats) { dmStats.className = 'text-xs text-slate-400 italic'; dmStats.textContent = ''; }
         return;
       }
       renderClientStats(data.stats, data.total);
       if (!data.history?.length) {
-        dmHistory.innerHTML = '<p class="text-neutral-600">Primeira visita deste cliente.</p>';
+        dmHistory.innerHTML = '<p class="text-slate-400">Primeira visita deste cliente.</p>';
         if (dmHistoryCount) dmHistoryCount.textContent = '1 total';
         return;
       }
@@ -1761,27 +1761,27 @@ const clientData = {
         const dateLabel = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit' });
         const timeLabel = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Fortaleza' });
         const price = `R$ ${(h.priceCents / 100).toFixed(0)}`;
-        const statusColor = h.status === 'completed' ? 'text-teal-light'
-                         : h.status === 'cancelled' ? 'text-red-400/70'
-                         : h.status === 'no_show'   ? 'text-amber-400/80'
-                         :                            'text-neutral-300';
+        const statusColor = h.status === 'completed' ? 'text-teal'
+                         : h.status === 'cancelled' ? 'text-red-600/70'
+                         : h.status === 'no_show'   ? 'text-amber-600/80'
+                         :                            'text-slate-700';
         const statusIcon = h.status === 'completed' ? '✓'
                         : h.status === 'cancelled' ? '✕'
                         : h.status === 'no_show'   ? '✗'
                         :                            '•';
         return `
-          <div class="flex items-center gap-2 py-1.5 px-2 bg-dark-surface/50 rounded border border-white/5">
+          <div class="flex items-center gap-2 py-1.5 px-2 bg-slate-100/50 rounded border border-slate-200">
             <span class="${statusColor} text-xs w-3 text-center">${statusIcon}</span>
             <div class="flex-1 min-w-0">
-              <p class="text-neutral-300 truncate">${h.serviceName} <span class="text-neutral-600">· ${h.barberName.split(' ')[0]}</span></p>
-              <p class="text-neutral-600 text-[10px] tabular-nums">${dateLabel} · ${timeLabel}</p>
+              <p class="text-slate-700 truncate">${h.serviceName} <span class="text-slate-400">· ${h.barberName.split(' ')[0]}</span></p>
+              <p class="text-slate-400 text-[10px] tabular-nums">${dateLabel} · ${timeLabel}</p>
             </div>
-            <span class="text-neutral-500 text-[11px] tabular-nums shrink-0">${price}</span>
+            <span class="text-slate-500 text-[11px] tabular-nums shrink-0">${price}</span>
           </div>
         `;
       }).join('');
     } catch {
-      dmHistory.innerHTML = '<p class="text-red-400">Erro ao carregar histórico</p>';
+      dmHistory.innerHTML = '<p class="text-red-600">Erro ao carregar histórico</p>';
     }
   }
 
@@ -1793,10 +1793,10 @@ const clientData = {
       ? null
       : parseBirthdateInput(dmEditBirthdate.value);
 
-    if (name.length < 2)         { dmEditStatus.textContent = 'Nome muito curto'; dmEditStatus.className = 'text-[10px] text-red-400'; return; }
-    if (phoneDigits.length < 10) { dmEditStatus.textContent = 'Telefone inválido'; dmEditStatus.className = 'text-[10px] text-red-400'; return; }
+    if (name.length < 2)         { dmEditStatus.textContent = 'Nome muito curto'; dmEditStatus.className = 'text-[10px] text-red-600'; return; }
+    if (phoneDigits.length < 10) { dmEditStatus.textContent = 'Telefone inválido'; dmEditStatus.className = 'text-[10px] text-red-600'; return; }
     if (dmEditBirthdate.value.trim() !== '' && !birthdateIso) {
-      dmEditStatus.textContent = 'Data inválida'; dmEditStatus.className = 'text-[10px] text-red-400'; return;
+      dmEditStatus.textContent = 'Data inválida'; dmEditStatus.className = 'text-[10px] text-red-600'; return;
     }
 
     dmEditStatus.textContent = '';
@@ -1814,7 +1814,7 @@ const clientData = {
     if (ok) {
       editOriginal = { name: dmEditName.value, phone: dmEditPhone.value, birthdate: dmEditBirthdate.value };
       dmEditSave.classList.add('hidden');
-      dmEditStatus.className = 'text-[10px] text-teal-light';
+      dmEditStatus.className = 'text-[10px] text-teal';
       dmEditStatus.textContent = data.propagated
         ? `Atualizado em ${data.updated} agendamento${data.updated > 1 ? 's' : ''}`
         : 'Atualizado';
@@ -1842,7 +1842,7 @@ const clientData = {
       }
       toast('Cliente atualizado', 'success');
     } else {
-      dmEditStatus.className = 'text-[10px] text-red-400';
+      dmEditStatus.className = 'text-[10px] text-red-600';
       dmEditStatus.textContent = data.error ?? 'Erro';
     }
   });
@@ -1876,7 +1876,7 @@ const clientData = {
     dmEditStatus.textContent = '';
 
     // Ficha do cliente: reseta, marca aniversário e carrega stats + histórico
-    if (dmStats) { dmStats.className = 'text-xs text-neutral-600 italic'; dmStats.textContent = 'Carregando…'; }
+    if (dmStats) { dmStats.className = 'text-xs text-slate-400 italic'; dmStats.textContent = 'Carregando…'; }
     setBirthdayBadge(appt.customerBirthdate);
     loadHistory(id);
 
@@ -1895,7 +1895,7 @@ const clientData = {
     // Mover horário: data atual default
     dmMoveDate.value = clientData.date;
     dmMoveDate.min = clientData.todayStr;
-    dmMoveSlots.innerHTML = '<span class="text-neutral-500">Selecione uma data acima.</span>';
+    dmMoveSlots.innerHTML = '<span class="text-slate-500">Selecione uma data acima.</span>';
     dmMoveConfirm.disabled = true;
 
     // Bloquear ações se status != confirmed
@@ -1964,7 +1964,7 @@ const clientData = {
     if (!appt) return;
     const targetDate = dmMoveDate.value;
     if (!targetDate) return;
-    dmMoveSlots.innerHTML = '<span class="text-neutral-500">Carregando horários...</span>';
+    dmMoveSlots.innerHTML = '<span class="text-slate-500">Carregando horários...</span>';
     dmMoveConfirm.disabled = true;
     currentMoveSlot = null;
 
@@ -2002,13 +2002,13 @@ const clientData = {
         btn.type = 'button';
         btn.textContent = label;
         btn.dataset.iso = utc;
-        btn.className = 'text-xs px-2 py-1.5 border border-white/10 rounded text-neutral-300 hover:border-teal/40 hover:text-teal-light transition-colors tabular-nums';
+        btn.className = 'text-xs px-2 py-1.5 border border-slate-200 rounded text-slate-700 hover:border-teal/40 hover:text-teal transition-colors tabular-nums';
         // Marca o atual desabilitado
         if (utc === '' /* impossivel */) {/* placeholder */}
         btn.addEventListener('click', () => {
           grid.querySelectorAll('button').forEach(b =>
-            b.classList.remove('bg-teal/20', 'border-teal/50', 'text-teal-light'));
-          btn.classList.add('bg-teal/20', 'border-teal/50', 'text-teal-light');
+            b.classList.remove('bg-teal/20', 'border-teal/50', 'text-teal'));
+          btn.classList.add('bg-teal/20', 'border-teal/50', 'text-teal');
           currentMoveSlot = utc;
           dmMoveConfirm.disabled = false;
         });
@@ -2016,7 +2016,7 @@ const clientData = {
       }
       dmMoveSlots.appendChild(grid);
     } catch {
-      dmMoveSlots.innerHTML = '<span class="text-red-400">Erro ao carregar.</span>';
+      dmMoveSlots.innerHTML = '<span class="text-red-600">Erro ao carregar.</span>';
     }
   }
   dmMoveDate?.addEventListener('change', loadMoveSlots);
@@ -2198,8 +2198,8 @@ const clientData = {
       list.innerHTML = '';
       comandaExtras.forEach((ex, i) => {
         const row = document.createElement('div');
-        row.className = 'flex items-center justify-between gap-2 text-sm bg-dark-surface rounded px-3 py-2';
-        row.innerHTML = `<span class="text-neutral-300">${ex.name}</span><span class="flex items-center gap-3"><span class="text-neutral-400 tabular-nums">R$ ${Math.round(ex.priceCents / 100)}</span><button type="button" data-cm-remove="${i}" class="text-red-400/70 hover:text-red-400" aria-label="Remover">✕</button></span>`;
+        row.className = 'flex items-center justify-between gap-2 text-sm bg-slate-100 rounded px-3 py-2';
+        row.innerHTML = `<span class="text-slate-700">${ex.name}</span><span class="flex items-center gap-3"><span class="text-slate-500 tabular-nums">R$ ${Math.round(ex.priceCents / 100)}</span><button type="button" data-cm-remove="${i}" class="text-red-600/70 hover:text-red-600" aria-label="Remover">✕</button></span>`;
         list.appendChild(row);
       });
     }
@@ -2332,12 +2332,12 @@ const clientData = {
 
     function saleRow(sale: any) {
       const row = document.createElement('div');
-      row.className = 'flex items-center gap-3 bg-dark-card border border-white/5 rounded-md px-4 py-2.5';
+      row.className = 'flex items-center gap-3 bg-white border border-slate-200 rounded-md px-4 py-2.5';
       row.dataset.saleId = String(sale.id);
       row.dataset.cents  = String(sale.priceCents);
-      const who = (clientData.role === 'admin' && sale.barberName) ? `<p class="text-[10px] text-neutral-600">${escSale(sale.barberName.split(' ')[0])}</p>` : '';
-      const q = sale.quantity > 1 ? ` <span class="text-neutral-500">×${sale.quantity}</span>` : '';
-      row.innerHTML = `<div class="flex-1 min-w-0"><p class="text-sm text-neutral-200 truncate">${escSale(sale.name)}${q}</p>${who}</div><span class="text-sm font-semibold text-teal-light tabular-nums shrink-0">${brlSale(sale.priceCents)}</span><button type="button" data-sale-remove="${sale.id}" class="text-neutral-600 hover:text-red-400 transition-colors shrink-0" aria-label="Remover venda">✕</button>`;
+      const who = (clientData.role === 'admin' && sale.barberName) ? `<p class="text-[10px] text-slate-400">${escSale(sale.barberName.split(' ')[0])}</p>` : '';
+      const q = sale.quantity > 1 ? ` <span class="text-slate-500">×${sale.quantity}</span>` : '';
+      row.innerHTML = `<div class="flex-1 min-w-0"><p class="text-sm text-slate-800 truncate">${escSale(sale.name)}${q}</p>${who}</div><span class="text-sm font-semibold text-teal tabular-nums shrink-0">${brlSale(sale.priceCents)}</span><button type="button" data-sale-remove="${sale.id}" class="text-slate-400 hover:text-red-600 transition-colors shrink-0" aria-label="Remover venda">✕</button>`;
       return row;
     }
 
@@ -2427,12 +2427,12 @@ const clientData = {
     const serviceId = document.getElementById('m-service')?.value;
 
     if (!barberId || !serviceId) {
-      slotsWrap.innerHTML = '<span class="text-neutral-500">Selecione barbeiro e serviço primeiro.</span>';
+      slotsWrap.innerHTML = '<span class="text-slate-500">Selecione barbeiro e serviço primeiro.</span>';
       selectedSlot = null;
       return;
     }
 
-    slotsWrap.innerHTML = '<span class="text-neutral-500">Carregando...</span>';
+    slotsWrap.innerHTML = '<span class="text-slate-500">Carregando...</span>';
     selectedSlot = null;
 
     try {
@@ -2440,7 +2440,7 @@ const clientData = {
       const data = await res.json();
 
       if (!data.slots?.length) {
-        slotsWrap.innerHTML = '<span class="text-neutral-500">Nenhum horário disponível.</span>';
+        slotsWrap.innerHTML = '<span class="text-slate-500">Nenhum horário disponível.</span>';
         return;
       }
 
@@ -2468,11 +2468,11 @@ const clientData = {
         btn.textContent = label;
         btn.dataset.iso = isoStr;
         btn.dataset.time = label;
-        btn.className   = 'text-xs px-3 py-1.5 border border-white/10 rounded text-neutral-400 hover:border-teal/40 hover:text-teal-light transition-colors';
+        btn.className   = 'text-xs px-3 py-1.5 border border-slate-200 rounded text-slate-500 hover:border-teal/40 hover:text-teal transition-colors';
         btn.addEventListener('click', () => {
           slotsWrap.querySelectorAll('button').forEach(b =>
-            b.classList.remove('bg-teal/20', 'border-teal/50', 'text-teal-light'));
-          btn.classList.add('bg-teal/20', 'border-teal/50', 'text-teal-light');
+            b.classList.remove('bg-teal/20', 'border-teal/50', 'text-teal'));
+          btn.classList.add('bg-teal/20', 'border-teal/50', 'text-teal');
           selectedSlot = isoStr;
         });
         grid.appendChild(btn);
@@ -2496,7 +2496,7 @@ const clientData = {
         document.getElementById('m-name')?.focus();
       }
     } catch {
-      slotsWrap.innerHTML = '<span class="text-red-400">Erro ao carregar horários.</span>';
+      slotsWrap.innerHTML = '<span class="text-red-600">Erro ao carregar horários.</span>';
     }
   }
 

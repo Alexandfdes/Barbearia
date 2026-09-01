@@ -14,17 +14,17 @@ if (session) return Astro.redirect('/admin');
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Login — Bayron Admin</title>
   </head>
-  <body class="bg-dark text-neutral-200 min-h-screen flex items-center justify-center px-4">
+  <body class="bg-slate-50 text-slate-800 min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-sm">
 
       <div class="text-center mb-8">
-        <p class="text-xs text-neutral-500 uppercase tracking-widest mb-1">Barbearia Bayron</p>
-        <h1 class="font-serif text-2xl font-medium text-neutral-50">Painel Admin</h1>
+        <p class="text-xs text-slate-500 uppercase tracking-widest mb-1">Barbearia Bayron</p>
+        <h1 class="font-serif text-2xl font-medium text-slate-900">Painel Admin</h1>
       </div>
 
-      <form id="login-form" class="bg-dark-card border border-white/5 rounded-md p-6 space-y-4">
+      <form id="login-form" class="bg-white border border-slate-200 rounded-md p-6 space-y-4">
         <div>
-          <label for="slug" class="block text-xs text-neutral-500 uppercase tracking-widest mb-2">
+          <label for="slug" class="block text-xs text-slate-500 uppercase tracking-widest mb-2">
             Usuário
           </label>
           <input
@@ -32,12 +32,12 @@ if (session) return Astro.redirect('/admin');
             type="text"
             autocomplete="username"
             autofocus
-            class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2.5 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-teal/50 transition-colors"
+            class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-teal/50 transition-colors"
           />
         </div>
 
         <div>
-          <label for="password" class="block text-xs text-neutral-500 uppercase tracking-widest mb-2">
+          <label for="password" class="block text-xs text-slate-500 uppercase tracking-widest mb-2">
             Senha
           </label>
           <div class="relative">
@@ -45,14 +45,14 @@ if (session) return Astro.redirect('/admin');
               id="password"
               type="password"
               autocomplete="current-password"
-              class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2.5 pr-11 text-sm text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-teal/50 transition-colors"
+              class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2.5 pr-11 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-teal/50 transition-colors"
             />
             <button
               type="button"
               id="toggle-password"
               aria-label="Mostrar senha"
               aria-pressed="false"
-              class="absolute inset-y-0 right-0 flex items-center px-3 text-neutral-500 hover:text-neutral-200 focus:outline-none focus:text-neutral-200 transition-colors"
+              class="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 hover:text-slate-800 focus:outline-none focus:text-slate-800 transition-colors"
             >
               <svg id="icon-eye" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
@@ -68,7 +68,7 @@ if (session) return Astro.redirect('/admin');
           </div>
         </div>
 
-        <div id="login-error" class="hidden text-red-400 text-sm text-center py-1"></div>
+        <div id="login-error" class="hidden text-red-600 text-sm text-center py-1"></div>
 
         <button
           type="submit"

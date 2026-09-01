@@ -30,8 +30,8 @@ const inactiveCount = list.length - activeCount;
 
     <div class="flex items-center justify-between mb-6 gap-3">
       <div>
-        <h1 class="text-lg font-medium text-neutral-100">Barbeiros</h1>
-        <p class="text-sm text-neutral-500 mt-1">{activeCount} ativos · {inactiveCount} inativos</p>
+        <h1 class="text-lg font-medium text-slate-900">Barbeiros</h1>
+        <p class="text-sm text-slate-500 mt-1">{activeCount} ativos · {inactiveCount} inativos</p>
       </div>
       <button id="btn-new"
         class="shrink-0 flex items-center gap-2 text-xs px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded transition-colors">
@@ -42,42 +42,42 @@ const inactiveCount = list.length - activeCount;
       </button>
     </div>
 
-    <div id="form-new" class="hidden bg-dark-card border border-teal/20 rounded-md p-4 mb-4 space-y-3">
-      <p class="text-sm font-medium text-neutral-200">Novo barbeiro</p>
+    <div id="form-new" class="hidden bg-white border border-teal/20 rounded-md p-4 mb-4 space-y-3">
+      <p class="text-sm font-medium text-slate-800">Novo barbeiro</p>
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Nome</label>
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Nome</label>
           <input id="new-name" type="text" placeholder="ex: Carlos Souza"
-            class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-teal/50" />
+            class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
         </div>
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Slug (login)</label>
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Slug (login)</label>
           <input id="new-slug" type="text" placeholder="carlos-souza"
-            class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-teal/50" />
+            class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
         </div>
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Acesso</label>
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Acesso</label>
           <select id="new-role"
-            class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50">
+            class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50">
             <option value="barber">Barbeiro</option>
             <option value="admin">Admin</option>
           </select>
         </div>
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Senha inicial</label>
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Senha inicial</label>
           <input id="new-password" type="text" placeholder="mín. 6 caracteres"
-            class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-teal/50" />
+            class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
         </div>
       </div>
-      <p class="text-xs text-neutral-600">O slug é o usuário de login e não poderá ser alterado depois. O barbeiro já nasce com horário padrão (seg–sáb) e oferecendo o catálogo atual.</p>
-      <div id="new-error" class="hidden text-red-400 text-xs"></div>
+      <p class="text-xs text-slate-400">O slug é o usuário de login e não poderá ser alterado depois. O barbeiro já nasce com horário padrão (seg–sáb) e oferecendo o catálogo atual.</p>
+      <div id="new-error" class="hidden text-red-600 text-xs"></div>
       <div class="flex gap-2">
         <button id="new-submit"
           class="flex-1 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest py-2.5 rounded transition-colors text-xs">
           Criar barbeiro
         </button>
         <button id="new-cancel"
-          class="px-4 border border-white/10 text-neutral-400 hover:text-neutral-200 rounded transition-colors text-xs">
+          class="px-4 border border-slate-200 text-slate-500 hover:text-slate-800 rounded transition-colors text-xs">
           Cancelar
         </button>
       </div>
@@ -86,54 +86,54 @@ const inactiveCount = list.length - activeCount;
     <div class="space-y-2" id="barbers-list">
       {list.map(b => (
         <div data-barber-row={String(b.id)} class:list={[
-          'bg-dark-card border rounded-md',
-          b.active ? 'border-white/5' : 'border-white/[0.03] opacity-60'
+          'bg-white border rounded-md',
+          b.active ? 'border-slate-200' : 'border-white/[0.03] opacity-60'
         ]}>
           <div data-view={String(b.id)} class="flex items-center gap-3 px-4 py-3">
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <p class:list={['text-sm font-medium', b.active ? 'text-neutral-100' : 'text-neutral-500']}>{b.name}</p>
+                <p class:list={['text-sm font-medium', b.active ? 'text-slate-900' : 'text-slate-500']}>{b.name}</p>
                 <span class:list={[
                   'text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded-full border',
-                  b.role === 'admin' ? 'bg-teal/15 text-teal-light border-teal/30' : 'text-neutral-400 border-white/10'
+                  b.role === 'admin' ? 'bg-teal/15 text-teal border-teal/30' : 'text-slate-500 border-slate-200'
                 ]}>{b.role === 'admin' ? 'Admin' : 'Barbeiro'}</span>
                 {b.active
-                  ? <span class="text-[10px] uppercase tracking-widest text-teal-light/70">ativo</span>
-                  : <span class="text-[10px] uppercase tracking-widest text-neutral-600">inativo</span>}
-                {b.id === session.barberId && <span class="text-[10px] uppercase tracking-widest text-neutral-600">· você</span>}
+                  ? <span class="text-[10px] uppercase tracking-widest text-teal/70">ativo</span>
+                  : <span class="text-[10px] uppercase tracking-widest text-slate-400">inativo</span>}
+                {b.id === session.barberId && <span class="text-[10px] uppercase tracking-widest text-slate-400">· você</span>}
               </div>
-              <p class="text-xs text-neutral-600 mt-0.5">slug: {b.slug}</p>
+              <p class="text-xs text-slate-400 mt-0.5">slug: {b.slug}</p>
             </div>
             <button data-edit={String(b.id)}
-              class="text-xs text-neutral-500 hover:text-neutral-300 px-2 py-1 border border-white/10 hover:border-white/20 rounded transition-colors">
+              class="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 border border-slate-200 hover:border-slate-300 rounded transition-colors">
               Editar
             </button>
           </div>
 
-          <div data-edit-form={String(b.id)} class="hidden px-4 pb-4 pt-3 space-y-3 border-t border-white/5">
+          <div data-edit-form={String(b.id)} class="hidden px-4 pb-4 pt-3 space-y-3 border-t border-slate-200">
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Nome</label>
+                <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Nome</label>
                 <input data-edit-name={String(b.id)} type="text" value={b.name}
-                  class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50" />
+                  class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50" />
               </div>
               <div>
-                <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Slug (fixo)</label>
+                <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Slug (fixo)</label>
                 <input type="text" value={b.slug} disabled
-                  class="w-full bg-dark-surface/50 border border-white/5 rounded px-3 py-2 text-sm text-neutral-500 cursor-not-allowed" />
+                  class="w-full bg-slate-100/50 border border-slate-200 rounded px-3 py-2 text-sm text-slate-500 cursor-not-allowed" />
               </div>
               <div>
-                <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Acesso</label>
+                <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Acesso</label>
                 <select data-edit-role={String(b.id)} disabled={b.id === session.barberId}
-                  class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50 disabled:opacity-50 disabled:cursor-not-allowed">
+                  class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value="barber" selected={b.role === 'barber'}>Barbeiro</option>
                   <option value="admin" selected={b.role === 'admin'}>Admin</option>
                 </select>
               </div>
               <div>
-                <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Status</label>
+                <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Status</label>
                 <select data-edit-active={String(b.id)} disabled={b.id === session.barberId}
-                  class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50 disabled:opacity-50 disabled:cursor-not-allowed">
+                  class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value="true" selected={b.active}>Ativo</option>
                   <option value="false" selected={!b.active}>Inativo</option>
                 </select>
@@ -141,23 +141,23 @@ const inactiveCount = list.length - activeCount;
             </div>
 
             <div>
-              <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Nova senha (opcional)</label>
+              <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Nova senha (opcional)</label>
               <input data-edit-password={String(b.id)} type="text" placeholder="deixe em branco para manter"
-                class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-teal/50" />
+                class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
             </div>
 
             {b.id === session.barberId && (
-              <p class="text-xs text-neutral-600">Você não pode mudar o próprio acesso nem se desativar.</p>
+              <p class="text-xs text-slate-400">Você não pode mudar o próprio acesso nem se desativar.</p>
             )}
 
-            <div data-edit-error={String(b.id)} class="hidden text-red-400 text-xs"></div>
+            <div data-edit-error={String(b.id)} class="hidden text-red-600 text-xs"></div>
             <div class="flex gap-2">
               <button data-edit-save={String(b.id)}
                 class="flex-1 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest py-2 rounded transition-colors text-xs">
                 Salvar
               </button>
               <button data-edit-close={String(b.id)}
-                class="px-4 border border-white/10 text-neutral-400 hover:text-neutral-200 rounded transition-colors text-xs">
+                class="px-4 border border-slate-200 text-slate-500 hover:text-slate-800 rounded transition-colors text-xs">
                 Cancelar
               </button>
             </div>

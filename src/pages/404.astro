@@ -1,9 +1,13 @@
 ---
-export const prerender = true;
+// SSR: ver ARQUITETURA-PRODUTO-V1 D3.
+export const prerender = false;
 import Layout from '../layouts/Layout.astro';
+import { getSettings } from '../lib/settings';
+
+const s = getSettings();
 ---
 
-<Layout title="Página não encontrada — Barbearia Bayron">
+<Layout title={`Página não encontrada — ${s.businessName}`}>
   <main class="min-h-screen bg-dark flex items-center justify-center px-4">
     <div class="text-center max-w-md">
       <p class="text-teal-light text-sm font-medium tracking-[0.25em] uppercase mb-4">404</p>

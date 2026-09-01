@@ -1,7 +1,12 @@
 ---
-import { ADDRESS, GOOGLE_MAPS_URL, BUSINESS_HOURS, getWhatsAppUrl } from '../config';
+import { getSettings, waUrl } from '../lib/settings';
 
-const whatsappUrl = getWhatsAppUrl('Olá! Vim pelo site e gostaria de agendar um horário.');
+const s = getSettings();
+const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário.');
+
+// O Google aceita espaço como "+" na query do embed. Reproduzimos essa forma em
+// vez do %20 do encodeURIComponent para o HTML sair idêntico ao que já estava.
+const mapsEmbedSrc = `https://www.google.com/maps?q=${encodeURIComponent(s.mapsEmbedQuery).replace(/%20/g, '+')}&output=embed`;
 ---
 
 <section id="localizacao" class="py-12 md:py-20 bg-dark-alt">
@@ -10,7 +15,7 @@ const whatsappUrl = getWhatsAppUrl('Olá! Vim pelo site e gostaria de agendar um
       <div class="w-10 h-px bg-teal mx-auto mb-6"></div>
       <span class="text-teal-light text-sm font-medium tracking-[0.25em] uppercase">Onde nos encontrar</span>
       <h2 class="font-serif text-3xl md:text-5xl font-medium mt-3 mb-4 text-neutral-50">Localização</h2>
-      <p class="text-neutral-400 max-w-lg mx-auto">Venha nos visitar em {ADDRESS.city}.</p>
+      <p class="text-neutral-400 max-w-lg mx-auto">Venha nos visitar em {s.addressCity}.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
@@ -29,8 +34,8 @@ const whatsappUrl = getWhatsAppUrl('Olá! Vim pelo site e gostaria de agendar um
             </div>
             <div>
               <h3 class="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500 mb-1">Endereço</h3>
-              <p class="text-neutral-100 text-lg leading-snug">{ADDRESS.street}</p>
-              <p class="text-neutral-400">{ADDRESS.city}</p>
+              <p class="text-neutral-100 text-lg leading-snug">{s.addressStreet}</p>
+              <p class="text-neutral-400">{s.addressCity}</p>
             </div>
           </div>
 
@@ -44,7 +49,7 @@ const whatsappUrl = getWhatsAppUrl('Olá! Vim pelo site e gostaria de agendar um
             <div class="flex-1">
               <h3 class="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500 mb-2">Horário</h3>
               <div class="space-y-1.5">
-                {BUSINESS_HOURS.map(h => (
+                {s.businessHours.map(h => (
                   <div class="flex items-baseline justify-between gap-4">
                     <span class="text-neutral-200 text-sm">{h.label}</span>
                     <span class:list={['text-sm tabular-nums', h.closed ? 'text-neutral-600' : 'text-neutral-400']}>{h.hours}</span>
@@ -58,7 +63,7 @@ const whatsappUrl = getWhatsAppUrl('Olá! Vim pelo site e gostaria de agendar um
         <!-- Ações -->
         <div class="flex flex-col sm:flex-row gap-3 mt-2">
           <a
-            href={GOOGLE_MAPS_URL}
+            href={s.mapsUrl}
             target="_blank"
             rel="noopener"
             class="flex-1 w-full inline-flex items-center justify-center gap-2 bg-teal hover:bg-teal-hover text-white font-bold tracking-widest uppercase text-sm px-6 py-3.5 rounded-md transition-colors duration-300"
@@ -85,8 +90,8 @@ const whatsappUrl = getWhatsAppUrl('Olá! Vim pelo site e gostaria de agendar um
       <!-- Mapa -->
       <div class="rounded-2xl overflow-hidden border border-white/10 min-h-[300px] lg:min-h-full">
         <iframe
-          title="Localização da Barbearia Bayron em Mossoró/RN"
-          src="https://www.google.com/maps?q=Barbearia+Bayron+R.+Jaen+Menescal+174+Mossor%C3%B3+RN&output=embed"
+          title={`Localização da ${s.businessName} em ${s.addressCity}`}
+          src={mapsEmbedSrc}
           width="100%"
           height="100%"
           style="border:0; min-height: 300px;"

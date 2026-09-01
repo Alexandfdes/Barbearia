@@ -1,11 +1,15 @@
 ---
-export const prerender = true;
+// SSR: ver ARQUITETURA-PRODUTO-V1 D3.
+export const prerender = false;
 import Layout from '../layouts/Layout.astro';
+import { getSettings } from '../lib/settings';
+
+const s = getSettings();
 ---
 
 <Layout
-  title="Agendar — Barbearia Bayron"
-  description="Agende seu horário online na Barbearia Bayron em Mossoró/RN. Rápido, fácil e sem espera."
+  title={`Agendar — ${s.businessName}`}
+  description={`Agende seu horário online na ${s.businessName} em ${s.addressCity}. Rápido, fácil e sem espera.`}
 >
   <div class="min-h-screen bg-dark relative overflow-hidden">
     <!-- Glows decorativos de fundo para estética premium -->
@@ -21,7 +25,7 @@ import Layout from '../layouts/Layout.astro';
           </svg>
           Voltar
         </button>
-        <span class="text-neutral-400 text-sm font-medium">Barbearia Bayron</span>
+        <span class="text-neutral-400 text-sm font-medium">{s.businessName}</span>
       </div>
     </div>
 

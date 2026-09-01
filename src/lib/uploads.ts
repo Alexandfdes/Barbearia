@@ -1,11 +1,32 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
+import sharp from 'sharp';
 
 // Uploads ficam no MESMO volume persistente do banco (/data em produção,
-// ./data localmente). Assim a imagem do produto sobrevive a deploys.
+// ./data localmente). Assim a imagem sobrevive a deploys e a rebuilds da imagem.
 const DB_PATH = process.env.DATABASE_PATH ?? './data/appointments.db';
-export const PRODUCT_UPLOAD_DIR = join(dirname(DB_PATH), 'uploads', 'products');
+export const UPLOAD_ROOT = process.env.UPLOAD_ROOT ?? join(dirname(DB_PATH), 'uploads');
+
+/** Mantido para os caminhos de produto já gravados no banco continuarem funcionando. */
+export const PRODUCT_UPLOAD_DIR = join(UPLOAD_ROOT, 'products');
+
+/** As pastas de mídia da marca. Uma por papel — nunca tudo no mesmo saco. */
+export const TIPOS_MIDIA = ['logo', 'hero', 'og', 'favicon', 'galeria'] as const;
+export type TipoMidia = (typeof TIPOS_MIDIA)[number];
+
+/**
+ * Larguras geradas em WebP por tipo. O topo da página é o elemento de LCP:
+ * servir o JPEG de 4 MB que saiu do celular do barbeiro derruba a nota de
+ * performance e a paciência de quem abre no 4G. Ver ARQUITETURA-PRODUTO-V1 D4.
+ */
+const VARIANTES: Record<TipoMidia, number[]> = {
+  hero: [640, 1280, 1920],
+  galeria: [640, 1280],
+  logo: [96, 256, 512],
+  og: [1200],
+  favicon: [],
+};
 
 /**
  * Valida um nome de arquivo de upload: só caracteres simples, sem path traversal.
@@ -18,14 +39,20 @@ export function safeUploadName(name: string): string | null {
   return name;
 }
 
-/** Tipos de imagem aceitos no upload de produto. */
 export const IMAGE_MIME_EXT: Record<string, string> = {
   'image/jpeg': '.jpg',
   'image/png':  '.png',
   'image/webp': '.webp',
 };
 
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
+/** Tipos aceitos na mídia da marca. SVG e ICO só para favicon — ver nota abaixo. */
+const MIME_MARCA: Record<string, string> = {
+  ...IMAGE_MIME_EXT,
+  'image/avif': '.avif',
+};
+
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;        // 5 MB — produtos
+export const MAX_MARCA_BYTES = 12 * 1024 * 1024;       // 12 MB — foto de celular moderno
 
 /**
  * Salva o arquivo de imagem no volume e devolve o caminho público servido por
@@ -41,4 +68,66 @@ export async function saveProductImage(file: File): Promise<{ path: string } | {
   await mkdir(PRODUCT_UPLOAD_DIR, { recursive: true });
   await writeFile(join(PRODUCT_UPLOAD_DIR, name), buf);
   return { path: `/api/products/image/${name}` };
+}
+
+export interface MidiaSalva {
+  /** Caminho público do original — é o que vai para a coluna em `settings`. */
+  path: string;
+  /** Larguras que existem em WebP ao lado do original. */
+  larguras: number[];
+}
+
+/**
+ * Salva uma imagem de marca e gera as variantes WebP ao lado dela.
+ *
+ * O original é preservado: WebP tem suporte largo mas não universal, e manter
+ * o arquivo que o dono enviou permite regerar as variantes se um dia as
+ * larguras mudarem.
+ *
+ * Nomes: `1730-a1b2c3.jpg` (original) e `1730-a1b2c3-640.webp` (variante).
+ * Nome novo a cada upload, nunca sobrescrito — assim o cache do navegador
+ * pode ser eterno e a troca de logo aparece na hora.
+ */
+export async function salvarMidiaMarca(
+  file: File,
+  tipo: TipoMidia,
+): Promise<MidiaSalva | { error: string }> {
+  const ext = MIME_MARCA[file.type];
+  if (!ext) return { error: 'A imagem deve ser JPG, PNG, WEBP ou AVIF' };
+  if (file.size > MAX_MARCA_BYTES) return { error: 'Imagem muito grande (máx. 12 MB)' };
+
+  const buf = Buffer.from(await file.arrayBuffer());
+  const stem = `${Date.now()}-${randomBytes(6).toString('hex')}`;
+  const pasta = join(UPLOAD_ROOT, tipo);
+  await mkdir(pasta, { recursive: true });
+
+  await writeFile(join(pasta, `${stem}${ext}`), buf);
+
+  const larguras: number[] = [];
+  for (const w of VARIANTES[tipo]) {
+    try {
+      const meta = await sharp(buf).metadata();
+      // Não aumenta imagem pequena: gerar 1920 a partir de uma foto de 800px
+      // só produz um arquivo maior e igualmente borrado.
+      if (meta.width && meta.width < w) continue;
+      const saida = await sharp(buf).resize({ width: w }).webp({ quality: 78 }).toBuffer();
+      await writeFile(join(pasta, `${stem}-${w}.webp`), saida);
+      larguras.push(w);
+    } catch (err) {
+      console.error(`[uploads] falha ao gerar variante ${w} de ${tipo}:`, err);
+    }
+  }
+
+  return { path: `/api/media/${tipo}/${stem}${ext}`, larguras };
+}
+
+/**
+ * Monta o srcset das variantes a partir do caminho do original.
+ * Devolve string vazia quando não há variante — quem chama simplesmente omite
+ * o atributo e o navegador usa o src.
+ */
+export function srcsetDe(path: string, larguras: number[]): string {
+  if (!path || larguras.length === 0) return '';
+  const semExt = path.replace(/\.[a-z0-9]+$/i, '');
+  return larguras.map((w) => `${semExt}-${w}.webp ${w}w`).join(', ');
 }

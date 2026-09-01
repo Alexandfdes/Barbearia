@@ -69,8 +69,8 @@ const clientData = { role: session.role, sessionBarberId: session.barberId, allB
 
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-lg font-medium text-neutral-100">Bloqueios de Horário</h1>
-        <p class="text-sm text-neutral-500 mt-1">Folgas, feriados, almoços e outros impedimentos.</p>
+        <h1 class="text-lg font-medium text-slate-900">Bloqueios de Horário</h1>
+        <p class="text-sm text-slate-500 mt-1">Folgas, feriados, almoços e outros impedimentos.</p>
       </div>
       <button id="btn-new"
         class="flex items-center gap-2 text-xs px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded transition-colors">
@@ -82,13 +82,13 @@ const clientData = { role: session.role, sessionBarberId: session.barberId, allB
     </div>
 
     <!-- New bloqueio form -->
-    <div id="form-new" class="hidden bg-dark-card border border-teal/20 rounded-md p-4 space-y-3">
-      <p class="text-sm font-medium text-neutral-200">Novo bloqueio</p>
+    <div id="form-new" class="hidden bg-white border border-teal/20 rounded-md p-4 space-y-3">
+      <p class="text-sm font-medium text-slate-800">Novo bloqueio</p>
 
       {session.role === 'admin' && (
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Aplicar para</label>
-          <select id="f-barber" class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50">
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Aplicar para</label>
+          <select id="f-barber" class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50">
             <option value="">Todos (feriado)</option>
             {allBarbers.map(b => (
               <option value={String(b.id)}>{b.name.split(' ')[0]}</option>
@@ -98,31 +98,31 @@ const clientData = { role: session.role, sessionBarberId: session.barberId, allB
       )}
 
       <div>
-        <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Data</label>
+        <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Data</label>
         <input id="f-date" type="date" value={todayStr}
-          class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50" />
+          class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50" />
       </div>
 
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Início</label>
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Início</label>
           <input id="f-start" type="time" value="08:00"
-            class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50" />
+            class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50" />
         </div>
         <div>
-          <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Fim</label>
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Fim</label>
           <input id="f-end" type="time" value="20:00"
-            class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-teal/50" />
+            class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50" />
         </div>
       </div>
 
       <div>
-        <label class="block text-xs text-neutral-500 uppercase tracking-widest mb-1.5">Motivo (opcional)</label>
+        <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Motivo (opcional)</label>
         <input id="f-reason" type="text" placeholder="ex: Almoço, Folga, Feriado, Atestado..."
-          class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2 text-sm text-neutral-200 placeholder-neutral-600 focus:outline-none focus:border-teal/50" />
+          class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
       </div>
 
-      <div id="f-error" class="hidden text-red-400 text-xs"></div>
+      <div id="f-error" class="hidden text-red-600 text-xs"></div>
 
       <div class="flex gap-2">
         <button id="f-submit"
@@ -130,7 +130,7 @@ const clientData = { role: session.role, sessionBarberId: session.barberId, allB
           Confirmar bloqueio
         </button>
         <button id="f-cancel"
-          class="px-4 border border-white/10 text-neutral-400 hover:text-neutral-200 rounded transition-colors text-xs">
+          class="px-4 border border-slate-200 text-slate-500 hover:text-slate-800 rounded transition-colors text-xs">
           Cancelar
         </button>
       </div>
@@ -139,22 +139,22 @@ const clientData = { role: session.role, sessionBarberId: session.barberId, allB
     <!-- Upcoming entries -->
     {upcoming.length > 0 && (
       <section>
-        <p class="text-xs text-neutral-500 uppercase tracking-widest mb-2">Próximos ({upcoming.length})</p>
+        <p class="text-xs text-slate-500 uppercase tracking-widest mb-2">Próximos ({upcoming.length})</p>
         <div class="space-y-2">
           {upcoming.map(e => (
-            <div class="bg-dark-card border border-white/5 rounded-md px-4 py-3 flex items-center gap-3">
+            <div class="bg-white border border-slate-200 rounded-md px-4 py-3 flex items-center gap-3">
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2">
-                  <p class="text-sm font-medium text-neutral-100">{e.dateLabel}</p>
-                  <span class="text-xs text-neutral-500">{e.startTime} – {e.endTime}</span>
+                  <p class="text-sm font-medium text-slate-900">{e.dateLabel}</p>
+                  <span class="text-xs text-slate-500">{e.startTime} – {e.endTime}</span>
                 </div>
                 <div class="flex items-center gap-2 mt-0.5">
-                  <p class="text-xs text-neutral-500">{e.barberName}</p>
-                  {e.reason && <span class="text-xs text-neutral-600">· {e.reason}</span>}
+                  <p class="text-xs text-slate-500">{e.barberName}</p>
+                  {e.reason && <span class="text-xs text-slate-400">· {e.reason}</span>}
                 </div>
               </div>
               <button data-delete={String(e.id)}
-                class="shrink-0 text-xs text-neutral-600 hover:text-red-400 border border-white/10 hover:border-red-500/30 px-2 py-1 rounded transition-colors">
+                class="shrink-0 text-xs text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-500/30 px-2 py-1 rounded transition-colors">
                 ✕
               </button>
             </div>
@@ -164,8 +164,8 @@ const clientData = { role: session.role, sessionBarberId: session.barberId, allB
     )}
 
     {upcoming.length === 0 && past.length === 0 && (
-      <div class="bg-dark-card border border-white/5 rounded-md px-5 py-10 text-center">
-        <p class="text-neutral-500 text-sm">Nenhum bloqueio cadastrado.</p>
+      <div class="bg-white border border-slate-200 rounded-md px-5 py-10 text-center">
+        <p class="text-slate-500 text-sm">Nenhum bloqueio cadastrado.</p>
       </div>
     )}
 
@@ -173,7 +173,7 @@ const clientData = { role: session.role, sessionBarberId: session.barberId, allB
     {past.length > 0 && (
       <section>
         <button id="btn-toggle-past"
-          class="text-xs text-neutral-600 hover:text-neutral-400 transition-colors flex items-center gap-1">
+          class="text-xs text-slate-400 hover:text-slate-500 transition-colors flex items-center gap-1">
           <svg id="past-chevron" class="w-3 h-3 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
           </svg>
@@ -181,12 +181,12 @@ const clientData = { role: session.role, sessionBarberId: session.barberId, allB
         </button>
         <div id="past-list" class="hidden mt-2 space-y-1.5">
           {past.map(e => (
-            <div class="bg-dark-card border border-white/[0.03] rounded-md px-4 py-3 opacity-50">
+            <div class="bg-white border border-white/[0.03] rounded-md px-4 py-3 opacity-50">
               <div class="flex items-center gap-2">
-                <p class="text-sm text-neutral-500">{e.dateLabel}</p>
-                <span class="text-xs text-neutral-600">{e.startTime} – {e.endTime}</span>
-                <span class="text-xs text-neutral-700">· {e.barberName}</span>
-                {e.reason && <span class="text-xs text-neutral-700">· {e.reason}</span>}
+                <p class="text-sm text-slate-500">{e.dateLabel}</p>
+                <span class="text-xs text-slate-400">{e.startTime} – {e.endTime}</span>
+                <span class="text-xs text-slate-300">· {e.barberName}</span>
+                {e.reason && <span class="text-xs text-slate-300">· {e.reason}</span>}
               </div>
             </div>
           ))}

@@ -29,9 +29,9 @@ function whenLabel(iso: string): string {
   return isNaN(d.getTime()) ? '' : formatInTimeZone(d, TZ, 'dd/MM/yy HH:mm');
 }
 const STATUS = {
-  pending:   { label: 'Pendente',  cls: 'bg-amber-500/15 text-amber-300' },
-  fulfilled: { label: 'Retirado',  cls: 'bg-teal/15 text-teal-light' },
-  cancelled: { label: 'Cancelado', cls: 'bg-neutral-700/50 text-neutral-400' },
+  pending:   { label: 'Pendente',  cls: 'bg-amber-500/15 text-amber-700' },
+  fulfilled: { label: 'Retirado',  cls: 'bg-teal/15 text-teal' },
+  cancelled: { label: 'Cancelado', cls: 'bg-slate-200/50 text-slate-500' },
 } as const;
 ---
 
@@ -39,8 +39,8 @@ const STATUS = {
   <main class="max-w-3xl mx-auto px-4 py-6 space-y-5 pb-24">
 
     <div>
-      <h1 class="text-lg font-medium text-neutral-100">Reservas de produto</h1>
-      <p class="text-sm text-neutral-500 mt-1">
+      <h1 class="text-lg font-medium text-slate-900">Reservas de produto</h1>
+      <p class="text-sm text-slate-500 mt-1">
         {pendingCount > 0
           ? `${pendingCount} ${pendingCount === 1 ? 'reserva aguardando' : 'reservas aguardando'} retirada.`
           : 'Nenhuma reserva pendente.'}
@@ -48,9 +48,9 @@ const STATUS = {
     </div>
 
     {rows.length === 0 && (
-      <div class="bg-dark-card border border-white/5 rounded-lg py-12 text-center">
-        <p class="text-sm text-neutral-400">Nenhuma reserva ainda.</p>
-        <p class="text-xs text-neutral-600 mt-1">As reservas feitas no site aparecem aqui.</p>
+      <div class="bg-white border border-slate-200 rounded-lg py-12 text-center">
+        <p class="text-sm text-slate-500">Nenhuma reserva ainda.</p>
+        <p class="text-xs text-slate-400 mt-1">As reservas feitas no site aparecem aqui.</p>
       </div>
     )}
 
@@ -59,30 +59,30 @@ const STATUS = {
         const wa = waPhone(r.customerPhone);
         const st = STATUS[r.status as keyof typeof STATUS] ?? STATUS.pending;
         return (
-          <div class:list={['bg-dark-card border border-white/5 rounded-lg p-4', r.status !== 'pending' && 'opacity-60']}
+          <div class:list={['bg-white border border-slate-200 rounded-lg p-4', r.status !== 'pending' && 'opacity-60']}
                data-id={String(r.id)}>
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <p class="text-sm font-medium text-neutral-100">
-                  {r.productName}{r.quantity > 1 && <span class="text-neutral-400"> ×{r.quantity}</span>}
+                <p class="text-sm font-medium text-slate-900">
+                  {r.productName}{r.quantity > 1 && <span class="text-slate-500"> ×{r.quantity}</span>}
                 </p>
-                <p class="text-xs text-neutral-500 mt-0.5">{r.customerName}</p>
-                <p class="text-[11px] text-neutral-600 mt-0.5 tabular-nums">{whenLabel(r.createdAt)}</p>
+                <p class="text-xs text-slate-500 mt-0.5">{r.customerName}</p>
+                <p class="text-[11px] text-slate-400 mt-0.5 tabular-nums">{whenLabel(r.createdAt)}</p>
               </div>
               <div class="text-right shrink-0">
                 <span class:list={['text-[10px] px-2 py-0.5 rounded uppercase tracking-wider', st.cls]}>{st.label}</span>
-                <p class="text-sm font-semibold text-teal-light tabular-nums mt-1">{brl(r.priceCents * r.quantity)}</p>
+                <p class="text-sm font-semibold text-teal tabular-nums mt-1">{brl(r.priceCents * r.quantity)}</p>
               </div>
             </div>
 
             <div class="flex items-center gap-2 mt-3">
               {wa
-                ? <a href={`https://wa.me/${wa}`} target="_blank" rel="noopener" class="text-[11px] px-2.5 py-1.5 rounded border border-green-500/30 text-green-400 hover:bg-green-500/10 transition-colors">WhatsApp</a>
-                : <span class="text-[11px] text-neutral-600">{r.customerPhone}</span>}
+                ? <a href={`https://wa.me/${wa}`} target="_blank" rel="noopener" class="text-[11px] px-2.5 py-1.5 rounded border border-green-500/30 text-green-600 hover:bg-green-500/10 transition-colors">WhatsApp</a>
+                : <span class="text-[11px] text-slate-400">{r.customerPhone}</span>}
               {r.status === 'pending' && (
                 <>
-                  <button data-action="fulfill" class="ml-auto text-[11px] px-3 py-1.5 rounded border border-teal/30 text-teal-light hover:bg-teal/10 transition-colors font-medium">Marcar retirado</button>
-                  <button data-action="cancel" class="text-[11px] px-2.5 py-1.5 rounded border border-red-500/20 text-red-400/80 hover:bg-red-500/10 transition-colors">Cancelar</button>
+                  <button data-action="fulfill" class="ml-auto text-[11px] px-3 py-1.5 rounded border border-teal/30 text-teal hover:bg-teal/10 transition-colors font-medium">Marcar retirado</button>
+                  <button data-action="cancel" class="text-[11px] px-2.5 py-1.5 rounded border border-red-500/20 text-red-600/80 hover:bg-red-500/10 transition-colors">Cancelar</button>
                 </>
               )}
             </div>

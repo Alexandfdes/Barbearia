@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
 import { db } from '../../../../../db/index.js';
 import { appointments, barbers, services } from '../../../../../db/schema.js';
-import { ADDRESS } from '../../../../../config.js';
+import { getSettings } from '../../../../../lib/settings.js';
 
 const TZ = 'America/Fortaleza';
 const SITE_HOST = 'bayron.alexandrefdev.tech';
@@ -63,8 +63,9 @@ export const GET: APIRoute = ({ params }) => {
   const end      = toIcsDate(appt.endsAt);
   const uid      = `appointment-${appt.id}@${SITE_HOST}`;
   const url      = `https://${SITE_HOST}/a/${token}`;
-  const summary  = icsEscape(`${appt.serviceName} com ${appt.barberName} — Barbearia Bayron`);
-  const location = icsEscape(`${ADDRESS.street} — ${ADDRESS.city}`);
+  const s = getSettings();
+  const summary  = icsEscape(`${appt.serviceName} com ${appt.barberName} — ${s.businessName}`);
+  const location = icsEscape(`${s.addressStreet} — ${s.addressCity}`);
   const description = icsEscape(`Cliente: ${appt.customerName}\nLink: ${url}`);
   const filename = `bayron-${formatInTimeZone(new Date(appt.startsAt), TZ, 'yyyyMMdd-HHmm')}.ics`;
 
@@ -74,7 +75,7 @@ export const GET: APIRoute = ({ params }) => {
     'VERSION:2.0',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    'PRODID:-//Barbearia Bayron//Agendamento//PT-BR',
+    `PRODID:-//${s.businessName}//Agendamento//PT-BR`,
     'BEGIN:VEVENT',
     `UID:${uid}`,
     `DTSTAMP:${now}`,

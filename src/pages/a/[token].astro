@@ -7,7 +7,9 @@ import { appointments, appointmentItems, barbers, services } from '../../db/sche
 import { eq } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
 import { ptBR } from 'date-fns/locale';
-import { getWhatsAppUrl, ADDRESS, GOOGLE_MAPS_URL } from '../../config';
+import { getSettings, waUrl } from '../../lib/settings';
+
+const s = getSettings();
 
 const { token } = Astro.params;
 if (!token) return Astro.redirect('/agendar');
@@ -64,7 +66,7 @@ const isCompleted = appt.status === 'completed';
 const isNoShow    = appt.status === 'no_show';
 
 const whatsappUrl = isConfirmed
-  ? getWhatsAppUrl(`Olá! Agendei *${appt.serviceName}* com *${appt.barberName}* no dia *${dateLocal}* às *${timeLocal}*.`)
+  ? waUrl(`Olá! Agendei *${appt.serviceName}* com *${appt.barberName}* no dia *${dateLocal}* às *${timeLocal}*.`)
   : '';
 
 const cancelledLabel = isCancelled && appt.cancelledAt
@@ -78,8 +80,8 @@ const apptDateStr   = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
 ---
 
 <Layout
-  title={`Agendamento — ${appt.serviceName} · Barbearia Bayron`}
-  description="Gerencie seu agendamento na Barbearia Bayron."
+  title={`Agendamento — ${appt.serviceName} · ${s.businessName}`}
+  description={`Gerencie seu agendamento na ${s.businessName}.`}
 >
   <div class="min-h-screen bg-dark">
 
@@ -92,7 +94,7 @@ const apptDateStr   = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
           </svg>
           Voltar
         </a>
-        <span class="text-neutral-400 text-sm font-medium">Barbearia Bayron</span>
+        <span class="text-neutral-400 text-sm font-medium">{s.businessName}</span>
       </div>
     </div>
 
@@ -188,11 +190,11 @@ const apptDateStr   = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
             <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/>
           </svg>
           <div class="flex-1 min-w-0">
-            <p class="text-sm text-neutral-200">{ADDRESS.street}</p>
-            <p class="text-xs text-neutral-500 mt-0.5">{ADDRESS.city}</p>
+            <p class="text-sm text-neutral-200">{s.addressStreet}</p>
+            <p class="text-xs text-neutral-500 mt-0.5">{s.addressCity}</p>
           </div>
           <a
-            href={GOOGLE_MAPS_URL}
+            href={s.mapsUrl}
             target="_blank"
             rel="noopener"
             class="text-xs text-neutral-500 hover:text-teal-light border border-white/10 hover:border-teal/30 px-3 py-1.5 rounded transition-colors shrink-0 whitespace-nowrap"

@@ -1,5 +1,8 @@
 ---
-export const prerender = true;
+// SSR: a landing lê `settings` do banco. Com prerender = true os valores
+// congelariam no build e mudar algo no painel não mudaria o site.
+// Ver ARQUITETURA-PRODUTO-V1 D3 e §3.5.
+export const prerender = false;
 import Layout from '../layouts/Layout.astro';
 import Header from '../components/Header.astro';
 import Hero from '../components/Hero.astro';

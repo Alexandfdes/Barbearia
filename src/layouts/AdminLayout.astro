@@ -1,99 +1,143 @@
 ---
 import '../styles/global.css';
+import { getSettings } from '../lib/settings';
+
+const s = getSettings();
 
 interface Props {
   title?:     string;
   barberName: string;
   role:       'admin' | 'barber';
 }
-const { title = 'Admin', barberName, role } = Astro.props;
+const { title = 'Painel', barberName, role } = Astro.props;
 const path = Astro.url.pathname;
+const norm = path.endsWith('/') && path.length > 1 ? path.slice(0, -1) : path;
 
-// Determina dinamicamente para onde o botão "Voltar" deve apontar de forma inteligente e universal:
-// - Se estiver na tela principal do Admin (/admin), o botão de voltar leva ao Portal (/portal).
-// - Se estiver em qualquer outra subpágina (ex: buscar, serviços, agenda do dia), leva de volta à tela inicial do Admin (/admin).
-const normalizedPath = path.endsWith('/') && path.length > 1 ? path.slice(0, -1) : path;
-const backUrl = normalizedPath === '/admin' ? '/portal' : '/admin';
+/**
+ * Navegação em grupos, não em fila de abas.
+ *
+ * A barra horizontal anterior tinha 11 itens que rolavam de lado: no desktop
+ * sobrava espaço vazio e no celular metade dos itens ficava escondida sem
+ * nenhuma pista de que existia. Agrupar por assunto resolve os dois.
+ */
+const grupos: { titulo: string; itens: { href: string; label: string; ativo: boolean; icone: string }[] }[] = [
+  {
+    titulo: 'Atendimento',
+    itens: [
+      { href: '/admin',          label: 'Agenda do dia', ativo: norm === '/admin' || norm.startsWith('/admin/dia'), icone: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+      { href: '/admin/buscar',   label: 'Buscar cliente', ativo: norm === '/admin/buscar', icone: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
+      { href: '/admin/reservas', label: 'Reservas',      ativo: norm === '/admin/reservas', icone: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
+    ],
+  },
+  {
+    titulo: 'Minha agenda',
+    itens: [
+      { href: '/admin/servicos',  label: 'Serviços',  ativo: norm === '/admin/servicos', icone: 'M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z' },
+      { href: '/admin/horarios',  label: 'Expediente', ativo: norm === '/admin/horarios', icone: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+      { href: '/admin/bloqueios', label: 'Bloqueios', ativo: norm === '/admin/bloqueios', icone: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' },
+    ],
+  },
+  ...(role === 'admin' ? [{
+    titulo: 'Meu estabelecimento',
+    itens: [
+      { href: '/admin/produtos',      label: 'Produtos',      ativo: norm === '/admin/produtos', icone: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
+      { href: '/admin/combos',        label: 'Combos',        ativo: norm === '/admin/combos', icone: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z' },
+      { href: '/admin/barbeiros',     label: 'Equipe',        ativo: norm === '/admin/barbeiros', icone: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
+      { href: '/admin/configuracoes', label: 'Configurações', ativo: norm === '/admin/configuracoes', icone: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
+    ],
+  }] : []),
+  {
+    titulo: 'Números',
+    itens: [
+      { href: '/admin/relatorios', label: 'Relatórios', ativo: norm === '/admin/relatorios', icone: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+    ],
+  },
+];
 ---
 <!DOCTYPE html>
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>{title} — Bayron Admin</title>
+    <link rel="icon" href={s.faviconPath ?? '/favicon.svg'} />
+    <title>{title} — {s.shortName}</title>
   </head>
-  <body class="bg-dark text-neutral-200 min-h-screen">
+  <body class="bg-slate-50 text-slate-800 min-h-screen font-sans">
+    <div class="flex min-h-screen">
 
-    <!-- Top header -->
-    <header class="border-b border-white/5 px-4 py-3 bg-dark">
-      <div class="max-w-3xl mx-auto flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <a href={backUrl} class="text-xs text-neutral-400 hover:text-neutral-200 transition-colors flex items-center gap-1.5 font-medium">
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+      <!-- Lateral. Fundo escuro neutro de propósito: a cor de destaque é
+           configurável por barbearia (Fase 5), e uma lateral inteira na cor
+           escolhida pelo cliente pode ficar horrível. O acento entra só no
+           item ativo, onde qualquer cor funciona. -->
+      <aside id="lateral"
+        class="fixed lg:static inset-y-0 left-0 z-40 w-64 shrink-0 bg-slate-900 text-slate-300 flex flex-col
+               -translate-x-full lg:translate-x-0 transition-transform duration-200">
+        <div class="h-16 flex items-center gap-2.5 px-5 border-b border-white/10">
+          <span class="font-semibold text-white truncate">{s.shortName}</span>
+          {role === 'admin' && (
+            <span class="text-[10px] uppercase tracking-wider bg-teal/25 text-teal-light border border-teal/40 px-1.5 py-0.5 rounded">Dono</span>
+          )}
+        </div>
+
+        <nav class="flex-1 overflow-y-auto py-4">
+          {grupos.map((g) => (
+            <div class="mb-5">
+              <p class="px-5 mb-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">{g.titulo}</p>
+              {g.itens.map((i) => (
+                <a href={i.href}
+                  class:list={['flex items-center gap-3 px-5 py-2.5 text-sm transition-colors border-l-2',
+                    i.ativo
+                      ? 'border-teal bg-white/5 text-white font-medium'
+                      : 'border-transparent text-slate-400 hover:text-white hover:bg-white/5']}>
+                  <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d={i.icone} />
+                  </svg>
+                  {i.label}
+                </a>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div class="border-t border-white/10 px-5 py-3.5">
+          <p class="text-xs text-slate-400 truncate">{barberName}</p>
+          <button id="__logout" class="mt-1 text-xs text-slate-500 hover:text-red-400 transition-colors">Sair</button>
+        </div>
+      </aside>
+
+      <!-- Véu do menu no celular -->
+      <div id="veu" class="fixed inset-0 bg-black/40 z-30 hidden lg:hidden"></div>
+
+      <div class="flex-1 min-w-0 flex flex-col">
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center gap-3 px-4 sm:px-6 sticky top-0 z-20">
+          <button id="abrir-menu" class="lg:hidden p-1.5 -ml-1.5 text-slate-500 hover:text-slate-800" aria-label="Abrir menu">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
-            Voltar
-          </a>
-          <div class="w-px h-3.5 bg-white/10"></div>
-          <div class="flex items-center gap-2">
-            <a href="/admin" class="text-sm font-medium text-neutral-200 hover:text-neutral-100 transition-colors">
-              Bayron Admin
-            </a>
-            {role === 'admin' && (
-              <span class="text-xs bg-teal/20 text-teal-light border border-teal/30 px-2 py-0.5 rounded-full">
-                Admin
-              </span>
-            )}
-          </div>
-        </div>
-        <div class="flex items-center gap-3">
-          <span class="text-xs text-neutral-500 hidden sm:block">{barberName}</span>
-          <button id="__logout" class="text-xs text-neutral-500 hover:text-red-400 transition-colors border border-white/10 hover:border-red-500/30 px-3 py-1 rounded">
-            Sair
           </button>
-        </div>
-      </div>
-    </header>
-
-    <!-- Navigation -->
-    <nav class="border-b border-white/5 px-4 bg-dark sticky top-0 z-20">
-      <div class="max-w-3xl mx-auto flex gap-1 overflow-x-auto">
-        {[
-          { href: '/admin',           label: 'Dia',       active: path.startsWith('/admin/dia') || path === '/admin' },
-          { href: '/admin/buscar',    label: 'Buscar',    active: path === '/admin/buscar' },
-          { href: '/admin/reservas',  label: 'Reservas',  active: path === '/admin/reservas' },
-          { href: '/admin/servicos',  label: 'Serviços',  active: path === '/admin/servicos' },
-          { href: '/admin/horarios',  label: 'Horários',  active: path === '/admin/horarios' },
-          { href: '/admin/relatorios', label: 'Relatórios', active: path === '/admin/relatorios' },
-          ...(role === 'admin' ? [
-            { href: '/admin/produtos',   label: 'Produtos',   active: path === '/admin/produtos' },
-            { href: '/admin/combos',     label: 'Combos',     active: path === '/admin/combos' },
-            { href: '/admin/barbeiros',  label: 'Barbeiros',  active: path === '/admin/barbeiros' },
-          ] : []),
-          { href: '/admin/bloqueios', label: 'Bloqueios', active: path === '/admin/bloqueios' },
-        ].map(link => (
-          <a href={link.href}
-             class:list={[
-               'text-xs font-medium px-3 py-3 border-b-2 transition-colors whitespace-nowrap',
-               link.active
-                 ? 'border-teal text-teal-light'
-                 : 'border-transparent text-neutral-500 hover:text-neutral-300'
-             ]}>
-            {link.label}
+          <h1 class="text-sm font-semibold text-slate-800 truncate">{title}</h1>
+          <a href="/" target="_blank" rel="noopener"
+            class="ml-auto text-xs text-slate-500 hover:text-teal transition-colors whitespace-nowrap">
+            Ver meu site ↗
           </a>
-        ))}
-      </div>
-    </nav>
+        </header>
 
-    <slot />
+        <main class="flex-1"><slot /></main>
+      </div>
+    </div>
 
     <script>
+      const lateral = document.getElementById('lateral');
+      const veu = document.getElementById('veu');
+      function alterna(abrir: boolean) {
+        lateral?.classList.toggle('-translate-x-full', !abrir);
+        veu?.classList.toggle('hidden', !abrir);
+      }
+      document.getElementById('abrir-menu')?.addEventListener('click', () => alterna(true));
+      veu?.addEventListener('click', () => alterna(false));
+
       document.getElementById('__logout')?.addEventListener('click', async () => {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
+        await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
         location.href = '/admin/login';
       });
     </script>

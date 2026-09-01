@@ -1,19 +1,43 @@
 ---
 import '../styles/global.css';
-import { SITE_URL, INSTAGRAM_URL } from '../config';
+import { SITE_URL } from '../config';
+import { getSettings } from '../lib/settings';
+import { cssDoAccent } from '../lib/accent.js';
 
 interface Props {
   title?: string;
   description?: string;
 }
 
+// SSR obrigatório em toda página que renderiza este layout — ver ARQUITETURA-PRODUTO-V1 D3.
+// Com prerender = true, estes valores congelam no build e o painel vira decoração.
+const s = getSettings();
+
+// O endereço é guardado como "Cidade/UF" numa string só (é assim que aparece no
+// site). O schema.org quer os dois separados, então dividimos aqui.
+const [addressLocality, addressRegion] = s.addressCity.split('/');
+
 const {
-  title = "Barbearia Bayron | Respeito e Precisão em Cada Corte — Mossoró/RN",
-  description = "A barbearia masculina premium de Mossoró. Degradê, barba, combos exclusivos e produtos Boris. Agende online ou chame no WhatsApp."
+  title = s.seoTitle,
+  description = s.seoDescription
 } = Astro.props;
 
 const canonical = new URL(Astro.url.pathname, SITE_URL).href;
-const ogImage = `${SITE_URL}/og.jpg`;
+// A imagem de compartilhamento e o ícone da aba saem do banco quando existirem.
+// URL absoluta no og:image porque WhatsApp e redes sociais exigem.
+const ogImage = s.ogPath ? new URL(s.ogPath, SITE_URL).href : `${SITE_URL}/og.jpg`;
+const favicon = s.faviconPath ?? '/favicon.svg';
+
+// Cor de destaque da barbearia (Fase 5 / D5). O Tailwind v4 compila `bg-teal`
+// para `background-color: var(--color-teal)`, então sobrescrever a variável aqui
+// retinge tudo que deriva dela — sem rebuild, sem tocar em componente.
+// cssDoAccent descarta qualquer valor fora do formato hex: é o que impede o
+// campo do painel de virar injeção de CSS.
+const estiloAccent = cssDoAccent({
+  color: s.accentColor,
+  hover: s.accentHover,
+  light: s.accentLight,
+});
 ---
 
 <!DOCTYPE html>
@@ -26,36 +50,39 @@ const ogImage = `${SITE_URL}/og.jpg`;
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="pt_BR" />
-    <meta property="og:site_name" content="Barbearia Bayron" />
+    <meta property="og:site_name" content={s.businessName} />
     <meta property="og:url" content={canonical} />
     <meta property="og:image" content={ogImage} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Barbearia Bayron — Mossoró/RN" />
+    <meta property="og:image:alt" content={`${s.businessName} — ${s.addressCity}`} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
     <link rel="canonical" href={canonical} />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href={favicon} />
     <title>{title}</title>
     <script type="application/ld+json" set:html={JSON.stringify({
       "@context": "https://schema.org",
       "@type": "HairSalon",
       "@id": `${SITE_URL}/#business`,
-      "name": "Barbearia Bayron",
+      "name": s.businessName,
       "image": ogImage,
       "url": SITE_URL,
-      "telephone": "+5584999051196",
+      "telephone": `+${s.whatsappNumber}`,
       "priceRange": "$$",
-      "sameAs": [INSTAGRAM_URL],
+      "sameAs": s.instagramUrl ? [s.instagramUrl] : [],
       "address": {
         "@type": "PostalAddress",
-        "streetAddress": "R. Jaen Menescal, 174",
-        "addressLocality": "Mossoró",
-        "addressRegion": "RN",
+        "streetAddress": s.addressStreet,
+        "addressLocality": addressLocality,
+        "addressRegion": addressRegion,
         "addressCountry": "BR"
       },
+      // TODO Fase 3: o horário de vitrine é texto livre ("Segunda — Sexta",
+      // "09:00 — 20:00") e não dá para virar schema.org sem um modelo estruturado.
+      // Fica fixo até a Fase 3 dar estrutura a `business_hours`.
       "openingHoursSpecification": [
         {
           "@type": "OpeningHoursSpecification",
@@ -71,6 +98,7 @@ const ogImage = `${SITE_URL}/og.jpg`;
         }
       ]
     })} />
+    <style set:html={estiloAccent}></style>
   </head>
   <body class="font-sans pb-24 md:pb-0">
     <slot />
