@@ -1,0 +1,358 @@
+---
+export const prerender = false;
+
+import Layout from '../layouts/Layout.astro';
+import { NOME_PRODUTO, PRECO, PRECO_ANUAL, PRECO_ANUAL_POR_MES, CONCORRENTES, EXEMPLO_URL, whatsappUrl, reais } from '../config';
+
+const ctaTopo = whatsappUrl('Olá! Vi o site e quero saber mais sobre o site com agendamento para minha barbearia.');
+const ctaPreco = whatsappUrl('Olá! Quero fechar o site com agendamento para minha barbearia. Podemos conversar?');
+const ctaDuvida = whatsappUrl('Olá! Fiquei com uma dúvida sobre o site para barbearia.');
+
+const dores = [
+  {
+    titulo: 'Você perde horário no WhatsApp',
+    texto: 'Cliente manda mensagem enquanto você está com a máquina na mão. Você responde meia hora depois, ele já procurou outro. E o que marcou, esqueceu.',
+  },
+  {
+    titulo: 'Sua barbearia não existe no Google',
+    texto: 'Quem procura "barbearia perto de mim" não te encontra. Quem te indica manda um print do Instagram, porque não tem um link para mandar.',
+  },
+  {
+    titulo: 'O caixa está no caderno',
+    texto: 'No fim do mês você sabe se sobrou dinheiro, mas não sabe qual serviço rende mais, qual dia é fraco, nem quanto os furos custaram.',
+  },
+];
+
+const entregas = [
+  { titulo: 'Um site seu, com endereço próprio', texto: 'O nome da sua barbearia no endereço, com as suas fotos e os seus textos. Se quiser domínio próprio, a gente registra no seu nome.' },
+  { titulo: 'Agendamento aberto 24 horas', texto: 'O cliente escolhe serviço, profissional e horário sozinho, de madrugada se quiser. Você acorda com a agenda cheia.' },
+  { titulo: 'Painel no seu celular', texto: 'Agenda do dia, buscar cliente, remarcar, bloquear horário, fechar a comanda. Tudo do celular, sem instalar nada.' },
+  { titulo: 'Faturamento de verdade', texto: 'Quanto entrou por dia, por serviço e por profissional. Quantos faltaram e quanto isso custou.' },
+  { titulo: 'Backup todo dia', texto: 'Sua base de clientes copiada automaticamente, todo dia, para fora do servidor. Se algo der errado, volta.' },
+  { titulo: 'Suporte com quem fez', texto: 'Você fala com o desenvolvedor, não com um robô de central. Ajustes pequenos entram na mensalidade.' },
+];
+
+const passos = [
+  { n: '1', titulo: 'A gente conversa', texto: 'Uma conversa de 20 minutos para eu entender seus serviços, preços e horários. Sem compromisso.' },
+  { n: '2', titulo: 'Você manda o material', texto: 'Logo, fotos dos cortes e a lista de serviços. Se não tiver fotos boas, eu te digo exatamente o que fotografar.' },
+  { n: '3', titulo: 'Eu monto', texto: 'Escolho as fotos, trato as imagens, escrevo os textos, cadastro tudo e aponto o domínio. Você não mexe em nada.' },
+  { n: '4', titulo: 'Seu site entra no ar', texto: 'Você recebe o link e a senha do painel. A partir daí, trocar uma foto ou um preço você faz sozinho.' },
+];
+
+const faq = [
+  { p: 'Preciso saber mexer em computador?', r: 'Não. Eu monto tudo. Depois, mudar um preço ou trocar uma foto é como editar uma legenda no Instagram — e se preferir, eu faço.' },
+  { p: 'E se eu quiser sair?', r: 'Avisa com 30 dias e pronto. Sem multa e sem carência. E se você tiver optado por domínio próprio, ele está registrado no seu nome — continua seu.' },
+  { p: 'O site é meu mesmo?', r: 'O conteúdo é todo seu: fotos, textos, preços e a sua base de clientes. Com domínio próprio, ele fica no seu CPF ou CNPJ com você como dono, e eu como responsável técnico enquanto você for cliente.' },
+  { p: 'Meus clientes precisam baixar aplicativo?', r: 'Não. Eles abrem o link no navegador do celular e marcam. Sem cadastro, sem senha, sem baixar nada.' },
+  { p: 'Já uso outro sistema. Dá para trazer meus dados?', r: 'Hoje não. O histórico antigo fica onde está e a agenda começa do zero. Se isso for problema para você, é melhor a gente conversar antes de fechar.' },
+  { p: 'Não tem taxa de instalação mesmo?', r: 'Não. Montar o seu site — escolher e tratar as fotos, escrever os textos, cadastrar serviços e horários, apontar o domínio — está incluso na mensalidade. É trabalho que acontece uma vez e eu não cobro à parte por ele.' },
+  { p: 'Vale mais a pena o mensal ou o anual?', r: 'O anual, se você já decidiu: você paga dez meses e usa doze. No mensal você tem a liberdade de sair avisando com 30 dias, e paga um pouco mais por essa liberdade. Não tem pegadinha em nenhum dos dois.' },
+];
+---
+
+<Layout>
+  <!-- ============ 1. TOPO ============ -->
+  <header id="topo" class="fixed top-0 inset-x-0 z-50 transition-colors duration-300 sobre-escuro">
+    <div class="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
+      <span class="flex items-center gap-2.5 text-cream">
+        <span class="ponto-no-ar w-1.5 h-1.5 rounded-full bg-brand-on-dark shrink-0" aria-hidden="true"></span>
+        <span data-marca class="font-serif text-lg tracking-wide text-cream transition-colors">{NOME_PRODUTO}</span>
+      </span>
+      <nav class="flex items-center gap-2 sm:gap-5">
+        <a href="/demo" data-nav class="hidden sm:inline text-sm text-cream/70 hover:text-cream transition-colors">Como fica</a>
+        <a href="/acessar" data-nav class="text-sm text-cream/70 hover:text-cream transition-colors">Entrar</a>
+        <a href={ctaTopo} target="_blank" rel="noopener"
+          class="inline-flex items-center justify-center min-h-11 bg-brand hover:bg-brand-hover text-on-brand font-semibold text-sm px-4 sm:px-5 rounded-md transition-colors">
+          Falar no WhatsApp
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ============ 2. CHAMADA PRINCIPAL ============ -->
+  <section class="relative isolate min-h-[92svh] flex items-center overflow-hidden sobre-escuro">
+    <video
+      class="absolute inset-0 -z-20 w-full h-full object-cover"
+      poster="/midia/hero-poster.webp"
+      autoplay muted loop playsinline preload="auto" aria-hidden="true" tabindex="-1">
+      <source src="/midia/hero-mobile.mp4" type="video/mp4" media="(max-width: 640px)" />
+      <source src="/midia/hero.mp4" type="video/mp4" />
+    </video>
+    <!-- Véu: garante 8:1 de contraste mesmo no quadro mais claro do vídeo -->
+    <div class="absolute inset-0 -z-10 bg-gradient-to-r from-dark/95 via-dark/85 to-dark/45" aria-hidden="true"></div>
+    <div class="absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-b from-transparent to-ground" aria-hidden="true"></div>
+
+    <div class="relative max-w-6xl mx-auto px-5 pt-28 pb-24 w-full">
+      <p data-rise class="text-brand-on-dark text-xs font-semibold tracking-[0.22em] uppercase mb-5">Para barbearias</p>
+      <h1 data-rise class="font-serif text-[clamp(2.25rem,6vw,3.9rem)] leading-[1.06] tracking-tight text-cream max-w-4xl">
+        O site da sua barbearia.<br />
+        <span class="italic text-brand-on-dark">Pronto, no ar, sem você montar nada.</span>
+      </h1>
+      <p data-rise class="mt-7 text-base sm:text-lg text-cream/75 max-w-xl leading-relaxed">
+        Endereço próprio, sua marca, suas fotos — e agendamento online funcionando 24 horas.
+        Você manda o material uma vez. Eu escolho as fotos, escrevo os textos e ponho no ar.
+      </p>
+      <div data-rise class="mt-9 flex flex-col sm:flex-row gap-3">
+        <a href={ctaTopo} target="_blank" rel="noopener"
+          class="group inline-flex items-center justify-center gap-2.5 min-h-[52px] bg-brand hover:bg-brand-hover text-on-brand font-bold uppercase tracking-wider text-sm px-8 rounded-md transition-colors">
+          <svg class="w-[18px] h-[18px] transition-transform duration-150 group-hover:translate-x-0.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Quero saber mais
+        </a>
+        <a href="/demo"
+          class="inline-flex items-center justify-center min-h-[52px] border border-cream/35 hover:border-cream/70 text-cream font-medium text-sm px-8 rounded-md transition-colors">
+          Ver como fica
+        </a>
+      </div>
+      <p data-rise class="mt-6 text-xs text-cream/65">
+        Atendimento em Mossoró e região. Conversa sem compromisso.
+        <a href="#preco" class="text-cream/75 hover:text-brand-on-dark underline underline-offset-4 ml-1 transition-colors">Ver preços</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ 3. O PROBLEMA ============ -->
+  <section class="bg-ground">
+    <div class="max-w-6xl mx-auto px-5 py-16 sm:py-24">
+      <h2 data-rise class="font-serif text-[clamp(1.75rem,3.4vw,2.6rem)] leading-tight tracking-tight text-ink mb-12 max-w-2xl">
+        Provavelmente você reconhece pelo menos uma destas
+      </h2>
+      <div class="grid sm:grid-cols-3 gap-8 sm:gap-6">
+        {dores.map((d) => (
+          <div data-rise class="border-l-2 border-brand pl-5">
+            <h3 class="font-serif text-xl text-ink mb-2.5 leading-snug">{d.titulo}</h3>
+            <p class="text-[15px] text-ink-soft leading-relaxed">{d.texto}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4. O QUE RECEBE ============ -->
+  <section class="bg-card border-y border-line">
+    <div class="max-w-6xl mx-auto px-5 py-16 sm:py-24">
+      <h2 data-rise class="font-serif text-[clamp(1.75rem,3.4vw,2.6rem)] leading-tight tracking-tight text-ink mb-3">O que você recebe</h2>
+      <p data-rise class="text-ink-soft mb-12 max-w-xl text-[15px]">Tudo funcionando no dia da entrega. Sem pacote básico, sem funcionalidade travada esperando você pagar mais.</p>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {entregas.map((e, i) => (
+          <div data-rise class="rounded-lg border border-line bg-card p-6 transition-[transform,box-shadow,border-color,background-color] duration-200 hover:-translate-y-0.5 hover:bg-card-hover hover:shadow-[0_10px_30px_rgba(0,0,0,0.45)] hover:border-line-strong">
+            <p class="text-[11px] font-semibold tracking-[0.14em] text-brand-text mb-3.5">{String(i + 1).padStart(2, '0')}</p>
+            <h3 class="font-serif text-xl text-ink mb-2 leading-snug">{e.titulo}</h3>
+            <p class="text-[15px] text-ink-soft leading-relaxed">{e.texto}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 5. A DIFERENÇA ============ -->
+  <section class="bg-ground">
+    <div class="max-w-6xl mx-auto px-5 py-16 sm:py-24">
+      <h2 data-rise class="font-serif text-[clamp(1.75rem,3.4vw,2.6rem)] leading-tight tracking-tight text-ink mb-4">A diferença não é o site. É quem monta.</h2>
+      <p data-rise class="text-ink-soft mb-10 max-w-2xl text-[15px] leading-relaxed">
+        Os aplicativos de agendamento são bons no que fazem, e alguns também oferecem uma
+        página para a barbearia. A diferença está em quem enche essa página: neles, você.
+        Aqui, eu — com as suas fotos escolhidas e tratadas uma a uma.
+      </p>
+      <div data-rise class="overflow-x-auto -mx-5 px-5">
+        <table class="w-full min-w-[600px] text-sm bg-card border border-line rounded-lg overflow-hidden">
+          <thead>
+            <tr class="text-left border-b border-line">
+              <th class="px-5 py-4 font-semibold text-ink-mute w-1/3">&nbsp;</th>
+              <th class="px-5 py-4 font-semibold text-ink-mute">Aplicativo de agendamento</th>
+              <th class="px-5 py-4 font-semibold text-brand-text">Aqui</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              ['Quem monta a sua página', 'Você, sozinho, preenchendo formulário', 'Eu monto inteira, do zero'],
+              ['As fotos', 'Você sobe e torce para ficar bom', 'Eu escolho, corto e trato uma a uma'],
+              ['Os textos', 'Você escreve', 'Eu escrevo, a partir do que você me contar'],
+              ['Se você não preencher', 'Fica no ar do jeito que estiver', 'Não vai para o ar até estar bom'],
+              ['O visual', 'O mesmo modelo de todo mundo', 'Ajustado à sua marca e às suas cores'],
+              ['O endereço do site', 'Subdomínio deles, sempre', 'Subdomínio nosso, ou o seu domínio se quiser'],
+              ['Quem te atende', 'Central de atendimento', 'Quem escreveu o sistema'],
+            ].map(([label, deles, aqui]) => (
+              <tr class="border-t border-line transition-colors hover:bg-ground group">
+                <td class="px-5 py-4 text-ink font-medium">{label}</td>
+                <td class="px-5 py-4 text-ink-mute">{deles}</td>
+                <td class="px-5 py-4 text-ink">
+                  <span class="text-brand-text mr-1.5 font-bold" aria-hidden="true">✓</span>{aqui}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-6 text-xs text-ink-mute">
+        <p class="mb-1.5">Mensalidades cobradas por eles, consultadas em 28/08/2026 nas páginas oficiais:</p>
+        <p>{CONCORRENTES.map((c) => `${c.nome} ${c.preco}`).join(' · ')}</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 6. COMO FUNCIONA ============ -->
+  <section class="bg-card border-y border-line">
+    <div class="max-w-6xl mx-auto px-5 py-16 sm:py-24">
+      <h2 data-rise class="font-serif text-[clamp(1.75rem,3.4vw,2.6rem)] leading-tight tracking-tight text-ink mb-12">Como funciona</h2>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        {passos.map((p) => (
+          <div data-rise class="group">
+            <div class="w-10 h-10 rounded-full border border-line-strong text-ink flex items-center justify-center font-serif text-lg mb-4 transition-colors group-hover:bg-brand group-hover:border-brand group-hover:text-on-brand">{p.n}</div>
+            <h3 class="font-serif text-xl text-ink mb-2">{p.titulo}</h3>
+            <p class="text-[15px] text-ink-soft leading-relaxed">{p.texto}</p>
+          </div>
+        ))}
+      </div>
+      <div data-rise class="mt-12 pt-8 border-t border-line flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <p class="text-sm text-ink-mute max-w-md leading-relaxed">
+          Do primeiro contato até o site no ar costuma levar cerca de uma semana — a maior parte
+          dela esperando as fotos.
+        </p>
+        <a href="/demo" class="inline-flex items-center gap-2 min-h-11 py-2 text-sm font-semibold text-brand-text hover:text-ink transition-colors shrink-0">
+          Ver as telas do sistema
+          <span aria-hidden="true">→</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 7. PREÇO ============ -->
+  <section id="preco" class="bg-ground scroll-mt-16">
+    <div class="max-w-6xl mx-auto px-5 py-16 sm:py-24">
+      <h2 data-rise class="font-serif text-[clamp(1.75rem,3.4vw,2.6rem)] leading-tight tracking-tight text-ink mb-3">Quanto custa</h2>
+      <p data-rise class="text-ink-soft mb-2 max-w-xl text-[15px]">Um valor por mês. Sem letra miúda.</p>
+      <p data-rise class="text-brand-text text-[15px] font-semibold mb-10">
+        Sem taxa de instalação — a montagem do seu site está inclusa.
+      </p>
+
+      <div class="grid sm:grid-cols-2 gap-5 max-w-3xl">
+        <div data-rise class="rounded-xl border border-line bg-card p-7">
+          <p class="text-[11px] uppercase tracking-[0.18em] text-ink-mute mb-3 font-semibold">Mensal</p>
+          <p class="font-serif text-[2.75rem] leading-none text-ink">{reais(PRECO.mensal)}<span class="text-lg text-ink-mute font-sans"> /mês</span></p>
+          <p class="text-sm text-ink-mute mt-3">cancela quando quiser, avisando 30 dias</p>
+          <ul class="mt-6 space-y-2.5 text-[15px] text-ink-soft">
+            {['Site montado por mim, do zero','Endereço próprio com o nome da sua barbearia','Agendamento e painel funcionando','Backup diário dos seus clientes','Suporte e ajustes pequenos'].map((t) => (
+              <li class="flex gap-2.5"><span class="text-brand-text font-bold shrink-0" aria-hidden="true">✓</span>{t}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div data-rise class="respira rounded-xl border-2 border-brand bg-card p-7 relative">
+          <div class="absolute -top-3 left-6 bg-brand text-on-brand text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded">
+            {PRECO.mesesBonus} meses de bônus
+          </div>
+          <p class="text-[11px] uppercase tracking-[0.18em] text-ink-mute mb-3 font-semibold">Anual, à vista</p>
+          <p class="font-serif text-[2.75rem] leading-none text-ink">{reais(PRECO_ANUAL)}<span class="text-lg text-ink-mute font-sans"> /ano</span></p>
+          <p class="text-sm text-brand-text mt-3 font-medium">
+            sai por {reais(PRECO_ANUAL_POR_MES)} por mês — você paga {12 - PRECO.mesesBonus} e usa 12
+          </p>
+          <ul class="mt-6 space-y-2.5 text-[15px] text-ink-soft">
+            {['Tudo do plano mensal','Dois meses sem pagar nada','Preço travado pelo ano inteiro','Prioridade na fila de montagem'].map((t) => (
+              <li class="flex gap-2.5"><span class="text-brand-text font-bold shrink-0" aria-hidden="true">✓</span>{t}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <a href={ctaPreco} target="_blank" rel="noopener" data-rise
+        class="mt-9 inline-flex items-center justify-center min-h-[52px] bg-brand hover:bg-brand-hover text-on-brand font-bold uppercase tracking-wider text-sm px-10 rounded-md transition-colors">
+        Quero começar
+      </a>
+      <p class="mt-5 text-xs text-ink-mute max-w-xl leading-relaxed">
+        Mudanças no desenho da página, seções novas ou funcionalidades sob medida são orçadas
+        à parte. Trocar foto, texto, preço e horário você faz sozinho, sempre, sem custo.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ 8. PERGUNTAS ============ -->
+  <section class="bg-card border-y border-line">
+    <div class="max-w-3xl mx-auto px-5 py-16 sm:py-24">
+      <h2 data-rise class="font-serif text-[clamp(1.75rem,3.4vw,2.6rem)] leading-tight tracking-tight text-ink mb-8">Perguntas que sempre fazem</h2>
+      <div class="border-t border-line">
+        {faq.map((f) => (
+          <details data-rise class="group border-b border-line">
+            <summary class="flex items-start justify-between gap-4 cursor-pointer list-none py-5 min-h-11 text-ink font-medium text-[15px] transition-colors hover:text-brand-text">
+              {f.p}
+              <span class="text-brand-text shrink-0 mt-0.5 transition-transform duration-200 group-open:rotate-45 text-xl leading-none" aria-hidden="true">+</span>
+            </summary>
+            <p class="pb-5 -mt-1 text-[15px] text-ink-soft leading-relaxed pr-8">{f.r}</p>
+          </details>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 9. FECHAMENTO ============ -->
+  <section class="bg-dark sobre-escuro">
+    <div class="max-w-3xl mx-auto px-5 py-20 sm:py-28 text-center">
+      <h2 data-rise class="font-serif text-[clamp(2rem,4.6vw,3.25rem)] leading-tight tracking-tight text-cream">Vamos conversar?</h2>
+      <p data-rise class="mt-5 text-cream/70 max-w-lg mx-auto leading-relaxed">
+        Vinte minutos no WhatsApp. Eu te mostro como fica, você me diz se faz sentido.
+        Se não fizer, sem problema nenhum.
+      </p>
+      <a href={ctaDuvida} target="_blank" rel="noopener" data-rise
+        class="mt-9 inline-flex items-center justify-center min-h-[52px] bg-brand hover:bg-brand-hover text-on-brand font-bold uppercase tracking-wider text-sm px-10 rounded-md transition-colors">
+        Chamar no WhatsApp
+      </a>
+    </div>
+  </section>
+
+  <!-- ============ 10. RODAPÉ ============ -->
+  <footer class="bg-dark border-t border-white/10">
+    <div class="max-w-6xl mx-auto px-5 py-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-cream/60">
+      <span class="flex items-center gap-2 font-serif text-sm text-cream/75">
+        <span class="ponto-no-ar w-1.5 h-1.5 rounded-full bg-brand-on-dark" aria-hidden="true"></span>
+        {NOME_PRODUTO}
+      </span>
+      <span class="flex items-center gap-4">
+        <a href="/acessar" class="hover:text-cream transition-colors">Entrar no painel</a>
+        <span>Mossoró/RN · {new Date().getFullYear()}</span>
+      </span>
+    </div>
+  </footer>
+</Layout>
+
+<script>
+  // Marca o <html> para o CSS só esconder [data-rise] quando há JS para revelá-los.
+  document.documentElement.classList.add('js');
+
+  const parado = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const alvos = document.querySelectorAll<HTMLElement>('[data-rise]');
+
+  if (parado || !('IntersectionObserver' in window)) {
+    alvos.forEach((el) => (el.style.opacity = '1'));
+  } else {
+    // Cascata de 60ms entre irmãos, uma vez só.
+    const observador = new IntersectionObserver((entradas) => {
+      const visiveis = entradas.filter((e) => e.isIntersecting);
+      visiveis.forEach((e, i) => {
+        const el = e.target as HTMLElement;
+        el.style.animationDelay = `${Math.min(i, 5) * 60}ms`;
+        el.classList.add('no-ar');
+        observador.unobserve(el);
+      });
+    }, { rootMargin: '0px 0px -10% 0px', threshold: 0.1 });
+    alvos.forEach((el) => observador.observe(el));
+  }
+
+  // Cabeçalho: transparente sobre o vídeo, cor de cartão depois, com um fio de
+  // luz embaixo. Em fundo escuro a sombra não marca a separação — a borda marca.
+  const topo = document.getElementById('topo');
+  const marca = document.querySelector<HTMLElement>('[data-marca]');
+  const navs = document.querySelectorAll<HTMLElement>('[data-nav]');
+  const sincronizar = () => {
+    const rolou = window.scrollY > 80;
+    topo?.classList.toggle('bg-card', rolou);
+    topo?.classList.toggle('shadow-[0_1px_0_0_rgba(255,255,255,0.08)]', rolou);
+    topo?.classList.toggle('sobre-escuro', !rolou);
+    marca?.classList.toggle('text-ink', rolou);
+    marca?.classList.toggle('text-cream', !rolou);
+    navs.forEach((n) => {
+      n.classList.toggle('text-ink-soft', rolou);
+      n.classList.toggle('text-cream/70', !rolou);
+    });
+  };
+  sincronizar();
+  addEventListener('scroll', sincronizar, { passive: true });
+</script>
