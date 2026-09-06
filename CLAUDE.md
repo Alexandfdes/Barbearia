@@ -10,18 +10,28 @@ SaaS para barbearias, vendido como **site próprio + agendamento + faturamento**
 mensalidade, com a montagem do site inclusa. Nasceu sob medida para a Barbearia Bayron,
 que não fechou; virou produto.
 
-## Dois repositórios, e eles se confundem
+## Um repositório, dois aplicativos
+
+Tudo vive em `C:\DEV\barbearia`. Os dois projetos foram unificados em 06/09/2026 —
+`C:\DEV\produto` não é mais usado.
 
 | Pasta | O que é | Porta |
 |---|---|---|
-| `C:\DEV\barbearia` | O que cada barbearia recebe: site público, agendamento e painel | 4321 |
-| `C:\DEV\produto` | O site de vendas: landing, `/onboarding`, caixa de entrada `/envios` | 4321 |
+| `apps/barbearia/` | O que cada barbearia recebe: site público, agendamento e painel | 4321 |
+| `apps/vendas/` | O site de vendas: landing, `/onboarding`, caixa de entrada `/envios` | 4322 |
 
-⚠️ **`C:\DEV\produto` não é repositório git** — sem histórico, um apagão errado perde tudo.
+Por que num repositório só, e o que foi rejeitado: `docs/MONOREPO.md`.
+
+⚠️ **O build do Docker precisa de `apps/barbearia` como contexto**, não da raiz.
+O `Dockerfile` não mudou, mas o caminho sim — `docs/MONOREPO.md` §3.
+
+⚠️ **Padrão de `.gitignore` para conteúdo sensível nunca é ancorado na raiz.** Ao mover
+o app para `apps/barbearia/`, `data/**/*.db` parou de casar e o git tentou versionar o
+banco com os dados reais dos clientes. Use `**/data/...` — `docs/MONOREPO.md` §6.
 
 ## Onde procurar o quê
 
-Fonte de verdade em `docs/` (repo da barbearia):
+Fonte de verdade em `docs/`, na raiz do monorepo:
 
 | Preciso saber | Documento |
 |---|---|
@@ -32,11 +42,12 @@ Fonte de verdade em `docs/` (repo da barbearia):
 | Fases da produtização e as decisões D1–D7 | `ARQUITETURA-PRODUTO-V1.md` |
 | Cobrança, Asaas, onboarding, estados do tenant | `ARQUITETURA-COBRANCA-V1.md` |
 | Como fica em produção com N barbearias | `ARQUITETURA-PRODUCAO.md` |
+| Por que os dois projetos viraram um repositório | `MONOREPO.md` |
 | O modelo em português claro, sem termo técnico | `COMO-FUNCIONA.md` |
 
 ⚠️ `COMO-FUNCIONA.md` e `FLUXO-COMPLETO.md` são de 30/08 e estão **desatualizados sobre
 o nome do produto** (dizem que não foi decidido; foi: Barbearia no Ar).
-O `README.md` é de maio e descreve o projeto como landing page — ignore.
+O `README.md` da raiz foi reescrito em 06/09 e descreve o monorepo.
 
 ## Regras que não se negociam
 
@@ -63,9 +74,16 @@ O `README.md` é de maio e descreve o projeto como landing page — ignore.
 
 ## Onde o código está na migração
 
-Passo 1 de `ARQUITETURA-MULTI-TENANT-V1.md` §9 feito: `src/lib/tenant.ts` é o único
+Todo caminho abaixo é a partir de `apps/barbearia/`.
+
+**Passo 1 de `ARQUITETURA-MULTI-TENANT-V1.md` §9 — feito.** `src/lib/tenant.ts` é o único
 resolvedor de tenant, `src/lib/settings.ts` centraliza toda leitura e escrita da tabela
 `settings`, e `pastaDeMidia()`/`urlDeMidia()` são os únicos lugares que montam caminho de
-mídia. Ainda em SQLite, ainda uma barbearia.
+mídia.
 
-Passo 2 é portar para Postgres. Os passos seguintes estão no §9 daquele documento.
+**Passo 2 (Postgres) — escrito e testado, NÃO aplicado.** O porte inteiro está em
+`migracao-postgres/porte-postgres.patch`, verificado contra um PostgreSQL 16 real. O
+código em `apps/barbearia/src/` continua em SQLite até o patch ser aplicado. Como aplicar
+e as três armadilhas de runtime: `migracao-postgres/LEIA-ME.md`.
+
+Os passos 3 a 7 estão em `ARQUITETURA-MULTI-TENANT-V1.md` §9.
