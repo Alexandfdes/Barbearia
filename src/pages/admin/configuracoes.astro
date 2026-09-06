@@ -4,9 +4,10 @@ export const prerender = false;
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getSession } from '../../lib/session.js';
 import { db } from '../../db/index.js';
-import { barbers, settings } from '../../db/schema.js';
+import { barbers } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { parseBusinessHours } from '../../lib/settings.js';
+import { parseBusinessHours, lerSettingsRow } from '../../lib/settings.js';
+import { tenantDaSessao } from '../../lib/tenant.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
@@ -17,7 +18,7 @@ const barberRow = db.select({ id: barbers.id, name: barbers.name })
   .from(barbers).where(eq(barbers.id, session.barberId)).all()[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
-const cfg = db.select().from(settings).where(eq(settings.id, 1)).get();
+const cfg = lerSettingsRow(tenantDaSessao(session).id);
 const horarios = parseBusinessHours(cfg?.businessHours);
 
 type Campo = {

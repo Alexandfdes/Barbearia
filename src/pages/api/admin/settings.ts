@@ -2,12 +2,10 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
-import { db } from '../../../db/index.js';
-import { settings } from '../../../db/schema.js';
 import { json } from '../../../lib/api.js';
 import { getSession } from '../../../lib/session.js';
-import { invalidateSettings } from '../../../lib/settings.js';
+import { lerSettingsRow, atualizarSettings } from '../../../lib/settings.js';
+import { tenantDaSessao } from '../../../lib/tenant.js';
 import { derivarAccent, isHex } from '../../../lib/accent.js';
 
 /** URL opcional: ou vazia, ou começando com http(s). Evita salvar "instagram.com/x"
@@ -58,7 +56,8 @@ export const GET: APIRoute = async ({ request }) => {
   if (!session) return json({ error: 'Não autenticado' }, 401);
   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
 
-  const row = db.select().from(settings).where(eq(settings.id, 1)).get();
+  const tenant = tenantDaSessao(session);
+  const row = lerSettingsRow(tenant.id);
   if (!row) return json({ error: 'Configuração não encontrada (migration 0009 aplicada?)' }, 404);
   return json(row);
 };
@@ -104,21 +103,19 @@ export const PATCH: APIRoute = async ({ request }) => {
 
   if (Object.keys(updates).length === 0) return json({ error: 'Nenhum campo para atualizar' }, 400);
 
-  const existe = db.select({ id: settings.id }).from(settings).where(eq(settings.id, 1)).get();
-  if (!existe) return json({ error: 'Configuração não encontrada (migration 0009 aplicada?)' }, 404);
-
   updates.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
+  // atualizarSettings() já invalida o cache do tenant — sem isso o painel salva
+  // e o site continua mostrando o valor velho. Ver ARQUITETURA-PRODUTO-V1 D3.1.
+  const tenant = tenantDaSessao(session);
   try {
-    db.update(settings).set(updates).where(eq(settings.id, 1)).run();
+    if (!atualizarSettings(updates, tenant.id)) {
+      return json({ error: 'Configuração não encontrada (migration 0009 aplicada?)' }, 404);
+    }
   } catch (err) {
     console.error('[api/admin/settings PATCH]', err);
     return json({ error: 'Falha ao salvar a configuração' }, 500);
   }
-
-  // ⚠️ Sem isto o painel salva e o site continua mostrando o valor velho até o
-  // container reiniciar. Ver ARQUITETURA-PRODUTO-V1 D3.1.
-  invalidateSettings();
 
   return json({ ok: true });
 };

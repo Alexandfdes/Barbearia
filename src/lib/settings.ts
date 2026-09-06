@@ -18,6 +18,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { settings as settingsTable } from '../db/schema.js';
+import { TENANT_UNICO } from './tenant.js';
 
 export interface BusinessHour {
   label: string;
@@ -114,23 +115,62 @@ export function parseBusinessHours(raw: string | null | undefined): BusinessHour
   }
 }
 
-let cache: Settings | null = null;
+/**
+ * Cache por tenant. Era uma variável só quando havia uma barbearia; virou mapa
+ * porque com banco único cada tenant tem a própria linha de configuração.
+ *
+ * ⚠️ Continua sendo cache de PROCESSO. Com o adapter node standalone há um
+ * processo e isso é trivialmente correto. Em múltiplos workers, cada um teria o
+ * próprio mapa e um deles serviria valor velho até reiniciar.
+ */
+const cache = new Map<number, Settings>();
 
-export function getSettings(): Settings {
-  if (cache) return cache;
+/**
+ * Lê a linha crua de `settings` do tenant. É a ÚNICA consulta a essa tabela em
+ * todo o projeto — regra 1 da skill: nada de `where(eq(settings.id, 1))` espalhado.
+ */
+export function lerSettingsRow(tenantId: number = TENANT_UNICO.id) {
+  // HOJE: a linha é identificada pelo id fixo 1. No passo 3 isto vira
+  // `where(eq(settingsTable.tenantId, tenantId))`.
+  return db.select().from(settingsTable).where(eq(settingsTable.id, tenantId)).get();
+}
 
-  const row = db.select().from(settingsTable).where(eq(settingsTable.id, 1)).get();
+/**
+ * Grava campos em `settings` e invalida o cache do tenant.
+ *
+ * Existe para que nenhuma rota precise montar o `where` sozinha — foi assim que
+ * seis consultas diretas apareceram espalhadas por três arquivos. Devolve false
+ * quando não há linha para atualizar.
+ */
+export function atualizarSettings(
+  updates: Record<string, unknown>,
+  tenantId: number = TENANT_UNICO.id,
+): boolean {
+  const existe = db.select({ id: settingsTable.id })
+    .from(settingsTable).where(eq(settingsTable.id, tenantId)).get();
+  if (!existe) return false;
+
+  db.update(settingsTable).set(updates).where(eq(settingsTable.id, tenantId)).run();
+  invalidateSettings(tenantId);
+  return true;
+}
+
+export function getSettings(tenantId: number = TENANT_UNICO.id): Settings {
+  const emCache = cache.get(tenantId);
+  if (emCache) return emCache;
+
+  const row = lerSettingsRow(tenantId);
 
   if (!row) {
     console.error(
       '[settings] linha 1 ausente na tabela `settings`. Usando TEMPLATE_DEFAULTS. ' +
       'Isso indica migration 0009 não aplicada ou banco recriado sem seed.'
     );
-    cache = TEMPLATE_DEFAULTS;
-    return cache;
+    cache.set(tenantId, TEMPLATE_DEFAULTS);
+    return TEMPLATE_DEFAULTS;
   }
 
-  cache = {
+  const parsed: Settings = {
     businessName: row.businessName,
     shortName: row.shortName,
     tagline: row.tagline ?? '',
@@ -160,12 +200,17 @@ export function getSettings(): Settings {
     productsSectionTitle: row.productsSectionTitle,
   };
 
-  return cache;
+  cache.set(tenantId, parsed);
+  return parsed;
 }
 
-/** Chamar em TODO endpoint que escreve em `settings`. Sem isto, o painel salva e o site não muda. */
-export function invalidateSettings(): void {
-  cache = null;
+/**
+ * Chamar em TODO endpoint que escreve em `settings` — o `atualizarSettings()`
+ * acima já faz isso. Sem tenant, limpa tudo.
+ */
+export function invalidateSettings(tenantId?: number): void {
+  if (tenantId === undefined) cache.clear();
+  else cache.delete(tenantId);
 }
 
 /**
