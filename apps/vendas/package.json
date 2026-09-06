@@ -1,0 +1,22 @@
+{
+  "name": "barbersaas-sales-onboarding",
+  "type": "module",
+  "version": "0.1.0",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env node_modules/astro/bin/astro.mjs dev",
+    "build": "astro build",
+    "preview": "node --env-file-if-exists=.env node_modules/astro/bin/astro.mjs preview",
+    "start": "node dist/server/entry.mjs"
+  },
+  "dependencies": {
+    "@astrojs/node": "^10.1.1",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/playfair-display": "^5.2.8",
+    "@tailwindcss/vite": "^4.2.4",
+    "astro": "^6.2.1",
+    "better-sqlite3": "^12.10.0",
+    "tailwindcss": "^4.2.4",
+    "zod": "^4.4.3"
+  }
+}

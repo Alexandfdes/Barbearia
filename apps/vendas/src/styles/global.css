@@ -1,0 +1,104 @@
+@import "tailwindcss";
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/playfair-display';
+
+/*
+  Paleta ESCURA — decidida em 31/08/2026, substitui a paleta clara de 30/08.
+
+  Motivo da troca: a paleta clara caiu exatamente na armadilha que o próprio
+  briefing (§3) previu — fundo gelo + texto grafite + botão verde é a receita
+  padrão de SaaS, e uma página que parece software de contabilidade contradiz
+  o argumento de venda antes de alguém ler o texto. Escuro é o vocabulário
+  visual de barbearia e é o mesmo do site que o cliente recebe.
+
+  Todo valor abaixo teve o contraste recalculado (WCAG 2.1 AA) contra a
+  superfície onde ele é usado. Não trocar um hex sem recalcular.
+
+  A armadilha desta paleta é o VERDE, e ela é diferente da anterior:
+  ver --color-on-brand.
+*/
+@theme {
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+  --font-serif: 'Playfair Display Variable', Georgia, serif;
+
+  /* Superfícies. Em fundo escuro a elevação vem de superfície MAIS CLARA e
+     borda visível — sombra não funciona como elevação aqui. */
+  --color-ground: #12161f;       /* fundo da página */
+  --color-card: #1b2330;         /* cartões e seções alternadas — 1,15:1 sobre ground */
+  --color-card-hover: #232d3d;   /* elevação no hover, no lugar da sombra */
+  --color-line: #2b3750;         /* bordas — 1,33:1 sobre card */
+  --color-line-strong: #3c4a63;  /* divisórias e hover — 1,77:1 sobre card */
+
+  /* Texto. Creme quente sobre escuro frio: é daqui que vem o calor da página.
+     Razões sobre ground / card / dark: */
+  --color-ink: #f5efe6;          /* 15,83 / 13,82 / 17,42 */
+  --color-ink-soft: #c3ccd9;     /* 11,17 /  9,75 / 12,29 */
+  --color-ink-mute: #a8b3c2;     /*  8,53 /  7,44 /  9,38 — piso */
+
+  /*
+    Verde. A regra do botão é a MESMA da paleta clara e sobreviveu à inversão:
+    fundo brand + texto grafite = 5,38:1, e no hover o fundo CLAREIA para
+    brand-hover = 7,79:1.
+
+    O que mudou: em fundo claro o verde escurecia para virar texto; em fundo
+    escuro ele CLAREIA. --color-brand-text agora é o verde claro.
+
+    ⚠️ --color-on-brand existe porque --color-ink virou claro. Texto creme
+    sobre o verde dá 2,9:1 e REPROVA. Todo texto que fica em cima de um
+    preenchimento verde usa --color-on-brand, nunca --color-ink.
+  */
+  --color-brand: #16a34a;
+  --color-brand-hover: #22c55e;
+  --color-brand-text: #4ade80;    /* 10,39 sobre ground · 9,06 sobre card */
+  --color-brand-on-dark: #4ade80;
+  /* Usado por botões de contorno em demo.astro e envios/[protocolo].astro.
+     O token NUNCA existiu: `text-brand-light` não gerava classe nenhuma e o
+     texto herdava a cor do pai. Bug anterior a esta paleta, corrigido aqui. */
+  --color-brand-light: #4ade80;
+  --color-on-brand: #111827;      /* 5,38:1 sobre --color-brand */
+
+  /* Faixa mais funda — véu do hero sobre o vídeo, fechamento e rodapé.
+     1,10:1 sobre ground: separa como banda, sem virar buraco. */
+  --color-dark: #07090e;
+  --color-cream: #f5efe6;         /* mesmo valor de --color-ink, mantido pelos usos existentes */
+}
+
+/* Faz o navegador pintar barra de rolagem, campos e menus nativos em escuro.
+   Sem isso, um <select> branco estoura no meio da página. */
+html { scroll-behavior: smooth; color-scheme: dark; }
+body { background-color: var(--color-ground); color: var(--color-ink); }
+
+/* Foco visível — em fundo escuro só o verde claro se enxerga */
+:focus-visible { outline: 2px solid var(--color-brand-on-dark); outline-offset: 2px; }
+
+/* ---- Animações ----
+   Entrada por rolagem: esmaecimento + subida de 12px, 300ms, uma vez só.
+   O elemento nasce invisível só quando o JS assume (classe no <html>), para
+   que sem JavaScript a página continue legível. */
+@keyframes bna-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.js [data-rise] { opacity: 0; }
+.js [data-rise].no-ar { animation: bna-rise 300ms ease-out forwards; }
+
+/* Ponto "no ar" — única animação que roda o tempo todo */
+@keyframes bna-live { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+.ponto-no-ar { animation: bna-live 2s ease-in-out infinite; }
+
+/* Respiro do cartão anual. Em fundo escuro o brilho verde aparece mais que
+   no claro, então a opacidade caiu de .18 para .14 — a regra do briefing é
+   que, se ficar notável, está errado. */
+@keyframes bna-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+  50% { box-shadow: 0 0 30px 2px rgba(74, 222, 128, .14); }
+}
+.respira { animation: bna-glow 4s ease-in-out infinite; }
+
+/* Regra dura do briefing: sem exceção. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .js [data-rise] { opacity: 1 !important; }
+  video { display: none; }
+}

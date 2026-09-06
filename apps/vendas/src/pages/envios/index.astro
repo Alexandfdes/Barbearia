@@ -1,0 +1,114 @@
+---
+export const prerender = false;
+
+import Layout from '../../layouts/Layout.astro';
+import { NOME_PRODUTO } from '../../config';
+import { db } from '../../lib/db.js';
+import { autenticado } from '../../lib/auth.js';
+
+if (!autenticado(Astro.request)) return Astro.redirect('/entrar');
+
+const filtro = Astro.url.searchParams.get('status') ?? 'abertos';
+
+type Linha = {
+  protocolo: string; nome_negocio: string; responsavel: string; whatsapp: string;
+  cidade: string | null; criado_em: string; arquivos: string; status: string;
+};
+
+const todos = db.prepare(`
+  SELECT protocolo, nome_negocio, responsavel, whatsapp, cidade, criado_em, arquivos, status
+  FROM onboarding ORDER BY id DESC
+`).all() as Linha[];
+
+const lista = filtro === 'todos' ? todos : todos.filter((e) => e.status !== 'concluido');
+const abertos = todos.filter((e) => e.status !== 'concluido').length;
+
+const ROTULO: Record<string, string> = { novo: 'Novo', em_andamento: 'Em andamento', concluido: 'Concluído' };
+const COR: Record<string, string> = {
+  novo: 'bg-brand/15 text-brand-light border-brand/30',
+  em_andamento: 'bg-cream/10 text-cream/70 border-line',
+  concluido: 'bg-cream/5 text-cream/45 border-line',
+};
+
+/** O banco grava em UTC ("YYYY-MM-DD HH:MM:SS"). Aqui vira horário de Fortaleza. */
+function quando(s: string): string {
+  const d = new Date(s.replace(' ', 'T') + 'Z');
+  return d.toLocaleString('pt-BR', { timeZone: 'America/Fortaleza', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function qtdFotos(json: string): number {
+  try { return JSON.parse(json).length; } catch { return 0; }
+}
+---
+
+<Layout title={`Envios — ${NOME_PRODUTO}`}>
+  <header class="border-b border-line/60 sticky top-0 bg-card/95 backdrop-blur z-20">
+    <div class="max-w-4xl mx-auto px-5 h-16 flex items-center justify-between">
+      <div class="flex items-baseline gap-3">
+        <a href="/" class="font-serif text-lg tracking-wide text-cream">{NOME_PRODUTO}</a>
+        <span class="text-xs text-cream/45">Envios</span>
+      </div>
+      <button id="sair" class="text-xs text-cream/45 hover:text-cream/70 transition-colors">Sair</button>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-5 py-8">
+    <div class="flex items-end justify-between gap-4 mb-6 flex-wrap">
+      <div>
+        <h1 class="font-serif text-2xl text-cream">Caixa de entrada</h1>
+        <p class="text-sm text-cream/45 mt-1">
+          {abertos === 0 ? 'Nada esperando você.' : `${abertos} ${abertos === 1 ? 'envio esperando' : 'envios esperando'}`}
+          {todos.length > 0 && <span class="text-cream/40"> · {todos.length} no total</span>}
+        </p>
+      </div>
+      <div class="flex gap-1 text-xs">
+        <a href="/envios" class:list={['px-3 py-1.5 rounded border transition-colors',
+          filtro !== 'todos' ? 'border-brand/40 text-brand-light bg-brand/10' : 'border-line text-cream/40 hover:text-cream/70']}>Em aberto</a>
+        <a href="/envios?status=todos" class:list={['px-3 py-1.5 rounded border transition-colors',
+          filtro === 'todos' ? 'border-brand/40 text-brand-light bg-brand/10' : 'border-line text-cream/40 hover:text-cream/70']}>Todos</a>
+      </div>
+    </div>
+
+    {lista.length === 0 ? (
+      <div class="border border-dashed border-line rounded-lg py-16 text-center">
+        <p class="text-cream/40 text-sm">
+          {todos.length === 0
+            ? 'Nenhum envio ainda. Quando alguém preencher o formulário, aparece aqui.'
+            : 'Nenhum envio em aberto. Tudo concluído.'}
+        </p>
+      </div>
+    ) : (
+      <div class="space-y-2">
+        {lista.map((e) => (
+          <a href={`/envios/${e.protocolo}`}
+            class="block border border-line/60 bg-card hover:border-brand/40 rounded-lg p-4 transition-colors group">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2.5 flex-wrap">
+                  <span class="text-cream font-medium truncate">{e.nome_negocio}</span>
+                  <span class:list={['text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border', COR[e.status] ?? COR.novo]}>
+                    {ROTULO[e.status] ?? 'Novo'}
+                  </span>
+                </div>
+                <p class="text-sm text-cream/45 mt-1 truncate">
+                  {e.responsavel} · {e.whatsapp}{e.cidade && ` · ${e.cidade}`}
+                </p>
+              </div>
+              <div class="text-right shrink-0">
+                <p class="font-mono text-xs text-brand-light">{e.protocolo}</p>
+                <p class="text-[11px] text-cream/45 mt-1">{quando(e.criado_em)}</p>
+                <p class="text-[11px] text-cream/45">{qtdFotos(e.arquivos)} {qtdFotos(e.arquivos) === 1 ? 'foto' : 'fotos'}</p>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+    )}
+  </main>
+</Layout>
+
+<script is:inline>
+  document.getElementById('sair')?.addEventListener('click', async () => {
+    await fetch('/api/entrar', { method: 'DELETE' });
+    location.href = '/entrar';
+  });
+</script>
