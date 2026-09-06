@@ -56,5 +56,8 @@ pnpm-debug.log*
 .fuse_hidden*
 **/.fuse_hidden*
 
+# Entregas do app do Claude — cópias de arquivos já versionados em outro lugar
+Claude outputs/
+
 # Orçamentos e propostas comerciais
 orcamentos/
