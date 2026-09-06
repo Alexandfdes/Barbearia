@@ -1,198 +1,169 @@
-# Passos 3 e 3.5 — `tenants`, `tenant_id` e a rede de testes
+# Multi-tenant — passos 3, 3.5 e 4 (verificados, **não aplicados**)
 
-> Data: 2026-09-06. Passo 3 de `docs/ARQUITETURA-MULTI-TENANT-V1.md` §9, mais um
-> passo 3.5 que não estava na lista.
+> Data: 2026-09-06. Passos 3 e 4 de `docs/ARQUITETURA-MULTI-TENANT-V1.md` §9, mais
+> um 3.5 que não estava na lista.
 > Status: **escrito e testado contra um PostgreSQL 16 real; não aplicado.**
 > A branch `monorepo` não foi tocada.
 >
 > **Depende do passo 2** (porte para Postgres) estar aplicado antes.
 
-## 1. O que tem aqui
-
-| Arquivo | O que é |
+| | |
 |---|---|
-| `passo3-completo.patch` | Tudo: 7 arquivos. Aplica com `git apply` |
-| `0001_tenants.sql` | A migration, para ler antes de aplicar |
+| Arquivos alterados | **63** |
+| Rotas e páginas escopadas | **53 de 54** |
+| Testes | **123, 0 falhas** |
+| `tsc` | **0 erros** |
+| `astro check` | 269 (a linha de base do porte é 282) — **0 regressões** |
 
-Os 7 arquivos do patch:
-
-```
-apps/barbearia/drizzle/0001_tenants.sql          migration nova
-apps/barbearia/src/db/schema.ts                  tenants + tenantId em 12 tabelas
-apps/barbearia/src/lib/uploads.ts                pastaDeMidia() e urlDeMidia()  ← não existiam
-apps/barbearia/src/lib/bookAppointment.ts        escopado por tenant
-apps/barbearia/tests/tenants-schema.test.ts      12 testes novos
-apps/barbearia/tests/bookAppointment.test.ts     portado para Postgres
-apps/barbearia/tests/settings.test.ts            portado para Postgres
-```
-
-## 2. Como aplicar
+## 1. Como aplicar
 
 ```bash
 # com o passo 2 já aplicado, na branch dele
-git apply migracao-tenants/passo3-completo.patch
+git apply migracao-tenants/passo-3-4-completo.patch
 psql "$DATABASE_URL" -f apps/barbearia/drizzle/0001_tenants.sql
 
 cd apps/barbearia
-DATABASE_URL='postgres://.../barbearia_test' npx vitest run   # 118 testes
+DATABASE_URL='postgres://.../barbearia_test' npx vitest run   # 123 testes
 ```
 
-⚠️ **Os testes recriam o schema do zero.** Aponte `DATABASE_URL` para um banco de
-TESTE, nunca para o de produção. Sem `DATABASE_URL` as três suítes de integração
-são **puladas** em vez de falhar, para `npm test` continuar rodando numa máquina
-sem Postgres.
+⚠️ **Os testes recriam o schema do zero.** Aponte para um banco de TESTE. Sem
+`DATABASE_URL` as suítes de integração são puladas em vez de falhar.
 
-A migration é **idempotente** — rodar duas vezes não dá erro, e isso é um dos testes.
+## 2. Passo 3 — `tenants` e `tenant_id`
 
-## 3. Passo 3 — o que a migration faz
+Cria a tabela `tenants`, dá `tenant_id NOT NULL` + índice às 12 tabelas com
+backfill do Bayron, troca os `UNIQUE` de slug por compostos, e dá sequência ao
+`settings.id`. É idempotente.
 
-1. Cria `tenants` (slug, domain, business_name, status, created_at), com `CHECK`
-   no status: só `active`, `suspended` ou `cancelled`.
-2. Insere o tenant `bayron` e **preenche as 12 tabelas** com ele.
-3. Dá `tenant_id integer NOT NULL REFERENCES tenants(id)` + índice às 12 tabelas.
-4. Troca os `UNIQUE` de slug por compostos com `tenant_id` em `barbers`,
-   `services` e `products`.
-5. `appointments.manage_token` **continua único global**, de propósito.
-6. `settings` ganha `UNIQUE (tenant_id)` e uma sequência para o `id`.
-
-### 3.1 🔴 As 16 chaves estrangeiras deixavam vazar entre barbearias
+### 2.1 🔴 As 16 chaves estrangeiras deixavam vazar entre barbearias
 
 O §5 do documento manda dar `tenant_id` às tabelas, mas **as chaves estrangeiras
 continuavam apontando só para `id`**. Nada impedia um agendamento do tenant 1
 apontar para um barbeiro do tenant 2.
 
 **O RLS não pegaria isso.** Ele filtra pelo `tenant_id` da própria linha — que
-está certo. O que está errado é para quem ela aponta. O dono do tenant 1 veria o
-agendamento (é dele) e, ao juntar com `barbers`, leria o nome do barbeiro do
-tenant 2.
+está certo. O que está errado é para quem ela aponta. As 16 viraram compostas:
+`FOREIGN KEY (barber_id, tenant_id) REFERENCES barbers (id, tenant_id)`.
 
-As 16 viraram compostas:
+### 2.2 `settings.id` não tinha sequência
 
-```sql
-FOREIGN KEY (barber_id, tenant_id) REFERENCES barbers (id, tenant_id)
-```
+Era a linha fixa `id = 1` do SQLite. O INSERT do segundo tenant falhava com
+`null value in column "id"`. Verificado.
 
-Os nomes das constraints antigas são **descobertos no catálogo**, não escritos à
-mão: uma primeira tentativa com nomes chutados falhou em silêncio e deixou a
-chave antiga viva ao lado da nova.
+## 3. Passo 3.5 — a rede de testes
 
-### 3.2 `settings.id` não tinha sequência
+O §6 do LEIA-ME do porte já listava os testes como pendentes; o que estava errado
+era o §2, que promete `tsc` zerado. Com o porte aplicado davam **61 erros**.
 
-No SQLite era a linha fixa `id = 1`, então a coluna nasceu `integer NOT NULL` sem
-default. Com uma linha por tenant, o INSERT do segundo tenant falhava com
-`null value in column "id"`. Verificado — era exatamente esse o erro.
+### 3.1 🔴 `pastaDeMidia()` e `urlDeMidia()` nunca foram escritas
 
-### 3.3 O advisory lock não precisa de tenant
+O `CLAUDE.md` e o `ESTADO-ATUAL.md` afirmam que o passo 1 está completo com essas
+funções sendo "os únicos lugares que montam caminho de mídia". **Não existiam** —
+só o teste as referenciava. Escritas com o contrato que o teste já especificava.
 
-`pg_advisory_xact_lock(barberId)` continua correto: `barbers.id` é serial global,
-dois tenants nunca compartilham o mesmo id. Registrado em comentário no código
-para ninguém "corrigir" isso depois.
+A barbearia única mantém o caminho **sem** o slug de propósito: os arquivos já
+estão no disco assim e os caminhos estão no banco.
 
-## 4. Passo 3.5 — a rede de testes
+### 3.2 O teste pegou `bookAppointment` gravando sem tenant
 
-O §6 do `migracao-postgres/LEIA-ME.md` já listava "Os 10 arquivos de teste do
-repo | rodar contra o Postgres" como pendente. O que estava errado era o §2, que
-promete `npx tsc --noEmit # deve dar 0`: com o porte aplicado davam **61 erros,
-todos em `tests/`**.
+Portado o teste, 6 de 12 casos falharam. O pior ponto era a **idempotência**: sem
+o tenant, uma chave repetida vinda de outra barbearia devolveria o agendamento
+dela — com nome, telefone e horário.
 
-### 4.1 🔴 `pastaDeMidia()` e `urlDeMidia()` nunca foram escritas
+## 4. Passo 4 — o escopo, e o que ele revelou
 
-O `CLAUDE.md` e o `ESTADO-ATUAL.md` afirmam que o passo 1 está completo, com
-essas duas funções sendo "os únicos lugares que montam caminho de mídia".
-**Elas não existiam.** Só o `tests/tenant.test.ts` as referenciava — daí 2 dos 61
-erros. A terceira costura do passo 1 estava por fazer.
+### 4.1 ⚠️ A superfície é maior que "49 rotas"
 
-Escritas agora, com o contrato que o teste já especificava:
+Os documentos falam em 49 rotas. **A contagem real é 41 rotas de API que tocam o
+banco mais 12 páginas `.astro` que consultam direto no frontmatter** — o painel
+inteiro. As páginas nunca apareceram na conta.
 
-| Chamada | Resultado |
-|---|---|
-| `pastaDeMidia('logo')` | `…/uploads/logo` — caminho legado, sem slug |
-| `pastaDeMidia('logo', outro)` | `…/uploads/vintage/logo` |
-| `urlDeMidia('logo','abc.png')` | `/api/media/logo/abc.png` |
-| `urlDeMidia('logo','abc.png', outro)` | `/api/media/vintage/logo/abc.png` |
+### 4.2 O que o compilador pegava, e o que não
 
-⚠️ A barbearia única mantém o caminho **sem** o slug de propósito: os arquivos já
-estão no disco assim e os caminhos estão gravados no banco. Inserir o slug agora
-quebraria a instância em produção.
+Depois do passo 3, `tsc` apontava **14 erros**, todos INSERT sem `tenant_id`.
+Úteis, mas era só a ponta: **os `SELECT` sem filtro o compilador não vê**, e são
+eles que vazam. Foram encontrados lendo rota a rota. Exemplos:
 
-### 4.2 `bookAppointment` gravava sem tenant — e o teste pegou
+- `admin/reservations/index.ts` — `db.select().from(reservations)` **sem `.where()` nenhum**
+- `admin/barbers/index.ts`, `admin/combos/index.ts`, `admin/products/index.ts` — o
+  GET listava tudo, de todas as barbearias
 
-Portado o teste, 6 dos 12 casos falharam com
-`null value in column "tenant_id"`. **Foi o teste fazendo o trabalho dele.**
+### 4.3 🔴 As consultas por telefone eram as piores
 
-`bookAppointment` é o caminho de escrita mais importante do sistema, então
-escopei os 7 pontos: a busca por idempotência, barbeiro+serviço, produto do
-combo, expediente, conflito de horário, bloqueio, e os dois INSERT.
+`admin/appointments/[id]/history.ts` monta a ficha do cliente buscando por
+`customer_phone`. **Telefone não é escopado por barbearia** — é a mesma pessoa nas
+duas. Sem o filtro, o dono de uma barbearia veria o histórico completo do cliente
+na barbearia do vizinho: agendamentos, serviços, quanto gastou.
 
-O mais perigoso era a **idempotência**: sem o tenant, uma chave repetida vinda de
-outra barbearia devolveria o agendamento dela — com nome, telefone e horário.
+`admin/appointments/[id]/customer.ts` é pior: fazia `UPDATE ... WHERE
+customer_phone = ?`, ou seja, **reescreveria** nome e data de nascimento do
+cliente na outra barbearia.
 
-O tenant entra como parâmetro opcional que cai em `tenantAtual()`. Vem do
-resolvedor, **nunca do corpo da requisição**, como manda a skill.
+`customer/login.ts` autentica por telefone + nascimento: sem tenant, o cliente
+entraria no portal da barbearia errada.
 
-### 4.3 `settings.test.ts` teve que mudar de premissa
+### 4.4 `getSettings()` — cache por tenant
 
-A migration 0009 do SQLite **criava e semeava** a linha 1 com os dados do Bayron.
-O `0000_init_postgres.sql` cria a tabela e não semeia — a carga dos dados está no
-§6 do LEIA-ME do porte, como pendente. O teste agora **insere** a linha que antes
-vinha pronta, em vez de afirmar que a migration a criou.
+Fazia `where(id = 1)` e guardava o resultado numa variável única. Com várias
+barbearias isso serviria a marca, as cores e o WhatsApp de uma no site de outra,
+dependendo de quem carregou primeiro. Virou `Map<number, Settings>` com
+`invalidateSettings(tenant?)`.
 
-O seed original não se perdeu: `drizzle/0009_settings.sql` continua no
-repositório com os valores do Bayron.
+### 4.5 A única que ficou de fora, e por quê
 
-### 4.4 Um contorno que fica registrado como dívida
+**`api/auth/login.ts`.** Não é falta de trabalho: o login do painel busca o
+barbeiro por `slug`, que agora é único **por tenant**, e o painel é central
+(`painel.barbearianoar.com.br`) — não há host de onde tirar a barbearia. Dois
+donos "bayron" colidem.
 
-`src/db/index.ts` cria a conexão **no import** e joga erro sem `DATABASE_URL`.
-Isso torna qualquer módulo que dependa dele impossível de importar numa máquina
-sem banco — inclusive para testar função pura. O `settings.test.ts` define uma
-URL de fachada quando não há banco (o driver conecta de forma preguiçosa, nenhuma
-consulta roda).
+A recomendação do §6 do documento de arquitetura é **login por telefone**.
+Enquanto essa decisão não for tomada, escopar essa rota é chutar.
 
-**É contorno, não solução.** A solução é `db/index.ts` não abrir conexão no
-import. Fica para o passo 4.
+## 5. O teste-guarda
 
-## 5. O que foi verificado
+`tests/escopo-rotas.test.ts` lê o código-fonte e falha de duas formas:
 
-PostgreSQL 16.13 real, árvore montada do zero (clone limpo → porte → este patch):
+1. uma rota **fora** da lista de pendentes toca o banco sem tenant → alguém regrediu;
+2. uma rota **da** lista já está escopada → tire-a da lista.
 
-| | |
-|---|---|
-| **118 testes, 11 arquivos, 0 falhas** | ✅ |
-| Sem `DATABASE_URL`: 83 passam, 35 pulados, 0 falhas | ✅ |
-| `tsc` em `tests/` | ✅ 0 erros (eram 61) |
-| Patch aplica limpo sobre o porte | ✅ |
+A segunda existe para a lista encolher de verdade em vez de virar cemitério.
+Quando ela zerar, o passo 4 acabou. Não precisa de banco: roda sempre.
 
-Os 12 testes novos não checam que a migration roda — checam que ela **barra**:
-cada um tenta violar uma regra e espera levar não.
+## 6. Erros meus no caminho — todos pegos por rodar, não por revisar
 
-## 6. ⚠️ O que ainda NÃO está feito
+Registrados porque são o tipo de coisa que passa em silêncio:
 
-**RLS não foi ligado.** A ordem do §9 é deliberada: escopar as rotas (passo 4)
-vem **antes** de ligar o RLS (passo 5). Com RLS ligado primeiro, uma consulta sem
-filtro devolve zero linhas em silêncio e o erro passa despercebido.
+- **Nomes de constraint chutados.** O `DROP` não achava nada e deixava a chave
+  antiga viva ao lado da nova. Passei a descobrir no catálogo do banco.
+- **Um erro de sintaxe escondeu 6 erros semânticos.** Meu script quebrou um
+  arquivo; com erro de parse, o `tsc` para de checar semântica e reporta só os de
+  sintaxe. **"Poucos erros" pode significar "a checagem parou".**
+- **Filtro na tabela errada.** `.from(services)` com `eq(appointments.tenantId,…)`.
+  Escrevi uma auditoria que compara a tabela do filtro com a do `from` e rodei em
+  tudo; hoje dá limpo.
+- **`tenant` fora de escopo.** Seis funções auxiliares usavam uma variável
+  declarada só dentro do handler.
+- **Passei `dummy` como nome de tabela** e contaminei 9 arquivos. Revertidos do
+  zero e refeitos.
+- **Vírgula pendurada** ao remover um `and(`, em 2 arquivos.
 
-**As outras 48 rotas não foram escopadas.** Só `bookAppointment`. O `tsc` aponta
-**14 erros em `src/`**, todos `TS2769` em INSERT — a fila do passo 4:
+## 7. ⚠️ O que ainda NÃO está feito
 
-```
-4  src/pages/api/admin/barbers/index.ts
-1  src/pages/api/admin/services/index.ts
-1  src/pages/api/admin/products/index.ts
-1  src/pages/api/admin/combos/index.ts
-1  src/pages/api/admin/working-hours/index.ts
-1  src/pages/api/admin/time-off/index.ts
-1  src/pages/api/admin/product-sales/index.ts
-1  src/pages/api/admin/barber-services/[serviceId].ts
-1  src/pages/api/admin/appointments/[id]/complete.ts
-1  src/pages/api/admin/reservations/[id].ts
-1  src/pages/reservations/index.ts
-```
+**RLS não foi ligado** (passo 5). A ordem do §9 é deliberada: escopar antes de
+ligar. Com RLS primeiro, uma consulta sem filtro devolve zero linhas em silêncio.
 
-⚠️ **Essa lista cobre só os INSERT.** Os `SELECT` sem filtro o compilador não
-pega — e são eles que vazam. Precisam de leitura rota a rota com teste de escopo,
-como manda a skill `barbearia-multi-tenant`.
+**O resolvedor ainda devolve o tenant único.** `tenantDoHost()` e
+`tenantDaSessao()` retornam `TENANT_UNICO`, então **em produção nada muda de
+comportamento** — os filtros existem e passam a valer no dia em que o resolvedor
+for ligado. É de propósito: escopar é inofensivo hoje, ligar o resolvedor não é.
 
-**`getSettings()` ainda faz `where(id = 1)`** — o "assume barbearia única" que a
-skill proíbe. Com uma linha por tenant, o id 1 é a linha do Bayron por ordem de
-inserção, não por desenho. Há um teste travando esse comportamento para a troca
-ser consciente.
+⚠️ `tests/tenant.test.ts` tem um teste que **deve falhar** quando o resolvedor
+for ligado. É o alarme de que os chamadores precisam passar host e sessão de
+verdade. Não o apague quando falhar — é ele avisando que chegou a hora.
+
+**`db/index.ts` abre conexão no import**, o que impede importar qualquer módulo
+dependente sem `DATABASE_URL`. Há um contorno no teste de settings, marcado como
+dívida.
+
+**A carga dos dados do Bayron** (SQLite → Postgres) continua pendente, como o §6
+do LEIA-ME do porte já dizia.
