@@ -48,24 +48,57 @@ percebe como SaaS e mantém a economia que sustenta o negócio (`PRECIFICACAO.md
 
 ### 1.1 Por que não o self-service completo agora
 
+> Revisado em 06/09/2026. **Dois dos quatro argumentos originais morreram** — um
+> porque a taxa de instalação foi abolida, outro porque o multi-tenant foi decidido
+> assim mesmo. Estão no histórico do §1.2. A conclusão continua a mesma, e os dois
+> argumentos que sobraram são os substantivos.
+
 Registrado para não ser rediscutido a cada três meses:
 
-- ~~**Sem setup, a economia inverte.** Quem se cadastra sozinho compara com AppBarber
-  (R$ 79,90) e Booksy (R$ 99,99) e não paga R$ 180.~~ ⚠️ **Superado:** o setup foi
-  abolido e o preço é R$ 100 — a comparação que este item temia é exatamente a
-  situação atual, e a meta virou 10 clientes. Ver `PRECIFICACAO.md`.
-- **Força a briga que a §4 do plano decidiu evitar.** Self-service *é* o modelo de commodity.
-  Contra AppBarber, Trinks e Booksy, com um desenvolvedor meio período.
-- **A primeira impressão vira o estado vazio.** No modelo assistido o dono só vê o site depois
-  de cheio. No self-service, 100% dos clientes novos veem o site sem foto, sem serviço e sem
-  texto — e decidem ali.
-- **Multi-tenant sobre 46 endpoints e 7 arquivos de teste é risco de LGPD, não de bug.**
-  Verificado: `src/pages/api/` tem 46 rotas, `tests/` tem 7 arquivos. O banco guarda nome,
-  telefone e `customer_birthdate` (`schema.ts`, tabela `appointments`) dos clientes das
-  barbearias. Hoje o isolamento é físico e sai de graça; multi-tenant troca isso por lógica
-  de escopo sem rede de teste para segurá-la.
+- **A montagem à mão é o produto, e self-service a apaga.** A R$ 100 você está no
+  preço do Booksy e acima de Trinks e AppBarber (`PRECIFICACAO.md` §3). O que
+  justifica esse preço é o site montado por uma pessoa. Quem se cadastra sozinho
+  recebe um painel vazio — e aí sobra agendamento, que os concorrentes vendem por
+  menos. **A queda de preço não enfraqueceu este argumento; fortaleceu.** Antes o
+  prêmio de preço era parte da explicação; agora a montagem é a explicação inteira.
 
-O que muda essa conclusão: alcance nacional com canal que gere entrada sozinho. Não existe hoje.
+- **A primeira impressão vira o estado vazio.** No modelo assistido o dono só vê o
+  site depois de cheio. No self-service, 100% dos clientes novos veem o site sem
+  foto, sem serviço e sem texto — e decidem ali. Este é o argumento mais forte, e
+  não depende de preço nenhum.
+
+**O que muda essa conclusão:** alcance nacional com um canal que gere entrada
+sozinho, mais um jeito de o site nascer decente sem alguém montando. O segundo só
+fica verdade depois de montar alguns à mão. Nenhum dos dois existe hoje.
+
+### 1.2 Argumentos que caíram — e por quê
+
+Preservados para o debate não voltar. **Não use nenhum dos dois numa discussão
+nova: os dois estão mortos.**
+
+**1. "Sem setup, a economia inverte."** Dizia que quem se cadastra sozinho compara
+com AppBarber (R$ 79,90) e Booksy (R$ 99,99) e não paga R$ 180.
+
+⚰️ **Morto em 30/08/2026, confirmado em 06/09.** Não existe taxa de instalação e não
+vai existir — a montagem está inclusa na mensalidade. O preço é R$ 100. A comparação
+que este argumento temia é exatamente a situação atual, e foi escolhida de propósito:
+"custa o mesmo e entrega mais" é mais fácil de defender que "custa mais porque
+entrega mais". Ver `PRECIFICACAO.md` §3.
+
+**2. "Multi-tenant é risco de LGPD, não de bug."** Dizia que o isolamento físico
+saía de graça no modelo de instância por cliente, e que trocar isso por escopo
+lógico sem rede de teste era risco alto demais.
+
+⚰️ **Morto em 01/09/2026 — mas o risco não morreu, mudou de lugar.** O multi-tenant
+foi decidido de qualquer forma (`ARQUITETURA-MULTI-TENANT-V1.md`). Isso não torna o
+risco menor: **verificado em 06/09/2026, são 49 rotas em `apps/barbearia/src/pages/api/`
+e 10 arquivos de teste em `tests/`** — o documento original dizia 46 e 7, e a
+proporção continua ruim. O banco guarda nome, telefone e `customer_birthdate` dos
+clientes das barbearias.
+
+O que era motivo para dizer não ao self-service virou **condição de execução do
+multi-tenant**: teste de escopo escrito junto com cada rota, filtro na aplicação e
+RLS como segunda parede. Está na skill `barbearia-multi-tenant`, e não é opcional.
 
 ---
 
