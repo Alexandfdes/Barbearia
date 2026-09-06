@@ -48,7 +48,8 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 
 | Preciso saber | Documento |
 |---|---|
-| **O que ainda não está decidido** — comece por aqui | `PENDENCIAS-ABERTAS.md` |
+| **Onde o código está agora** — comece por aqui | `ESTADO-ATUAL.md` |
+| O que ainda não está decidido | `PENDENCIAS-ABERTAS.md` |
 | Por que o produto existe, para quem se vende, o que é agência | `PLANO-PRODUTIZACAO.md` |
 | Preço, margem, concorrentes verificados | `PRECIFICACAO.md` |
 | Arquitetura alvo: multi-tenant, Postgres, RLS, três apps | `ARQUITETURA-MULTI-TENANT-V1.md` |
