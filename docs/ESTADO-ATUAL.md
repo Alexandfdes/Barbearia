@@ -7,6 +7,9 @@
 > Este documento é sobre o que já foi **feito** e o que está pela metade.
 >
 > Tudo aqui foi verificado em 06/09/2026 rodando, não de memória.
+>
+> **Vai retomar o trabalho agora? Vá direto para o §9** — a fila do que fazer,
+> em ordem, com o que quebra se a ordem for invertida.
 
 ---
 
@@ -19,6 +22,8 @@
 4. O site do Bayron está **no ar** e não foi afetado por nada disto.
 5. Antes de mexer, leia as três skills em `.claude/skills/` — são regras que já
    custaram erro aqui.
+
+**O próximo passo concreto está no §9 deste documento.**
 
 ## 2. Como o repositório está organizado
 
@@ -155,8 +160,82 @@ e FAQ ainda estão com o conteúdo do Bayron, não com conteúdo genérico de pr
 
 | Quando | O quê |
 |---|---|
+| 06/09 | Decidido continuar no repositório `Alexandfdes/Barbearia`; o do site de vendas será arquivado (§9.2) |
 | 06/09 | Skills do projeto versionadas em `.claude/skills/` |
 | 06/09 | Dois repositórios viraram um monorepo; porta do site de vendas fixada em 4322 |
 | 06/09 | Porte para Postgres concluído e verificado contra um PostgreSQL 16 real |
 | 01/09 | Cor de destaque por barbearia, derivada com contraste garantido |
 | 01/09 | Decisão de multi-tenant com banco único, substituindo a D1 |
+
+---
+
+## 9. Como retomar — o próximo passo, em ordem
+
+Estado em 06/09/2026: o monorepo está pronto na branch **`monorepo`**, com **10
+commits** que a `main` não tem. Nada foi enviado ao GitHub ainda, e a `main`
+continua em `e50926a` — o site do Bayron não foi afetado por nada disto.
+
+Os passos abaixo são a fila. Cada um só faz sentido depois do anterior.
+
+### 9.1 Provar que o site de vendas roda do lugar novo
+
+```bash
+cd C:\DEV\barbearia
+npm install --prefix apps/vendas
+npm run dev:vendas          # abre http://localhost:4322
+```
+
+Só o app da barbearia tem as dependências instaladas; a do vendas foi removida
+porque a cópia veio pela metade. **Enquanto este passo não passar, não apague
+`C:\DEV\produto`** — ele é a rede. Verificado em 06/09: o conteúdo de
+`apps/vendas` é byte a byte igual ao de `C:\DEV\produto`, com uma única
+diferença intencional (a porta 4322 no `package.json`).
+
+Depois que passar, renomeie `C:\DEV\produto` para `_produto-ANTIGO` em vez de
+apagar. O risco não é perder arquivo — está coberto pelo repositório
+`barbersaas-sales-onboarding` no GitHub — é abrir a pasta antiga por hábito e
+trabalhar uma hora no lugar errado.
+
+### 9.2 Enviar a branch ao GitHub
+
+```bash
+git push -u origin monorepo
+```
+
+**Continua sendo o `Alexandfdes/Barbearia`** — decidido em 06/09. Ele já é o
+`origin` deste repositório e tem o histórico real. Verificado: existem **0
+commits no GitHub que não estejam aqui**, então o push só soma, não sobrescreve
+nada.
+
+Empurre **a branch, não a `main`**. O pull request no GitHub deixa a mudança
+inteira revisável antes de qualquer coisa entrar em produção.
+
+O `barbersaas-sales-onboarding` fica redundante depois disso — o conteúdo está em
+`apps/vendas` e o commit original `076997a` está preservado no histórico do
+monorepo. Sugestão: **arquivar**, não apagar.
+
+### 9.3 ⚠️ Ajustar o build antes de tocar na `main`
+
+O `Dockerfile` está em `apps/barbearia/` e não mudou por dentro, mas o build
+precisa de **`apps/barbearia` como contexto**, não a raiz do repositório. No
+EasyPanel é o campo de caminho/contexto do build.
+
+**Esta é a única coisa que pode derrubar o site do Bayron.** Se a `main` receber
+o monorepo antes do ajuste, o próximo deploy falha por não achar `package.json`
+na raiz. Detalhe em `MONOREPO.md` §3.
+
+### 9.4 Só então, mesclar na `main`
+
+Com 9.1, 9.2 e 9.3 feitos, o merge é seguro.
+
+### 9.5 Depois disso — retomar a migração
+
+O passo natural seguinte é **aplicar o porte para Postgres**, que está pronto e
+testado mas não aplicado (ver §4 deste documento). Instruções em
+`migracao-postgres/LEIA-ME.md`.
+
+Ele também é grande: 101 arquivos. Mesma disciplina — branch própria, e não
+direto na `main`.
+
+Da migração multi-tenant em diante, a fila é a do
+`ARQUITETURA-MULTI-TENANT-V1.md` §9, passos 3 a 7.
