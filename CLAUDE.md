@@ -15,10 +15,7 @@ que não fechou; virou produto.
 | Pasta | O que é | Porta |
 |---|---|---|
 | `C:\DEV\barbearia` | O que cada barbearia recebe: site público, agendamento e painel | 4321 |
-| `C:\DEV\produto` | O site de vendas: landing, `/onboarding`, caixa de entrada `/envios` | 4321 ⚠️ |
-
-⚠️ **Os dois usam a porta 4321.** Um 404 em `/admin/...` quase sempre significa que o
-servidor no ar é o do *produto*, não o da barbearia.
+| `C:\DEV\produto` | O site de vendas: landing, `/onboarding`, caixa de entrada `/envios` | 4321 |
 
 ⚠️ **`C:\DEV\produto` não é repositório git** — sem histórico, um apagão errado perde tudo.
 
