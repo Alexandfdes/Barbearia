@@ -28,8 +28,15 @@ pnpm-debug.log*
 # jetbrains setting folder
 .idea/
 
-# Claude Code local settings
-.claude/
+# Claude Code — configurações pessoais ficam de fora, skills do projeto entram
+#
+# Skills em .claude/skills/ SÃO parte do projeto: elas carregam as regras de
+# arquitetura, de paleta e de documentação. Versionadas, chegam a quem clona o
+# repositório. Antes viviam só na conta de quem as criou, e outro desenvolvedor
+# não as recebia.
+.claude/*
+!.claude/skills/
+.claude/settings.local.json
 
 # SQLite database e backups (persiste no volume Docker ou localmente)
 #

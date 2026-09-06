@@ -29,6 +29,19 @@ O `Dockerfile` não mudou, mas o caminho sim — `docs/MONOREPO.md` §3.
 o app para `apps/barbearia/`, `data/**/*.db` parou de casar e o git tentou versionar o
 banco com os dados reais dos clientes. Use `**/data/...` — `docs/MONOREPO.md` §6.
 
+## Skills do projeto
+
+`.claude/skills/` tem três skills versionadas — elas chegam junto com o clone, para
+qualquer pessoa que abrir este repositório:
+
+| Skill | Quando vale |
+|---|---|
+| `barbearia-multi-tenant` | qualquer código: migration, rota, consulta ao banco, tela |
+| `barbearia-paleta` | cor, tema, botão, texto sobre fundo colorido |
+| `barbearia-docs` | criar ou editar arquivo em `docs/` |
+
+São regras que já custaram erro neste projeto. Leia antes de mexer na área de cada uma.
+
 ## Onde procurar o quê
 
 Fonte de verdade em `docs/`, na raiz do monorepo:
