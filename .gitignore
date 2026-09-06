@@ -1,10 +1,13 @@
 # build output
 dist/
+**/dist/
 # generated types
 .astro/
+**/.astro/
 
 # dependencies
 node_modules/
+**/node_modules/
 
 # logs
 npm-debug.log*
@@ -16,6 +19,8 @@ pnpm-debug.log*
 # environment variables
 .env
 .env.production
+**/.env
+**/.env.production
 
 # macOS-specific files
 .DS_Store
@@ -27,12 +32,22 @@ pnpm-debug.log*
 .claude/
 
 # SQLite database e backups (persiste no volume Docker ou localmente)
-data/**/*.db
-data/**/*.db-shm
-data/**/*.db-wal
+#
+# ⚠️ Os padrões abaixo começam com **/ de propósito. Antes do monorepo eles eram
+# "data/**/*.db", presos à raiz do repositório. Quando o app foi para
+# apps/barbearia/, as regras deixaram de casar e o git tentou versionar o banco
+# com nome, telefone e data de nascimento dos clientes reais. Regra do monorepo:
+# padrão de conteúdo sensível nunca é ancorado na raiz.
+**/data/**/*.db
+**/data/**/*.db-shm
+**/data/**/*.db-wal
 
 # Uploads de imagens (conteúdo gerado pelo usuário)
-data/uploads/
+**/data/uploads/
+
+# Sobras do mount FUSE (arquivo apagado enquanto estava aberto)
+.fuse_hidden*
+**/.fuse_hidden*
 
 # Orçamentos e propostas comerciais
 orcamentos/
