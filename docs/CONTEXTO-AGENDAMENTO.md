@@ -1,5 +1,15 @@
 # Contexto — Sistema de Agendamento Bayron
 
+> <!-- STATUS-CONFERIDO-06/09 -->
+> **Documento histórico — é sobre a Barbearia Bayron, não sobre o produto.**
+>
+> ⚠️ Apesar de dizer "estado do projeto", **este não é o estado atual.** O estado
+> atual do código está em `ESTADO-ATUAL.md`; o que falta decidir, em
+> `PENDENCIAS-ABERTAS.md`. Este aqui descreve o sistema sob medida de antes da
+> produtização, e serve para entender a origem.
+>
+> ⚠️ Caminhos anteriores ao monorepo: o app vive hoje em `apps/barbearia/`.
+
 > Estado do projeto após o deploy V1. Use este documento como referência rápida pra qualquer pessoa (humana ou IA) que vá mexer no sistema.
 
 ## Resumo executivo

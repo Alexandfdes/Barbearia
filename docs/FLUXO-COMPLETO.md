@@ -1,6 +1,15 @@
 # Fluxo completo — da página de vendas até o site da barbearia no ar
 
-> Data: 2026-08-30. Documento de referência.
+> Data: 2026-08-30. Revisado em 06/09/2026. Documento de referência.
+>
+> ⚠️ **Os caminhos de arquivo são anteriores ao monorepo.** Onde se lê a raiz do
+> projeto do produto, hoje é `apps/vendas/`; o app da barbearia é `apps/barbearia/`.
+> Ver `MONOREPO.md`. O **fluxo** continua correto; o que mudou foi onde os arquivos
+> moram.
+>
+> ⚠️ **A arquitetura mudou:** de instância por cliente para multi-tenant com banco
+> único (`ARQUITETURA-MULTI-TENANT-V1.md`, 01/09). A parte 3 descreve o que a
+> barbearia recebe, o que não muda; muda como isso é servido por baixo.
 >
 > **Todo item deste documento foi conferido no código**, arquivo por arquivo, na
 > data acima. Contagens de telas e rotas vêm de listagem do repositório, não de
@@ -213,6 +222,11 @@ até as Fases 2 e 3, mas é fazível.
 **Trava a cobrança automática:** nome do produto, domínio para os subdomínios, e
 conta no Asaas com CPF ou CNPJ.
 
-**Não trava nada, e continua sendo a maior incerteza do projeto:** saber se
-R$ 2.500 mais R$ 180 por mês vende para uma barbearia que não tem sistema nenhum.
-Isso não se resolve escrevendo código. São cinco conversas.
+**Não trava nada, e continua sendo a maior incerteza do projeto:** saber se o preço
+vende para uma barbearia que não tem sistema nenhum. Isso não se resolve escrevendo
+código. São cinco conversas.
+
+> ⚠️ **O preço mudou duas vezes desde que isto foi escrito.** Era R$ 2.500 de entrada
+> mais R$ 180/mês; a entrada foi abolida em 30/08 e a mensalidade caiu para **R$ 100**
+> em 01/09. A incerteza continua a mesma, mas agora sobre um número que compete de
+> frente com AppBarber (R$ 79,90) e Booksy (R$ 99,99). Ver `PRECIFICACAO.md`.
