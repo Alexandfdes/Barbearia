@@ -1,13 +1,13 @@
-diff --git a/src/components/ComboBoris.astro b/src/components/ComboBoris.astro
+diff --git a/apps/barbearia/src/components/ComboBoris.astro b/apps/barbearia/src/components/ComboBoris.astro
 old mode 100755
 new mode 100644
-diff --git a/src/components/FAQ.astro b/src/components/FAQ.astro
+diff --git a/apps/barbearia/src/components/FAQ.astro b/apps/barbearia/src/components/FAQ.astro
 old mode 100755
 new mode 100644
-diff --git a/src/components/Footer.astro b/src/components/Footer.astro
+diff --git a/apps/barbearia/src/components/Footer.astro b/apps/barbearia/src/components/Footer.astro
 index 94c0025..f4ea27b 100755
---- a/src/components/Footer.astro
-+++ b/src/components/Footer.astro
+--- a/apps/barbearia/src/components/Footer.astro
++++ b/apps/barbearia/src/components/Footer.astro
 @@ -4,9 +4,9 @@ import { srcsetDe } from '../lib/uploads';
  import { Image } from 'astro:assets';
  import logoSrc from '../assets/Logo-Bayron3.png';
@@ -20,12 +20,12 @@ index 94c0025..f4ea27b 100755
  ---
  
  <footer id="contato" class="bg-dark relative overflow-hidden">
-diff --git a/src/components/Gallery.astro b/src/components/Gallery.astro
+diff --git a/apps/barbearia/src/components/Gallery.astro b/apps/barbearia/src/components/Gallery.astro
 old mode 100755
 new mode 100644
 index 340322c..808c7c4
---- a/src/components/Gallery.astro
-+++ b/src/components/Gallery.astro
+--- a/apps/barbearia/src/components/Gallery.astro
++++ b/apps/barbearia/src/components/Gallery.astro
 @@ -2,7 +2,7 @@
  import { Image } from "astro:assets";
  import { getSettings } from '../lib/settings';
@@ -35,12 +35,12 @@ index 340322c..808c7c4
  import type { ImageMetadata } from "astro";
  import avatar from '../assets/Logo-Bayron3-256.png';
  
-diff --git a/src/components/Header.astro b/src/components/Header.astro
+diff --git a/apps/barbearia/src/components/Header.astro b/apps/barbearia/src/components/Header.astro
 old mode 100755
 new mode 100644
 index 8d64888..e0e7bde
---- a/src/components/Header.astro
-+++ b/src/components/Header.astro
+--- a/apps/barbearia/src/components/Header.astro
++++ b/apps/barbearia/src/components/Header.astro
 @@ -9,7 +9,7 @@ interface Props {
    solid?: boolean;
  }
@@ -50,12 +50,12 @@ index 8d64888..e0e7bde
  ---
  
  <header
-diff --git a/src/components/Hero.astro b/src/components/Hero.astro
+diff --git a/apps/barbearia/src/components/Hero.astro b/apps/barbearia/src/components/Hero.astro
 old mode 100755
 new mode 100644
 index f254d88..717252a
---- a/src/components/Hero.astro
-+++ b/src/components/Hero.astro
+--- a/apps/barbearia/src/components/Hero.astro
++++ b/apps/barbearia/src/components/Hero.astro
 @@ -5,7 +5,7 @@ import heroImg from "../assets/fotos-videos/foto-inicial5.png";
  import { getSettings } from "../lib/settings";
  import { srcsetDe } from "../lib/uploads";
@@ -65,10 +65,10 @@ index f254d88..717252a
  ---
  
  <section
-diff --git a/src/components/Location.astro b/src/components/Location.astro
+diff --git a/apps/barbearia/src/components/Location.astro b/apps/barbearia/src/components/Location.astro
 index 0ca6f37..5eb1fcc 100755
---- a/src/components/Location.astro
-+++ b/src/components/Location.astro
+--- a/apps/barbearia/src/components/Location.astro
++++ b/apps/barbearia/src/components/Location.astro
 @@ -1,8 +1,8 @@
  ---
  import { getSettings, waUrl } from '../lib/settings';
@@ -80,18 +80,18 @@ index 0ca6f37..5eb1fcc 100755
  
  // O Google aceita espaço como "+" na query do embed. Reproduzimos essa forma em
  // vez do %20 do encodeURIComponent para o HTML sair idêntico ao que já estava.
-diff --git a/src/components/Products.astro b/src/components/Products.astro
+diff --git a/apps/barbearia/src/components/Products.astro b/apps/barbearia/src/components/Products.astro
 old mode 100755
 new mode 100644
-diff --git a/src/components/Services.astro b/src/components/Services.astro
+diff --git a/apps/barbearia/src/components/Services.astro b/apps/barbearia/src/components/Services.astro
 old mode 100755
 new mode 100644
-diff --git a/src/components/Testimonials.astro b/src/components/Testimonials.astro
+diff --git a/apps/barbearia/src/components/Testimonials.astro b/apps/barbearia/src/components/Testimonials.astro
 old mode 100755
 new mode 100644
 index bcfcc7d..8b0d86f
---- a/src/components/Testimonials.astro
-+++ b/src/components/Testimonials.astro
+--- a/apps/barbearia/src/components/Testimonials.astro
++++ b/apps/barbearia/src/components/Testimonials.astro
 @@ -3,7 +3,7 @@ import depoimentos from '../data/depoimentos.json';
  import { SITE_URL } from '../config';
  import { getSettings } from '../lib/settings';
@@ -101,10 +101,10 @@ index bcfcc7d..8b0d86f
  const GOOGLE_REVIEWS_URL = s.googleReviewsUrl;
  const RATING = Number(s.googleRating);
  const REVIEW_COUNT = s.googleReviewCount;
-diff --git a/src/components/WhatsAppBar.astro b/src/components/WhatsAppBar.astro
+diff --git a/apps/barbearia/src/components/WhatsAppBar.astro b/apps/barbearia/src/components/WhatsAppBar.astro
 index c52e202..e888c8d 100755
---- a/src/components/WhatsAppBar.astro
-+++ b/src/components/WhatsAppBar.astro
+--- a/apps/barbearia/src/components/WhatsAppBar.astro
++++ b/apps/barbearia/src/components/WhatsAppBar.astro
 @@ -1,8 +1,8 @@
  ---
  import { getSettings, waUrl } from '../lib/settings';
@@ -116,15 +116,15 @@ index c52e202..e888c8d 100755
  ---
  
  <!-- Floating circle button — all screen sizes -->
-diff --git a/src/config.ts b/src/config.ts
+diff --git a/apps/barbearia/src/config.ts b/apps/barbearia/src/config.ts
 old mode 100755
 new mode 100644
-diff --git a/src/db/index.ts b/src/db/index.ts
+diff --git a/apps/barbearia/src/db/index.ts b/apps/barbearia/src/db/index.ts
 old mode 100755
 new mode 100644
 index 08f1343..8d365ed
---- a/src/db/index.ts
-+++ b/src/db/index.ts
+--- a/apps/barbearia/src/db/index.ts
++++ b/apps/barbearia/src/db/index.ts
 @@ -1,16 +1,50 @@
 -import Database from 'better-sqlite3';
 -import { drizzle } from 'drizzle-orm/better-sqlite3';
@@ -187,12 +187,12 @@ index 08f1343..8d365ed
 +export async function first<T>(q: PromiseLike<T[]>): Promise<T | undefined> {
 +  return (await q)[0];
 +}
-diff --git a/src/db/schema.ts b/src/db/schema.ts
+diff --git a/apps/barbearia/src/db/schema.ts b/apps/barbearia/src/db/schema.ts
 old mode 100755
 new mode 100644
 index 5f35768..248c8cf
---- a/src/db/schema.ts
-+++ b/src/db/schema.ts
+--- a/apps/barbearia/src/db/schema.ts
++++ b/apps/barbearia/src/db/schema.ts
 @@ -1,55 +1,55 @@
 -import { sqliteTable, integer, text, unique, index } from 'drizzle-orm/sqlite-core';
 +import { pgTable, serial, integer, text, boolean, unique, index } from 'drizzle-orm/pg-core';
@@ -392,12 +392,12 @@ index 5f35768..248c8cf
 -  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
 +  updatedAt: text('updated_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
  });
-diff --git a/src/layouts/AdminLayout.astro b/src/layouts/AdminLayout.astro
+diff --git a/apps/barbearia/src/layouts/AdminLayout.astro b/apps/barbearia/src/layouts/AdminLayout.astro
 old mode 100755
 new mode 100644
 index 0108d2e..fd3b955
---- a/src/layouts/AdminLayout.astro
-+++ b/src/layouts/AdminLayout.astro
+--- a/apps/barbearia/src/layouts/AdminLayout.astro
++++ b/apps/barbearia/src/layouts/AdminLayout.astro
 @@ -2,7 +2,7 @@
  import '../styles/global.css';
  import { getSettings } from '../lib/settings';
@@ -407,12 +407,12 @@ index 0108d2e..fd3b955
  
  interface Props {
    title?:     string;
-diff --git a/src/layouts/Layout.astro b/src/layouts/Layout.astro
+diff --git a/apps/barbearia/src/layouts/Layout.astro b/apps/barbearia/src/layouts/Layout.astro
 old mode 100755
 new mode 100644
 index 4941fc8..bd4673e
---- a/src/layouts/Layout.astro
-+++ b/src/layouts/Layout.astro
+--- a/apps/barbearia/src/layouts/Layout.astro
++++ b/apps/barbearia/src/layouts/Layout.astro
 @@ -11,7 +11,7 @@ interface Props {
  
  // SSR obrigatório em toda página que renderiza este layout — ver ARQUITETURA-PRODUTO-V1 D3.
@@ -422,18 +422,18 @@ index 4941fc8..bd4673e
  
  // O endereço é guardado como "Cidade/UF" numa string só (é assim que aparece no
  // site). O schema.org quer os dois separados, então dividimos aqui.
-diff --git a/src/lib/accent.ts b/src/lib/accent.ts
+diff --git a/apps/barbearia/src/lib/accent.ts b/apps/barbearia/src/lib/accent.ts
 old mode 100755
 new mode 100644
-diff --git a/src/lib/api.ts b/src/lib/api.ts
+diff --git a/apps/barbearia/src/lib/api.ts b/apps/barbearia/src/lib/api.ts
 old mode 100755
 new mode 100644
-diff --git a/src/lib/bookAppointment.ts b/src/lib/bookAppointment.ts
+diff --git a/apps/barbearia/src/lib/bookAppointment.ts b/apps/barbearia/src/lib/bookAppointment.ts
 old mode 100755
 new mode 100644
 index d1ae792..32ad5f8
---- a/src/lib/bookAppointment.ts
-+++ b/src/lib/bookAppointment.ts
+--- a/apps/barbearia/src/lib/bookAppointment.ts
++++ b/apps/barbearia/src/lib/bookAppointment.ts
 @@ -1,8 +1,8 @@
  import { randomBytes } from 'node:crypto';
  import { addMinutes } from 'date-fns';
@@ -678,29 +678,29 @@ index d1ae792..32ad5f8
      throw err;
    }
  }
-diff --git a/src/lib/clientIp.ts b/src/lib/clientIp.ts
+diff --git a/apps/barbearia/src/lib/clientIp.ts b/apps/barbearia/src/lib/clientIp.ts
 old mode 100755
 new mode 100644
-diff --git a/src/lib/combo.ts b/src/lib/combo.ts
+diff --git a/apps/barbearia/src/lib/combo.ts b/apps/barbearia/src/lib/combo.ts
 old mode 100755
 new mode 100644
-diff --git a/src/lib/customerSession.ts b/src/lib/customerSession.ts
+diff --git a/apps/barbearia/src/lib/customerSession.ts b/apps/barbearia/src/lib/customerSession.ts
 old mode 100755
 new mode 100644
-diff --git a/src/lib/occupancy.ts b/src/lib/occupancy.ts
+diff --git a/apps/barbearia/src/lib/occupancy.ts b/apps/barbearia/src/lib/occupancy.ts
 old mode 100755
 new mode 100644
-diff --git a/src/lib/phone.ts b/src/lib/phone.ts
+diff --git a/apps/barbearia/src/lib/phone.ts b/apps/barbearia/src/lib/phone.ts
 old mode 100755
 new mode 100644
-diff --git a/src/lib/rateLimit.ts b/src/lib/rateLimit.ts
+diff --git a/apps/barbearia/src/lib/rateLimit.ts b/apps/barbearia/src/lib/rateLimit.ts
 old mode 100755
 new mode 100644
-diff --git a/src/lib/reagendar.ts b/src/lib/reagendar.ts
+diff --git a/apps/barbearia/src/lib/reagendar.ts b/apps/barbearia/src/lib/reagendar.ts
 new file mode 100644
 index 0000000..4cc2ed5
 --- /dev/null
-+++ b/src/lib/reagendar.ts
++++ b/apps/barbearia/src/lib/reagendar.ts
 @@ -0,0 +1,90 @@
 +/**
 + * Reagendamento atômico — o re-check de conflito e o UPDATE numa transação só.
@@ -792,12 +792,12 @@ index 0000000..4cc2ed5
 +    return { ok: true as const };
 +  });
 +}
-diff --git a/src/lib/session.ts b/src/lib/session.ts
+diff --git a/apps/barbearia/src/lib/session.ts b/apps/barbearia/src/lib/session.ts
 old mode 100755
 new mode 100644
 index 3b1a3af..37c8014
---- a/src/lib/session.ts
-+++ b/src/lib/session.ts
+--- a/apps/barbearia/src/lib/session.ts
++++ b/apps/barbearia/src/lib/session.ts
 @@ -3,7 +3,17 @@ import { sealData, unsealData } from 'iron-session';
  export const SESSION_COOKIE = '__bayron_session';
  const TTL = 30 * 24 * 60 * 60;
@@ -817,12 +817,12 @@ index 3b1a3af..37c8014
    barberId: number;
    role: 'admin' | 'barber';
  }
-diff --git a/src/lib/settings.ts b/src/lib/settings.ts
+diff --git a/apps/barbearia/src/lib/settings.ts b/apps/barbearia/src/lib/settings.ts
 old mode 100755
 new mode 100644
 index 54c288a..31ad5fc
---- a/src/lib/settings.ts
-+++ b/src/lib/settings.ts
+--- a/apps/barbearia/src/lib/settings.ts
++++ b/apps/barbearia/src/lib/settings.ts
 @@ -16,9 +16,8 @@
   * `prerender = true`, o valor é congelado no build e o painel vira decoração.
   */
@@ -939,12 +939,12 @@ index 54c288a..31ad5fc
    if (!s.whatsappNumber) return '';
    return message
      ? `https://wa.me/${s.whatsappNumber}?text=${encodeURIComponent(message)}`
-diff --git a/src/lib/slots.ts b/src/lib/slots.ts
+diff --git a/apps/barbearia/src/lib/slots.ts b/apps/barbearia/src/lib/slots.ts
 old mode 100755
 new mode 100644
 index ce70f6a..0a1fe89
---- a/src/lib/slots.ts
-+++ b/src/lib/slots.ts
+--- a/apps/barbearia/src/lib/slots.ts
++++ b/apps/barbearia/src/lib/slots.ts
 @@ -25,13 +25,13 @@ function weekdayOf(dateStr: string): number {
   * @param dateStr              Data "YYYY-MM-DD" (fuso de Fortaleza)
   * @param excludeAppointmentId Ignora esse appointment no cálculo (reagendamento)
@@ -1044,15 +1044,15 @@ index ce70f6a..0a1fe89
  
    return computeAvailableSlots({ open, close, durationMinutes: duration, appts, offs });
  }
-diff --git a/src/lib/slotsCore.ts b/src/lib/slotsCore.ts
+diff --git a/apps/barbearia/src/lib/slotsCore.ts b/apps/barbearia/src/lib/slotsCore.ts
 old mode 100755
 new mode 100644
-diff --git a/src/lib/tenant.ts b/src/lib/tenant.ts
+diff --git a/apps/barbearia/src/lib/tenant.ts b/apps/barbearia/src/lib/tenant.ts
 old mode 100755
 new mode 100644
 index 11a4c8a..bda9366
---- a/src/lib/tenant.ts
-+++ b/src/lib/tenant.ts
+--- a/apps/barbearia/src/lib/tenant.ts
++++ b/apps/barbearia/src/lib/tenant.ts
 @@ -60,7 +60,7 @@ export function tenantDaSessao(_session: SessaoComTenant | null): Tenant {
  
  /**
@@ -1062,12 +1062,12 @@ index 11a4c8a..bda9366
   *
   * ⚠️ NÃO usar em código novo. Toda rota e toda página devem usar
   * `tenantDoHost()` ou `tenantDaSessao()`. Esta função existe só para o passo 1
-diff --git a/src/lib/uploads.ts b/src/lib/uploads.ts
+diff --git a/apps/barbearia/src/lib/uploads.ts b/apps/barbearia/src/lib/uploads.ts
 old mode 100755
 new mode 100644
 index e210f17..83a8d9b
---- a/src/lib/uploads.ts
-+++ b/src/lib/uploads.ts
+--- a/apps/barbearia/src/lib/uploads.ts
++++ b/apps/barbearia/src/lib/uploads.ts
 @@ -2,7 +2,6 @@ import { mkdir, writeFile } from 'node:fs/promises';
  import { dirname, join } from 'node:path';
  import { randomBytes } from 'node:crypto';
@@ -1133,13 +1133,13 @@ index e210f17..83a8d9b
  }
  
  /**
-diff --git a/src/lib/whatsapp.ts b/src/lib/whatsapp.ts
+diff --git a/apps/barbearia/src/lib/whatsapp.ts b/apps/barbearia/src/lib/whatsapp.ts
 old mode 100755
 new mode 100644
-diff --git a/src/pages/404.astro b/src/pages/404.astro
+diff --git a/apps/barbearia/src/pages/404.astro b/apps/barbearia/src/pages/404.astro
 index 3c4d06f..2c81a46 100755
---- a/src/pages/404.astro
-+++ b/src/pages/404.astro
+--- a/apps/barbearia/src/pages/404.astro
++++ b/apps/barbearia/src/pages/404.astro
 @@ -4,7 +4,7 @@ export const prerender = false;
  import Layout from '../layouts/Layout.astro';
  import { getSettings } from '../lib/settings';
@@ -1149,10 +1149,10 @@ index 3c4d06f..2c81a46 100755
  ---
  
  <Layout title={`Página não encontrada — ${s.businessName}`}>
-diff --git a/src/pages/a/[token].astro b/src/pages/a/[token].astro
+diff --git a/apps/barbearia/src/pages/a/[token].astro b/apps/barbearia/src/pages/a/[token].astro
 index 3c2305c..cce4f9b 100755
---- a/src/pages/a/[token].astro
-+++ b/src/pages/a/[token].astro
+--- a/apps/barbearia/src/pages/a/[token].astro
++++ b/apps/barbearia/src/pages/a/[token].astro
 @@ -9,14 +9,14 @@ import { formatInTimeZone } from 'date-fns-tz';
  import { ptBR } from 'date-fns/locale';
  import { getSettings, waUrl } from '../../lib/settings';
@@ -1202,12 +1202,12 @@ index 3c2305c..cce4f9b 100755
    : '';
  
  const cancelledLabel = isCancelled && appt.cancelledAt
-diff --git a/src/pages/admin/barbeiros.astro b/src/pages/admin/barbeiros.astro
+diff --git a/apps/barbearia/src/pages/admin/barbeiros.astro b/apps/barbearia/src/pages/admin/barbeiros.astro
 old mode 100755
 new mode 100644
 index c7ea5f1..a363844
---- a/src/pages/admin/barbeiros.astro
-+++ b/src/pages/admin/barbeiros.astro
+--- a/apps/barbearia/src/pages/admin/barbeiros.astro
++++ b/apps/barbearia/src/pages/admin/barbeiros.astro
 @@ -11,15 +11,15 @@ const session = await getSession(Astro.request);
  if (!session) return Astro.redirect('/admin/login');
  if (session.role !== 'admin') return Astro.redirect('/admin/servicos');
@@ -1228,12 +1228,12 @@ index c7ea5f1..a363844
  
  const activeCount   = list.filter(b => b.active).length;
  const inactiveCount = list.length - activeCount;
-diff --git a/src/pages/admin/bloqueios.astro b/src/pages/admin/bloqueios.astro
+diff --git a/apps/barbearia/src/pages/admin/bloqueios.astro b/apps/barbearia/src/pages/admin/bloqueios.astro
 old mode 100755
 new mode 100644
 index b8e2062..991ad8f
---- a/src/pages/admin/bloqueios.astro
-+++ b/src/pages/admin/bloqueios.astro
+--- a/apps/barbearia/src/pages/admin/bloqueios.astro
++++ b/apps/barbearia/src/pages/admin/bloqueios.astro
 @@ -13,8 +13,8 @@ const TZ = 'America/Fortaleza';
  const session = await getSession(Astro.request);
  if (!session) return Astro.redirect('/admin/login');
@@ -1269,12 +1269,12 @@ index b8e2062..991ad8f
    : [];
  
  const upcoming = entries.filter(e => !e.isPast);
-diff --git a/src/pages/admin/buscar.astro b/src/pages/admin/buscar.astro
+diff --git a/apps/barbearia/src/pages/admin/buscar.astro b/apps/barbearia/src/pages/admin/buscar.astro
 old mode 100755
 new mode 100644
 index b558d28..6426c4c
---- a/src/pages/admin/buscar.astro
-+++ b/src/pages/admin/buscar.astro
+--- a/apps/barbearia/src/pages/admin/buscar.astro
++++ b/apps/barbearia/src/pages/admin/buscar.astro
 @@ -10,11 +10,11 @@ import { eq } from 'drizzle-orm';
  const session = await getSession(Astro.request);
  if (!session) return Astro.redirect('/admin/login');
@@ -1289,15 +1289,15 @@ index b558d28..6426c4c
  
  if (!barberRow) return Astro.redirect('/admin/login');
  ---
-diff --git a/src/pages/admin/catalogo.astro b/src/pages/admin/catalogo.astro
+diff --git a/apps/barbearia/src/pages/admin/catalogo.astro b/apps/barbearia/src/pages/admin/catalogo.astro
 old mode 100755
 new mode 100644
-diff --git a/src/pages/admin/combos.astro b/src/pages/admin/combos.astro
+diff --git a/apps/barbearia/src/pages/admin/combos.astro b/apps/barbearia/src/pages/admin/combos.astro
 old mode 100755
 new mode 100644
 index fb2ef86..17a4cf7
---- a/src/pages/admin/combos.astro
-+++ b/src/pages/admin/combos.astro
+--- a/apps/barbearia/src/pages/admin/combos.astro
++++ b/apps/barbearia/src/pages/admin/combos.astro
 @@ -10,12 +10,12 @@ import { eq } from 'drizzle-orm';
  const session = await getSession(Astro.request);
  if (!session) return Astro.redirect('/admin/login');
@@ -1328,12 +1328,12 @@ index fb2ef86..17a4cf7
  
  const WD_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
  const brl = (c: number) => 'R$ ' + (c / 100).toFixed(2).replace('.', ',');
-diff --git a/src/pages/admin/configuracoes.astro b/src/pages/admin/configuracoes.astro
+diff --git a/apps/barbearia/src/pages/admin/configuracoes.astro b/apps/barbearia/src/pages/admin/configuracoes.astro
 old mode 100755
 new mode 100644
 index 33700f5..336ed34
---- a/src/pages/admin/configuracoes.astro
-+++ b/src/pages/admin/configuracoes.astro
+--- a/apps/barbearia/src/pages/admin/configuracoes.astro
++++ b/apps/barbearia/src/pages/admin/configuracoes.astro
 @@ -3,22 +3,21 @@ export const prerender = false;
  
  import AdminLayout from '../../layouts/AdminLayout.astro';
@@ -1363,12 +1363,12 @@ index 33700f5..336ed34
  const horarios = parseBusinessHours(cfg?.businessHours);
  
  type Campo = {
-diff --git a/src/pages/admin/dia/[date].astro b/src/pages/admin/dia/[date].astro
+diff --git a/apps/barbearia/src/pages/admin/dia/[date].astro b/apps/barbearia/src/pages/admin/dia/[date].astro
 old mode 100755
 new mode 100644
 index 6e9d347..7e7626f
---- a/src/pages/admin/dia/[date].astro
-+++ b/src/pages/admin/dia/[date].astro
+--- a/apps/barbearia/src/pages/admin/dia/[date].astro
++++ b/apps/barbearia/src/pages/admin/dia/[date].astro
 @@ -29,8 +29,8 @@ if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
    return Astro.redirect('/admin');
  }
@@ -1494,12 +1494,12 @@ index 6e9d347..7e7626f
  
    const occ  = computeOccupancy({ days: nextDays, workingHours: whRows, timeOff: weekTimeOff, appointments: weekAppts });
    const pick = pickEmptiestBand(occ);
-diff --git a/src/pages/admin/horarios.astro b/src/pages/admin/horarios.astro
+diff --git a/apps/barbearia/src/pages/admin/horarios.astro b/apps/barbearia/src/pages/admin/horarios.astro
 old mode 100755
 new mode 100644
 index 775a3ff..108bfac
---- a/src/pages/admin/horarios.astro
-+++ b/src/pages/admin/horarios.astro
+--- a/apps/barbearia/src/pages/admin/horarios.astro
++++ b/apps/barbearia/src/pages/admin/horarios.astro
 @@ -10,15 +10,15 @@ import { eq } from 'drizzle-orm';
  const session = await getSession(Astro.request);
  if (!session) return Astro.redirect('/admin/login');
@@ -1536,12 +1536,12 @@ index 775a3ff..108bfac
  
  const WEEKDAY_LABELS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
  const WEEKDAY_SHORT  = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-diff --git a/src/pages/admin/index.astro b/src/pages/admin/index.astro
+diff --git a/apps/barbearia/src/pages/admin/index.astro b/apps/barbearia/src/pages/admin/index.astro
 old mode 100755
 new mode 100644
 index 654138c..59b24de
---- a/src/pages/admin/index.astro
-+++ b/src/pages/admin/index.astro
+--- a/apps/barbearia/src/pages/admin/index.astro
++++ b/apps/barbearia/src/pages/admin/index.astro
 @@ -3,7 +3,8 @@ export const prerender = false;
  
  import AdminLayout from '../../layouts/AdminLayout.astro';
@@ -1763,15 +1763,15 @@ index 654138c..59b24de
  const maxRevenue = Math.max(...weekDays.map(d => d.revenue), 1);
  
  // ─── Helpers de display ───────────────────────────────────────────────────
-diff --git a/src/pages/admin/login.astro b/src/pages/admin/login.astro
+diff --git a/apps/barbearia/src/pages/admin/login.astro b/apps/barbearia/src/pages/admin/login.astro
 old mode 100755
 new mode 100644
-diff --git a/src/pages/admin/produtos.astro b/src/pages/admin/produtos.astro
+diff --git a/apps/barbearia/src/pages/admin/produtos.astro b/apps/barbearia/src/pages/admin/produtos.astro
 old mode 100755
 new mode 100644
 index 929fda7..2d9f615
---- a/src/pages/admin/produtos.astro
-+++ b/src/pages/admin/produtos.astro
+--- a/apps/barbearia/src/pages/admin/produtos.astro
++++ b/apps/barbearia/src/pages/admin/produtos.astro
 @@ -10,14 +10,14 @@ import { eq } from 'drizzle-orm';
  const session = await getSession(Astro.request);
  if (!session) return Astro.redirect('/admin/login');
@@ -1790,12 +1790,12 @@ index 929fda7..2d9f615
  const brl = (c: number) => 'R$ ' + (c / 100).toFixed(2).replace('.', ',');
  const reais = (c: number) => (c / 100).toFixed(2);
  ---
-diff --git a/src/pages/admin/relatorios.astro b/src/pages/admin/relatorios.astro
+diff --git a/apps/barbearia/src/pages/admin/relatorios.astro b/apps/barbearia/src/pages/admin/relatorios.astro
 old mode 100755
 new mode 100644
 index ae0d589..e901995
---- a/src/pages/admin/relatorios.astro
-+++ b/src/pages/admin/relatorios.astro
+--- a/apps/barbearia/src/pages/admin/relatorios.astro
++++ b/apps/barbearia/src/pages/admin/relatorios.astro
 @@ -21,8 +21,8 @@ if (!session) return Astro.redirect('/admin/login');
  const isAdmin = session.role === 'admin';
  const viewBarberId: number | null = isAdmin ? null : session.barberId;
@@ -1908,12 +1908,12 @@ index ae0d589..e901995
  
  // Dias do mês a considerar: passados/atual até hoje; mês inteiro se já passou.
  const daysInMonth = new Date(yy, mm, 0).getDate();
-diff --git a/src/pages/admin/reservas.astro b/src/pages/admin/reservas.astro
+diff --git a/apps/barbearia/src/pages/admin/reservas.astro b/apps/barbearia/src/pages/admin/reservas.astro
 old mode 100755
 new mode 100644
 index 95e873a..29110c8
---- a/src/pages/admin/reservas.astro
-+++ b/src/pages/admin/reservas.astro
+--- a/apps/barbearia/src/pages/admin/reservas.astro
++++ b/apps/barbearia/src/pages/admin/reservas.astro
 @@ -14,11 +14,11 @@ const TZ = 'America/Fortaleza';
  const session = await getSession(Astro.request);
  if (!session) return Astro.redirect('/admin/login');
@@ -1929,12 +1929,12 @@ index 95e873a..29110c8
  const rank: Record<string, number> = { pending: 0, fulfilled: 1, cancelled: 2 };
  rows.sort((a, b) => (rank[a.status] - rank[b.status]) || b.createdAt.localeCompare(a.createdAt));
  
-diff --git a/src/pages/admin/servicos.astro b/src/pages/admin/servicos.astro
+diff --git a/apps/barbearia/src/pages/admin/servicos.astro b/apps/barbearia/src/pages/admin/servicos.astro
 old mode 100755
 new mode 100644
 index 0f18865..b919dbc
---- a/src/pages/admin/servicos.astro
-+++ b/src/pages/admin/servicos.astro
+--- a/apps/barbearia/src/pages/admin/servicos.astro
++++ b/apps/barbearia/src/pages/admin/servicos.astro
 @@ -10,8 +10,8 @@ import { and, eq } from 'drizzle-orm';
  const session = await getSession(Astro.request);
  if (!session) return Astro.redirect('/admin/login');
@@ -1957,10 +1957,10 @@ index 0f18865..b919dbc
  
  const svcList = rows.map(r => ({
    id:           r.id,
-diff --git a/src/pages/agendar.astro b/src/pages/agendar.astro
+diff --git a/apps/barbearia/src/pages/agendar.astro b/apps/barbearia/src/pages/agendar.astro
 index c8e3249..65c90c9 100755
---- a/src/pages/agendar.astro
-+++ b/src/pages/agendar.astro
+--- a/apps/barbearia/src/pages/agendar.astro
++++ b/apps/barbearia/src/pages/agendar.astro
 @@ -4,7 +4,7 @@ export const prerender = false;
  import Layout from '../layouts/Layout.astro';
  import { getSettings } from '../lib/settings';
@@ -1970,12 +1970,12 @@ index c8e3249..65c90c9 100755
  ---
  
  <Layout
-diff --git a/src/pages/api/admin/appointments/[id]/cancel.ts b/src/pages/api/admin/appointments/[id]/cancel.ts
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/[id]/cancel.ts b/apps/barbearia/src/pages/api/admin/appointments/[id]/cancel.ts
 old mode 100755
 new mode 100644
 index eda20d0..8cd4c16
---- a/src/pages/api/admin/appointments/[id]/cancel.ts
-+++ b/src/pages/api/admin/appointments/[id]/cancel.ts
+--- a/apps/barbearia/src/pages/api/admin/appointments/[id]/cancel.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/[id]/cancel.ts
 @@ -14,11 +14,10 @@ export const POST: APIRoute = async ({ request, params }) => {
    const id = parseInt(params.id ?? '', 10);
    if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
@@ -2009,12 +2009,12 @@ index eda20d0..8cd4c16
  
    return json({ ok: true });
  };
-diff --git a/src/pages/api/admin/appointments/[id]/complete.ts b/src/pages/api/admin/appointments/[id]/complete.ts
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/[id]/complete.ts b/apps/barbearia/src/pages/api/admin/appointments/[id]/complete.ts
 old mode 100755
 new mode 100644
 index 4618cf1..70aa506
---- a/src/pages/api/admin/appointments/[id]/complete.ts
-+++ b/src/pages/api/admin/appointments/[id]/complete.ts
+--- a/apps/barbearia/src/pages/api/admin/appointments/[id]/complete.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/[id]/complete.ts
 @@ -3,7 +3,7 @@ export const prerender = false;
  import type { APIRoute } from 'astro';
  import { z } from 'zod';
@@ -2072,12 +2072,12 @@ index 4618cf1..70aa506
      }
    });
  
-diff --git a/src/pages/api/admin/appointments/[id]/customer.ts b/src/pages/api/admin/appointments/[id]/customer.ts
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/[id]/customer.ts b/apps/barbearia/src/pages/api/admin/appointments/[id]/customer.ts
 old mode 100755
 new mode 100644
 index 30490f4..a346b14
---- a/src/pages/api/admin/appointments/[id]/customer.ts
-+++ b/src/pages/api/admin/appointments/[id]/customer.ts
+--- a/apps/barbearia/src/pages/api/admin/appointments/[id]/customer.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/[id]/customer.ts
 @@ -2,7 +2,8 @@ export const prerender = false;
  
  import type { APIRoute } from 'astro';
@@ -2215,12 +2215,12 @@ index 30490f4..a346b14
 +  const updated = await atualizarUm(dados, id);
 +  return json({ ok: true, updated, propagated: false });
  };
-diff --git a/src/pages/api/admin/appointments/[id]/history.ts b/src/pages/api/admin/appointments/[id]/history.ts
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/[id]/history.ts b/apps/barbearia/src/pages/api/admin/appointments/[id]/history.ts
 old mode 100755
 new mode 100644
 index 61a219d..74f58ea
---- a/src/pages/api/admin/appointments/[id]/history.ts
-+++ b/src/pages/api/admin/appointments/[id]/history.ts
+--- a/apps/barbearia/src/pages/api/admin/appointments/[id]/history.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/[id]/history.ts
 @@ -1,7 +1,8 @@
  export const prerender = false;
  
@@ -2438,12 +2438,12 @@ index 61a219d..74f58ea
      stats,
      history: rows.map(r => ({
        id:           r.id,
-diff --git a/src/pages/api/admin/appointments/[id]/no-show.ts b/src/pages/api/admin/appointments/[id]/no-show.ts
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/[id]/no-show.ts b/apps/barbearia/src/pages/api/admin/appointments/[id]/no-show.ts
 old mode 100755
 new mode 100644
 index c77a8ae..70cdd1e
---- a/src/pages/api/admin/appointments/[id]/no-show.ts
-+++ b/src/pages/api/admin/appointments/[id]/no-show.ts
+--- a/apps/barbearia/src/pages/api/admin/appointments/[id]/no-show.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/[id]/no-show.ts
 @@ -14,11 +14,10 @@ export const POST: APIRoute = async ({ request, params }) => {
    const id = parseInt(params.id ?? '', 10);
    if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
@@ -2475,12 +2475,12 @@ index c77a8ae..70cdd1e
  
    return json({ ok: true });
  };
-diff --git a/src/pages/api/admin/appointments/[id]/notes.ts b/src/pages/api/admin/appointments/[id]/notes.ts
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/[id]/notes.ts b/apps/barbearia/src/pages/api/admin/appointments/[id]/notes.ts
 old mode 100755
 new mode 100644
 index cd5228a..2c0e4e7
---- a/src/pages/api/admin/appointments/[id]/notes.ts
-+++ b/src/pages/api/admin/appointments/[id]/notes.ts
+--- a/apps/barbearia/src/pages/api/admin/appointments/[id]/notes.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/[id]/notes.ts
 @@ -26,11 +26,10 @@ export const PATCH: APIRoute = async ({ params, request }) => {
    const parsed = bodySchema.safeParse(body);
    if (!parsed.success) return json({ error: parsed.error.issues[0].message }, 400);
@@ -2512,12 +2512,12 @@ index cd5228a..2c0e4e7
  
    return json({ ok: true, notes: normalizedNotes });
  };
-diff --git a/src/pages/api/admin/appointments/[id]/reschedule.ts b/src/pages/api/admin/appointments/[id]/reschedule.ts
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/[id]/reschedule.ts b/apps/barbearia/src/pages/api/admin/appointments/[id]/reschedule.ts
 old mode 100755
 new mode 100644
 index 6f2b8fa..1cb7c53
---- a/src/pages/api/admin/appointments/[id]/reschedule.ts
-+++ b/src/pages/api/admin/appointments/[id]/reschedule.ts
+--- a/apps/barbearia/src/pages/api/admin/appointments/[id]/reschedule.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/[id]/reschedule.ts
 @@ -5,10 +5,11 @@ import { z } from 'zod';
  import { eq, and } from 'drizzle-orm';
  import { addDays, addMinutes } from 'date-fns';
@@ -2648,12 +2648,12 @@ index 6f2b8fa..1cb7c53
      console.error('[api/admin/appointments/:id/reschedule POST]', err);
      return json({ error: 'Erro interno ao reagendar' }, 500);
    }
-diff --git a/src/pages/api/admin/appointments/calendar.ts b/src/pages/api/admin/appointments/calendar.ts
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/calendar.ts b/apps/barbearia/src/pages/api/admin/appointments/calendar.ts
 old mode 100755
 new mode 100644
 index 058dc1d..31f9814
---- a/src/pages/api/admin/appointments/calendar.ts
-+++ b/src/pages/api/admin/appointments/calendar.ts
+--- a/apps/barbearia/src/pages/api/admin/appointments/calendar.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/calendar.ts
 @@ -1,7 +1,8 @@
  export const prerender = false;
  
@@ -2730,12 +2730,12 @@ index 058dc1d..31f9814
  
    return json({ ok: true, month, days });
  };
-diff --git a/src/pages/api/admin/appointments/count.ts b/src/pages/api/admin/appointments/count.ts
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/count.ts b/apps/barbearia/src/pages/api/admin/appointments/count.ts
 old mode 100755
 new mode 100644
 index 4ba0d64..69392dc
---- a/src/pages/api/admin/appointments/count.ts
-+++ b/src/pages/api/admin/appointments/count.ts
+--- a/apps/barbearia/src/pages/api/admin/appointments/count.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/count.ts
 @@ -1,7 +1,8 @@
  export const prerender = false;
  
@@ -2797,12 +2797,12 @@ index 4ba0d64..69392dc
 +  const r = await contar(barberFilter, startIso, endIso);
 +  return json({ ok: true, count: Number(r?.c ?? 0), maxModified: r?.maxModified ?? '' });
  };
-diff --git a/src/pages/api/admin/appointments/index.ts b/src/pages/api/admin/appointments/index.ts
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/index.ts b/apps/barbearia/src/pages/api/admin/appointments/index.ts
 old mode 100755
 new mode 100644
 index c74f729..8a0d904
---- a/src/pages/api/admin/appointments/index.ts
-+++ b/src/pages/api/admin/appointments/index.ts
+--- a/apps/barbearia/src/pages/api/admin/appointments/index.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/index.ts
 @@ -46,7 +46,7 @@ export const GET: APIRoute = async ({ request, url }) => {
    const dayStart = fromZonedTime(`${date}T00:00:00`, TZ).toISOString();
    const dayEnd   = fromZonedTime(`${date}T23:59:59`, TZ).toISOString();
@@ -2831,12 +2831,12 @@ index c74f729..8a0d904
        barberId,
        serviceId,
        customerName,
-diff --git a/src/pages/api/admin/appointments/search.ts b/src/pages/api/admin/appointments/search.ts
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/search.ts b/apps/barbearia/src/pages/api/admin/appointments/search.ts
 old mode 100755
 new mode 100644
 index 97da10e..e9360a7
---- a/src/pages/api/admin/appointments/search.ts
-+++ b/src/pages/api/admin/appointments/search.ts
+--- a/apps/barbearia/src/pages/api/admin/appointments/search.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/search.ts
 @@ -4,37 +4,43 @@ import type { APIRoute } from 'astro';
  import { formatInTimeZone } from 'date-fns-tz';
  import { json } from '../../../../lib/api.js';
@@ -2917,12 +2917,12 @@ index 97da10e..e9360a7
  
    const results = rows.map(r => ({
      id:              r.id,
-diff --git a/src/pages/api/admin/backup.ts b/src/pages/api/admin/backup.ts
+diff --git a/apps/barbearia/src/pages/api/admin/backup.ts b/apps/barbearia/src/pages/api/admin/backup.ts
 old mode 100755
 new mode 100644
 index ecb0ba0..62a57cb
---- a/src/pages/api/admin/backup.ts
-+++ b/src/pages/api/admin/backup.ts
+--- a/apps/barbearia/src/pages/api/admin/backup.ts
++++ b/apps/barbearia/src/pages/api/admin/backup.ts
 @@ -1,40 +1,122 @@
  export const prerender = false;
  
@@ -3053,12 +3053,12 @@ index ecb0ba0..62a57cb
    } finally {
      rmSync(dir, { recursive: true, force: true });
    }
-diff --git a/src/pages/api/admin/barber-services/[serviceId].ts b/src/pages/api/admin/barber-services/[serviceId].ts
+diff --git a/apps/barbearia/src/pages/api/admin/barber-services/[serviceId].ts b/apps/barbearia/src/pages/api/admin/barber-services/[serviceId].ts
 old mode 100755
 new mode 100644
 index 094b89c..5a60620
---- a/src/pages/api/admin/barber-services/[serviceId].ts
-+++ b/src/pages/api/admin/barber-services/[serviceId].ts
+--- a/apps/barbearia/src/pages/api/admin/barber-services/[serviceId].ts
++++ b/apps/barbearia/src/pages/api/admin/barber-services/[serviceId].ts
 @@ -2,7 +2,7 @@ export const prerender = false;
  
  import type { APIRoute } from 'astro';
@@ -3084,12 +3084,12 @@ index 094b89c..5a60620
  
    return json({ ok: true });
  };
-diff --git a/src/pages/api/admin/barbers/[id]/password.ts b/src/pages/api/admin/barbers/[id]/password.ts
+diff --git a/apps/barbearia/src/pages/api/admin/barbers/[id]/password.ts b/apps/barbearia/src/pages/api/admin/barbers/[id]/password.ts
 old mode 100755
 new mode 100644
 index b6556c0..7b6668c
---- a/src/pages/api/admin/barbers/[id]/password.ts
-+++ b/src/pages/api/admin/barbers/[id]/password.ts
+--- a/apps/barbearia/src/pages/api/admin/barbers/[id]/password.ts
++++ b/apps/barbearia/src/pages/api/admin/barbers/[id]/password.ts
 @@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
  import { z } from 'zod';
  import { hash } from 'bcryptjs';
@@ -3113,12 +3113,12 @@ index b6556c0..7b6668c
  
    return json({ ok: true });
  };
-diff --git a/src/pages/api/admin/barbers/[id].ts b/src/pages/api/admin/barbers/[id].ts
+diff --git a/apps/barbearia/src/pages/api/admin/barbers/[id].ts b/apps/barbearia/src/pages/api/admin/barbers/[id].ts
 old mode 100755
 new mode 100644
 index 66975d0..f621948
---- a/src/pages/api/admin/barbers/[id].ts
-+++ b/src/pages/api/admin/barbers/[id].ts
+--- a/apps/barbearia/src/pages/api/admin/barbers/[id].ts
++++ b/apps/barbearia/src/pages/api/admin/barbers/[id].ts
 @@ -3,7 +3,7 @@ export const prerender = false;
  import type { APIRoute } from 'astro';
  import { z } from 'zod';
@@ -3147,12 +3147,12 @@ index 66975d0..f621948
 +  await db.update(barbers).set(updates).where(eq(barbers.id, id));
    return json({ ok: true });
  };
-diff --git a/src/pages/api/admin/barbers/index.ts b/src/pages/api/admin/barbers/index.ts
+diff --git a/apps/barbearia/src/pages/api/admin/barbers/index.ts b/apps/barbearia/src/pages/api/admin/barbers/index.ts
 old mode 100755
 new mode 100644
 index d1dce35..ba2b53d
---- a/src/pages/api/admin/barbers/index.ts
-+++ b/src/pages/api/admin/barbers/index.ts
+--- a/apps/barbearia/src/pages/api/admin/barbers/index.ts
++++ b/apps/barbearia/src/pages/api/admin/barbers/index.ts
 @@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
  import { z } from 'zod';
  import { hash } from 'bcryptjs';
@@ -3237,12 +3237,12 @@ index d1dce35..ba2b53d
        }
        return id;
      });
-diff --git a/src/pages/api/admin/combos/[id].ts b/src/pages/api/admin/combos/[id].ts
+diff --git a/apps/barbearia/src/pages/api/admin/combos/[id].ts b/apps/barbearia/src/pages/api/admin/combos/[id].ts
 old mode 100755
 new mode 100644
 index 8e2d883..72b4c3b
---- a/src/pages/api/admin/combos/[id].ts
-+++ b/src/pages/api/admin/combos/[id].ts
+--- a/apps/barbearia/src/pages/api/admin/combos/[id].ts
++++ b/apps/barbearia/src/pages/api/admin/combos/[id].ts
 @@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
  import { unlink } from 'node:fs/promises';
  import { join } from 'node:path';
@@ -3300,12 +3300,12 @@ index 8e2d883..72b4c3b
    await removeUploadedImage(current.image);
  
    return json({ ok: true });
-diff --git a/src/pages/api/admin/combos/index.ts b/src/pages/api/admin/combos/index.ts
+diff --git a/apps/barbearia/src/pages/api/admin/combos/index.ts b/apps/barbearia/src/pages/api/admin/combos/index.ts
 old mode 100755
 new mode 100644
 index e58ac10..66a7a6e
---- a/src/pages/api/admin/combos/index.ts
-+++ b/src/pages/api/admin/combos/index.ts
+--- a/apps/barbearia/src/pages/api/admin/combos/index.ts
++++ b/apps/barbearia/src/pages/api/admin/combos/index.ts
 @@ -2,7 +2,7 @@ export const prerender = false;
  
  import type { APIRoute } from 'astro';
@@ -3363,12 +3363,12 @@ index e58ac10..66a7a6e
 -  return json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
 +  return json({ ok: true, id: result[0].id }, 201);
  };
-diff --git a/src/pages/api/admin/product-sales/[id].ts b/src/pages/api/admin/product-sales/[id].ts
+diff --git a/apps/barbearia/src/pages/api/admin/product-sales/[id].ts b/apps/barbearia/src/pages/api/admin/product-sales/[id].ts
 old mode 100755
 new mode 100644
 index d9c6c04..7e9c334
---- a/src/pages/api/admin/product-sales/[id].ts
-+++ b/src/pages/api/admin/product-sales/[id].ts
+--- a/apps/barbearia/src/pages/api/admin/product-sales/[id].ts
++++ b/apps/barbearia/src/pages/api/admin/product-sales/[id].ts
 @@ -2,7 +2,7 @@ export const prerender = false;
  
  import type { APIRoute } from 'astro';
@@ -3397,12 +3397,12 @@ index d9c6c04..7e9c334
 +  await db.delete(productSales).where(eq(productSales.id, id));
    return json({ ok: true });
  };
-diff --git a/src/pages/api/admin/product-sales/index.ts b/src/pages/api/admin/product-sales/index.ts
+diff --git a/apps/barbearia/src/pages/api/admin/product-sales/index.ts b/apps/barbearia/src/pages/api/admin/product-sales/index.ts
 old mode 100755
 new mode 100644
 index b34c0c3..ba331dc
---- a/src/pages/api/admin/product-sales/index.ts
-+++ b/src/pages/api/admin/product-sales/index.ts
+--- a/apps/barbearia/src/pages/api/admin/product-sales/index.ts
++++ b/apps/barbearia/src/pages/api/admin/product-sales/index.ts
 @@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
  import { z } from 'zod';
  import { eq } from 'drizzle-orm';
@@ -3446,12 +3446,12 @@ index b34c0c3..ba331dc
        barberId,
        barberName: barber.name,
        name,
-diff --git a/src/pages/api/admin/products/[id].ts b/src/pages/api/admin/products/[id].ts
+diff --git a/apps/barbearia/src/pages/api/admin/products/[id].ts b/apps/barbearia/src/pages/api/admin/products/[id].ts
 old mode 100755
 new mode 100644
 index 2982f76..3b069fb
---- a/src/pages/api/admin/products/[id].ts
-+++ b/src/pages/api/admin/products/[id].ts
+--- a/apps/barbearia/src/pages/api/admin/products/[id].ts
++++ b/apps/barbearia/src/pages/api/admin/products/[id].ts
 @@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
  import { unlink } from 'node:fs/promises';
  import { join } from 'node:path';
@@ -3492,12 +3492,12 @@ index 2982f76..3b069fb
    await removeUploadedImage(current.image);
  
    return json({ ok: true });
-diff --git a/src/pages/api/admin/products/index.ts b/src/pages/api/admin/products/index.ts
+diff --git a/apps/barbearia/src/pages/api/admin/products/index.ts b/apps/barbearia/src/pages/api/admin/products/index.ts
 old mode 100755
 new mode 100644
 index f90bddd..21aba23
---- a/src/pages/api/admin/products/index.ts
-+++ b/src/pages/api/admin/products/index.ts
+--- a/apps/barbearia/src/pages/api/admin/products/index.ts
++++ b/apps/barbearia/src/pages/api/admin/products/index.ts
 @@ -13,9 +13,9 @@ function slugify(s: string): string {
      .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60) || 'produto';
  }
@@ -3541,12 +3541,12 @@ index f90bddd..21aba23
    } catch (err) {
      console.error('[api/admin/products POST]', err);
      const msg = err instanceof Error ? err.message : 'erro desconhecido';
-diff --git a/src/pages/api/admin/reservations/[id].ts b/src/pages/api/admin/reservations/[id].ts
+diff --git a/apps/barbearia/src/pages/api/admin/reservations/[id].ts b/apps/barbearia/src/pages/api/admin/reservations/[id].ts
 old mode 100755
 new mode 100644
 index 37a5baa..8dbd7e9
---- a/src/pages/api/admin/reservations/[id].ts
-+++ b/src/pages/api/admin/reservations/[id].ts
+--- a/apps/barbearia/src/pages/api/admin/reservations/[id].ts
++++ b/apps/barbearia/src/pages/api/admin/reservations/[id].ts
 @@ -2,7 +2,7 @@ export const prerender = false;
  
  import type { APIRoute } from 'astro';
@@ -3598,12 +3598,12 @@ index 37a5baa..8dbd7e9
    });
  
    return json({ ok: true });
-diff --git a/src/pages/api/admin/reservations/index.ts b/src/pages/api/admin/reservations/index.ts
+diff --git a/apps/barbearia/src/pages/api/admin/reservations/index.ts b/apps/barbearia/src/pages/api/admin/reservations/index.ts
 old mode 100755
 new mode 100644
 index 7d08eb7..cde87aa
---- a/src/pages/api/admin/reservations/index.ts
-+++ b/src/pages/api/admin/reservations/index.ts
+--- a/apps/barbearia/src/pages/api/admin/reservations/index.ts
++++ b/apps/barbearia/src/pages/api/admin/reservations/index.ts
 @@ -11,7 +11,7 @@ export const GET: APIRoute = async ({ request }) => {
    const session = await getSession(request);
    if (!session) return json({ error: 'Não autenticado' }, 401);
@@ -3613,12 +3613,12 @@ index 7d08eb7..cde87aa
    const rank: Record<string, number> = { pending: 0, fulfilled: 1, cancelled: 2 };
    rows.sort((a, b) => (rank[a.status] - rank[b.status]) || b.createdAt.localeCompare(a.createdAt));
    return json(rows);
-diff --git a/src/pages/api/admin/services/[id].ts b/src/pages/api/admin/services/[id].ts
+diff --git a/apps/barbearia/src/pages/api/admin/services/[id].ts b/apps/barbearia/src/pages/api/admin/services/[id].ts
 old mode 100755
 new mode 100644
 index f9bcdc1..2c8c811
---- a/src/pages/api/admin/services/[id].ts
-+++ b/src/pages/api/admin/services/[id].ts
+--- a/apps/barbearia/src/pages/api/admin/services/[id].ts
++++ b/apps/barbearia/src/pages/api/admin/services/[id].ts
 @@ -36,10 +36,10 @@ export const PUT: APIRoute = async ({ request, params }) => {
  
    if (Object.keys(updates).length === 0) return json({ error: 'Nenhum campo para atualizar' }, 400);
@@ -3644,12 +3644,12 @@ index f9bcdc1..2c8c811
 +  await db.update(services).set({ active: false }).where(eq(services.id, id));
    return json({ ok: true });
  };
-diff --git a/src/pages/api/admin/services/index.ts b/src/pages/api/admin/services/index.ts
+diff --git a/apps/barbearia/src/pages/api/admin/services/index.ts b/apps/barbearia/src/pages/api/admin/services/index.ts
 old mode 100755
 new mode 100644
 index 999cf47..7894201
---- a/src/pages/api/admin/services/index.ts
-+++ b/src/pages/api/admin/services/index.ts
+--- a/apps/barbearia/src/pages/api/admin/services/index.ts
++++ b/apps/barbearia/src/pages/api/admin/services/index.ts
 @@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
  import { z } from 'zod';
  import { and, eq } from 'drizzle-orm';
@@ -3686,12 +3686,12 @@ index 999cf47..7894201
 +    .returning({ id: services.id });
 +  return json({ ok: true, id: criado.id, slug }, 201);
  };
-diff --git a/src/pages/api/admin/settings/media.ts b/src/pages/api/admin/settings/media.ts
+diff --git a/apps/barbearia/src/pages/api/admin/settings/media.ts b/apps/barbearia/src/pages/api/admin/settings/media.ts
 old mode 100755
 new mode 100644
 index ba8cbc2..41764e8
---- a/src/pages/api/admin/settings/media.ts
-+++ b/src/pages/api/admin/settings/media.ts
+--- a/apps/barbearia/src/pages/api/admin/settings/media.ts
++++ b/apps/barbearia/src/pages/api/admin/settings/media.ts
 @@ -1,10 +1,12 @@
  export const prerender = false;
  
@@ -3737,12 +3737,12 @@ index ba8cbc2..41764e8
 +  invalidateSettings();
    return json({ ok: true });
  };
-diff --git a/src/pages/api/admin/settings.ts b/src/pages/api/admin/settings.ts
+diff --git a/apps/barbearia/src/pages/api/admin/settings.ts b/apps/barbearia/src/pages/api/admin/settings.ts
 old mode 100755
 new mode 100644
 index 95f86ae..a6e48b7
---- a/src/pages/api/admin/settings.ts
-+++ b/src/pages/api/admin/settings.ts
+--- a/apps/barbearia/src/pages/api/admin/settings.ts
++++ b/apps/barbearia/src/pages/api/admin/settings.ts
 @@ -2,10 +2,12 @@ export const prerender = false;
  
  import type { APIRoute } from 'astro';
@@ -3796,12 +3796,12 @@ index 95f86ae..a6e48b7
 +
    return json({ ok: true });
  };
-diff --git a/src/pages/api/admin/time-off/index.ts b/src/pages/api/admin/time-off/index.ts
+diff --git a/apps/barbearia/src/pages/api/admin/time-off/index.ts b/apps/barbearia/src/pages/api/admin/time-off/index.ts
 old mode 100755
 new mode 100644
 index f337174..26f1efa
---- a/src/pages/api/admin/time-off/index.ts
-+++ b/src/pages/api/admin/time-off/index.ts
+--- a/apps/barbearia/src/pages/api/admin/time-off/index.ts
++++ b/apps/barbearia/src/pages/api/admin/time-off/index.ts
 @@ -36,11 +36,10 @@ export const GET: APIRoute = async ({ request }) => {
      .leftJoin(barbers, eq(barbers.id, timeOff.barberId));
  
@@ -3877,12 +3877,12 @@ index f337174..26f1efa
 +  await db.delete(timeOff).where(eq(timeOff.id, id));
    return json({ ok: true });
  };
-diff --git a/src/pages/api/admin/working-hours/index.ts b/src/pages/api/admin/working-hours/index.ts
+diff --git a/apps/barbearia/src/pages/api/admin/working-hours/index.ts b/apps/barbearia/src/pages/api/admin/working-hours/index.ts
 old mode 100755
 new mode 100644
 index d0fc63e..ea1f069
---- a/src/pages/api/admin/working-hours/index.ts
-+++ b/src/pages/api/admin/working-hours/index.ts
+--- a/apps/barbearia/src/pages/api/admin/working-hours/index.ts
++++ b/apps/barbearia/src/pages/api/admin/working-hours/index.ts
 @@ -3,7 +3,7 @@ export const prerender = false;
  import type { APIRoute } from 'astro';
  import { z } from 'zod';
@@ -3956,12 +3956,12 @@ index d0fc63e..ea1f069
 -
    return json({ ok: true, barberId, saved: hours.length });
  };
-diff --git a/src/pages/api/appointments/by-token/[token]/cancel.ts b/src/pages/api/appointments/by-token/[token]/cancel.ts
+diff --git a/apps/barbearia/src/pages/api/appointments/by-token/[token]/cancel.ts b/apps/barbearia/src/pages/api/appointments/by-token/[token]/cancel.ts
 old mode 100755
 new mode 100644
 index 9505fab..c031e42
---- a/src/pages/api/appointments/by-token/[token]/cancel.ts
-+++ b/src/pages/api/appointments/by-token/[token]/cancel.ts
+--- a/apps/barbearia/src/pages/api/appointments/by-token/[token]/cancel.ts
++++ b/apps/barbearia/src/pages/api/appointments/by-token/[token]/cancel.ts
 @@ -6,17 +6,16 @@ import { db } from '../../../../../db/index.js';
  import { appointments } from '../../../../../db/schema.js';
  import { json } from '../../../../../lib/api.js';
@@ -4002,12 +4002,12 @@ index 9505fab..c031e42
  
      return json({ ok: true, message: 'Agendamento cancelado' });
    } catch (err) {
-diff --git a/src/pages/api/appointments/by-token/[token]/ics.ts b/src/pages/api/appointments/by-token/[token]/ics.ts
+diff --git a/apps/barbearia/src/pages/api/appointments/by-token/[token]/ics.ts b/apps/barbearia/src/pages/api/appointments/by-token/[token]/ics.ts
 old mode 100755
 new mode 100644
 index 4174379..b214878
---- a/src/pages/api/appointments/by-token/[token]/ics.ts
-+++ b/src/pages/api/appointments/by-token/[token]/ics.ts
+--- a/apps/barbearia/src/pages/api/appointments/by-token/[token]/ics.ts
++++ b/apps/barbearia/src/pages/api/appointments/by-token/[token]/ics.ts
 @@ -33,11 +33,11 @@ function foldLine(line: string): string {
    return out.join('\r\n');
  }
@@ -4041,12 +4041,12 @@ index 4174379..b214878
    const summary  = icsEscape(`${appt.serviceName} com ${appt.barberName} — ${s.businessName}`);
    const location = icsEscape(`${s.addressStreet} — ${s.addressCity}`);
    const description = icsEscape(`Cliente: ${appt.customerName}\nLink: ${url}`);
-diff --git a/src/pages/api/appointments/by-token/[token]/reschedule.ts b/src/pages/api/appointments/by-token/[token]/reschedule.ts
+diff --git a/apps/barbearia/src/pages/api/appointments/by-token/[token]/reschedule.ts b/apps/barbearia/src/pages/api/appointments/by-token/[token]/reschedule.ts
 old mode 100755
 new mode 100644
 index deaeb05..c3f115b
---- a/src/pages/api/appointments/by-token/[token]/reschedule.ts
-+++ b/src/pages/api/appointments/by-token/[token]/reschedule.ts
+--- a/apps/barbearia/src/pages/api/appointments/by-token/[token]/reschedule.ts
++++ b/apps/barbearia/src/pages/api/appointments/by-token/[token]/reschedule.ts
 @@ -5,10 +5,11 @@ import { z } from 'zod';
  import { eq } from 'drizzle-orm';
  import { addDays, addMinutes } from 'date-fns';
@@ -4181,12 +4181,12 @@ index deaeb05..c3f115b
      console.error('[api/appointments/by-token/reschedule POST]', err);
      return json({ error: 'Erro interno ao reagendar' }, 500);
    }
-diff --git a/src/pages/api/appointments/by-token/[token].ts b/src/pages/api/appointments/by-token/[token].ts
+diff --git a/apps/barbearia/src/pages/api/appointments/by-token/[token].ts b/apps/barbearia/src/pages/api/appointments/by-token/[token].ts
 old mode 100755
 new mode 100644
 index 371d12a..342c0db
---- a/src/pages/api/appointments/by-token/[token].ts
-+++ b/src/pages/api/appointments/by-token/[token].ts
+--- a/apps/barbearia/src/pages/api/appointments/by-token/[token].ts
++++ b/apps/barbearia/src/pages/api/appointments/by-token/[token].ts
 @@ -10,12 +10,12 @@ import { getSettings, waUrl } from '../../../../lib/settings.js';
  
  const TZ = 'America/Fortaleza';
@@ -4221,12 +4221,12 @@ index 371d12a..342c0db
      const whatsappText = s.whatsappNumber
        ? `Olá! Agendei *${appt.serviceName}* com *${appt.barberName}* no dia *${dateLocal}* às *${timeLocal}*.`
        : null;
-diff --git a/src/pages/api/appointments/index.ts b/src/pages/api/appointments/index.ts
+diff --git a/apps/barbearia/src/pages/api/appointments/index.ts b/apps/barbearia/src/pages/api/appointments/index.ts
 old mode 100755
 new mode 100644
 index 1228ab8..989eeaa
---- a/src/pages/api/appointments/index.ts
-+++ b/src/pages/api/appointments/index.ts
+--- a/apps/barbearia/src/pages/api/appointments/index.ts
++++ b/apps/barbearia/src/pages/api/appointments/index.ts
 @@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
  import { z } from 'zod';
  import { addMinutes } from 'date-fns';
@@ -4262,12 +4262,12 @@ index 1228ab8..989eeaa
        barberId,
        serviceId: effectiveServiceId,
        customerName,
-diff --git a/src/pages/api/auth/login.ts b/src/pages/api/auth/login.ts
+diff --git a/apps/barbearia/src/pages/api/auth/login.ts b/apps/barbearia/src/pages/api/auth/login.ts
 old mode 100755
 new mode 100644
 index 618e94d..a2b963a
---- a/src/pages/api/auth/login.ts
-+++ b/src/pages/api/auth/login.ts
+--- a/apps/barbearia/src/pages/api/auth/login.ts
++++ b/apps/barbearia/src/pages/api/auth/login.ts
 @@ -43,11 +43,10 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
      return json({ error: `Muitas tentativas. Tente em ${rl.retryAfterSecs}s` }, 429);
    }
@@ -4282,15 +4282,15 @@ index 618e94d..a2b963a
  
    const barber  = rows[0];
    const isValid = barber?.active && barber.passwordHash
-diff --git a/src/pages/api/auth/logout.ts b/src/pages/api/auth/logout.ts
+diff --git a/apps/barbearia/src/pages/api/auth/logout.ts b/apps/barbearia/src/pages/api/auth/logout.ts
 old mode 100755
 new mode 100644
-diff --git a/src/pages/api/barbers.ts b/src/pages/api/barbers.ts
+diff --git a/apps/barbearia/src/pages/api/barbers.ts b/apps/barbearia/src/pages/api/barbers.ts
 old mode 100755
 new mode 100644
 index 798a927..067391e
---- a/src/pages/api/barbers.ts
-+++ b/src/pages/api/barbers.ts
+--- a/apps/barbearia/src/pages/api/barbers.ts
++++ b/apps/barbearia/src/pages/api/barbers.ts
 @@ -6,14 +6,13 @@ import { db } from '../../db/index.js';
  import { barbers } from '../../db/schema.js';
  import { json } from '../../lib/api.js';
@@ -4309,12 +4309,12 @@ index 798a927..067391e
  
      return json(result);
    } catch (err) {
-diff --git a/src/pages/api/combos/index.ts b/src/pages/api/combos/index.ts
+diff --git a/apps/barbearia/src/pages/api/combos/index.ts b/apps/barbearia/src/pages/api/combos/index.ts
 old mode 100755
 new mode 100644
 index 04667f4..a791161
---- a/src/pages/api/combos/index.ts
-+++ b/src/pages/api/combos/index.ts
+--- a/apps/barbearia/src/pages/api/combos/index.ts
++++ b/apps/barbearia/src/pages/api/combos/index.ts
 @@ -9,8 +9,8 @@ import { applyDiscountPct } from '../../../lib/combo.js';
  
  // Lista pública dos combos ATIVOS (com serviço e produto também ativos), já com
@@ -4336,12 +4336,12 @@ index 04667f4..a791161
  
    const out = rows.map(r => {
      const svcD = applyDiscountPct(r.serviceCents, r.discountPct);
-diff --git a/src/pages/api/customer/login.ts b/src/pages/api/customer/login.ts
+diff --git a/apps/barbearia/src/pages/api/customer/login.ts b/apps/barbearia/src/pages/api/customer/login.ts
 old mode 100755
 new mode 100644
 index df971c2..8aad999
---- a/src/pages/api/customer/login.ts
-+++ b/src/pages/api/customer/login.ts
+--- a/apps/barbearia/src/pages/api/customer/login.ts
++++ b/apps/barbearia/src/pages/api/customer/login.ts
 @@ -2,7 +2,8 @@ export const prerender = false;
  
  import type { APIRoute } from 'astro';
@@ -4412,21 +4412,21 @@ index df971c2..8aad999
        return json({
          error: 'Seu cadastro é anterior ao novo portal. Faça um novo agendamento ou peça pra barbearia atualizar sua data de nascimento.',
          code:  'legacy_no_birthdate',
-diff --git a/src/pages/api/customer/logout.ts b/src/pages/api/customer/logout.ts
+diff --git a/apps/barbearia/src/pages/api/customer/logout.ts b/apps/barbearia/src/pages/api/customer/logout.ts
 old mode 100755
 new mode 100644
-diff --git a/src/pages/api/media/[...path].ts b/src/pages/api/media/[...path].ts
+diff --git a/apps/barbearia/src/pages/api/media/[...path].ts b/apps/barbearia/src/pages/api/media/[...path].ts
 old mode 100755
 new mode 100644
-diff --git a/src/pages/api/products/image/[name].ts b/src/pages/api/products/image/[name].ts
+diff --git a/apps/barbearia/src/pages/api/products/image/[name].ts b/apps/barbearia/src/pages/api/products/image/[name].ts
 old mode 100755
 new mode 100644
-diff --git a/src/pages/api/products/index.ts b/src/pages/api/products/index.ts
+diff --git a/apps/barbearia/src/pages/api/products/index.ts b/apps/barbearia/src/pages/api/products/index.ts
 old mode 100755
 new mode 100644
 index b80f90e..8e24693
---- a/src/pages/api/products/index.ts
-+++ b/src/pages/api/products/index.ts
+--- a/apps/barbearia/src/pages/api/products/index.ts
++++ b/apps/barbearia/src/pages/api/products/index.ts
 @@ -8,8 +8,8 @@ import { json } from '../../../lib/api.js';
  
  // Lista pública dos produtos ATIVOS — usada pelos cards da landing, pelo combo
@@ -4448,12 +4448,12 @@ index b80f90e..8e24693
  
    return json(rows);
  };
-diff --git a/src/pages/api/reservations/index.ts b/src/pages/api/reservations/index.ts
+diff --git a/apps/barbearia/src/pages/api/reservations/index.ts b/apps/barbearia/src/pages/api/reservations/index.ts
 old mode 100755
 new mode 100644
 index ad39fdb..f9fd518
---- a/src/pages/api/reservations/index.ts
-+++ b/src/pages/api/reservations/index.ts
+--- a/apps/barbearia/src/pages/api/reservations/index.ts
++++ b/apps/barbearia/src/pages/api/reservations/index.ts
 @@ -3,7 +3,7 @@ export const prerender = false;
  import type { APIRoute } from 'astro';
  import { z } from 'zod';
@@ -4487,12 +4487,12 @@ index ad39fdb..f9fd518
  
    return json({ ok: true }, 201);
  };
-diff --git a/src/pages/api/services/prices.ts b/src/pages/api/services/prices.ts
+diff --git a/apps/barbearia/src/pages/api/services/prices.ts b/apps/barbearia/src/pages/api/services/prices.ts
 old mode 100755
 new mode 100644
 index 5c60828..33f00ad
---- a/src/pages/api/services/prices.ts
-+++ b/src/pages/api/services/prices.ts
+--- a/apps/barbearia/src/pages/api/services/prices.ts
++++ b/apps/barbearia/src/pages/api/services/prices.ts
 @@ -9,13 +9,12 @@ import { json } from '../../../lib/api.js';
  // Preços públicos do catálogo (fonte da verdade para a landing).
  // Lista TODOS os serviços ativos — sem o filtro de barber_services, pois aqui
@@ -4510,12 +4510,12 @@ index 5c60828..33f00ad
      return json(rows);
    } catch (err) {
      console.error('[api/services/prices]', err);
-diff --git a/src/pages/api/services.ts b/src/pages/api/services.ts
+diff --git a/apps/barbearia/src/pages/api/services.ts b/apps/barbearia/src/pages/api/services.ts
 old mode 100755
 new mode 100644
 index 358fbba..1e35e86
---- a/src/pages/api/services.ts
-+++ b/src/pages/api/services.ts
+--- a/apps/barbearia/src/pages/api/services.ts
++++ b/apps/barbearia/src/pages/api/services.ts
 @@ -6,9 +6,9 @@ import { db } from '../../db/index.js';
  import { services, barberServices, barbers } from '../../db/schema.js';
  import { json } from '../../lib/api.js';
@@ -4538,12 +4538,12 @@ index 358fbba..1e35e86
  
      // Agrupa barbeiros por serviço
      const map = new Map<number, {
-diff --git a/src/pages/api/slots.ts b/src/pages/api/slots.ts
+diff --git a/apps/barbearia/src/pages/api/slots.ts b/apps/barbearia/src/pages/api/slots.ts
 old mode 100755
 new mode 100644
 index 9660720..d2e0be0
---- a/src/pages/api/slots.ts
-+++ b/src/pages/api/slots.ts
+--- a/apps/barbearia/src/pages/api/slots.ts
++++ b/apps/barbearia/src/pages/api/slots.ts
 @@ -22,7 +22,7 @@ function json(body: unknown, status = 200) {
    });
  }
@@ -4562,12 +4562,12 @@ index 9660720..d2e0be0
  
      return json({
        date,
-diff --git a/src/pages/api/working-hours/index.ts b/src/pages/api/working-hours/index.ts
+diff --git a/apps/barbearia/src/pages/api/working-hours/index.ts b/apps/barbearia/src/pages/api/working-hours/index.ts
 old mode 100755
 new mode 100644
 index 332165d..b182027
---- a/src/pages/api/working-hours/index.ts
-+++ b/src/pages/api/working-hours/index.ts
+--- a/apps/barbearia/src/pages/api/working-hours/index.ts
++++ b/apps/barbearia/src/pages/api/working-hours/index.ts
 @@ -9,11 +9,11 @@ import { json } from '../../../lib/api.js';
  // Leitura pública: o wizard de agendamento usa para saber em quais dias da semana
  // o barbeiro trabalha (e desabilitar os dias sem registro). Horário de
@@ -4592,10 +4592,10 @@ index 332165d..b182027
  
    return json(rows);
  };
-diff --git a/src/pages/cliente/index.astro b/src/pages/cliente/index.astro
+diff --git a/apps/barbearia/src/pages/cliente/index.astro b/apps/barbearia/src/pages/cliente/index.astro
 index 89d0b72..31479fb 100755
---- a/src/pages/cliente/index.astro
-+++ b/src/pages/cliente/index.astro
+--- a/apps/barbearia/src/pages/cliente/index.astro
++++ b/apps/barbearia/src/pages/cliente/index.astro
 @@ -3,7 +3,8 @@ export const prerender = false;
  
  import Layout from '../../layouts/Layout.astro';
@@ -4675,6 +4675,6 @@ index 89d0b72..31479fb 100755
  
  // Se a sessão é válida mas não tem mais agendamentos (todos deletados manualmente, por ex),
  // devolve pra entrar.
-diff --git a/src/styles/global.css b/src/styles/global.css
+diff --git a/apps/barbearia/src/styles/global.css b/apps/barbearia/src/styles/global.css
 old mode 100755
 new mode 100644

@@ -1,36 +1,37 @@
-# Barbearia Bayron — Site Oficial
+# Barbearia no Ar
 
-Landing page da **Barbearia Bayron**, localizada em Mossoró/RN. Desenvolvida com Astro + Tailwind CSS v4.
+Monorepo do produto. Dois aplicativos, um repositório.
 
-## Stack
+| Pasta | O que é | Porta local |
+|---|---|---|
+| `apps/barbearia/` | O que cada barbearia recebe: site público, agendamento e painel | 4321 |
+| `apps/vendas/` | O site de vendas: landing, `/onboarding`, caixa de entrada `/envios` | 4322 |
 
-- [Astro 6](https://astro.build) — framework de site estático
-- [Tailwind CSS v4](https://tailwindcss.com) — estilização via plugin Vite
-- [Sharp](https://sharp.pixelplumbing.com) — otimização de imagens (WebP, srcset)
+As portas são **diferentes de propósito**: antes os dois usavam 4321 e um 404 em
+`/admin` normalmente significava que o servidor no ar era o outro projeto.
 
-## Comandos
+## Começar
 
-| Comando           | Ação                                            |
-| :---------------- | :---------------------------------------------- |
-| `npm install`     | Instala dependências                            |
-| `npm run dev`     | Servidor de desenvolvimento em `localhost:4321` |
-| `npm run build`   | Build de produção em `./dist/`                  |
-| `npm run preview` | Preview do build localmente                     |
+```bash
+npm run instalar     # instala as dependências dos dois
+npm run dev          # sobe a barbearia em http://localhost:4321
+npm run dev:vendas   # sobe o site de vendas em http://localhost:4322
+npm test             # testes da barbearia
+```
 
-## Seções da Landing Page
+Cada app também funciona sozinho: `cd apps/barbearia && npm run dev`.
 
-1. **Hero** — foto de destaque com CTA de agendamento
-2. **Galeria** — carrossel de fotos dos trabalhos
-3. **Combo do Dia** — promoção Cabelo + Barba + Produto Boris
-4. **Serviços** — tabela completa de preços
-5. **Produtos Boris** — linha exclusiva de cuidados para barba
-6. **Depoimentos** — avaliações de clientes com nota Google
-7. **FAQ** — perguntas frequentes em accordion
-8. **Contato/Rodapé** — endereço, horários e mapa
+## Onde está o resto
 
-## Contato
+| Preciso de | Onde |
+|---|---|
+| Orientação para trabalhar no projeto | `CLAUDE.md` |
+| Decisões de produto e arquitetura | `docs/` |
+| Por que o monorepo é assim | `docs/MONOREPO.md` |
+| Migração para Postgres (pronta, não aplicada) | `migracao-postgres/` |
 
-- **Endereço:** R. Jaen Menescal, 174 — Mossoró/RN
-- **WhatsApp:** +55 84 99905-1196
-- **Instagram:** [@barbearia_bayron](https://www.instagram.com/barbearia_bayron/)
-- **Agendamento:** [TopSalão](https://topsalao.com/app/index.html?tel=84999051196)
+## Deploy
+
+O `Dockerfile` vive em `apps/barbearia/` e continua igual ao de antes — mas o
+build precisa ter **`apps/barbearia` como contexto**, não a raiz do repositório.
+Ver `docs/MONOREPO.md` §3.

@@ -21,9 +21,10 @@
 ```bash
 git checkout -b postgres
 git apply migracao-postgres/porte-postgres.patch
-cp migracao-postgres/drizzle.config.ts .
-mkdir -p drizzle && cp migracao-postgres/0000_init_postgres.sql drizzle/
+cp migracao-postgres/drizzle.config.ts apps/barbearia/
+mkdir -p apps/barbearia/drizzle && cp migracao-postgres/0000_init_postgres.sql apps/barbearia/drizzle/
 
+cd apps/barbearia
 npm remove better-sqlite3 @types/better-sqlite3
 npm install postgres drizzle-orm
 npm install -D drizzle-kit
@@ -37,6 +38,10 @@ npx astro check       # ver §5 antes de olhar o número
 
 O patch foi conferido: aplicado sobre o `src/` atual, o resultado bate byte a byte
 com a árvore que passou nos testes.
+
+⚠️ Os caminhos do patch apontam para `apps/barbearia/src/`, atualizados em 06/09/2026
+junto com a unificação dos repositórios (`docs/MONOREPO.md`). Aplique **da raiz do
+monorepo**, não de dentro de `apps/barbearia/`.
 
 ## 3. O que mudou, e por quê
 
@@ -111,9 +116,9 @@ e chamei os handlers de verdade. Os testes estão em `verificacao/` e rodam com:
 
 ```bash
 export DATABASE_URL='postgres://...' SESSION_SECRET='...'
-npx tsx migracao-postgres/verificacao/smoke.mts    # agendamento e reagendamento
-npx tsx migracao-postgres/verificacao/rotas.mts    # as rotas portadas
-npx tsx migracao-postgres/verificacao/backup.mts   # pg_dump
+npx tsx ../../migracao-postgres/verificacao/smoke.mts    # agendamento e reagendamento
+npx tsx ../../migracao-postgres/verificacao/rotas.mts    # as rotas portadas
+npx tsx ../../migracao-postgres/verificacao/backup.mts   # pg_dump
 ```
 
 | O que | Resultado |

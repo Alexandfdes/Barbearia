@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "engines": { "node": ">=22.12.0" },
   "scripts": {
-    "dev": "node --env-file-if-exists=.env node_modules/astro/bin/astro.mjs dev",
+    "dev": "node --env-file-if-exists=.env node_modules/astro/bin/astro.mjs dev --port 4322",
     "build": "astro build",
-    "preview": "node --env-file-if-exists=.env node_modules/astro/bin/astro.mjs preview",
+    "preview": "node --env-file-if-exists=.env node_modules/astro/bin/astro.mjs preview --port 4322",
     "start": "node dist/server/entry.mjs"
   },
   "dependencies": {
