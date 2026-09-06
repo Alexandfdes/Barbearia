@@ -1,5 +1,14 @@
 # Agendamento V1 — Decisões e plano
 
+> <!-- STATUS-CONFERIDO-06/09 -->
+> **✅ IMPLANTADO E EM PRODUÇÃO.** Conferido em 06/09/2026: o wizard, o token de
+> gerenciamento (`manage_token` em `apps/barbearia/src/db/schema.ts:65`) e a tela
+> `apps/barbearia/src/pages/a/[token].astro` existem e rodam.
+>
+> **Este é um documento histórico** — o plano original do sistema sob medida do
+> Bayron, de antes de virar produto. Vale para entender **por que** o agendamento
+> é como é. Para saber onde o código está hoje: `ESTADO-ATUAL.md`.
+
 > Documento de alinhamento antes de codar. Última atualização: 21/05/2026.
 
 ## 1. Escopo

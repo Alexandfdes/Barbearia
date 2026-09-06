@@ -1,7 +1,20 @@
 # Arquitetura — Cobrança recorrente e onboarding (V1)
 
-> Especificação técnica. Data: 2026-08-28.
+> Especificação técnica. Data: 2026-08-28. Números revisados em 06/09/2026.
 > Status: **especificado, não implementado.**
+>
+> ⚠️ **Duas premissas deste documento mudaram depois de escrito.** As tarifas e a
+> escolha do gateway foram recalculadas em 06/09 e continuam valendo; o que ficou
+> desatualizado é o raciocínio que dependia delas:
+>
+> - **A taxa de instalação de R$ 2.500 não existe mais** (abolida em 30/08). O §1.1
+>   argumenta contra o self-service usando o setup como sustentação — esse argumento
+>   perdeu a base. Ver `PRECIFICACAO.md`.
+> - **A arquitetura virou multi-tenant** (01/09). Onde se lê "uma instância por
+>   barbearia", vale `ARQUITETURA-MULTI-TENANT-V1.md`.
+>
+> **O que continua de pé:** a escolha da Asaas, o desenho de dois aplicativos com a
+> instância da barbearia sem saber que dinheiro existe, e os estados do tenant.
 > Economia unitária e preços: `PRECIFICACAO.md`. Modelo de instância: `ARQUITETURA-PRODUTO-V1.md`.
 > Decisão comercial: `PLANO-PRODUTIZACAO.md`.
 >
@@ -24,8 +37,12 @@ risco principal:
 | **Arquitetura self-service** | Cadastro público, provisionamento automático, trial, onboarding sem humano | ~230–370h |
 
 Este documento especifica o **primeiro**, porque ele entrega a experiência que o cliente
-percebe como SaaS e mantém a economia que sustenta o negócio (`PRECIFICACAO.md` §5): o setup
-de R$ 2.500 é 54% da receita do ano 1, e ele só existe porque a implantação é assistida.
+percebe como SaaS e mantém a economia que sustenta o negócio (`PRECIFICACAO.md`).
+
+> ⚠️ **Premissa vencida.** A frase original justificava-se pelo setup de R$ 2.500, que
+> era 54% da receita do ano 1. Esse setup foi abolido em 30/08/2026 e a mensalidade
+> caiu para R$ 100 em 01/09. O argumento de "onboarding assistido" continua
+> defensável — pela qualidade da montagem, não mais pela economia da entrada.
 
 **Decisão central: checkout self-service, onboarding assistido.**
 
@@ -33,9 +50,10 @@ de R$ 2.500 é 54% da receita do ano 1, e ele só existe porque a implantação 
 
 Registrado para não ser rediscutido a cada três meses:
 
-- **Sem setup, a economia inverte.** Quem se cadastra sozinho compara com AppBarber (R$ 79,90)
-  e Booksy (R$ 99,99) e não paga R$ 180. A R$ 99 sem setup, a meta de R$ 2.500/mês sai de 15
-  para 29 clientes — antes de contar churn.
+- ~~**Sem setup, a economia inverte.** Quem se cadastra sozinho compara com AppBarber
+  (R$ 79,90) e Booksy (R$ 99,99) e não paga R$ 180.~~ ⚠️ **Superado:** o setup foi
+  abolido e o preço é R$ 100 — a comparação que este item temia é exatamente a
+  situação atual, e a meta virou 10 clientes. Ver `PRECIFICACAO.md`.
 - **Força a briga que a §4 do plano decidiu evitar.** Self-service *é* o modelo de commodity.
   Contra AppBarber, Trinks e Booksy, com um desenvolvedor meio período.
 - **A primeira impressão vira o estado vazio.** No modelo assistido o dono só vê o site depois
@@ -57,7 +75,7 @@ O que muda essa conclusão: alcance nacional com canal que gere entrada sozinho.
 
 | | Aplicação | Responsabilidade |
 |---|---|---|
-| **App 1** | Este repositório, uma instância por barbearia | Site, agendamento, painel do barbeiro. Nada de cobrança. |
+| **App 1** | `apps/barbearia/` — multi-tenant, um banco para todas | Site, agendamento, painel do barbeiro. Nada de cobrança. |
 | **App 2** | **Painel de controle** — projeto novo, pequeno | Tenants, assinaturas, checkout, webhooks, provisionamento, suspensão. |
 
 Três razões:
@@ -128,14 +146,16 @@ Verificado em 28/08/2026.
 | Cartão à vista | R$ 0,49 + 1,99% (2,99% promocional) | 3,99% + R$ 0,39 |
 | Assinaturas | Incluso | +0,7% do volume (Billing) |
 | Mensalidade da conta | Nenhuma | Nenhuma |
-| **Custo numa mensalidade de R$ 180** | **R$ 1,99 no Pix (1,1%)** | **R$ 8,83 no cartão (4,9%)** |
+| **Custo numa mensalidade de R$ 100** | **R$ 1,99 no Pix (1,99%)** | **R$ 5,08 no cartão (5,08%)** |
 
-**Escolhido: Asaas.** Tarifa fixa em Pix e boleto é o que importa num ticket de R$ 180 — 1,1%
-contra 4,9%. E o Pix da Stripe é liberado por convite, o que sozinho já o descarta para um
+**Escolhido: Asaas.** Tarifa fixa em Pix e boleto é o que importa num ticket de R$ 100 — 1,99%
+contra 5,08%. (Recalculado em 06/09 com o preço novo; a R$ 180 era 1,1% contra 4,9%. A
+tarifa fixa piora em termos relativos quando o ticket cai, e mesmo assim ganha por
+quase três vezes.) E o Pix da Stripe é liberado por convite, o que sozinho já o descarta para um
 produto vendido a dono de barbearia no Brasil.
 
-A 15 clientes pagando por Pix, o custo do gateway é **R$ 358/ano**. Irrelevante — mas escolher
-a Stripe custaria R$ 1.590/ano, que é um VPS inteiro.
+Na meta de 10 clientes pagando por Pix, o custo do gateway é **R$ 239/ano**. Irrelevante —
+mas escolher a Stripe custaria **R$ 610/ano**. Calculado em 06/09 sobre R$ 100/mês.
 
 A API de assinaturas do Asaas suporta boleto, Pix e cartão, e emite webhooks por cobrança com
 o campo `subscription` ligando à assinatura pai. Eventos que este desenho usa:

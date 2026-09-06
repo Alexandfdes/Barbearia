@@ -1,7 +1,18 @@
 # Plano — Produtização: de projeto sob medida a produto vendável
 
 > Decisão de arquitetura e de go-to-market. Data: 2026-08-27.
-> Status: **decidido, não implementado.** Nenhum código deste plano foi escrito ainda.
+> Status: **parcialmente substituído.**
+>
+> ⚠️ **A escolha de arquitetura deste documento foi REVERTIDA em 01/09/2026.** A
+> tabela do §3 marca "SaaS comercial + instância isolada" como escolhido e
+> multi-tenant como "destino futuro". Inverteu-se: multi-tenant é a decisão vigente
+> — ver `ARQUITETURA-MULTI-TENANT-V1.md` e a skill `barbearia-multi-tenant`.
+>
+> ⚠️ **O preço deste documento está velho.** Vale `PRECIFICACAO.md`: R$ 100/mês,
+> sem taxa de instalação, meta de 10 clientes.
+>
+> **O que continua valendo:** o posicionamento, o público-alvo, e o argumento de
+> por que não competir por preço com aplicativo de agendamento.
 > Arquitetura técnica: `docs/ARQUITETURA-PRODUTO-V1.md`.
 > O que ainda **não** está decidido — preço inclusive: `docs/PENDENCIAS-ABERTAS.md`.
 

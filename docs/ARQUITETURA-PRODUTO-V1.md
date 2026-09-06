@@ -1,7 +1,15 @@
 # Arquitetura — Produtização V1 (multi-instância)
 
-> Especificação técnica para começar a desenvolver. Data: 2026-08-27.
-> Status: **especificado, não implementado.**
+> Especificação técnica. Data: 2026-08-27.
+> Status: **parcialmente substituído.**
+>
+> ⚠️ **A decisão D1 deste documento foi REVERTIDA em 01/09/2026.** Ele escolhia
+> instância por cliente e rejeitava multi-tenant; hoje o produto é multi-tenant com
+> banco único. Quem manda é `ARQUITETURA-MULTI-TENANT-V1.md`, que substitui a **D1
+> inteira**, a **D3.1** (cache de settings) e o gatilho de 15–25 clientes.
+>
+> **O resto continua valendo** — D2 a D7 (tabela `settings`, SSR, mídia em volume,
+> cor de destaque, fronteira entre env e settings) são decisões vivas.
 > Decisão de negócio e go-to-market: ver `docs/PLANO-PRODUTIZACAO.md`.
 > O que ainda **não** está decidido: ver `docs/PENDENCIAS-ABERTAS.md`.
 >
@@ -143,6 +151,10 @@ neste refactor.
 ## 4. Decisões de arquitetura
 
 ### D1 — Uma instância por cliente, não multi-tenant
+
+> ⚠️ **REVERTIDA em 01/09/2026.** O produto é multi-tenant com banco único e RLS.
+> Ver `ARQUITETURA-MULTI-TENANT-V1.md`. O texto abaixo fica como registro do
+> raciocínio original — serve para não refazer o debate, não para orientar código novo.
 
 Container + volume por barbearia. Sem `tenant_id`, sem refactor dos 47 endpoints,
 isolamento de dados de graça. Revisar por volta de 15–25 clientes.
