@@ -1,21 +1,22 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '../../../../db/index.js';
 import { products } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { saveProductImage } from '../../../../lib/uploads.js';
+import { tenantDaSessao, type Tenant } from '../../../../lib/tenant.js';
 
 function slugify(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60) || 'produto';
 }
 
-function uniqueSlug(base: string): string {
+async function uniqueSlug(base: string, tenant: Tenant): Promise<string> {
   let slug = base, n = 2;
-  while (db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).all().length > 0) {
+  while ((await db.select({ id: products.id }).from(products).where(and(eq(products.slug, slug), eq(products.tenantId, tenant.id)))).length > 0) {
     slug = `${base}-${n++}`;
   }
   return slug;
@@ -25,8 +26,11 @@ function uniqueSlug(base: string): string {
 export const GET: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
 
-  const rows = db.select().from(products).orderBy(products.sortOrder, products.id).all();
+  const rows = await db.select().from(products)
+    .where(eq(products.tenantId, tenant.id))
+    .orderBy(products.sortOrder, products.id);
   return json(rows);
 };
 
@@ -34,6 +38,7 @@ export const GET: APIRoute = async ({ request }) => {
 export const POST: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
 
   let form: FormData;
@@ -62,16 +67,16 @@ export const POST: APIRoute = async ({ request }) => {
       image = res.path;
     }
 
-    const sorts = db.select({ s: products.sortOrder }).from(products).all();
+    const sorts = await db.select({ s: products.sortOrder }).from(products);
     const nextSort = (sorts.length ? Math.max(...sorts.map(r => r.s)) : 0) + 1;
 
-    const slug = uniqueSlug(slugify(name));
+    const slug = await uniqueSlug(slugify(name), tenant);
 
-    const result = db.insert(products).values({
+    const result = await db.insert(products).values({ tenantId: tenant.id,
       slug, name, shortDesc, priceCents, image, active, sortOrder: nextSort,
-    }).run();
+    }).returning({ id: products.id });
 
-    return json({ ok: true, id: Number(result.lastInsertRowid), slug }, 201);
+    return json({ ok: true, id: result[0].id, slug }, 201);
   } catch (err) {
     console.error('[api/admin/products POST]', err);
     const msg = err instanceof Error ? err.message : 'erro desconhecido';

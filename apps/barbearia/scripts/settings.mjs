@@ -1,93 +1,131 @@
 /**
- * Lê e edita a configuração da barbearia (tabela `settings`, linha 1) sem
- * depender do CLI do sqlite — que não vem instalado no Windows.
+ * Lê e edita a configuração de uma barbearia (tabela `settings`) sem depender do
+ * `psql` — que não vem instalado no Windows.
  *
  * Uso:
  *   node scripts/settings.mjs
- *       mostra a configuração atual
+ *       mostra a configuração da barbearia (pede --tenant se houver mais de uma)
  *
  *   node scripts/settings.mjs 'business_name=Barbearia Sete Cortes' 'short_name=Sete Cortes'
  *       altera as colunas informadas
  *
+ *   node scripts/settings.mjs --tenant=cortes-do-ze
+ *       escolhe a barbearia quando há mais de uma no banco
+ *
  * No PowerShell, envolva CADA par em aspas simples — sem isso o espaço quebra
  * o argumento em dois.
  *
- * Pode rodar com o dev server ligado (SQLite em WAL aguenta). Mas o servidor
- * guarda as settings em cache na memória, então reinicie-o para ver a mudança
- * no site. A partir da tela /admin/configuracoes isso deixa de ser necessário.
+ * ⚠️ O servidor guarda as settings em cache por barbearia (`lib/settings.ts`),
+ * então reinicie-o para ver a mudança no site. Pela tela /admin/configuracoes
+ * isso não é necessário: ela invalida o cache sozinha.
  *
- * Vars de ambiente (opcionais):
- *   DATABASE_PATH   (default: ./data/appointments.db)
+ * Vars de ambiente:
+ *   DATABASE_URL (obrigatória)
  */
-import Database from 'better-sqlite3';
+import postgres from 'postgres';
 
-const DB_PATH = process.env.DATABASE_PATH ?? './data/appointments.db';
-
-const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
-db.pragma('busy_timeout = 5000');
-
-const colunas = db.prepare('PRAGMA table_info(settings)').all().map((c) => c.name);
-if (colunas.length === 0) {
-  console.error('ERRO: a tabela `settings` não existe neste banco.');
-  console.error('Rode as migrations primeiro:  npm run db:migrate');
+const url = process.env.DATABASE_URL;
+if (!url) {
+  console.error('ERRO: DATABASE_URL não definido.');
   process.exit(1);
 }
 
-const atual = db.prepare('SELECT * FROM settings WHERE id = 1').get();
-if (!atual) {
-  console.error('ERRO: a linha id = 1 não existe em `settings`.');
-  console.error('A migration 0009 deveria tê-la criado. Rode:  npm run db:migrate');
-  process.exit(1);
-}
+const tenantSlug = process.argv.find((a) => a.startsWith('--tenant='))?.slice(9);
+const pares = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 
-const pares = process.argv.slice(2);
+const sql = postgres(url, { max: 1, onnotice: () => {} });
 
-// Sem argumentos: só mostra o que está lá hoje.
-if (pares.length === 0) {
-  console.log(`Configuração atual (${DB_PATH}):\n`);
-  for (const [k, v] of Object.entries(atual)) {
-    const texto = v === null ? '(vazio)' : String(v);
-    console.log(`  ${k.padEnd(24)} ${texto.length > 70 ? texto.slice(0, 70) + '…' : texto}`);
-  }
-  console.log('\nPara alterar:  node scripts/settings.mjs \'business_name=Nova Barbearia\'');
-  db.close();
-  process.exit(0);
-}
+try {
+  const colunas = (await sql`
+    SELECT column_name FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'settings'
+     ORDER BY ordinal_position
+  `).map((c) => c.column_name);
 
-const mudancas = [];
-for (const par of pares) {
-  const i = par.indexOf('=');
-  if (i < 1) {
-    console.error(`ERRO: "${par}" não está no formato coluna=valor.`);
+  if (colunas.length === 0) {
+    console.error('ERRO: a tabela `settings` não existe neste banco.');
+    console.error('Rode as migrations primeiro:  node scripts/startup.mjs');
     process.exit(1);
   }
-  const coluna = par.slice(0, i).trim();
-  const valor = par.slice(i + 1);
-  if (!colunas.includes(coluna)) {
-    console.error(`ERRO: a coluna "${coluna}" não existe em settings.`);
-    console.error('Colunas válidas:\n  ' + colunas.filter((c) => c !== 'id').join('\n  '));
+
+  // Cada barbearia tem a própria linha de settings (migration 0001). Escolher
+  // sozinho a linha errada significaria reescrever a configuração do cliente
+  // errado — por isso o script para e pergunta.
+  const linhas = await sql`
+    SELECT s.*, t.slug AS tenant_slug, t.business_name AS tenant_nome
+      FROM settings s
+      JOIN tenants t ON t.id = s.tenant_id
+     ${tenantSlug ? sql`WHERE t.slug = ${tenantSlug}` : sql``}
+     ORDER BY t.slug
+  `;
+
+  if (linhas.length === 0) {
+    const tenants = await sql`SELECT slug, business_name FROM tenants ORDER BY slug`;
+    console.error(tenantSlug
+      ? `ERRO: nenhuma configuração para a barbearia "${tenantSlug}".`
+      : 'ERRO: nenhuma linha em `settings`.');
+    console.error('Barbearias no banco:', tenants.map((t) => t.slug).join(', ') || '(nenhuma)');
     process.exit(1);
   }
-  if (coluna === 'id') {
-    console.error('ERRO: o id é fixo em 1 e não pode ser alterado.');
+
+  if (linhas.length > 1) {
+    console.error(`ERRO: há ${linhas.length} barbearias neste banco. Escolha uma:`);
+    for (const l of linhas) console.error(`  --tenant=${l.tenant_slug}   (${l.tenant_nome})`);
     process.exit(1);
   }
-  mudancas.push([coluna, valor]);
+
+  const atual = linhas[0];
+
+  // Sem argumentos: só mostra o que está lá hoje.
+  if (pares.length === 0) {
+    console.log(`Configuração de ${atual.tenant_nome} (${atual.tenant_slug}):\n`);
+    for (const k of colunas) {
+      const v = atual[k];
+      const texto = v === null ? '(vazio)' : String(v);
+      console.log(`  ${k.padEnd(24)} ${texto.length > 70 ? texto.slice(0, 70) + '…' : texto}`);
+    }
+    console.log("\nPara alterar:  node scripts/settings.mjs 'business_name=Nova Barbearia'");
+    process.exit(0);
+  }
+
+  const imutaveis = new Set(['id', 'tenant_id']);
+  const mudancas = [];
+  for (const par of pares) {
+    const i = par.indexOf('=');
+    if (i < 1) {
+      console.error(`ERRO: "${par}" não está no formato coluna=valor.`);
+      process.exit(1);
+    }
+    const coluna = par.slice(0, i).trim();
+    const valor = par.slice(i + 1);
+    if (!colunas.includes(coluna)) {
+      console.error(`ERRO: a coluna "${coluna}" não existe em settings.`);
+      console.error('Colunas válidas:\n  ' + colunas.filter((c) => !imutaveis.has(c)).join('\n  '));
+      process.exit(1);
+    }
+    if (imutaveis.has(coluna)) {
+      console.error(`ERRO: "${coluna}" identifica a linha e não pode ser alterada por aqui.`);
+      process.exit(1);
+    }
+    mudancas.push([coluna, valor]);
+  }
+
+  // `sql(objeto, ...colunas)` monta o SET com os nomes já escapados pelo driver.
+  const patch = Object.fromEntries(mudancas);
+  patch.updated_at = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  await sql`UPDATE settings SET ${sql(patch, ...Object.keys(patch))} WHERE id = ${atual.id}`;
+
+  console.log(`✓ Configuração de ${atual.tenant_nome} atualizada\n`);
+  for (const [c, v] of mudancas) {
+    const antes = atual[c] === null ? '(vazio)' : String(atual[c]);
+    console.log(`  ${c}`);
+    console.log(`    antes:  ${antes}`);
+    console.log(`    depois: ${v}`);
+  }
+  console.log('\nReinicie o servidor para ver a mudança no site (as settings ficam em cache no processo).');
+} catch (erro) {
+  console.error('✕ Falhou:', erro.message);
+  process.exitCode = 1;
+} finally {
+  await sql.end({ timeout: 5 });
 }
-
-const sets = mudancas.map(([c]) => `\`${c}\` = ?`).join(', ');
-const res = db
-  .prepare(`UPDATE settings SET ${sets}, \`updated_at\` = datetime('now') WHERE id = 1`)
-  .run(...mudancas.map(([, v]) => v));
-
-console.log(`✓ ${res.changes} linha atualizada em ${DB_PATH}\n`);
-for (const [c, v] of mudancas) {
-  const antes = atual[c] === null ? '(vazio)' : String(atual[c]);
-  console.log(`  ${c}`);
-  console.log(`    antes:  ${antes}`);
-  console.log(`    depois: ${v}`);
-}
-console.log('\nReinicie o dev server para ver a mudança no site (as settings ficam em cache no processo).');
-
-db.close();

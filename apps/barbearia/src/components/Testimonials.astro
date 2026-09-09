@@ -3,7 +3,7 @@ import depoimentos from '../data/depoimentos.json';
 import { SITE_URL } from '../config';
 import { getSettings } from '../lib/settings';
 
-const s = getSettings();
+const s = await getSettings();
 const GOOGLE_REVIEWS_URL = s.googleReviewsUrl;
 const RATING = Number(s.googleRating);
 const REVIEW_COUNT = s.googleReviewCount;

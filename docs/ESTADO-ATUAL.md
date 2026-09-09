@@ -68,13 +68,19 @@ O plano tem sete passos, em `ARQUITETURA-MULTI-TENANT-V1.md` §9.
 
 | Passo | Estado |
 |---|---|
-| 1. As três costuras (tenant, settings, uploads) | ✅ feito, em SQLite |
-| 2. Porte para Postgres | ⚠️ escrito e testado, **não aplicado** |
-| 3. Tabela `tenants` e `tenant_id` | não começado |
-| 4. Escopar as 49 rotas | não começado |
+| 1. As três costuras (tenant, settings, uploads) | ✅ feito — a de uploads só em 06/09, ver abaixo |
+| 2. Porte para Postgres | ✅ **aplicado em 06/09** — falta o `npm install` e a carga dos dados |
+| 3. Tabela `tenants` e `tenant_id` | ✅ **aplicado em 06/09** |
+| 3.5. Rede de testes em Postgres | ✅ **aplicado em 06/09** — 124 testes |
+| 4. Escopar as rotas | ✅ **53 de 54 aplicadas**; a 54ª depende do login (§9.7) |
 | 5. Ligar RLS | não começado |
 | 6. Separar site do painel | não começado |
-| 7. Login por telefone e exclusion constraint | não começado |
+| 7. Login por telefone e exclusion constraint | 🟠 **decidido em 06/09 (telefone); falta implementar** — ver §9.7 |
+
+⚠️ **A terceira costura do passo 1 não existia.** Até 06/09/2026 este documento e o
+`CLAUDE.md` afirmavam que `pastaDeMidia()`/`urlDeMidia()` centralizavam o caminho de mídia.
+Só o `tests/tenant.test.ts` as referenciava — o código nunca as teve, e por isso aquele
+teste não compilava. Foram escritas em 06/09, dentro do passo 3.5.
 
 ### O passo 2 em detalhe
 
@@ -92,6 +98,49 @@ caminhos, busca, ficha do cliente, login, troca de horários, upsert, e o
 
 Instruções de aplicação: `migracao-postgres/LEIA-ME.md`.
 
+### Os passos 3, 3.5 e 4 em detalhe
+
+Tudo em `migracao-tenants/`, num patch só (**63 arquivos**), com LEIA-ME próprio.
+Aplica sobre o passo 2 — conferido com `git apply --check` num clone limpo.
+
+Verificado em 06/09/2026 contra um **PostgreSQL 16.13** real, com a árvore montada
+do zero (clone → porte → patch):
+
+| | |
+|---|---|
+| Rotas e páginas escopadas | **53 de 54** |
+| Testes | **124, 0 falhas** (eram 106, e 3 arquivos não compilavam) |
+| `tsc` | **0 erros** (eram 61, todos em `tests/`) |
+| `astro check` | 269 contra 282 da linha de base — **0 regressões** |
+
+**O passo 3** cria `tenants`, dá `tenant_id NOT NULL` + índice às 12 tabelas com backfill
+do Bayron, e troca os `UNIQUE` de slug por compostos. É idempotente.
+
+**O passo 3.5** não estava na lista: o porte para Postgres não portou os testes — o §6 do
+LEIA-ME de lá já registrava isso como pendente, mas o §2 prometia `tsc` zerado, e não era
+verdade.
+
+**O passo 4** escopou 53 rotas e páginas. Em produção **nada muda de comportamento**: o
+resolvedor ainda devolve o tenant único, então os filtros existem e passam a valer no dia
+em que ele for ligado. É de propósito — escopar hoje é inofensivo, ligar o resolvedor não é.
+
+### ⚠️ Quatro coisas que o desenho não previa
+
+1. **As 16 chaves estrangeiras deixavam vazar entre barbearias.** O §5 do documento de
+   arquitetura manda dar `tenant_id` às tabelas, mas as chaves continuavam apontando só
+   para `id` — nada impedia um agendamento do tenant 1 apontar para um barbeiro do tenant
+   2. **O RLS não pegaria**: ele confere o dono da linha, não para quem ela aponta. As 16
+   viraram compostas.
+2. **A superfície é maior que "49 rotas".** São **41 rotas de API que tocam o banco mais
+   12 páginas `.astro`** que consultam direto no frontmatter — o painel inteiro. As
+   páginas nunca entraram na conta.
+3. **`settings.id` não tinha sequência.** Era a linha fixa `id = 1` do SQLite; o INSERT do
+   segundo tenant falhava com `null value in column "id"`.
+4. **O compilador só vê os INSERT.** Depois do passo 3 o `tsc` apontava 14 erros, todos
+   INSERT sem `tenant_id`. Os `SELECT` sem filtro ele não vê — e são eles que vazam.
+   Foram encontrados lendo rota a rota; um deles, `admin/reservations/index.ts`, não tinha
+   `.where()` nenhum.
+
 ### ⚠️ Três defeitos que só apareceram porque rodou
 
 Nenhum deles o `tsc` ou o `astro check` pega. Estão comentados no código, e
@@ -106,6 +155,95 @@ repetidos aqui porque voltam:
 3. **`COUNT`/`SUM` voltam como string.** São bigint e o driver entrega em texto
    para não perder precisão. Sem `Number()`, `total === 0` nunca é verdade e a
    receita do painel vira concatenação de texto.
+
+### ⚠️ O porte estava incompleto — descoberto em 06/09/2026
+
+O patch cobria `src/`. **Não cobria os scripts**, e dois deles derrubariam a
+produção porque o próprio §2 do LEIA-ME manda desinstalar o `better-sqlite3`:
+
+| Script | O que aconteceria | Estado |
+|---|---|---|
+| `scripts/startup.mjs` | Roda as migrations no boot. **O container não iniciaria.** | ✅ portado |
+| `scripts/backup.mjs` | Alimenta o daemon de backup diário do Dockerfile. **O backup pararia em silêncio** — o que `PENDENCIAS-ABERTAS.md` §3.3 chama de "backup que não existe" | ✅ portado |
+| `scripts/set-admin-password.mjs` | Caminho de suporte para dono que perdeu a senha | ✅ portado, ciente de tenant |
+| `scripts/settings.mjs` | Edição de configuração fora do painel | ✅ portado, ciente de tenant |
+| `scripts/seed.mjs` | Era o catálogo e a equipe do Bayron. Virou dois scripts — ver abaixo | ✅ substituído |
+| `seed-relatorio-demo.mjs`, `wipe-appointments.mjs` | Ferramentas de desenvolvimento | 🟡 ainda em SQLite |
+
+**Uma bomba junto:** o patch adicionava `0000_init_postgres.sql` mas **não removia
+as 9 migrations SQLite** da pasta `drizzle/`. O migrador lê `*.sql` em ordem
+alfabética, então `0000_handy_iron_monger.sql` rodaria primeiro, no Postgres. A
+remoção entrou no patch — não depende de ninguém lembrar.
+
+**O `startup.mjs` virou um migrador próprio.** O `migrate()` do Drizzle depende de
+`drizzle/meta/_journal.json`, que não existe mais: as migrations do Postgres são
+`.sql` numerados, escritos à mão. O novo script faz três coisas que o
+`drizzle-kit` não faz:
+
+1. **Confere o hash.** O `drizzle-kit` decide o que rodar por *timestamp* e grava
+   o hash sem nunca compará-lo — foi assim que o seed do Bayron ficou meses
+   invisível dentro das migrations (`PENDENCIAS-ABERTAS.md` §4.6). Agora, arquivo já aplicado que mudou
+   de conteúdo aparece como aviso no boot.
+2. **Aplica e registra na mesma transação.** Processo morto no meio fazia a
+   migration rodar de novo no boot seguinte.
+3. **`--ate=0000` para no meio.** Existe por causa de uma operação só, e ela é
+   obrigatória na migração da produção do Bayron:
+
+```bash
+node scripts/startup.mjs --ate=0000   # só cria as tabelas
+<carrega os dados do SQLite>
+node scripts/startup.mjs              # a 0001 encontra os dados e faz o backfill
+```
+
+⚠️ **Rodar as duas de uma vez deixa todas as linhas carregadas sem `tenant_id`.**
+A 0001 só cria o tenant de backfill quando encontra dados; num banco vazio ela
+sai sem criar nada, e aí não há tenant para o backfill apontar.
+
+### Provisionar uma barbearia nova — 06/09/2026
+
+O `seed.mjs` foi **apagado** e substituído por dois scripts, porque o problema dele não
+era o porte: ele plantava os três barbeiros e os 20 serviços do Bayron em qualquer banco.
+
+| Script | Para quê |
+|---|---|
+| `scripts/provisionar.mts` | Cria uma barbearia nova: tenant, configuração, o dono como admin e horário comercial inicial. **Nenhum conteúdo de outra barbearia.** |
+| `scripts/seed-bayron.mjs` | Os dados do Bayron, escopados no tenant dele. Serve para refazer ambiente de desenvolvimento |
+
+```bash
+DATABASE_URL=... SENHA_INICIAL='...' npx tsx scripts/provisionar.mts \
+  --slug=cortes-do-ze --nome="Barbearia Cortes do Zé" --dono="José da Silva" \
+  --telefone="84 99999-0000" --endereco="Rua das Flores, 42" --cidade="Mossoró/RN" \
+  --cor="#7c3aed"
+```
+
+Roda com `tsx` porque importa `src/lib/accent.ts` — a derivação da cor com contraste
+garantido mora lá, e duplicar essa conta no script era pedir para as duas versões
+divergirem. A senha vai por variável de ambiente, não por argumento: argumento fica no
+histórico do shell.
+
+Verificado servindo o site da barbearia criada: nome, cidade, endereço, horários e a cor
+da marca dela em tudo; **nenhum resquício do Bayron**; seções sem conteúdo não aparecem.
+
+⚠️ **A barbearia nasce sem serviço nenhum e o script avisa.** O site fica apresentável e
+**ninguém consegue agendar** — nada na tela indica que falta algo. Ver
+`PENDENCIAS-ABERTAS.md` §4.5.
+
+### ⚠️ Restauração de backup testada — 06/09/2026
+
+`PENDENCIAS-ABERTAS.md` §5 pedia "um teste de restauração de verdade, feito uma
+vez, antes do primeiro cliente pago". Feito, contra Postgres 16: backup de um
+banco com dados, restauração num banco vazio. Voltaram as linhas (barbearias,
+barbeiros, serviços, agendamento com nome e telefone do cliente), as **36
+constraints de tenant** sobreviveram, as sequences continuaram de onde estavam —
+um `INSERT` novo recebeu o id seguinte em vez de colidir — e as constraints ainda
+recusam duplicata.
+
+⚠️ **O primeiro `backup.mjs` que escrevi mentia.** Ele registrava o listener do
+código de saída do `pg_dump` só *depois* de a escrita terminar; quando o
+`pg_dump` falhava logo de cara, o evento já tinha passado e o script imprimia
+"✓ Backup criado" para 20 bytes de gzip vazio. Backup que mente é pior que backup
+ausente: você só descobre no dia em que precisa restaurar. Corrigido — sucesso
+grava o dump completo, falha apaga o parcial e sai com código 1.
 
 ## 5. Skills do projeto
 
@@ -144,22 +282,36 @@ skill `barbearia-docs` existir.
 
 ## 7. O que está pendente e é mais urgente
 
-Lista completa e priorizada em `PENDENCIAS-ABERTAS.md`. Os quatro que travam mais:
+Lista completa e priorizada em `PENDENCIAS-ABERTAS.md`. Os que travam mais:
 
 | | O quê | Onde |
 |---|---|---|
+| 🔴 | Como o barbeiro entra no painel com várias barbearias — **é decisão sua e trava o passo 5** | `PENDENCIAS-ABERTAS.md` §1.5 |
+| 🔴 | As migrations plantam os dados do Bayron em todo banco SQLite novo | `PENDENCIAS-ABERTAS.md` §4.6 |
 | 🔴 | Timezone escrito em 19 arquivos como constante, não lido do ambiente | `PENDENCIAS-ABERTAS.md` §2.1 |
-| 🔴 | Tela inicial sem fotos — o cliente paga e cai num retângulo preto | `PENDENCIAS-ABERTAS.md` §4.1 |
 | 🔴 | Política de suporte, que a R$ 100/mês decide se existe margem | `PENDENCIAS-ABERTAS.md` §1.4 |
 | 🔴 | Contrato, LGPD e o que acontece quando o cliente não paga | `PENDENCIAS-ABERTAS.md` §1.2 |
+| ✅ | ~~Tela inicial sem fotos e seções com conteúdo do Bayron~~ — resolvido em 06/09 | `PENDENCIAS-ABERTAS.md` §4.1 |
 
-Fase 3 continua sendo bloqueio de MVP: galeria, depoimentos, catálogo de serviços
-e FAQ ainda estão com o conteúdo do Bayron, não com conteúdo genérico de produto.
+**A Fase 3 deixou de ser bloqueio de MVP em 06/09/2026.** Galeria, depoimentos,
+catálogo e FAQ não mostram mais o conteúdo do Bayron numa barbearia nova: ou a
+seção lê o banco do próprio cliente, ou ela não é renderizada. Verificado
+servindo o site contra dois bancos diferentes, com os arquivos do Bayron
+preenchidos no repositório.
+
+⚠️ **O que sobrou dessa frente é o catálogo padrão** (`PENDENCIAS-ABERTAS.md`
+§4.5): uma barbearia nova hoje nasce **sem serviço nenhum** e a seção some até o
+dono cadastrar o primeiro. Funciona e é honesto, mas não é o mesmo que entregar
+um catálogo sugerido pronto para editar.
 
 ## 8. Histórico recente
 
 | Quando | O quê |
 |---|---|
+| 06/09 | Nenhuma seção do site mostra conteúdo do Bayron numa barbearia nova (`PENDENCIAS-ABERTAS.md` §4.1 fechado) |
+| 06/09 | Descoberto que as migrations SQLite plantam os dados do Bayron — inclusive **5.0 com 227 avaliações** (`PENDENCIAS-ABERTAS.md` §4.6, novo) |
+| 06/09 | Porte para Postgres completado: 4 scripts portados, migrador próprio, migrations SQLite removidas da pasta |
+| 06/09 | Restauração de backup testada pela primeira vez, contra Postgres 16 |
 | 06/09 | Decidido continuar no repositório `Alexandfdes/Barbearia`; o do site de vendas será arquivado (§9.2) |
 | 06/09 | Skills do projeto versionadas em `.claude/skills/` |
 | 06/09 | Dois repositórios viraram um monorepo; porta do site de vendas fixada em 4322 |
@@ -171,8 +323,8 @@ e FAQ ainda estão com o conteúdo do Bayron, não com conteúdo genérico de pr
 
 ## 9. Como retomar — o próximo passo, em ordem
 
-Estado em 06/09/2026: o monorepo está pronto na branch **`monorepo`**, com **10
-commits** que a `main` não tem. Nada foi enviado ao GitHub ainda, e a `main`
+Estado em 06/09/2026: o monorepo está na branch **`monorepo`**, já enviada ao GitHub, com **14
+commits** que a `main` não tem. A `main`
 continua em `e50926a` — o site do Bayron não foi afetado por nada disto.
 
 Os passos abaixo são a fila. Cada um só faz sentido depois do anterior.
@@ -228,14 +380,76 @@ na raiz. Detalhe em `MONOREPO.md` §3.
 
 Com 9.1, 9.2 e 9.3 feitos, o merge é seguro.
 
-### 9.5 Depois disso — retomar a migração
+### 9.5 ✅ Postgres — aplicado em 06/09/2026
 
-O passo natural seguinte é **aplicar o porte para Postgres**, que está pronto e
-testado mas não aplicado (ver §4 deste documento). Instruções em
-`migracao-postgres/LEIA-ME.md`.
+O porte **já está aplicado** na árvore de trabalho, junto com os passos 3, 3.5 e 4. Os
+arquivos batem hash a hash com o ambiente onde os 124 testes passaram.
 
-Ele também é grande: 101 arquivos. Mesma disciplina — branch própria, e não
-direto na `main`.
+**Falta você fazer, no PowerShell** (não dá para eu rodar: o shell que uso na sua máquina
+é um Linux separado, e um `npm install` meu baixaria binários Linux por cima do seu
+`node_modules` do Windows):
 
-Da migração multi-tenant em diante, a fila é a do
-`ARQUITETURA-MULTI-TENANT-V1.md` §9, passos 3 a 7.
+```powershell
+cd C:\DEV\barbearia\apps\barbearia
+npm remove better-sqlite3 @types/better-sqlite3
+npm install postgres drizzle-orm
+npm install -D drizzle-kit
+
+$env:DATABASE_URL='postgres://usuario:senha@host:5432/barbearia'
+node scripts/startup.mjs
+npx vitest run          # deve dar 124 testes, 0 falhas
+```
+
+⚠️ **Não rode `psql -f drizzle/0000_init_postgres.sql` à mão.** O `startup.mjs` não fica
+sabendo, tenta aplicar a mesma migration no boot e falha em `CREATE TABLE`.
+
+⚠️ **A carga dos dados do Bayron tem uma ordem obrigatória**, senão as linhas carregadas
+ficam sem `tenant_id` — ver "O porte estava incompleto" no §4 deste documento.
+
+### 9.6 ✅ Passos 3, 3.5 e 4 — aplicados em 06/09/2026
+
+Aplicados junto com o porte, na mesma árvore. `npx vitest run` com `DATABASE_URL`
+apontando para um banco de teste deve dar **124 testes, 0 falhas**. Se der menos, alguma
+coisa não entrou.
+
+⚠️ **Nada disso está commitado ainda** — são ~120 arquivos na árvore de trabalho. Vale
+separar em dois commits: o do site (10 componentes + docs) e o da migração (o resto).
+
+### 9.7 🔴 O que trava o fim do passo 4 — e é decisão sua
+
+**O login do painel.** Uma rota ficou sem escopo, `api/auth/login.ts`, e não por
+falta de trabalho: ela busca o barbeiro por `slug`, que agora é único **por
+barbearia**, e o painel é central (`painel.barbearianoar.com.br`) — não há host de
+onde tirar qual barbearia. Dois donos "bayron" colidem no login.
+
+**Decidido em 06/09/2026: login por telefone.** Todo barbeiro tem, é único no
+mundo, e é o mesmo jeito que o cliente já entra no portal dele.
+
+⚠️ **É maior do que "trocar slug por telefone".** Ao desenhar a implementação
+apareceram duas coisas que o passo 7 de `ARQUITETURA-MULTI-TENANT-V1.md` §9 não dizia:
+
+1. **A tabela `barbers` não tem coluna de telefone.** Precisa de migration nova,
+   com índice único **global** (não por tenant) — é justamente a unicidade global
+   que permite deduzir a barbearia a partir do login. Como os barbeiros atuais não
+   têm telefone cadastrado, a coluna nasce anulável e alguém precisa preencher os
+   do Bayron antes que o slug possa sair de cena.
+2. **`tenantDaSessao()` ainda devolve `TENANT_UNICO` fixo, e é chamada em 53
+   lugares.** O login por telefone é a peça que grava o `tenantId` na sessão —
+   o campo já existe em `SessionData`, vazio. Fazer `tenantDaSessao()` ler esse
+   campo e revalidar o status no banco é o que **liga** o multi-tenant no painel,
+   e é o passo 5 de fato.
+
+**Recomendação para o passo 5:** manter `tenantDaSessao()` **síncrona**, servida
+por um cache dos tenants carregado no boot e revalidado em segundo plano. A
+alternativa — ir ao banco a cada requisição — a torna assíncrona e obriga a tocar
+nas 53 chamadas, com 53 chances de errar. Tenant suspenso demorar segundos para
+ser cortado é irrelevante numa cobrança mensal.
+
+⚠️ **Sessões antigas não têm `tenantId`.** Quando `tenantDaSessao()` passar a
+lê-lo, o correto é recusar a sessão e mandar logar de novo — nunca cair num
+tenant padrão, que serviria os dados da barbearia errada. Na prática: os
+barbeiros do Bayron entram uma vez a mais, no dia da virada.
+
+### 9.8 Só então — RLS e o resto
+
+Passos 5 a 7 do `ARQUITETURA-MULTI-TENANT-V1.md` §9.

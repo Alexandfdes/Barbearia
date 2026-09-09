@@ -3,38 +3,43 @@ export const prerender = false;
 
 import Layout from '../../layouts/Layout.astro';
 import { getCustomerSession } from '../../lib/customerSession.js';
-import { sqlite } from '../../db/index.js';
+import { sql } from 'drizzle-orm';
+import { db } from '../../db/index.js';
+import { tenantDoHost, type Tenant } from '../../lib/tenant.js';
 import { formatInTimeZone } from 'date-fns-tz';
 
 const TZ = 'America/Fortaleza';
 
 const session = await getCustomerSession(Astro.request);
+const tenant = tenantDoHost(Astro.request);
 if (!session) return Astro.redirect('/cliente/entrar');
 
-const stmtList = sqlite.prepare(`
-  SELECT
-    a.id              AS id,
-    a.status          AS status,
-    a.starts_at       AS starts_at,
-    a.ends_at         AS ends_at,
-    a.duration_minutes AS duration_minutes,
-    a.price_cents     AS price_cents,
-    a.customer_name   AS customer_name,
-    a.customer_phone  AS customer_phone,
-    a.manage_token    AS manage_token,
-    a.cancelled_at    AS cancelled_at,
-    a.cancelled_by    AS cancelled_by,
-    b.name            AS barber_name,
-    s.name            AS service_name
-  FROM appointments a
-  INNER JOIN barbers  b ON b.id = a.barber_id
-  INNER JOIN services s ON s.id = a.service_id
-  WHERE a.customer_phone = ?
-  AND a.customer_birthdate = ?
-  ORDER BY a.starts_at DESC
-`);
+function listarAgendamentos(phone: string, birthdate: string, tenant: Tenant) {
+  return db.execute<ApptRow>(sql`
+    SELECT
+      a.id              AS id,
+      a.status          AS status,
+      a.starts_at       AS starts_at,
+      a.ends_at         AS ends_at,
+      a.duration_minutes AS duration_minutes,
+      a.price_cents     AS price_cents,
+      a.customer_name   AS customer_name,
+      a.customer_phone  AS customer_phone,
+      a.manage_token    AS manage_token,
+      a.cancelled_at    AS cancelled_at,
+      a.cancelled_by    AS cancelled_by,
+      b.name            AS barber_name,
+      s.name            AS service_name
+    FROM appointments a
+    INNER JOIN barbers  b ON b.id = a.barber_id
+    INNER JOIN services s ON s.id = a.service_id
+    WHERE a.tenant_id = ${tenant.id} AND a.customer_phone = ${phone}
+      AND a.customer_birthdate = ${birthdate}
+    ORDER BY a.starts_at DESC
+  `);
+}
 
-interface ApptRow {
+type ApptRow = {
   id: number;
   status: string;
   starts_at: string;
@@ -48,9 +53,9 @@ interface ApptRow {
   cancelled_by: string | null;
   barber_name: string;
   service_name: string;
-}
+};
 
-const rows = stmtList.all(session.phone, session.birthdate) as ApptRow[];
+const rows = await listarAgendamentos(session.phone, session.birthdate, tenant);
 
 // Se a sessão é válida mas não tem mais agendamentos (todos deletados manualmente, por ex),
 // devolve pra entrar.

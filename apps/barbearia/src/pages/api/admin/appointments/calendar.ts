@@ -1,7 +1,8 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { sqlite } from '../../../../db/index.js';
+import { sql } from 'drizzle-orm';
+import { db } from '../../../../db/index.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 
@@ -14,28 +15,28 @@ import { getSession } from '../../../../lib/session.js';
  * Barbeiro não-admin só vê os próprios agendamentos.
  */
 
-// Fortaleza = UTC-3 fixo. Pra agrupar por "dia local" no SQLite,
-// pegamos os primeiros 10 chars de datetime(starts_at, '-3 hours').
-const stmtAll = sqlite.prepare(`
-  SELECT
-    substr(datetime(starts_at, '-3 hours'), 1, 10) AS day_local,
-    COUNT(*) AS qty
-  FROM appointments
-  WHERE status IN ('confirmed', 'completed')
-    AND substr(datetime(starts_at, '-3 hours'), 1, 7) = ?
-  GROUP BY day_local
-`);
-
-const stmtByBarber = sqlite.prepare(`
-  SELECT
-    substr(datetime(starts_at, '-3 hours'), 1, 10) AS day_local,
-    COUNT(*) AS qty
-  FROM appointments
-  WHERE status IN ('confirmed', 'completed')
-    AND barber_id = ?
-    AND substr(datetime(starts_at, '-3 hours'), 1, 7) = ?
-  GROUP BY day_local
-`);
+/**
+ * Agrupa por dia local de Fortaleza.
+ *
+ * O SQLite fazia `datetime(starts_at, '-3 hours')` — subtração fixa. Aqui a
+ * conversão usa a zona nomeada: `starts_at` é TEXT com ISO em UTC, então o cast
+ * para timestamptz e o `AT TIME ZONE` dão o horário local de verdade. Fortaleza
+ * não tem horário de verão, então o resultado é o mesmo hoje; a diferença é que
+ * a consulta continua certa se um dia a barbearia não for em Fortaleza — e com
+ * multi-tenant isso deixa de ser hipótese (a zona vira coluna do tenant).
+ */
+function porDia(barberId: number | null, month: string) {
+  return db.execute<{ day_local: string; qty: string }>(sql`
+    SELECT
+      to_char((starts_at::timestamptz) AT TIME ZONE 'America/Fortaleza', 'YYYY-MM-DD') AS day_local,
+      COUNT(*) AS qty
+    FROM appointments
+    WHERE status IN ('confirmed', 'completed')
+      AND to_char((starts_at::timestamptz) AT TIME ZONE 'America/Fortaleza', 'YYYY-MM') = ${month}
+      AND (${barberId}::int IS NULL OR barber_id = ${barberId}::int)
+    GROUP BY day_local
+  `);
+}
 
 export const GET: APIRoute = async ({ request, url }) => {
   const session = await getSession(request);
@@ -58,12 +59,10 @@ export const GET: APIRoute = async ({ request, url }) => {
     barberFilter = session.barberId;
   }
 
-  const rows = (barberFilter !== null
-    ? stmtByBarber.all(barberFilter, month)
-    : stmtAll.all(month)) as { day_local: string; qty: number }[];
+  const rows = await porDia(barberFilter, month);
 
   const days: Record<string, number> = {};
-  for (const r of rows) days[r.day_local] = r.qty;
+  for (const r of rows) days[r.day_local] = Number(r.qty);
 
   return json({ ok: true, month, days });
 };

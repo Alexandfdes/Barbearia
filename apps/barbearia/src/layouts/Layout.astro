@@ -11,7 +11,7 @@ interface Props {
 
 // SSR obrigatório em toda página que renderiza este layout — ver ARQUITETURA-PRODUTO-V1 D3.
 // Com prerender = true, estes valores congelam no build e o painel vira decoração.
-const s = getSettings();
+const s = await getSettings();
 
 // O endereço é guardado como "Cidade/UF" numa string só (é assim que aparece no
 // site). O schema.org quer os dois separados, então dividimos aqui.

@@ -2,11 +2,12 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+
 import { db } from '../../../../db/index.js';
 import { barberServices } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
+import { tenantDaSessao } from '../../../../lib/tenant.js';
 
 const updateSchema = z.object({
   active:          z.boolean(),
@@ -17,6 +18,7 @@ const updateSchema = z.object({
 export const PUT: APIRoute = async ({ request, params }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
 
   const serviceId = parseInt(params.serviceId ?? '', 10);
   if (isNaN(serviceId)) return json({ error: 'serviceId inválido' }, 400);
@@ -39,13 +41,12 @@ export const PUT: APIRoute = async ({ request, params }) => {
     return json({ error: 'Sem permissão' }, 403);
   }
 
-  db.insert(barberServices)
-    .values({ barberId: targetBarberId, serviceId, durationMinutes, active })
+  await db.insert(barberServices)
+    .values({ tenantId: tenant.id, barberId: targetBarberId, serviceId, durationMinutes, active })
     .onConflictDoUpdate({
       target: [barberServices.barberId, barberServices.serviceId],
       set:    { durationMinutes, active },
-    })
-    .run();
+    });
 
   return json({ ok: true });
 };

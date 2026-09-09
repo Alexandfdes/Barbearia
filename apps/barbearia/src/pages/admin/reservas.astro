@@ -5,20 +5,22 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getSession } from '../../lib/session.js';
 import { db } from '../../db/index.js';
 import { barbers, reservations } from '../../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
 import { waPhone } from '../../lib/whatsapp.js';
+import { tenantDaSessao } from '../../lib/tenant.js';
 
 const TZ = 'America/Fortaleza';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
 
-const barberRow = db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
-  .from(barbers).where(eq(barbers.id, session.barberId)).all()[0];
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
-const rows = db.select().from(reservations).all();
+const rows = (await db.select().from(reservations));
 const rank: Record<string, number> = { pending: 0, fulfilled: 1, cancelled: 2 };
 rows.sort((a, b) => (rank[a.status] - rank[b.status]) || b.createdAt.localeCompare(a.createdAt));
 

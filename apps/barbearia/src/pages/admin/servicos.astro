@@ -6,12 +6,14 @@ import { getSession } from '../../lib/session.js';
 import { db } from '../../db/index.js';
 import { barbers, barberServices, services } from '../../db/schema.js';
 import { and, eq } from 'drizzle-orm';
+import { tenantDaSessao } from '../../lib/tenant.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
 
-const barberRow = db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
-  .from(barbers).where(eq(barbers.id, session.barberId)).all()[0];
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
 const isAdmin = session.role === 'admin';
@@ -34,8 +36,8 @@ const baseSelect = db
   ));
 
 const rows = isAdmin
-  ? baseSelect.orderBy(services.name).all()
-  : baseSelect.where(eq(services.active, true)).orderBy(services.name).all();
+  ? (await baseSelect.orderBy(services.name))
+  : (await baseSelect.where(and(eq(services.active, true), eq(services.tenantId, tenant.id))).orderBy(services.name));
 
 const svcList = rows.map(r => ({
   id:           r.id,

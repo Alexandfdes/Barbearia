@@ -2,11 +2,12 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '../../../../../db/index.js';
 import { appointments } from '../../../../../db/schema.js';
 import { json } from '../../../../../lib/api.js';
 import { getSession } from '../../../../../lib/session.js';
+import { tenantDaSessao } from '../../../../../lib/tenant.js';
 
 const bodySchema = z.object({
   notes: z.string().max(1000).nullable(),
@@ -15,6 +16,7 @@ const bodySchema = z.object({
 export const PATCH: APIRoute = async ({ params, request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
 
   const id = parseInt(params.id ?? '', 10);
   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
@@ -26,11 +28,10 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) return json({ error: parsed.error.issues[0].message }, 400);
 
-  const apptRows = db
+  const apptRows = await db
     .select({ id: appointments.id, barberId: appointments.barberId })
     .from(appointments)
-    .where(eq(appointments.id, id))
-    .all();
+    .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id)));
 
   if (apptRows.length === 0) return json({ error: 'Agendamento não encontrado' }, 404);
 
@@ -41,14 +42,13 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   // String vazia vira null pra manter NULL coerente
   const normalizedNotes = (parsed.data.notes ?? '').trim() === '' ? null : parsed.data.notes!.trim();
 
-  db.update(appointments)
+  await db.update(appointments)
     .set({
       notes:            normalizedNotes,
       lastModifiedById: session.barberId,
       lastModifiedAt:   new Date().toISOString(),
     })
-    .where(eq(appointments.id, id))
-    .run();
+    .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id)));
 
   return json({ ok: true, notes: normalizedNotes });
 };

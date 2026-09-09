@@ -43,11 +43,10 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     return json({ error: `Muitas tentativas. Tente em ${rl.retryAfterSecs}s` }, 429);
   }
 
-  const rows = db
+  const rows = await db
     .select({ id: barbers.id, role: barbers.role, passwordHash: barbers.passwordHash, active: barbers.active })
     .from(barbers)
-    .where(eq(barbers.slug, slug))
-    .all();
+    .where(eq(barbers.slug, slug));
 
   const barber  = rows[0];
   const isValid = barber?.active && barber.passwordHash

@@ -2,11 +2,13 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { sqlite } from '../../../db/index.js';
+import { sql } from 'drizzle-orm';
+import { db, first } from '../../../db/index.js';
 import { json } from '../../../lib/api.js';
 import { checkRateLimit } from '../../../lib/rateLimit.js';
 import { getClientIp } from '../../../lib/clientIp.js';
 import { makeCustomerSessionCookie, normalizePhone } from '../../../lib/customerSession.js';
+import { tenantDoHost, type Tenant } from '../../../lib/tenant.js';
 
 const bodySchema = z.object({
   phone:     z.string().min(10).max(25),
@@ -15,22 +17,34 @@ const bodySchema = z.object({
 
 // customer_phone é armazenado normalizado (migration 0004) — comparação direta
 // usa o índice appt_phone_idx.
-const stmtCheckMatch = sqlite.prepare(`
-  SELECT COUNT(*) AS c FROM appointments
-  WHERE customer_phone = ? AND customer_birthdate = ?
-`);
+//
+// COUNT/SUM no Postgres voltam como bigint, que o driver entrega em string pra
+// não perder precisão. Por isso todo agregado passa por Number() antes de virar
+// comparação — `'0' === 0` seria falso e a conta de login sempre falharia.
+async function contarComBirthdate(phone: string, birthdate: string, tenant: Tenant): Promise<number> {
+  const r = await first(db.execute<{ c: string }>(sql`
+    SELECT COUNT(*) AS c FROM appointments
+    WHERE tenant_id = ${tenant.id}
+      AND customer_phone = ${phone} AND customer_birthdate = ${birthdate}
+  `));
+  return Number(r?.c ?? 0);
+}
 
 // Conta agendamentos do telefone independente de birthdate — usado pra distinguir
 // "telefone não cadastrado" de "telefone cadastrado mas sem birthdate".
-const stmtCheckAnyPhone = sqlite.prepare(`
-  SELECT
-    COUNT(*) AS total,
-    SUM(CASE WHEN customer_birthdate IS NULL THEN 1 ELSE 0 END) AS without_birthdate
-  FROM appointments
-  WHERE customer_phone = ?
-`);
+async function contarPorTelefone(phone: string, tenant: Tenant): Promise<{ total: number; semBirthdate: number }> {
+  const r = await first(db.execute<{ total: string; without_birthdate: string | null }>(sql`
+    SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN customer_birthdate IS NULL THEN 1 ELSE 0 END) AS without_birthdate
+    FROM appointments
+    WHERE tenant_id = ${tenant.id} AND customer_phone = ${phone}
+  `));
+  return { total: Number(r?.total ?? 0), semBirthdate: Number(r?.without_birthdate ?? 0) };
+}
 
 export const POST: APIRoute = async ({ request, clientAddress }) => {
+  const tenant = tenantDoHost(request);
   // Rate limit por IP — protege contra brute-force de números/datas
   const ip = getClientIp(request, clientAddress);
   const rl = checkRateLimit(`customer-login:${ip}`);
@@ -51,13 +65,13 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   const compareKey = phone.length >= 11 ? phone.slice(-11) : phone;
   const birthdate  = parsed.data.birthdate;
 
-  const match = stmtCheckMatch.get(compareKey, birthdate) as { c: number };
+  const match = await contarComBirthdate(compareKey, birthdate, tenant);
 
-  if (match.c === 0) {
+  if (match === 0) {
     // Distingue "telefone existe mas sem birthdate" (cliente antigo) de "não bate".
     // Mostra mensagem específica pro cliente antigo orientando a refazer agendamento.
-    const any = stmtCheckAnyPhone.get(compareKey) as { total: number; without_birthdate: number };
-    if (any.total > 0 && any.total === any.without_birthdate) {
+    const any = await contarPorTelefone(compareKey, tenant);
+    if (any.total > 0 && any.total === any.semBirthdate) {
       return json({
         error: 'Seu cadastro é anterior ao novo portal. Faça um novo agendamento ou peça pra barbearia atualizar sua data de nascimento.',
         code:  'legacy_no_birthdate',

@@ -2,10 +2,13 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { sqlite } from '../../../../../db/index.js';
+import { sql } from 'drizzle-orm';
+import { db, first } from '../../../../../db/index.js';
 import { json } from '../../../../../lib/api.js';
 import { getSession } from '../../../../../lib/session.js';
 import { normalizePhone } from '../../../../../lib/phone.js';
+import type { Tenant } from '../../../../../lib/tenant.js';
+import { tenantDaSessao } from '../../../../../lib/tenant.js';
 
 const bodySchema = z.object({
   customerName:      z.string().min(2).max(100),
@@ -24,33 +27,68 @@ function isPlausibleBirthdate(iso: string | null): boolean {
   return d >= minDate && d <= maxDate;
 }
 
-// Busca o appointment e seu telefone normalizado
-const stmtGet = sqlite.prepare(`
-  SELECT id, customer_phone, barber_id FROM appointments WHERE id = ?
-`);
+interface DadosDoCliente {
+  nome:      string;
+  telefone:  string;
+  nascimento: string | null;
+  editorId:  number;
+  quando:    string;
+}
 
-// Atualiza TODOS os appointments do mesmo telefone (coluna já normalizada)
-const stmtPropagate = sqlite.prepare(`
-  UPDATE appointments
-     SET customer_name = ?,
-         customer_phone = ?,
-         customer_birthdate = ?,
-         last_modified_by_id = ?,
-         last_modified_at = ?
-   WHERE customer_phone = ?
-`);
+// Busca o appointment e seu telefone normalizado
+function buscarAppointment(id: number, tenant: Tenant) {
+  return first(db.execute<{ id: number; customer_phone: string; barber_id: number }>(sql`
+    SELECT id, customer_phone, barber_id FROM appointments
+     WHERE id = ${id} AND tenant_id = ${tenant.id}
+  `));
+}
+
+/**
+ * Atualiza TODOS os appointments do mesmo telefone **desta barbearia**.
+ *
+ * ⚠️ O telefone NÃO é escopado por barbearia: o mesmo cliente pode cortar
+ * cabelo em duas. Sem `tenant_id` no WHERE, esta função reescreveria o nome e a
+ * data de nascimento do cliente na barbearia do vizinho.
+ *
+ * (coluna de telefone já normalizada).
+ *
+ * `RETURNING id` substitui o `result.changes` do better-sqlite3: no driver do
+ * Postgres a contagem de linhas afetadas não vem no mesmo formato, e devolver
+ * os ids é o jeito que não depende de detalhe do driver.
+ */
+async function propagarPorTelefone(d: DadosDoCliente, telefoneOriginal: string, tenant: Tenant): Promise<number> {
+  const linhas = await db.execute<{ id: number }>(sql`
+    UPDATE appointments
+       SET customer_name = ${d.nome},
+           customer_phone = ${d.telefone},
+           customer_birthdate = ${d.nascimento},
+           last_modified_by_id = ${d.editorId},
+           last_modified_at = ${d.quando}
+     WHERE tenant_id = ${tenant.id} AND customer_phone = ${telefoneOriginal}
+    RETURNING id
+  `);
+  return linhas.length;
+}
 
 // Atualiza só esse appointment (fallback)
-const stmtUpdateOne = sqlite.prepare(`
-  UPDATE appointments
-     SET customer_name = ?, customer_phone = ?, customer_birthdate = ?,
-         last_modified_by_id = ?, last_modified_at = ?
-   WHERE id = ?
-`);
+async function atualizarUm(d: DadosDoCliente, id: number, tenant: Tenant): Promise<number> {
+  const linhas = await db.execute<{ id: number }>(sql`
+    UPDATE appointments
+       SET customer_name = ${d.nome},
+           customer_phone = ${d.telefone},
+           customer_birthdate = ${d.nascimento},
+           last_modified_by_id = ${d.editorId},
+           last_modified_at = ${d.quando}
+     WHERE id = ${id} AND tenant_id = ${tenant.id}
+    RETURNING id
+  `);
+  return linhas.length;
+}
 
 export const PATCH: APIRoute = async ({ params, request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
 
   const id = parseInt(params.id ?? '', 10);
   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
@@ -66,7 +104,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
     return json({ error: 'Data de nascimento inválida' }, 400);
   }
 
-  const appt = stmtGet.get(id) as { id: number; customer_phone: string; barber_id: number } | undefined;
+  const appt = await buscarAppointment(id, tenant);
   if (!appt) return json({ error: 'Agendamento não encontrado' }, 404);
 
   if (session.role !== 'admin' && appt.barber_id !== session.barberId) {
@@ -77,29 +115,21 @@ export const PATCH: APIRoute = async ({ params, request }) => {
   const newPhone     = normalizePhone(parsed.data.customerPhone);
   if (!newPhone) return json({ error: 'Telefone inválido — informe DDD + número' }, 400);
 
-  const nowIso = new Date().toISOString();
+  const dados: DadosDoCliente = {
+    nome:       parsed.data.customerName.trim(),
+    telefone:   newPhone,
+    nascimento: parsed.data.customerBirthdate,
+    editorId:   session.barberId,
+    quando:     new Date().toISOString(),
+  };
 
   // Propaga se o telefone original tem >= 10 dígitos (chave estável)
   if (origPhoneKey.length >= 10) {
-    const result = stmtPropagate.run(
-      parsed.data.customerName.trim(),
-      newPhone,
-      parsed.data.customerBirthdate,
-      session.barberId,
-      nowIso,
-      origPhoneKey,
-    );
-    return json({ ok: true, updated: result.changes, propagated: true });
+    const updated = await propagarPorTelefone(dados, origPhoneKey, tenant);
+    return json({ ok: true, updated, propagated: true });
   }
 
   // Caso raro: telefone original muito curto, só atualiza esse
-  const result = stmtUpdateOne.run(
-    parsed.data.customerName.trim(),
-    newPhone,
-    parsed.data.customerBirthdate,
-    session.barberId,
-    nowIso,
-    id,
-  );
-  return json({ ok: true, updated: result.changes, propagated: false });
+  const updated = await atualizarUm(dados, id, tenant);
+  return json({ ok: true, updated, propagated: false });
 };

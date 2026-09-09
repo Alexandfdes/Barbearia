@@ -2,19 +2,21 @@
 export const prerender = false;
 
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import { and, sql, eq, gte, lt, desc } from 'drizzle-orm';
 import { getSession } from '../../lib/session.js';
-import { sqlite, db } from '../../db/index.js';
+import { db, first } from '../../db/index.js';
 import { barbers, appointments, services } from '../../db/schema.js';
-import { eq, and, gte, lt, desc } from 'drizzle-orm';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
+import { tenantDaSessao } from '../../lib/tenant.js';
 
 const TZ = 'America/Fortaleza';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
 
-const barberRow = db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
-  .from(barbers).where(eq(barbers.id, session.barberId)).all()[0];
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
 const nowUtc = new Date();
@@ -55,50 +57,62 @@ const sevenDaysAgo   = new Date(nowUtc.getTime() - 7 * 24 * 60 * 60 * 1000).toIS
 // Pra barbeiro comum, sempre filtra pelos próprios. Admin vê todos.
 const barberFilter = session.role === 'admin' ? null : session.barberId;
 
+// SUM e COUNT voltam do Postgres como bigint, que o driver entrega em string
+// pra não perder precisão. Sem o Number() o painel somaria texto: "1500" + "800"
+// viraria "1500800" na tela, sem erro nenhum no caminho.
+const num = (v: unknown): number => Number(v ?? 0);
+
+// `${barberFilter}::int IS NULL OR ...` no lugar de montar duas consultas
+// diferentes: as duas versões precisavam ser editadas em par, e uma delas ia
+// acabar ficando pra trás.
+//
+// `statuses` entra por `sql.join`, não por placeholders concatenados à mão.
+//
+// ⚠️ NÃO trocar por `= ANY(${statuses})`: o template do Drizzle expande um array
+// JS como TUPLA — vira `($1, $2)` — e `= ANY` exige um array de verdade do lado
+// direito. O erro só aparece em tempo de execução (42809), com o painel em
+// branco; nem o tsc nem o `astro check` pegam.
+
 // Receita num intervalo (confirmed + completed)
-function sumRevenue(startIso: string, endIso: string): number {
-  const stmt = barberFilter !== null
-    ? sqlite.prepare(`SELECT COALESCE(SUM(price_cents),0) AS s FROM appointments
-        WHERE status IN ('confirmed','completed')
-          AND barber_id = ?
-          AND starts_at >= ? AND starts_at < ?`)
-    : sqlite.prepare(`SELECT COALESCE(SUM(price_cents),0) AS s FROM appointments
-        WHERE status IN ('confirmed','completed')
-          AND starts_at >= ? AND starts_at < ?`);
-  const result = barberFilter !== null
-    ? (stmt.get(barberFilter, startIso, endIso) as { s: number })
-    : (stmt.get(startIso, endIso) as { s: number });
-  return result.s;
+async function sumRevenue(startIso: string, endIso: string): Promise<number> {
+  const r = await first(db.execute<{ s: string }>(sql`
+    SELECT COALESCE(SUM(price_cents),0) AS s FROM appointments
+     WHERE tenant_id = ${tenant.id}
+       AND status IN ('confirmed','completed')
+       AND starts_at >= ${startIso} AND starts_at < ${endIso}
+       AND (${barberFilter}::int IS NULL OR barber_id = ${barberFilter}::int)
+  `));
+  return num(r?.s);
 }
 
-function countAppts(startIso: string, endIso: string, statuses: string[]): number {
-  const placeholders = statuses.map(() => '?').join(',');
-  const sql = barberFilter !== null
-    ? `SELECT COUNT(*) AS c FROM appointments
-        WHERE status IN (${placeholders}) AND barber_id = ?
-          AND starts_at >= ? AND starts_at < ?`
-    : `SELECT COUNT(*) AS c FROM appointments
-        WHERE status IN (${placeholders})
-          AND starts_at >= ? AND starts_at < ?`;
-  const stmt = sqlite.prepare(sql);
-  const args = barberFilter !== null
-    ? [...statuses, barberFilter, startIso, endIso]
-    : [...statuses, startIso, endIso];
-  return (stmt.get(...args) as { c: number }).c;
+async function countAppts(startIso: string, endIso: string, statuses: string[]): Promise<number> {
+  const r = await first(db.execute<{ c: string }>(sql`
+    SELECT COUNT(*) AS c FROM appointments
+     WHERE tenant_id = ${tenant.id}
+       AND status IN (${sql.join(statuses.map(st => sql`${st}`), sql`, `)})
+       AND starts_at >= ${startIso} AND starts_at < ${endIso}
+       AND (${barberFilter}::int IS NULL OR barber_id = ${barberFilter}::int)
+  `));
+  return num(r?.c);
 }
 
-const revenueToday  = sumRevenue(todayStartUtc, todayEndUtc);
-const revenueWeek   = sumRevenue(weekStartUtc, weekEndUtc);
-const revenueMonth  = sumRevenue(monthStartUtc, monthEndUtc);
-
-const countToday    = countAppts(todayStartUtc, todayEndUtc, ['confirmed', 'completed']);
-const countWeek     = countAppts(weekStartUtc, weekEndUtc, ['confirmed', 'completed']);
-const countMonth    = countAppts(monthStartUtc, monthEndUtc, ['confirmed', 'completed']);
+// Seis agregados independentes: em rede, um de cada vez seriam seis idas ao
+// banco antes de a página começar a renderizar.
+const ATIVOS = ['confirmed', 'completed'];
+const [revenueToday, revenueWeek, revenueMonth, countToday, countWeek, countMonth] =
+  await Promise.all([
+    sumRevenue(todayStartUtc, todayEndUtc),
+    sumRevenue(weekStartUtc,  weekEndUtc),
+    sumRevenue(monthStartUtc, monthEndUtc),
+    countAppts(todayStartUtc, todayEndUtc, ATIVOS),
+    countAppts(weekStartUtc,  weekEndUtc,  ATIVOS),
+    countAppts(monthStartUtc, monthEndUtc, ATIVOS),
+  ]);
 
 // ─── Próximos agendamentos (próximas 48h, confirmed) ──────────────────────
 const next48hEndUtc = new Date(nowUtc.getTime() + 48 * 60 * 60 * 1000).toISOString();
 const upcomingRows = (barberFilter !== null
-  ? db.select({
+  ? (await db.select({
       id: appointments.id, startsAt: appointments.startsAt, customerName: appointments.customerName,
       serviceName: services.name, barberName: barbers.name, priceCents: appointments.priceCents,
     })
@@ -110,11 +124,11 @@ const upcomingRows = (barberFilter !== null
       eq(appointments.barberId, barberFilter),
       gte(appointments.startsAt, nowUtc.toISOString()),
       lt(appointments.startsAt, next48hEndUtc),
-    ))
+      eq(appointments.tenantId, tenant.id)))
     .orderBy(appointments.startsAt)
     .limit(8)
-    .all()
-  : db.select({
+    )
+  : (await db.select({
       id: appointments.id, startsAt: appointments.startsAt, customerName: appointments.customerName,
       serviceName: services.name, barberName: barbers.name, priceCents: appointments.priceCents,
     })
@@ -125,14 +139,14 @@ const upcomingRows = (barberFilter !== null
       eq(appointments.status, 'confirmed'),
       gte(appointments.startsAt, nowUtc.toISOString()),
       lt(appointments.startsAt, next48hEndUtc),
-    ))
+      eq(appointments.tenantId, tenant.id)))
     .orderBy(appointments.startsAt)
     .limit(8)
-    .all());
+    ));
 
 // ─── Alertas: atrasados (passou da hora, ainda confirmed, é hoje) ──────────
 const lateRows = (barberFilter !== null
-  ? db.select({
+  ? (await db.select({
       id: appointments.id, startsAt: appointments.startsAt, customerName: appointments.customerName,
       serviceName: services.name, barberName: barbers.name,
     })
@@ -144,10 +158,10 @@ const lateRows = (barberFilter !== null
       eq(appointments.barberId, barberFilter),
       gte(appointments.startsAt, todayStartUtc),
       lt(appointments.startsAt, nowUtc.toISOString()),
-    ))
+      eq(appointments.tenantId, tenant.id)))
     .orderBy(appointments.startsAt)
-    .all()
-  : db.select({
+    )
+  : (await db.select({
       id: appointments.id, startsAt: appointments.startsAt, customerName: appointments.customerName,
       serviceName: services.name, barberName: barbers.name,
     })
@@ -158,13 +172,13 @@ const lateRows = (barberFilter !== null
       eq(appointments.status, 'confirmed'),
       gte(appointments.startsAt, todayStartUtc),
       lt(appointments.startsAt, nowUtc.toISOString()),
-    ))
+      eq(appointments.tenantId, tenant.id)))
     .orderBy(appointments.startsAt)
-    .all());
+    ));
 
 // ─── No-shows nos últimos 7 dias ──────────────────────────────────────────
 const noShowRows = (barberFilter !== null
-  ? db.select({
+  ? (await db.select({
       id: appointments.id, startsAt: appointments.startsAt, customerName: appointments.customerName,
       serviceName: services.name, priceCents: appointments.priceCents,
     })
@@ -174,11 +188,11 @@ const noShowRows = (barberFilter !== null
       eq(appointments.status, 'no_show'),
       eq(appointments.barberId, barberFilter),
       gte(appointments.startsAt, sevenDaysAgo),
-    ))
+      eq(appointments.tenantId, tenant.id)))
     .orderBy(desc(appointments.startsAt))
     .limit(5)
-    .all()
-  : db.select({
+    )
+  : (await db.select({
       id: appointments.id, startsAt: appointments.startsAt, customerName: appointments.customerName,
       serviceName: services.name, priceCents: appointments.priceCents,
     })
@@ -187,28 +201,31 @@ const noShowRows = (barberFilter !== null
     .where(and(
       eq(appointments.status, 'no_show'),
       gte(appointments.startsAt, sevenDaysAgo),
-    ))
+      eq(appointments.tenantId, tenant.id)))
     .orderBy(desc(appointments.startsAt))
     .limit(5)
-    .all());
+    ));
 
 // ─── Receita por dia da semana atual (pra gráfico) ────────────────────────
 interface DayBar { day: string; label: string; weekday: string; revenue: number; isToday: boolean; }
 const WEEKDAYS_SHORT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const weekDays: DayBar[] = [];
-for (let i = 0; i < 7; i++) {
-  const dayStr = addDaysStr(mondayStr, i);
-  const dayStartUtc = fromZonedTime(`${dayStr}T00:00:00`, TZ).toISOString();
-  const dayEndUtc   = fromZonedTime(`${addDaysStr(dayStr, 1)}T00:00:00`, TZ).toISOString();
-  const r = sumRevenue(dayStartUtc, dayEndUtc);
-  weekDays.push({
-    day:     dayStr,
-    label:   String(parseInt(dayStr.slice(-2), 10)),
-    weekday: WEEKDAYS_SHORT[i],
-    revenue: r,
-    isToday: dayStr === todayStr,
-  });
-}
+// Os sete dias são independentes: em série seriam sete idas ao banco em fila.
+const semana = await Promise.all(
+  Array.from({ length: 7 }, async (_, i) => {
+    const dayStr = addDaysStr(mondayStr, i);
+    const dayStartUtc = fromZonedTime(`${dayStr}T00:00:00`, TZ).toISOString();
+    const dayEndUtc   = fromZonedTime(`${addDaysStr(dayStr, 1)}T00:00:00`, TZ).toISOString();
+    return {
+      day:     dayStr,
+      label:   String(parseInt(dayStr.slice(-2), 10)),
+      weekday: WEEKDAYS_SHORT[i],
+      revenue: await sumRevenue(dayStartUtc, dayEndUtc),
+      isToday: dayStr === todayStr,
+    };
+  }),
+);
+weekDays.push(...semana);
 const maxRevenue = Math.max(...weekDays.map(d => d.revenue), 1);
 
 // ─── Helpers de display ───────────────────────────────────────────────────

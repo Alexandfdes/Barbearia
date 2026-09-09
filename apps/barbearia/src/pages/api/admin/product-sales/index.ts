@@ -2,12 +2,13 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { fromZonedTime } from 'date-fns-tz';
-import { db } from '../../../../db/index.js';
+import { db, first } from '../../../../db/index.js';
 import { barbers, productSales } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
+import { tenantDaSessao } from '../../../../lib/tenant.js';
 
 const TZ = 'America/Fortaleza';
 
@@ -24,6 +25,7 @@ const bodySchema = z.object({
 export const POST: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
 
   let body: unknown;
   try { body = await request.json(); }
@@ -39,8 +41,8 @@ export const POST: APIRoute = async ({ request }) => {
     ? parsed.data.barberId
     : session.barberId;
 
-  const barber = db.select({ id: barbers.id, name: barbers.name, active: barbers.active })
-    .from(barbers).where(eq(barbers.id, barberId)).all()[0];
+  const barber = await first(db.select({ id: barbers.id, name: barbers.name, active: barbers.active })
+    .from(barbers).where(and(eq(barbers.id, barberId), eq(barbers.tenantId, tenant.id))));
   if (!barber) return json({ error: 'Barbeiro não encontrado' }, 404);
 
   // soldAt: meio-dia do dia informado (evita virar o dia por fuso); senão, agora.
@@ -50,19 +52,19 @@ export const POST: APIRoute = async ({ request }) => {
 
   const priceCents = quantity * unitPriceCents;
 
-  const res = db.insert(productSales).values({
+  const res = await db.insert(productSales).values({ tenantId: tenant.id,
     barberId,
     name,
     quantity,
     priceCents,
     soldAt,
     createdById: session.barberId,
-  }).run();
+  }).returning({ id: productSales.id });
 
   return json({
     ok: true,
     sale: {
-      id:         Number(res.lastInsertRowid),
+      id:         res[0].id,
       barberId,
       barberName: barber.name,
       name,

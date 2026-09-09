@@ -1,7 +1,10 @@
 # Arquitetura — Multi-tenant com banco único (V1)
 
-> Especificação da migração. Data: 2026-09-01.
-> Status: **desenhado, não implementado.**
+> Especificação da migração. Data: 2026-09-01. Revisado em 06/09/2026.
+> Status: **passos 1 a 4 escritos e testados, NÃO aplicados.** Ver `ESTADO-ATUAL.md` §4.
+>
+> ⚠️ **Quatro coisas que este desenho não previa** apareceram ao implementar. Estão
+> marcadas no texto e resumidas no §12.
 > **Substitui a decisão D1 do `ARQUITETURA-PRODUTO-V1.md`**, que rejeitava multi-tenant.
 > O §1 explica o que mudou; a D1 continua correta para o contexto em que foi escrita.
 >
@@ -117,6 +120,32 @@ CREATE TABLE tenants (
 
 Todas com `tenant_id integer NOT NULL REFERENCES tenants(id)` e índice.
 
+### 5.2.1 🔴 As chaves estrangeiras também precisam do tenant — não previsto
+
+Dar `tenant_id` às tabelas **não basta**. Verificado em 06/09/2026: as **16 chaves
+estrangeiras** do schema apontavam só para `id`, então nada impedia um agendamento do
+tenant 1 apontar para um barbeiro do tenant 2.
+
+**O RLS não pega isso.** Ele filtra pelo `tenant_id` da própria linha — que está certo. O
+que está errado é para quem ela aponta: o dono do tenant 1 veria o agendamento (é dele) e,
+ao juntar com `barbers`, leria o nome do barbeiro do tenant 2.
+
+A correção é chave composta, com `UNIQUE (id, tenant_id)` em cada tabela referenciada:
+
+```sql
+FOREIGN KEY (barber_id, tenant_id) REFERENCES barbers (id, tenant_id)
+```
+
+Assim o banco recusa sozinho, sem depender de o código lembrar. Está na migration
+`0001_tenants.sql`, em `migracao-tenants/`.
+
+### 5.2.2 `settings.id` não tinha sequência — não previsto
+
+No SQLite `settings` era a linha fixa `id = 1`, então a coluna nasceu `integer NOT NULL`
+sem default. Com uma linha por tenant, o INSERT do segundo tenant falha com `null value in
+column "id"`. Verificado em 06/09 — era exatamente esse o erro. A migration cria a
+sequência.
+
 ### 5.3 ⚠️ As constraints `UNIQUE` que quebram — verificado
 
 | Coluna | Hoje | Com tenants |
@@ -195,7 +224,15 @@ Cada passo termina com o sistema funcionando.
    por `postgres-js` no Drizzle, portar o `BEGIN IMMEDIATE` do §7. Rodar os 9 testes.
 3. **Introduzir `tenants` e `tenant_id`** — migration, uniques compostas, backfill de um
    tenant único com os dados atuais.
-4. **Escopar as 49 rotas** — uma a uma, com teste de escopo em cada.
+4. **Escopar as rotas** — uma a uma, com teste de escopo em cada.
+
+   ⚠️ **Não são 49, e não são só rotas.** Verificado em 06/09/2026: são **41 rotas de API
+   que tocam o banco** mais **12 páginas `.astro`** que consultam direto no frontmatter —
+   o painel inteiro. Total: 54. As páginas nunca entraram na conta deste documento.
+
+   ⚠️ **O compilador só vê os INSERT.** Depois do passo 3, `tsc` aponta os INSERT sem
+   `tenant_id` — útil, mas é a ponta. Os `SELECT` sem filtro ele não vê, e são eles que
+   vazam. Um deles, `admin/reservations/index.ts`, não tinha `.where()` nenhum.
 5. **Ligar RLS** — a rede que pega o que escapou do passo 4.
 6. **Separar os dois apps** — extrair o site público do painel.
 7. **Login por telefone** (§6) e a exclusion constraint (§7).
@@ -233,3 +270,79 @@ dele para nada crítico. Passa a ser o ponto único de falha do produto inteiro.
 
 **Nenhum deles foi alterado ainda.** Alterar antes de implementar produz documento que
 descreve um sistema que não existe — o problema que este projeto já teve uma vez.
+
+---
+
+## 12. O que a implementação revelou — 06/09/2026
+
+Escrito depois de implementar os passos 3, 3.5 e 4 e rodar contra um PostgreSQL 16.13
+real. Cada item aqui é uma correção deste documento, não uma observação.
+
+| O que o documento dizia | O que se descobriu |
+|---|---|
+| §5.2: dar `tenant_id` às 12 tabelas | Não basta. As **16 chaves estrangeiras** também precisam — §5.2.1 |
+| §9 passo 4: "escopar as 49 rotas" | São **41 rotas + 12 páginas `.astro`** = 54 — §9 |
+| §5.4: `settings` vira uma linha por tenant | E o `id` precisa de sequência, que não existia — §5.2.2 |
+| §9 passo 1: "as três costuras" | A terceira (`pastaDeMidia`/`urlDeMidia`) **nunca tinha sido escrita** |
+
+### 12.1 A terceira costura não existia
+
+O `CLAUDE.md` e o `ESTADO-ATUAL.md` afirmavam que `pastaDeMidia()` e `urlDeMidia()` eram
+"os únicos lugares que montam caminho de mídia". Elas não existiam no código — só o
+`tests/tenant.test.ts` as referenciava, e por isso aquele teste não compilava. Foram
+escritas em 06/09.
+
+A barbearia única mantém o caminho **sem** o slug de propósito: os arquivos já estão no
+disco assim e os caminhos estão gravados no banco. Inserir o slug agora quebraria a
+instância em produção.
+
+### 12.2 As consultas por telefone eram o pior vazamento
+
+Três rotas buscam o cliente por `customer_phone`, e **telefone não é escopado por
+barbearia** — é a mesma pessoa nas duas:
+
+- `admin/appointments/[id]/history.ts` monta a ficha do cliente. Sem filtro, o dono de uma
+  barbearia via o histórico dele na barbearia do vizinho: agendamentos, serviços, gasto.
+- `admin/appointments/[id]/customer.ts` fazia `UPDATE ... WHERE customer_phone = ?` — ou
+  seja, **reescreveria** nome e data de nascimento do cliente na outra barbearia.
+- `customer/login.ts` autentica por telefone + nascimento: sem tenant, o cliente entraria
+  no portal da barbearia errada.
+
+### 12.3 O escopo é inofensivo hoje; ligar o resolvedor não é
+
+`tenantDoHost()` e `tenantDaSessao()` continuam devolvendo `TENANT_UNICO`. Os filtros
+existem em 53 rotas e páginas, todos apontando para a mesma barbearia — **em produção nada
+muda de comportamento.** Eles passam a valer no dia em que o resolvedor for ligado.
+
+Foi de propósito: escopar sem ligar o resolvedor é reversível e não quebra nada; ligar o
+resolvedor com rotas ainda sem escopo é o que vaza.
+
+⚠️ `tests/tenant.test.ts` tem um teste que **deve falhar** quando o resolvedor for ligado.
+Não o apague quando falhar — é o alarme de que os chamadores precisam passar host e sessão
+de verdade.
+
+### 12.4 A lição de processo
+
+**Um erro de sintaxe faz o `tsc` parar de checar semântica.** Durante o passo 4 um script
+quebrou um arquivo; o compilador passou a reportar só os 5 erros de sintaxe e escondeu 6
+erros de variável fora de escopo. "Poucos erros" pode significar "a checagem parou".
+
+Corolário para este projeto: comparar a contagem de erros com a **linha de base**, não com
+zero. O `astro check` tem 282 erros pré-existentes; o que importa é que nenhum arquivo
+piorou.
+
+**Correção do corolário, 06/09/2026.** "Nenhum arquivo piorou" também não basta quando
+o número é grande. `Services.astro` e `Products.astro` foram escritos com `getSettings()`
+sem `await`; o `astro check` acusou
+(`Property 'shortName' does not exist on type 'Promise<Settings>'`) e o total foi de 277
+para 278 — **um erro no meio de 277 é invisível**. O bug só apareceu porque a página foi
+servida contra dois bancos diferentes e o site do Bayron veio sem o próprio catálogo.
+
+Duas conclusões, na ordem de valor:
+
+1. **Rodar, não só compilar.** O tipo de erro que sobrevive à checagem estática é o que
+   dá `undefined` em silêncio. Testar o caso "cliente novo" e o caso "Bayron" custou dois
+   `curl` e pegou o que a checagem não pegou.
+2. **Comparar o conjunto de erros, não a contagem.** Enquanto a linha de base não for
+   zero, `diff` entre a lista antiga e a nova é a única leitura confiável — e derrubar
+   esses 277 erros vale mais do que aprender a conviver com eles.

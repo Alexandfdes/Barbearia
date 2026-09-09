@@ -2,11 +2,14 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
+import { eq } from 'drizzle-orm';
+import { db, first } from '../../../db/index.js';
+import { settings } from '../../../db/schema.js';
 import { json } from '../../../lib/api.js';
 import { getSession } from '../../../lib/session.js';
-import { lerSettingsRow, atualizarSettings } from '../../../lib/settings.js';
-import { tenantDaSessao } from '../../../lib/tenant.js';
+import { invalidateSettings } from '../../../lib/settings.js';
 import { derivarAccent, isHex } from '../../../lib/accent.js';
+import { tenantDaSessao } from '../../../lib/tenant.js';
 
 /** URL opcional: ou vazia, ou começando com http(s). Evita salvar "instagram.com/x"
  *  sem protocolo, que vira link relativo e quebra dentro do próprio site. */
@@ -54,10 +57,10 @@ const updateSchema = z.object({
 export const GET: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
 
-  const tenant = tenantDaSessao(session);
-  const row = lerSettingsRow(tenant.id);
+  const row = await first( db.select().from(settings).where(eq(settings.tenantId, tenant.id)));
   if (!row) return json({ error: 'Configuração não encontrada (migration 0009 aplicada?)' }, 404);
   return json(row);
 };
@@ -66,6 +69,7 @@ export const GET: APIRoute = async ({ request }) => {
 export const PATCH: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
   // A marca da loja é do dono, não do barbeiro que só atende.
   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
 
@@ -103,19 +107,21 @@ export const PATCH: APIRoute = async ({ request }) => {
 
   if (Object.keys(updates).length === 0) return json({ error: 'Nenhum campo para atualizar' }, 400);
 
+  const existe = await first( db.select({ id: settings.id }).from(settings).where(eq(settings.tenantId, tenant.id)));
+  if (!existe) return json({ error: 'Configuração não encontrada (migration 0009 aplicada?)' }, 404);
+
   updates.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-  // atualizarSettings() já invalida o cache do tenant — sem isso o painel salva
-  // e o site continua mostrando o valor velho. Ver ARQUITETURA-PRODUTO-V1 D3.1.
-  const tenant = tenantDaSessao(session);
   try {
-    if (!atualizarSettings(updates, tenant.id)) {
-      return json({ error: 'Configuração não encontrada (migration 0009 aplicada?)' }, 404);
-    }
+    await db.update(settings).set(updates).where(eq(settings.tenantId, tenant.id));
   } catch (err) {
     console.error('[api/admin/settings PATCH]', err);
     return json({ error: 'Falha ao salvar a configuração' }, 500);
   }
+
+  // ⚠️ Sem isto o painel salva e o site continua mostrando o valor velho até o
+  // container reiniciar. Ver ARQUITETURA-PRODUTO-V1 D3.1.
+  invalidateSettings();
 
   return json({ ok: true });
 };

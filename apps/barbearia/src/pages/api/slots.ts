@@ -22,7 +22,7 @@ function json(body: unknown, status = 200) {
   });
 }
 
-export const GET: APIRoute = ({ request }) => {
+export const GET: APIRoute = async ({ request }) => {
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
     barberId:             url.searchParams.get('barberId'),
@@ -45,7 +45,7 @@ export const GET: APIRoute = ({ request }) => {
   if (date > maxDateStr) return json({ error: 'Data além do limite de 30 dias' }, 400);
 
   try {
-    const slots = getAvailableSlots(barberId, serviceId, date, excludeAppointmentId);
+    const slots = await getAvailableSlots(barberId, serviceId, date, excludeAppointmentId);
 
     return json({
       date,

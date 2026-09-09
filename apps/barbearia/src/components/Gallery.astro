@@ -2,7 +2,7 @@
 import { Image } from "astro:assets";
 import { getSettings } from '../lib/settings';
 
-const s = getSettings();
+const s = await getSettings();
 import type { ImageMetadata } from "astro";
 import avatar from '../assets/Logo-Bayron3-256.png';
 

@@ -2,7 +2,7 @@
 import '../styles/global.css';
 import { getSettings } from '../lib/settings';
 
-const s = getSettings();
+const s = await getSettings();
 
 interface Props {
   title?:     string;

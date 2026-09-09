@@ -10,6 +10,7 @@ import { eq, and, gt, gte, lt, or, isNull, inArray } from 'drizzle-orm';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { waPhone } from '../../../lib/whatsapp.js';
 import { computeOccupancy, pickEmptiestBand } from '../../../lib/occupancy.js';
+import { tenantDaSessao } from '../../../lib/tenant.js';
 
 const TZ = 'America/Fortaleza';
 
@@ -23,14 +24,15 @@ const TOTAL_HOURS = END_HOUR - START_HOUR;
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
 
 const { date } = Astro.params;
 if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
   return Astro.redirect('/admin');
 }
 
-const barberRow = db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
-  .from(barbers).where(eq(barbers.id, session.barberId)).all()[0];
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
 const barberParam = Astro.url.searchParams.get('barber');
@@ -47,7 +49,7 @@ if (session.role === 'admin') {
 const dayStart = fromZonedTime(`${date}T00:00:00`, TZ).toISOString();
 const dayEnd   = fromZonedTime(`${date}T23:59:59`, TZ).toISOString();
 
-const apptRows = db
+const apptRows = (await db
   .select({
     id:                appointments.id,
     status:            appointments.status,
@@ -68,31 +70,31 @@ const apptRows = db
   .from(appointments)
   .innerJoin(barbers,  eq(barbers.id,  appointments.barberId))
   .innerJoin(services, eq(services.id, appointments.serviceId))
-  .where(
+  .where(and(
     filterBarberId !== null
       ? and(gte(appointments.startsAt, dayStart), lt(appointments.startsAt, dayEnd), eq(appointments.barberId, filterBarberId))
       : and(gte(appointments.startsAt, dayStart), lt(appointments.startsAt, dayEnd))
-  )
+  , eq(appointments.tenantId, tenant.id)))
   .orderBy(appointments.startsAt)
-  .all();
+  );
 
 // Itens por agendamento (produto do combo Boris + extras da comanda). Usado pra
 // somar produtos na receita do dia — mesma base do relatório mensal.
 const apptIds = apptRows.map(a => a.id);
 const itemsByAppt = new Map<number, number>();
 if (apptIds.length > 0) {
-  const itemRows = db
+  const itemRows = (await db
     .select({ appointmentId: appointmentItems.appointmentId, priceCents: appointmentItems.priceCents })
     .from(appointmentItems)
-    .where(inArray(appointmentItems.appointmentId, apptIds))
-    .all();
+    .where(and(inArray(appointmentItems.appointmentId, apptIds), eq(appointmentItems.tenantId, tenant.id)))
+    );
   for (const it of itemRows) {
     itemsByAppt.set(it.appointmentId, (itemsByAppt.get(it.appointmentId) ?? 0) + it.priceCents);
   }
 }
 
 // Vendas de produto avulsas do dia (sem agendamento) — entram no faturamento como produto.
-const saleRows = db
+const saleRows = (await db
   .select({
     id:         productSales.id,
     name:       productSales.name,
@@ -104,36 +106,36 @@ const saleRows = db
   })
   .from(productSales)
   .innerJoin(barbers, eq(barbers.id, productSales.barberId))
-  .where(
+  .where(and(
     filterBarberId !== null
       ? and(gte(productSales.soldAt, dayStart), lt(productSales.soldAt, dayEnd), eq(productSales.barberId, filterBarberId))
       : and(gte(productSales.soldAt, dayStart), lt(productSales.soldAt, dayEnd))
-  )
+  , eq(productSales.tenantId, tenant.id)))
   .orderBy(productSales.soldAt)
-  .all();
+  );
 const salesCents = saleRows.reduce((s, r) => s + r.priceCents, 0);
 
 // Produtos ativos (catálogo do banco) — alimentam o seletor da venda avulsa.
-const productListForSale = db
+const productListForSale = (await db
   .select({ name: products.name, priceCents: products.priceCents })
   .from(products)
-  .where(eq(products.active, true))
+  .where(and(eq(products.active, true), eq(products.tenantId, tenant.id)))
   .orderBy(products.sortOrder, products.id)
-  .all();
+  );
 
 const allBarbers = session.role === 'admin'
-  ? db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(eq(barbers.active, true)).all()
+  ? (await db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(and(eq(barbers.active, true), eq(barbers.tenantId, tenant.id))))
   : [];
 
 // Map id→nome de TODOS os barbeiros (ativos + inativos), pra mostrar quem modificou
 // mesmo que tenha sido um barbeiro hoje desativado
 const barberNameById = new Map<number, string>(
-  db.select({ id: barbers.id, name: barbers.name }).from(barbers).all().map(b => [b.id, b.name])
+  (await db.select({ id: barbers.id, name: barbers.name }).from(barbers)).map(b => [b.id, b.name])
 );
 
 // Bloqueios (time_off) que tocam o dia. Filtra por barbeiro respeitando a regra:
 // barber_id NULL = feriado pra todos.
-const timeOffRows = db
+const timeOffRows = (await db
   .select({
     id:       timeOff.id,
     startsAt: timeOff.startsAt,
@@ -142,7 +144,7 @@ const timeOffRows = db
     barberId: timeOff.barberId,
   })
   .from(timeOff)
-  .where(
+  .where(and(
     filterBarberId !== null
       ? and(
           lt(timeOff.startsAt, dayEnd),
@@ -153,9 +155,9 @@ const timeOffRows = db
           lt(timeOff.startsAt, dayEnd),
           gte(timeOff.endsAt, dayStart)
         )
-  )
+  , eq(timeOff.tenantId, tenant.id)))
   .orderBy(timeOff.startsAt)
-  .all();
+  );
 
 const nowUtc = new Date();
 
@@ -320,22 +322,22 @@ if (session.role === 'admin' && isToday) {
   const weekStartIso = fromZonedTime(`${nextDays[0].dateStr}T00:00:00`, TZ).toISOString();
   const weekEndIso   = fromZonedTime(`${nextDays[6].dateStr}T23:59:59`, TZ).toISOString();
 
-  const whRows = db
+  const whRows = (await db
     .select({ barberId: workingHours.barberId, weekday: workingHours.weekday, startTime: workingHours.startTime, endTime: workingHours.endTime })
     .from(workingHours)
     .innerJoin(barbers, eq(barbers.id, workingHours.barberId))
-    .where(eq(barbers.active, true))
-    .all();
-  const weekAppts = db
+    .where(and(eq(barbers.active, true), eq(workingHours.tenantId, tenant.id)))
+    );
+  const weekAppts = (await db
     .select({ barberId: appointments.barberId, startsAt: appointments.startsAt, endsAt: appointments.endsAt })
     .from(appointments)
-    .where(and(eq(appointments.status, 'confirmed'), gte(appointments.startsAt, weekStartIso), lt(appointments.startsAt, weekEndIso)))
-    .all();
-  const weekTimeOff = db
+    .where(and(eq(appointments.status, 'confirmed'), gte(appointments.startsAt, weekStartIso), lt(appointments.startsAt, weekEndIso), eq(appointments.tenantId, tenant.id)))
+    );
+  const weekTimeOff = (await db
     .select({ barberId: timeOff.barberId, startsAt: timeOff.startsAt, endsAt: timeOff.endsAt })
     .from(timeOff)
-    .where(and(lt(timeOff.startsAt, weekEndIso), gt(timeOff.endsAt, weekStartIso)))
-    .all();
+    .where(and(lt(timeOff.startsAt, weekEndIso), gt(timeOff.endsAt, weekStartIso), eq(timeOff.tenantId, tenant.id)))
+    );
 
   const occ  = computeOccupancy({ days: nextDays, workingHours: whRows, timeOff: weekTimeOff, appointments: weekAppts });
   const pick = pickEmptiestBand(occ);

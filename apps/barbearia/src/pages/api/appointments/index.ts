@@ -4,12 +4,13 @@ import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { addMinutes } from 'date-fns';
 import { and, eq } from 'drizzle-orm';
-import { db } from '../../../db/index.js';
+import { db, first } from '../../../db/index.js';
 import { combos, products } from '../../../db/schema.js';
 import { json } from '../../../lib/api.js';
 import { bookAppointment } from '../../../lib/bookAppointment.js';
 import { checkRateLimit } from '../../../lib/rateLimit.js';
 import { getClientIp } from '../../../lib/clientIp.js';
+import { tenantDoHost } from '../../../lib/tenant.js';
 
 // Idade mínima 5 anos, máxima 100 anos — só sanidade
 const MIN_BIRTH_AGE_YEARS = 5;
@@ -38,6 +39,7 @@ function isPlausibleBirthdate(iso: string): boolean {
 }
 
 export const POST: APIRoute = async ({ request, clientAddress }) => {
+  const tenant = tenantDoHost(request);
   // IP real do cliente atrás do proxy (resistente a spoofing do x-forwarded-for)
   const ip = getClientIp(request, clientAddress);
 
@@ -63,13 +65,12 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   let combo: { productSlug: string; discountPct: number } | null = null;
   let effectiveServiceId = serviceId;
   if (parsed.data.comboId) {
-    const c = db
+    const c = await first(db
       .select({ serviceId: combos.serviceId, productId: combos.productId, discountPct: combos.discountPct })
       .from(combos)
-      .where(and(eq(combos.id, parsed.data.comboId), eq(combos.active, true)))
-      .all()[0];
+      .where(and(eq(combos.id, parsed.data.comboId), eq(combos.active, true), eq(combos.tenantId, tenant.id))));
     if (!c) return json({ error: 'Combo indisponível' }, 400);
-    const prod = db.select({ slug: products.slug }).from(products).where(eq(products.id, c.productId)).all()[0];
+    const prod = await first(db.select({ slug: products.slug }).from(products).where(and(eq(products.id, c.productId), eq(products.tenantId, tenant.id))));
     if (!prod) return json({ error: 'Produto do combo indisponível' }, 400);
     effectiveServiceId = c.serviceId;
     combo = { productSlug: prod.slug, discountPct: c.discountPct };
@@ -98,7 +99,8 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   }
 
   try {
-    const result = bookAppointment({
+    const result = await bookAppointment({
+      tenant,
       barberId,
       serviceId: effectiveServiceId,
       customerName,

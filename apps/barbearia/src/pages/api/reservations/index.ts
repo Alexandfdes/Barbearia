@@ -2,13 +2,14 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
-import { db } from '../../../db/index.js';
+import { and, eq } from 'drizzle-orm';
+import { db, first } from '../../../db/index.js';
 import { products, reservations } from '../../../db/schema.js';
 import { json } from '../../../lib/api.js';
 import { checkRateLimit } from '../../../lib/rateLimit.js';
 import { getClientIp } from '../../../lib/clientIp.js';
 import { normalizePhone } from '../../../lib/phone.js';
+import { tenantDoHost } from '../../../lib/tenant.js';
 
 const bodySchema = z.object({
   productId:     z.number().int().positive(),
@@ -19,6 +20,7 @@ const bodySchema = z.object({
 
 // Reserva pública de produto (cliente reserva pra retirar na barbearia).
 export const POST: APIRoute = async ({ request, clientAddress }) => {
+  const tenant = tenantDoHost(request);
   const ip = getClientIp(request, clientAddress);
 
   const ipRl = checkRateLimit(`reservation-ip:${ip}`, { maxTries: 10 });
@@ -37,19 +39,19 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   const phoneRl = checkRateLimit(`reservation-phone:${ip}:${phone.slice(-11)}`, { maxTries: 5 });
   if (!phoneRl.ok) return json({ error: 'Muitas reservas para este telefone. Tente mais tarde.' }, 429);
 
-  const product = db
+  const product = await first(db
     .select({ id: products.id, name: products.name, priceCents: products.priceCents, active: products.active })
-    .from(products).where(eq(products.id, parsed.data.productId)).all()[0];
+    .from(products).where(and(eq(products.id, parsed.data.productId), eq(products.tenantId, tenant.id))));
   if (!product || !product.active) return json({ error: 'Produto indisponível' }, 400);
 
-  db.insert(reservations).values({
+  await db.insert(reservations).values({ tenantId: tenant.id,
     productId:     product.id,
     productName:   product.name,
     priceCents:    product.priceCents,
     quantity:      parsed.data.quantity,
     customerName:  parsed.data.customerName.trim(),
     customerPhone: phone,
-  }).run();
+  });
 
   return json({ ok: true }, 201);
 };

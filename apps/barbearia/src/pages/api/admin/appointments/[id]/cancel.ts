@@ -6,19 +6,20 @@ import { db } from '../../../../../db/index.js';
 import { appointments } from '../../../../../db/schema.js';
 import { json } from '../../../../../lib/api.js';
 import { getSession } from '../../../../../lib/session.js';
+import { tenantDaSessao } from '../../../../../lib/tenant.js';
 
 export const POST: APIRoute = async ({ request, params }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
 
   const id = parseInt(params.id ?? '', 10);
   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
 
-  const rows = db
+  const rows = await db
     .select({ id: appointments.id, status: appointments.status, barberId: appointments.barberId })
     .from(appointments)
-    .where(eq(appointments.id, id))
-    .all();
+    .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id)));
 
   if (rows.length === 0) return json({ error: 'Não encontrado' }, 404);
 
@@ -31,7 +32,7 @@ export const POST: APIRoute = async ({ request, params }) => {
   }
 
   const now = new Date().toISOString();
-  db.update(appointments)
+  await db.update(appointments)
     .set({
       status:           'cancelled',
       cancelledAt:      now,
@@ -39,8 +40,7 @@ export const POST: APIRoute = async ({ request, params }) => {
       lastModifiedById: session.barberId,
       lastModifiedAt:   now,
     })
-    .where(and(eq(appointments.id, id), eq(appointments.status, 'confirmed')))
-    .run();
+    .where(and(eq(appointments.id, id), eq(appointments.status, 'confirmed'), eq(appointments.tenantId, tenant.id)));
 
   return json({ ok: true });
 };
