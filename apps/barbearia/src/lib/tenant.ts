@@ -60,7 +60,7 @@ export function tenantDaSessao(_session: SessaoComTenant | null): Tenant {
 
 /**
  * Ponte para código que ainda não recebe requisição nem sessão (componentes do
- * site que só chamam `getSettings()`).
+ * site que só chamam `await getSettings()`).
  *
  * ⚠️ NÃO usar em código novo. Toda rota e toda página devem usar
  * `tenantDoHost()` ou `tenantDaSessao()`. Esta função existe só para o passo 1

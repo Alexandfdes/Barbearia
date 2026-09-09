@@ -1,14 +1,15 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
 import { addDays, addMinutes } from 'date-fns';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
-import { db, sqlite } from '../../../../../db/index.js';
+import { db } from '../../../../../db/index.js';
 import { appointments, workingHours } from '../../../../../db/schema.js';
-import { and } from 'drizzle-orm';
 import { json } from '../../../../../lib/api.js';
+import { reagendarAtomicamente } from '../../../../../lib/reagendar.js';
+import { tenantDoHost } from '../../../../../lib/tenant.js';
 
 const TZ = 'America/Fortaleza';
 
@@ -16,39 +17,13 @@ const bodySchema = z.object({
   startsAt: z.string().refine(s => !isNaN(new Date(s).getTime()), 'Data/hora inválida'),
 });
 
-// SQL bruto para a transação atômica de re-check + update
-const stmtConflictAppt = sqlite.prepare(`
-  SELECT COUNT(*) AS c FROM appointments
-  WHERE barber_id = ?
-    AND status IN ('confirmed','completed')
-    AND id != ?
-    AND starts_at < ?
-    AND ends_at   > ?
-`);
-
-const stmtConflictOff = sqlite.prepare(`
-  SELECT COUNT(*) AS c FROM time_off
-  WHERE (barber_id = ? OR barber_id IS NULL)
-    AND starts_at < ?
-    AND ends_at   > ?
-`);
-
-const stmtUpdate = sqlite.prepare(`
-  UPDATE appointments
-     SET starts_at = ?, ends_at = ?
-   WHERE id = ? AND status = 'confirmed'
-`);
-
-const stmtBegin    = sqlite.prepare('BEGIN IMMEDIATE');
-const stmtCommit   = sqlite.prepare('COMMIT');
-const stmtRollback = sqlite.prepare('ROLLBACK');
-
 function weekdayOf(dateStr: string): number {
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d, 12)).getDay();
 }
 
 export const POST: APIRoute = async ({ params, request }) => {
+  const tenant = tenantDoHost(request);
   const { token } = params;
   if (!token) return json({ error: 'Token inválido' }, 400);
 
@@ -72,7 +47,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (newDateStr > maxDateStr)  return json({ error: 'Data além do limite de 30 dias' }, 400);
 
   // Busca o agendamento
-  const apptRows = db
+  const apptRows = await db
     .select({
       id:              appointments.id,
       barberId:        appointments.barberId,
@@ -81,8 +56,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       startsAt:        appointments.startsAt,
     })
     .from(appointments)
-    .where(eq(appointments.manageToken, token))
-    .all();
+    .where(and(eq(appointments.manageToken, token), eq(appointments.tenantId, tenant.id)));
 
   if (apptRows.length === 0) return json({ error: 'Agendamento não encontrado' }, 404);
 
@@ -96,11 +70,10 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   // Verifica expediente do barbeiro pra esse dia da semana
   const dow = weekdayOf(newDateStr);
-  const whRows = db
+  const whRows = await db
     .select()
     .from(workingHours)
-    .where(and(eq(workingHours.barberId, appt.barberId), eq(workingHours.weekday, dow)))
-    .all();
+    .where(and(eq(workingHours.barberId, appt.barberId), eq(workingHours.weekday, dow), eq(workingHours.tenantId, tenant.id)));
 
   if (whRows.length === 0) {
     return json({ error: 'Barbeiro não trabalha nesse dia' }, 400);
@@ -123,28 +96,24 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   // Transação atômica com re-check de conflitos
   try {
-    stmtBegin.run();
+    // `editorId: null` — quem reagenda aqui é o cliente pelo link, não um
+    // barbeiro logado; `last_modified_by_id` referencia barbers e ficaria órfão.
+    const r = await reagendarAtomicamente({
+      appointmentId: appt.id,
+      barberId:      appt.barberId,
+      newStartIso,
+      newEndIso,
+      editorId:      null,
+    });
 
-    const apptConflict = (stmtConflictAppt.get(appt.barberId, appt.id, newEndIso, newStartIso) as { c: number }).c;
-    if (apptConflict > 0) {
-      stmtRollback.run();
-      return json({ error: 'Horário não está mais disponível' }, 409);
+    if (!r.ok) {
+      const mensagens = {
+        conflito_agendamento: 'Horário não está mais disponível',
+        conflito_bloqueio:    'Horário bloqueado',
+        status_mudou:         'Agendamento não pode mais ser reagendado',
+      };
+      return json({ error: mensagens[r.motivo] }, r.httpStatus);
     }
-
-    const offConflict = (stmtConflictOff.get(appt.barberId, newEndIso, newStartIso) as { c: number }).c;
-    if (offConflict > 0) {
-      stmtRollback.run();
-      return json({ error: 'Horário bloqueado' }, 409);
-    }
-
-    const result = stmtUpdate.run(newStartIso, newEndIso, appt.id);
-    if (result.changes === 0) {
-      // Outro processo mudou o status entre o SELECT e o UPDATE
-      stmtRollback.run();
-      return json({ error: 'Agendamento não pode mais ser reagendado' }, 409);
-    }
-
-    stmtCommit.run();
 
     return json({
       ok: true,
@@ -154,7 +123,6 @@ export const POST: APIRoute = async ({ params, request }) => {
       timeLocal: formatInTimeZone(newStart, TZ, 'HH:mm'),
     });
   } catch (err) {
-    try { stmtRollback.run(); } catch { /* noop */ }
     console.error('[api/appointments/by-token/reschedule POST]', err);
     return json({ error: 'Erro interno ao reagendar' }, 500);
   }

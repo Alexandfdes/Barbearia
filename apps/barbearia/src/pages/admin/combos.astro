@@ -5,17 +5,19 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getSession } from '../../lib/session.js';
 import { db } from '../../db/index.js';
 import { barbers, combos, services, products } from '../../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { tenantDaSessao } from '../../lib/tenant.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
 
-const barberRow = db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
-  .from(barbers).where(eq(barbers.id, session.barberId)).all()[0];
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 if (session.role !== 'admin') return Astro.redirect('/admin');
 
-const list = db.select({
+const list = (await db.select({
   id: combos.id, name: combos.name, serviceId: combos.serviceId, productId: combos.productId,
   discountPct: combos.discountPct, weekdays: combos.weekdays, image: combos.image, active: combos.active,
   serviceName: services.name, productName: products.name,
@@ -23,10 +25,10 @@ const list = db.select({
   .from(combos)
   .leftJoin(services, eq(services.id, combos.serviceId))
   .leftJoin(products, eq(products.id, combos.productId))
-  .orderBy(combos.sortOrder, combos.id).all();
+  .orderBy(combos.sortOrder, combos.id));
 
-const serviceOpts = db.select({ id: services.id, name: services.name }).from(services).where(eq(services.active, true)).orderBy(services.name).all();
-const productOpts = db.select({ id: products.id, name: products.name }).from(products).where(eq(products.active, true)).orderBy(products.sortOrder).all();
+const serviceOpts = (await db.select({ id: services.id, name: services.name }).from(services).where(and(eq(services.active, true), eq(services.tenantId, tenant.id))).orderBy(services.name));
+const productOpts = (await db.select({ id: products.id, name: products.name }).from(products).where(and(eq(products.active, true), eq(products.tenantId, tenant.id))).orderBy(products.sortOrder));
 
 const WD_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const brl = (c: number) => 'R$ ' + (c / 100).toFixed(2).replace('.', ',');

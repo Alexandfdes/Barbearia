@@ -29,7 +29,7 @@
 
 | Documento | Status | O que responde |
 |---|---|---|
-| `ARQUITETURA-MULTI-TENANT-V1.md` | ✅ **vigente** | Como o sistema é montado: um banco, `tenant_id`, RLS, três aplicações. **Manda em tudo que for código novo** |
+| `ARQUITETURA-MULTI-TENANT-V1.md` | ✅ **vigente** | Como o sistema é montado: um banco, `tenant_id`, RLS, três aplicações. **Manda em tudo que for código novo.** `ARQUITETURA-MULTI-TENANT-V1.md` §12 registra as quatro coisas que o desenho não previa |
 | `ARQUITETURA-COBRANCA-V1.md` | ⚠️ premissas vencidas | Asaas, estados do tenant, os dois aplicativos. Números recalculados em 06/09; o raciocínio de `ARQUITETURA-COBRANCA-V1.md` §1.1 dependia do setup abolido |
 | `ARQUITETURA-PRODUCAO.md` | ✅ vigente | Como fica com N barbearias: VPS, capacidade, custo |
 | `ARQUITETURA-PRODUTO-V1.md` | ⚠️ D1 revertida | D2 a D7 continuam valendo (settings, SSR, mídia, cor de destaque). **A D1 foi substituída** |
@@ -59,6 +59,18 @@ Servem para entender por que o código é como é.
 | `PLANO-A-TOKEN-V2.md` | 📦 implantado |
 | `PLANO-HORARIOS-TRABALHO.md` | 📦 implantado |
 | `PLANO-PORTAL-CLIENTE-V3.md` | 📦 implantado |
+
+## Migrações escritas e não aplicadas
+
+Duas pastas fora de `docs/`, cada uma com o próprio LEIA-ME. Nenhuma foi aplicada; a
+branch `monorepo` não tem nada delas.
+
+| Pasta | O que é | Estado |
+|---|---|---|
+| `migracao-postgres/` | Passo 2: o porte de SQLite para Postgres, 101 arquivos | testado contra um Postgres 16 real |
+| `migracao-tenants/` | Passos 3, 3.5 e 4: `tenants`, `tenant_id`, rede de testes e o escopo de 53 de 54 rotas e páginas, 63 arquivos | testado; aplica **em cima** do passo 2 |
+
+A ordem de aplicação e o que trava o quê estão em `ESTADO-ATUAL.md` §9.
 
 ## Procedimentos
 

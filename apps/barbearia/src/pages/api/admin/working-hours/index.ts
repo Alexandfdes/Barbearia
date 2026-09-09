@@ -2,11 +2,12 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
-import { sqlite, db } from '../../../../db/index.js';
+import { and, eq } from 'drizzle-orm';
+import { db } from '../../../../db/index.js';
 import { barbers, workingHours } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
+import { tenantDaSessao } from '../../../../lib/tenant.js';
 
 // Validação de cada entrada de horário
 const daySchema = z.object({
@@ -26,6 +27,7 @@ const putSchema = z.object({
 export const GET: APIRoute = async ({ request, url }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
 
   const barberIdParam = url.searchParams.get('barberId');
   if (!barberIdParam) return json({ error: 'barberId obrigatório' }, 400);
@@ -38,16 +40,15 @@ export const GET: APIRoute = async ({ request, url }) => {
     return json({ error: 'Acesso negado' }, 403);
   }
 
-  const rows = db.select({
+  const rows = await db.select({
     id:        workingHours.id,
     weekday:   workingHours.weekday,
     startTime: workingHours.startTime,
     endTime:   workingHours.endTime,
   })
     .from(workingHours)
-    .where(eq(workingHours.barberId, barberId))
-    .orderBy(workingHours.weekday)
-    .all();
+    .where(and(eq(workingHours.barberId, barberId), eq(workingHours.tenantId, tenant.id)))
+    .orderBy(workingHours.weekday);
 
   return json({ barberId, hours: rows });
 };
@@ -55,6 +56,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 export const PUT: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
 
   let body: unknown;
   try { body = await request.json(); }
@@ -73,8 +75,8 @@ export const PUT: APIRoute = async ({ request }) => {
   }
 
   // Verifica se o barbeiro existe
-  const barberExists = db.select({ id: barbers.id })
-    .from(barbers).where(eq(barbers.id, barberId)).all();
+  const barberExists = await db.select({ id: barbers.id })
+    .from(barbers).where(and(eq(barbers.id, barberId), eq(barbers.tenantId, tenant.id)));
   if (barberExists.length === 0) {
     return json({ error: 'Barbeiro não encontrado' }, 404);
   }
@@ -97,23 +99,25 @@ export const PUT: APIRoute = async ({ request }) => {
     }
   }
 
-  // Replace atômico: deleta os antigos e insere os novos
-  const replaceStmt = sqlite.transaction(() => {
-    // Deleta todos os working_hours deste barbeiro
-    db.delete(workingHours).where(eq(workingHours.barberId, barberId)).run();
+  // Replace atômico: deleta os antigos e insere os novos.
+  //
+  // Tudo pelo `tx`, nunca pelo `db`: o `db` pega OUTRA conexão do pool, então
+  // um delete no `tx` e um insert no `db` rodariam em transações diferentes —
+  // o barbeiro poderia ficar sem nenhum horário se o insert falhasse.
+  await db.transaction(async (tx) => {
+    await tx.delete(workingHours).where(and(eq(workingHours.barberId, barberId), eq(workingHours.tenantId, tenant.id)));
 
     // Insere os novos (se houver — dias desabilitados simplesmente não são enviados)
-    for (const h of hours) {
-      db.insert(workingHours).values({
+    if (hours.length > 0) {
+      await tx.insert(workingHours).values(hours.map(h => ({
+        tenantId:  tenant.id,
         barberId,
         weekday:   h.weekday,
         startTime: h.startTime,
         endTime:   h.endTime,
-      }).run();
+      })));
     }
   });
-
-  replaceStmt();
 
   return json({ ok: true, barberId, saved: hours.length });
 };

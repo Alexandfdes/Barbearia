@@ -1,21 +1,23 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
 import { db } from '../../../../db/index.js';
 import { appointments, barbers, services } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSettings, waUrl } from '../../../../lib/settings.js';
+import { tenantDoHost } from '../../../../lib/tenant.js';
 
 const TZ = 'America/Fortaleza';
 
-export const GET: APIRoute = ({ params }) => {
+export const GET: APIRoute = async ({ params, request }) => {
+  const tenant = tenantDoHost(request);
   const { token } = params;
   if (!token) return json({ error: 'Token inválido' }, 400);
 
   try {
-    const rows = db
+    const rows = await db
       .select({
         id:              appointments.id,
         manageToken:     appointments.manageToken,
@@ -37,8 +39,7 @@ export const GET: APIRoute = ({ params }) => {
       .from(appointments)
       .innerJoin(barbers, eq(barbers.id, appointments.barberId))
       .innerJoin(services, eq(services.id, appointments.serviceId))
-      .where(eq(appointments.manageToken, token))
-      .all();
+      .where(and(eq(appointments.manageToken, token), eq(appointments.tenantId, tenant.id)));
 
     if (rows.length === 0) return json({ error: 'Agendamento não encontrado' }, 404);
 
@@ -47,7 +48,7 @@ export const GET: APIRoute = ({ params }) => {
     const dateLocal = formatInTimeZone(startsAtDate, TZ, 'dd/MM/yyyy');
     const timeLocal = formatInTimeZone(startsAtDate, TZ, 'HH:mm');
 
-    const s = getSettings();
+    const s = await getSettings();
     const whatsappText = s.whatsappNumber
       ? `Olá! Agendei *${appt.serviceName}* com *${appt.barberName}* no dia *${dateLocal}* às *${timeLocal}*.`
       : null;

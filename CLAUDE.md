@@ -91,9 +91,19 @@ O `README.md` da raiz foi reescrito em 06/09 e descreve o monorepo.
 Todo caminho abaixo é a partir de `apps/barbearia/`.
 
 **Passo 1 de `ARQUITETURA-MULTI-TENANT-V1.md` §9 — feito.** `src/lib/tenant.ts` é o único
-resolvedor de tenant, `src/lib/settings.ts` centraliza toda leitura e escrita da tabela
-`settings`, e `pastaDeMidia()`/`urlDeMidia()` são os únicos lugares que montam caminho de
-mídia.
+resolvedor de tenant e `src/lib/settings.ts` centraliza toda leitura e escrita da tabela
+`settings`.
+
+⚠️ **Correção de 06/09/2026:** este parágrafo afirmava também que
+`pastaDeMidia()`/`urlDeMidia()` eram "os únicos lugares que montam caminho de mídia".
+**Elas não existiam** — só o `tests/tenant.test.ts` as referenciava, e por isso o teste não
+compilava. A terceira costura do passo 1 ficou por fazer e só foi escrita em 06/09, dentro
+do passo 3.5 (`migracao-tenants/`). Fica como lembrete: documento que afirma "feito" sem
+alguém ter aberto o arquivo é o erro que este projeto mais comete.
+
+**Passos 3, 3.5 e 4 — escritos e testados, NÃO aplicados.** Tabela `tenants`, `tenant_id`
+nas 12 tabelas, rede de testes portada, e 53 de 54 rotas e páginas escopadas por tenant.
+Tudo em `migracao-tenants/`, com o LEIA-ME de lá. Depende do passo 2 estar aplicado.
 
 **Passo 2 (Postgres) — escrito e testado, NÃO aplicado.** O porte inteiro está em
 `migracao-postgres/porte-postgres.patch`, verificado contra um PostgreSQL 16 real. O

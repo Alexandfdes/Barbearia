@@ -93,6 +93,29 @@ que é **pequeno**, antes que um cliente decida que refazer o site inteiro é pe
 
 ---
 
+### 1.5 🔴 `[DECISÃO]` Como o barbeiro entra no painel com várias barbearias
+
+**Trava o fim do passo 4 do multi-tenant.** Verificado em 06/09/2026: das 54 rotas e
+páginas que tocam o banco, 53 foram escopadas por tenant. A que sobrou é
+`apps/barbearia/src/pages/api/auth/login.ts`, e não é falta de trabalho.
+
+O login busca o barbeiro por `slug`. Com a migration 0001 esse slug passou a ser único
+**por barbearia** (`UNIQUE (tenant_id, slug)`) em vez de único no mundo. E o painel é
+central — `painel.barbearianoar.com.br` — então não há endereço de onde deduzir de qual
+barbearia é quem está entrando. Dois donos chamados "bayron" colidem.
+
+**Recomendação registrada** em `ARQUITETURA-MULTI-TENANT-V1.md` §6: **login por
+telefone**. Todo barbeiro tem, é único no mundo, e é o mesmo jeito que o cliente já entra
+no portal dele.
+
+**Rejeitado: pedir a barbearia junto com o login** (um campo "sua barbearia" na tela).
+Funciona, mas põe no dono a tarefa de lembrar um identificador que ele nunca escolheu, e
+some com a vantagem de o painel ser um endereço só.
+
+⚠️ **Não ligue o RLS (passo 5) antes de resolver isto.** Com o RLS ligado e essa rota
+ainda sem escopo, ela passa a devolver zero linhas em silêncio: o login para de funcionar
+sem nenhum erro que explique o motivo.
+
 ## 2. Minas no código (verificadas)
 
 ### 2.1 🔴 `[TÉCNICO]` Timezone escrito em 19 arquivos
@@ -120,14 +143,18 @@ no ponto mais sensível do funil.
 
 Correção: pular o passo e ajustar o contador quando `barbers.length === 1`.
 
-### 2.3 🟠 `[TÉCNICO]` O projeto do site do produto não tem controle de versão
+### 2.3 ✅ `[TÉCNICO]` Site do produto sem controle de versão — RESOLVIDO em 06/09/2026
 
-`C:\DEV\produto` tem `.gitignore` mas **não é repositório git** — verificado em
-30/08/2026. A página de vendas, o formulário de onboarding, a caixa de entrada dos
-envios e a autenticação estão todos sem histórico. Um `Remove-Item` errado apaga tudo
-sem volta.
+Era: `C:\DEV\produto` tinha `.gitignore` mas **não era repositório git**, e a página de
+vendas, o onboarding, a caixa de envios e a autenticação estavam sem histórico.
 
-Correção: `git init` e um primeiro commit. Cinco minutos.
+Resolvido pela unificação: o site do produto virou `apps/vendas/` dentro do monorepo, que
+é versionado. Ver `MONOREPO.md`.
+
+⚠️ **`C:\DEV\produto` ainda existe como rede** e deve ser renomeado para
+`_produto-ANTIGO` assim que `ESTADO-ATUAL.md` §9.1 passar. O risco não é perder
+arquivo — é abrir a pasta velha por hábito e trabalhar uma hora no lugar errado. Já
+aconteceu em 06/09.
 
 ---
 
@@ -172,21 +199,81 @@ Depende de §1.2. CSV de clientes e agendamentos, baixável pelo próprio dono n
 
 ## 4. Especificações que faltam escrever
 
-### 4.1 🔴 `[TÉCNICO]` Tela inicial sem fotos
+### 4.1 ✅ `[TÉCNICO]` Tela inicial sem fotos — RESOLVIDA em 06/09/2026
+
+**Topo.** `apps/barbearia/src/components/Hero.astro` tem duas versões: com foto (a de
+sempre) e, sem foto, uma versão tipográfica — fundo escuro, dois focos de brilho na cor
+de destaque **do cliente**, cidade em cima e nome em serifada grande. Verificado
+renderizando as duas, em 1280px e em 390px.
+
+⚠️ **Três defeitos corrigidos junto, e o primeiro era grave:**
+
+1. **Sem foto, o site caía na foto do Bayron.** O fallback era
+   `assets/fotos-videos/foto-inicial5.png`, cravado no código: uma barbearia nova abriria
+   o site e veria a fachada de outra. Pior que retângulo preto. Agora a foto do Bayron só
+   aparece na instância dele, por um interruptor explícito no componente.
+2. **O botão tinha a cor cravada** (`bg-[#0f766e]`), então não seguia a cor do cliente —
+   exatamente o que a skill `barbearia-paleta` proíbe. Virou token `bg-teal`.
+3. **Título e subtítulo eram texto do Bayron no código.** As colunas `tagline` e
+   `hero_subtitle` já existiam na tabela `settings` e **nenhum componente as lia**. Agora
+   o topo usa o que o cliente escreveu.
+
+**Resto da página, feito em 06/09/2026.** O diagnóstico inicial ("as seções vazias
+renderizam") estava certo mas era pequeno demais: quatro componentes **não estavam
+vazios, estavam cheios de conteúdo do Bayron cravado no repositório**.
+
+| Componente | O que uma barbearia nova mostrava | Agora |
+|---|---|---|
+| `Testimonials.astro` | **6 depoimentos com nome de pessoa real** (`data/depoimentos.json`) | Só na instância do Bayron, e só se o arquivo tiver conteúdo |
+| `FAQ.astro` | Perguntas respondidas com a operação do Bayron | Idem |
+| `Gallery.astro` | Fotos do Bayron importadas em tempo de build | Idem |
+| `Services.astro` | Catálogo do Bayron inteiro — "Corte Social", "Degradê + Barba", combos | Lista os serviços **do próprio banco**; sem serviço, a seção some |
+| `Products.astro` | `<h2>Produtos Boris</h2>` cravado, ignorando a coluna `products_section_title` que já existia | Lê a coluna; sem produto ativo, a seção some |
+| `Header.astro` / `Footer.astro` | **Logo do Bayron** como fallback de quem não subiu logo | Sem logo, só o nome |
+| `Footer.astro` | Assinatura "Premium Barber" para todo mundo | Só o Bayron |
+| `Footer.astro` | Link "Painel Administrativo" apontando para **um dia fixo** (`/admin/dia/2026-06-02`) | `/admin` |
+| `Header.astro` | Menu com links fixos para seções que não existem mais | Link cujo alvo não renderiza é removido no carregamento |
+| `Location.astro` | Bloco "Horário" com rótulo e nada embaixo; mapa em branco | Some quando não há horário / endereço |
+
+**Como foi verificado.** O site foi servido duas vezes contra bancos diferentes — um com
+`short_name='Vintage'` e um com `'Bayron'` — e a página renderizada em navegador de
+verdade. Com os arquivos do Bayron **preenchidos** no repositório, o site da Vintage não
+mostrou nenhum deles:
+
+```
+VINTAGE  seções: hero | servicos | localizacao | contato     vazamentos: (nenhum)
+BAYRON   seções: hero | galeria | servicos | depoimentos | localizacao | faq | contato
+```
+
+⚠️ **Um bug encontrado só porque os dois casos foram testados.** `Services.astro` e
+`Products.astro` ficaram com `getSettings()` sem `await` — depois do porte Postgres a
+função é assíncrona, então `cfg.shortName` era `undefined` e a comparação dava `false`
+**sempre**. O site da barbearia nova ficou correto por acidente; **o do Bayron perdeu o
+próprio catálogo**. `astro check` acusa (`Property 'shortName' does not exist on type
+'Promise<Settings>'`), mas o projeto tem 277 erros de base e um erro a mais não aparece.
+Lição em `ARQUITETURA-MULTI-TENANT-V1.md` §12.
+
+**Falta desta seção:** nada no código dos componentes. Mas ver §4.6 — as migrations
+plantam os dados do Bayron em qualquer banco novo, o que desarma tudo isso.
+
+---
+
+### 4.1.1 A regra
 
 Regra acordada: **nenhuma seção meia-boca** — ou tem conteúdo, ou não é renderizada.
 Galeria vazia some, depoimentos vazios somem, produtos somem (a maioria das barbearias
 não vende nada). Sobra um site mínimo de quatro blocos que já é respeitável: topo,
 serviços, localização e rodapé.
 
-O que exige desenho de verdade é o **topo sem foto**: hoje é foto grande com
-escurecimento; sem foto vira retângulo preto. A saída acordada é uma segunda versão
-tipográfica — fundo escuro, brilho na cor de destaque, nome em serifada grande, frase e
-botão — tratada como escolha de design e não como falha.
+⚠️ **Uma seção com o conteúdo de outra barbearia é pior que uma seção vazia.** Foi o que
+o §4.1 encontrou: o problema não era "renderiza vazio", era "renderiza cheio, com dados
+de outro negócio". Ao escrever componente novo, a pergunta não é "e se estiver vazio?",
+é "de quem é esse texto?".
 
 ⚠️ **Ficou mais urgente com o provisionamento automático.** A promessa nova é que o
-cliente pague e já veja a plataforma na cor dele. Se ele pagar e cair num retângulo
-preto, a promessa quebra no primeiro minuto.
+cliente pague e já veja a plataforma na cor dele. Se ele pagar e cair num site com o
+nome, o endereço e as avaliações de outra barbearia, a promessa quebra no primeiro
+minuto — e agora sabemos que é exatamente isso que as migrations fazem (§4.6).
 
 ### 4.2 🟠 `[TÉCNICO]` Cor de destaque — núcleo pronto, pontas soltas
 
@@ -223,6 +310,69 @@ uma barbearia brasileira típica. Não dá para reaproveitar os 20 serviços do 
 os dele, com os preços dele. Mesmo vale para o FAQ padrão e para os textos
 institucionais de exemplo.
 
+**Deixou de travar o provisionamento em 06/09/2026.** `scripts/provisionar.mts` cria a
+barbearia **sem serviço nenhum**, e o site aguenta: a seção de serviços não é renderizada
+até o dono cadastrar o primeiro (§4.1). O script avisa isso na saída.
+
+⚠️ **Mas uma barbearia sem serviço não recebe agendamento.** O site fica apresentável e
+inútil ao mesmo tempo — pior do que parece, porque nada na tela indica que falta algo. É
+por isso que o medidor de completude (§4.4) e um catálogo sugerido continuam valendo: o
+que resolve não é o script, é o dono preencher no primeiro acesso.
+
+---
+
+### 4.6 🔴 `[TÉCNICO]` As migrations plantam os dados do Bayron em todo banco novo
+
+**Descoberto em 06/09/2026, ao testar o §4.1 contra um banco criado do zero.** As
+migrations não criam só tabelas: elas **inserem os dados do Bayron**.
+
+| Migration | O que insere |
+|---|---|
+| `0006_products.sql` | Três produtos Boris (`Óleo Mentolado`, `Balm Classic`, `Tônico`), ativos, com preço e foto |
+| `0007_combos.sql` | O "Combo Boris" |
+| `0009_settings.sql` | A linha `settings` inteira do Bayron: nome, `short_name='Bayron'`, endereço **R. Jaen Menescal, 174**, Instagram `@barbearia_bayron`, horários, SEO, `products_section_title='Produtos Boris'` e **avaliação 5.0 com 227 avaliações** |
+
+**Por que isso é pior que o §4.1.** Todo o trabalho do §4.1 se apoia em
+`shortName === "Bayron"`. A migration `0009` grava exatamente `'Bayron'` nesse campo. Ou
+seja: **uma barbearia nova nasce sendo "Bayron" para o código** e abre todos os portões —
+depoimentos, FAQ, galeria, catálogo e combos do Bayron aparecem no site dela até o
+onboarding sobrescrever o `settings`. Produtos e combos o onboarding **não** apaga.
+
+⚠️ **O item mais grave é a avaliação.** `google_rating='5.0'` e `google_review_count=227`
+saem publicados, com `schema.org/AggregateRating` no HTML, para uma barbearia que nunca
+recebeu uma avaliação. Isso não é "conteúdo errado": é propaganda enganosa assinada pelo
+seu produto, e o Google indexa.
+
+**Parcialmente resolvido em 06/09/2026.** O porte para Postgres foi aplicado, e no mundo
+Postgres o problema não existe: `0000_init_postgres.sql` só cria tabelas, os
+`TEMPLATE_DEFAULTS` de `lib/settings.ts` são neutros, e a `0001` passou a só criar o
+tenant `bayron` quando encontra dados para backfillar. Banco novo nasce com **zero**
+tenants, settings, produtos e serviços — conferido, e coberto pelo teste *"banco novo NÃO
+nasce com o tenant do Bayron"*.
+
+⚠️ **O que continua valendo:** as migrations **de SQLite** ainda têm os INSERT, e qualquer
+instância que ainda rode SQLite nasce com os dados do Bayron. Enquanto a produção não
+estiver migrada, a correção abaixo continua de pé.
+
+**Correção proposta** (não aplicada — decisão do dono):
+
+1. Tirar os `INSERT` de `0006`, `0007` e `0009` das migrations.
+2. `0009` passa a inserir uma linha `settings` **neutra**: nome vazio ou "Sua Barbearia",
+   `google_rating` e `google_review_count` **nulos/zero**, `products_section_title='Produtos'`.
+3. Os dados do Bayron viram um script de seed que só roda na instância dele.
+
+**Risco de mexer em migration já aplicada: nenhum, verificado.** O migrator do Drizzle
+decide o que rodar por **timestamp**, não por hash
+(`drizzle-orm/sqlite-core/dialect.js`: `Number(lastDbMigration[2]) < migration.folderMillis`);
+o hash é gravado e nunca comparado. O banco do Bayron já rodou essas migrations e não vai
+rodá-las de novo — os dados dele ficam. Só banco novo sente a mudança, que é o objetivo.
+
+**Segunda decisão, junto com essa:** `shortName === "Bayron"` é um discriminador ruim.
+É comparação de texto contra um campo que o próprio dono edita no painel. Quando o passo 4
+estiver aplicado, o certo é `tenant.slug === 'bayron'` — identidade que o cliente não
+edita. Hoje há **seis** comparações espalhadas pelos componentes; o mínimo é concentrá-las
+em uma função só, para trocar em um lugar.
+
 ---
 
 ## 5. Verificações pendentes
@@ -240,11 +390,16 @@ institucionais de exemplo.
 
 ## 6. Ordem sugerida
 
-1. **`git init` no projeto do produto** (§2.3). Cinco minutos, evita perda total.
-2. **As duas minas** (§2.1, §2.2). Baratas agora, caras com cliente pagando.
-3. **Registrar o domínio** (§0). Nome escolhido sem domínio registrado é nome de outra pessoa amanhã.
-4. **Tela sem fotos** (§4.1). É o que o cliente vê no minuto seguinte ao pagamento.
-   A cor de destaque (§4.2) já está feita.
+0. **Limpar o seed das migrations** (`PENDENCIAS-ABERTAS.md` §4.6). Subiu para o topo em
+   06/09/2026: enquanto isso não for feito, todo banco novo nasce com o nome, o endereço,
+   os produtos e **as 227 avaliações** do Bayron — e o §4.1 inteiro fica desarmado, porque
+   ele decide pelo `short_name` que a migration grava como `'Bayron'`.
+1. **Decidir o login do painel** (`PENDENCIAS-ABERTAS.md` §1.5). Trava o fim do passo 4 e
+   não pode esperar o RLS.
+2. **As duas minas** (`PENDENCIAS-ABERTAS.md` §2.1, §2.2). Baratas agora, caras com cliente pagando.
+3. **Registrar o domínio** (`PENDENCIAS-ABERTAS.md` §0). Nome escolhido sem domínio registrado é nome de outra pessoa amanhã.
+4. ~~**Tela sem fotos** (§4.1)~~ — feita em 06/09/2026, topo e resto da página.
+   A cor de destaque (§4.2) já estava feita.
 4b. **Política de suporte e medidor de completude** (§1.4, §4.4). A R$ 100 eles decidem
    se existe margem — deixaram de ser melhoria.
 5. **Contrato e política de inadimplência** (§1.2, §1.3). Antes do primeiro real entrar.

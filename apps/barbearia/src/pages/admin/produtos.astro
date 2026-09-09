@@ -5,19 +5,21 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getSession } from '../../lib/session.js';
 import { db } from '../../db/index.js';
 import { barbers, products } from '../../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { tenantDaSessao } from '../../lib/tenant.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
 
-const barberRow = db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
-  .from(barbers).where(eq(barbers.id, session.barberId)).all()[0];
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
 // Gerenciar o catálogo afeta o site público — restrito ao admin.
 if (session.role !== 'admin') return Astro.redirect('/admin');
 
-const list = db.select().from(products).orderBy(products.sortOrder, products.id).all();
+const list = (await db.select().from(products).orderBy(products.sortOrder, products.id));
 const brl = (c: number) => 'R$ ' + (c / 100).toFixed(2).replace('.', ',');
 const reais = (c: number) => (c / 100).toFixed(2);
 ---

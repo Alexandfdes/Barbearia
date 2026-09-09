@@ -3,12 +3,13 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { eq } from 'drizzle-orm';
-import { db } from '../../../../db/index.js';
+import { and, eq } from 'drizzle-orm';
+import { db, first } from '../../../../db/index.js';
 import { products } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { saveProductImage, PRODUCT_UPLOAD_DIR, safeUploadName } from '../../../../lib/uploads.js';
+import { tenantDaSessao } from '../../../../lib/tenant.js';
 
 const IMG_PREFIX = '/api/products/image/';
 
@@ -24,12 +25,13 @@ async function removeUploadedImage(image: string | null): Promise<void> {
 export const PATCH: APIRoute = async ({ request, params }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
 
   const id = parseInt(params.id ?? '', 10);
   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
 
-  const current = db.select().from(products).where(eq(products.id, id)).all()[0];
+  const current = await first(db.select().from(products).where(and(eq(products.id, id), eq(products.tenantId, tenant.id))));
   if (!current) return json({ error: 'Produto não encontrado' }, 404);
 
   let form: FormData;
@@ -68,7 +70,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 
   if (Object.keys(updates).length === 0) return json({ error: 'Nada para atualizar' }, 400);
 
-  db.update(products).set(updates).where(eq(products.id, id)).run();
+  await db.update(products).set(updates).where(and(eq(products.id, id), eq(products.tenantId, tenant.id)));
   if (oldImageToRemove) await removeUploadedImage(oldImageToRemove);
 
   return json({ ok: true });
@@ -79,15 +81,16 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 export const DELETE: APIRoute = async ({ request, params }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
 
   const id = parseInt(params.id ?? '', 10);
   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
 
-  const current = db.select().from(products).where(eq(products.id, id)).all()[0];
+  const current = await first(db.select().from(products).where(and(eq(products.id, id), eq(products.tenantId, tenant.id))));
   if (!current) return json({ error: 'Produto não encontrado' }, 404);
 
-  db.delete(products).where(eq(products.id, id)).run();
+  await db.delete(products).where(and(eq(products.id, id), eq(products.tenantId, tenant.id)));
   await removeUploadedImage(current.image);
 
   return json({ ok: true });

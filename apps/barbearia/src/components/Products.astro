@@ -11,9 +11,9 @@ import { db } from '../db/index';
 import { products } from '../db/schema';
 import { getSettings } from '../lib/settings';
 
-const s = getSettings();
-const temProduto = db.select({ id: products.id }).from(products)
-  .where(eq(products.active, true)).all().length > 0;
+const s = await getSettings();
+const temProduto = (await db.select({ id: products.id }).from(products)
+  .where(eq(products.active, true))).length > 0;
 
 const BAYRON = s.shortName === "Bayron";
 ---

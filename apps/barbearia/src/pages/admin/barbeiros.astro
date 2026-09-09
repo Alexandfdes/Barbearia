@@ -5,21 +5,23 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getSession } from '../../lib/session.js';
 import { db } from '../../db/index.js';
 import { barbers } from '../../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { tenantDaSessao } from '../../lib/tenant.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
 if (session.role !== 'admin') return Astro.redirect('/admin/servicos');
 
-const barberRow = db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
-  .from(barbers).where(eq(barbers.id, session.barberId)).all()[0];
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
-const list = db
+const list = (await db
   .select({ id: barbers.id, name: barbers.name, slug: barbers.slug, role: barbers.role, active: barbers.active })
   .from(barbers)
   .orderBy(barbers.name)
-  .all();
+  );
 
 const activeCount   = list.filter(b => b.active).length;
 const inactiveCount = list.length - activeCount;

@@ -6,11 +6,13 @@ import { db } from '../../../db/index.js';
 import { combos, services, products } from '../../../db/schema.js';
 import { json } from '../../../lib/api.js';
 import { applyDiscountPct } from '../../../lib/combo.js';
+import { tenantDoHost } from '../../../lib/tenant.js';
 
 // Lista pública dos combos ATIVOS (com serviço e produto também ativos), já com
 // preços calculados. A landing filtra pelo dia da semana via `weekdays` (bitmask).
-export const GET: APIRoute = () => {
-  const rows = db
+export const GET: APIRoute = async ({ request }) => {
+  const tenant = tenantDoHost(request);
+  const rows = await db
     .select({
       id:          combos.id,
       name:        combos.name,
@@ -28,9 +30,8 @@ export const GET: APIRoute = () => {
     .from(combos)
     .innerJoin(services, eq(services.id, combos.serviceId))
     .innerJoin(products, eq(products.id, combos.productId))
-    .where(and(eq(combos.active, true), eq(services.active, true), eq(products.active, true)))
-    .orderBy(combos.sortOrder, combos.id)
-    .all();
+    .where(and(eq(combos.active, true), eq(services.active, true), eq(products.active, true), eq(combos.tenantId, tenant.id)))
+    .orderBy(combos.sortOrder, combos.id);
 
   const out = rows.map(r => {
     const svcD = applyDiscountPct(r.serviceCents, r.discountPct);

@@ -2,11 +2,12 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
-import { db } from '../../../../db/index.js';
+import { and, eq } from 'drizzle-orm';
+import { db, first } from '../../../../db/index.js';
 import { barbers } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
+import { tenantDaSessao } from '../../../../lib/tenant.js';
 
 // Slug NÃO é editável: ele é o identificador de login (ver /api/auth/login).
 // Mudá-lo trocaria o usuário de acesso do barbeiro. Por isso fica fora do schema.
@@ -19,6 +20,7 @@ const updateSchema = z.object({
 export const PUT: APIRoute = async ({ request, params }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
 
   const id = parseInt(params.id ?? '', 10);
@@ -36,8 +38,8 @@ export const PUT: APIRoute = async ({ request, params }) => {
     return json({ error: 'Nenhum campo para atualizar' }, 400);
   }
 
-  const target = db.select({ id: barbers.id, role: barbers.role })
-    .from(barbers).where(eq(barbers.id, id)).all()[0];
+  const target = await first(db.select({ id: barbers.id, role: barbers.role })
+    .from(barbers).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id))));
   if (!target) return json({ error: 'Barbeiro não encontrado' }, 404);
 
   // Proteções: o admin logado não pode se trancar pra fora do sistema.
@@ -55,6 +57,6 @@ export const PUT: APIRoute = async ({ request, params }) => {
   if (role   !== undefined) updates.role   = role;
   if (active !== undefined) updates.active = active;
 
-  db.update(barbers).set(updates).where(eq(barbers.id, id)).run();
+  await db.update(barbers).set(updates).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id)));
   return json({ ok: true });
 };

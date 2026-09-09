@@ -30,11 +30,22 @@ npm install postgres drizzle-orm
 npm install -D drizzle-kit
 
 export DATABASE_URL='postgres://usuario:senha@host:5432/barbearia'
-psql "$DATABASE_URL" -f drizzle/0000_init_postgres.sql
+node scripts/startup.mjs      # aplica as migrations
 
 npx tsc --noEmit      # deve dar 0
 npx astro check       # ver §5 antes de olhar o número
 ```
+
+⚠️ **Não rode `psql -f drizzle/0000_init_postgres.sql` à mão.** Uma versão
+anterior deste arquivo mandava fazer isso, e quebra: o `startup.mjs` não fica
+sabendo, tenta aplicar a mesma migration no boot e falha em `CREATE TABLE`
+porque as tabelas já existem. `scripts/startup.mjs` é o único caminho.
+
+⚠️ **`npm remove better-sqlite3` derrubava 6 scripts**, não só os dois listados
+no §6 original. Quatro já foram portados (§8). **Continuam em SQLite e quebram
+quando chamados:** `seed.mjs`, `seed-relatorio-demo.mjs` e
+`wipe-appointments.mjs` — todos ferramentas de desenvolvimento, nenhuma roda no
+boot nem no atendimento. Ver §9 para por que o `seed.mjs` não é só porte.
 
 O patch foi conferido: aplicado sobre o `src/` atual, o resultado bate byte a byte
 com a árvore que passou nos testes.
@@ -178,11 +189,15 @@ nenhum `.astro` — foi exatamente assim que 114 erros de `getSettings()` sem
 
 | | |
 |---|---|
-| `scripts/seed.mjs` | 7 statements ainda em better-sqlite3 |
-| `scripts/startup.mjs` | migrations no boot |
-| Rotina de backup do servidor | cron com `pg_dump`, fora da aplicação |
-| Os 10 arquivos de teste do repo | rodar contra o Postgres |
-| Carga dos dados do Bayron | SQLite → Postgres, com atenção a FK órfã |
+| ~~`scripts/startup.mjs`~~ | ✅ portado — migrador próprio, §8 |
+| ~~`scripts/backup.mjs`~~ | ✅ portado — `pg_dump`, §8 |
+| ~~`scripts/set-admin-password.mjs`~~ | ✅ portado, ciente de tenant |
+| ~~`scripts/settings.mjs`~~ | ✅ portado, ciente de tenant |
+| `scripts/seed.mjs` | ainda em SQLite — e não é só porte, ver §9 |
+| `scripts/seed-relatorio-demo.mjs`, `wipe-appointments.mjs` | ainda em SQLite; ferramentas de desenvolvimento |
+| ~~Rotina de backup do servidor~~ | ✅ o daemon existente já resolve — `backup.mjs` agora usa `pg_dump` |
+| ~~Os 10 arquivos de teste do repo~~ | ✅ 124 testes passando contra Postgres 16 |
+| Carga dos dados do Bayron | SQLite → Postgres, com atenção a FK órfã. Ver a ordem obrigatória em §8 |
 
 ### Duas mudanças de comportamento, ambas para melhor
 
@@ -198,3 +213,88 @@ segue no Zod, como já era. Sem regressão.
 Passos 3 a 7 do `docs/ARQUITETURA-MULTI-TENANT-V1.md` §9: tabela `tenants`,
 escopo nas 49 rotas, RLS, separação dos dois apps, login por telefone e a
 exclusion constraint.
+
+
+## 8. `scripts/startup.mjs` — migrador próprio (06/09/2026)
+
+O `migrate()` do Drizzle depende de `drizzle/meta/_journal.json`, que não existe
+mais: as migrations do Postgres são `.sql` numerados, escritos à mão. O script
+foi reescrito e faz três coisas que o `drizzle-kit` não faz:
+
+**1. Confere o hash.** O `drizzle-kit` decide o que rodar pelo *timestamp* e
+grava o hash sem nunca compará-lo — foi assim que o seed do Bayron ficou meses
+invisível dentro das migrations (`PENDENCIAS-ABERTAS.md` §4.6). Aqui, arquivo já
+aplicado que mudou de conteúdo **aparece como aviso no boot**, em vez de sumir.
+
+**2. Aplica cada migration e registra numa transação só.** Processo morto entre
+aplicar e registrar deixaria a migration rodando de novo no próximo boot. Por
+isso o script remove o `BEGIN;`/`COMMIT;` do arquivo — quem controla a transação
+é ele.
+
+**3. `--ate=0000` para no meio.** Existe por causa de uma operação só: a carga do
+Bayron, de SQLite para Postgres. A 0001 só cria o tenant de backfill quando
+encontra dados, então a ordem obrigatória é:
+
+```bash
+node scripts/startup.mjs --ate=0000   # só cria as tabelas
+<carrega os dados do SQLite>
+node scripts/startup.mjs              # a 0001 encontra os dados e faz o backfill
+```
+
+Rodar as duas de uma vez deixaria todas as linhas carregadas sem `tenant_id`.
+
+**Junto com isso, a 0001 mudou:** ela só cria o tenant `bayron` quando há dados
+para backfillar. Banco novo sai da migration com **zero tenants**, e quem cria o
+do cliente é o provisionamento. Antes, uma barbearia recém-criada nascia com o
+subdomínio `bayron.` e o nome "Barbearia Bayron". Coberto pelo teste
+*"banco novo NÃO nasce com o tenant do Bayron"* em `tests/tenants-schema.test.ts`.
+
+
+## 9. `scripts/seed.mjs` não é problema de porte
+
+Ele **não foi portado de propósito.** O conteúdo dele é do Bayron: três
+barbeiros com nome real (Bayron Patrezio, Emanuel Brilhante, Jackson Viana) e os
+20 serviços dele com os preços dele. Traduzir isso para Postgres só deixaria mais
+fácil provisionar um cliente novo com o catálogo e a equipe de outra barbearia —
+a mesma doença do `PENDENCIAS-ABERTAS.md` §4.6, agora num script.
+
+O que ele precisa virar são **dois** arquivos:
+
+| | |
+|---|---|
+| `seed-bayron.mjs` | Os dados do Bayron. Já rodou em produção; serve para recriar ambiente de desenvolvimento |
+| `provisionar.mjs` | Cria um tenant novo: linha em `tenants`, linha em `settings` e **um** barbeiro admin com a senha que o dono escolheu |
+
+O `provisionar.mjs` depende de duas coisas que ainda não estão decididas: o
+catálogo de serviços padrão (`PENDENCIAS-ABERTAS.md` §4.5) e como o dono entra no
+painel (§1.5). Enquanto isso, ele pode nascer **sem catálogo nenhum** — o site já
+aguenta: desde 06/09/2026 seção sem conteúdo não é renderizada, então uma
+barbearia recém-criada mostra topo, localização e rodapé, e ganha a seção de
+serviços quando o dono cadastrar o primeiro.
+
+## 10. Backup: restauração testada (06/09/2026)
+
+`PENDENCIAS-ABERTAS.md` §3.3 pedia "um teste de restauração de verdade, feito uma
+vez, antes do primeiro cliente pago". Feito, contra Postgres 16:
+
+```bash
+# backup
+DATABASE_URL=... BACKUP_DIR=/tmp/bkp node scripts/backup.mjs
+# restauração num banco vazio
+gunzip -c /tmp/bkp/barbearia_*.sql.gz | psql "$DATABASE_URL_DESTINO"
+```
+
+Conferido no banco restaurado: as linhas voltaram (barbearias, barbeiros,
+serviços, agendamentos com nome e telefone do cliente), as 36 constraints de
+tenant sobreviveram, as sequences continuaram de onde estavam — um `INSERT` novo
+recebeu o id seguinte em vez de colidir — e as constraints ainda recusam
+duplicata.
+
+⚠️ **Um defeito grave apareceu nesse teste, no primeiro `backup.mjs` que escrevi:**
+ele registrava o listener do código de saída do `pg_dump` só *depois* de a escrita
+terminar. Quando o `pg_dump` falhava logo de cara — banco fora do ar — o evento
+já tinha passado, ninguém via o erro, e o script imprimia "✓ Backup criado" para
+um arquivo de 20 bytes com nada dentro. Backup que mente é pior que backup
+ausente: você só descobre no dia em que precisa restaurar. Corrigido, e os dois
+caminhos agora estão cobertos — sucesso grava o dump completo; falha apaga o
+arquivo parcial e sai com código 1.

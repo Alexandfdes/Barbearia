@@ -3,7 +3,17 @@ import { sealData, unsealData } from 'iron-session';
 export const SESSION_COOKIE = '__bayron_session';
 const TTL = 30 * 24 * 60 * 60;
 
-export interface SessionData {
+import type { SessaoComTenant } from './tenant.js';
+
+/**
+ * Sessão do painel.
+ *
+ * Estende `SessaoComTenant` de propósito: é o que permite passar a sessão
+ * direto para `tenantDaSessao()`. No passo 3 (`ARQUITETURA-MULTI-TENANT-V1.md`
+ * §9) o `tenantId` deixa de ser opcional e passa a ser gravado no login — o
+ * campo já existe aqui para que essa mudança não exija tocar em cada rota.
+ */
+export interface SessionData extends SessaoComTenant {
   barberId: number;
   role: 'admin' | 'barber';
 }

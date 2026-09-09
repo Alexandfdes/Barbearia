@@ -1,9 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { addMinutes } from 'date-fns';
 import { fromZonedTime } from 'date-fns-tz';
-import { and, eq } from 'drizzle-orm';
-import { db, sqlite } from '../db/index.js';
+import { and, eq, sql } from 'drizzle-orm';
+import { db, first } from '../db/index.js';
 import { barbers, barberServices, products, services, workingHours } from '../db/schema.js';
+import { tenantAtual, type Tenant } from './tenant.js';
 import { normalizePhone } from './phone.js';
 import { applyDiscountPct } from './combo.js';
 
@@ -14,44 +15,18 @@ function weekdayOf(dateStr: string): number {
   return new Date(Date.UTC(y, m - 1, d, 12)).getDay();
 }
 
-const stmtConflictAppt = sqlite.prepare(`
-  SELECT COUNT(*) as c FROM appointments
-  WHERE barber_id = ? AND status IN ('confirmed','completed')
-  AND starts_at < ? AND ends_at > ?
-`);
-const stmtConflictOff = sqlite.prepare(`
-  SELECT COUNT(*) as c FROM time_off
-  WHERE (barber_id = ? OR barber_id IS NULL)
-  AND starts_at < ? AND ends_at > ?
-`);
-const stmtInsert = sqlite.prepare(`
-  INSERT INTO appointments
-    (barber_id, service_id, customer_name, customer_phone, customer_birthdate,
-     starts_at, ends_at, duration_minutes, price_cents,
-     manage_token, created_by, idempotency_key, notes)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`);
-
-// Item da comanda criado já no agendamento (ex.: produto do Combo Boris).
-const stmtInsertItem = sqlite.prepare(`
-  INSERT INTO appointment_items (appointment_id, service_id, name, price_cents)
-  VALUES (?, ?, ?, ?)
-`);
-
-// Busca por idempotencyKey já usado (cliente clicou 2x e o 1º foi).
-// Retorna o agendamento existente pra responder 200 sem criar duplicado.
-const stmtByIdempotencyKey = sqlite.prepare(`
-  SELECT a.id, a.manage_token, a.status, a.starts_at, a.ends_at,
-         a.duration_minutes, a.price_cents, a.customer_name,
-         b.name AS barber_name, s.name AS service_name
-  FROM appointments a
-  INNER JOIN barbers  b ON b.id = a.barber_id
-  INNER JOIN services s ON s.id = a.service_id
-  WHERE a.idempotency_key = ?
-`);
-const stmtBegin    = sqlite.prepare('BEGIN IMMEDIATE');
-const stmtCommit   = sqlite.prepare('COMMIT');
-const stmtRollback = sqlite.prepare('ROLLBACK');
+/**
+ * Erro interno usado para abortar a transação com um resultado de negócio.
+ *
+ * O Drizzle só faz ROLLBACK quando o callback da transação lança. Como conflito
+ * de horário é resposta 409 e não exceção, ele viaja como este objeto e é
+ * traduzido de volta para `BookResult` logo fora da transação.
+ */
+class ConflitoDeHorario extends Error {
+  constructor(readonly httpStatus: number, readonly motivo: string) {
+    super(motivo);
+  }
+}
 
 export interface BookParams {
   barberId:          number;
@@ -71,6 +46,11 @@ export interface BookParams {
    * nunca envia preço nem desconto.
    */
   combo?:            { productSlug: string; discountPct: number } | null;
+  /**
+   * De quem é este agendamento. Vem do resolvedor (`tenantAtual()`), NUNCA do
+   * corpo da requisição — ver a skill `barbearia-multi-tenant`.
+   */
+  tenant?:           Tenant;
 }
 
 export type BookResult =
@@ -79,9 +59,10 @@ export type BookResult =
       customerName: string; barberName: string; serviceName: string }
   | { ok: false; httpStatus: number; error: string };
 
-export function bookAppointment(params: BookParams): BookResult {
+export async function bookAppointment(params: BookParams): Promise<BookResult> {
   const { barberId, serviceId, customerName, customerBirthdate, startsAt, createdBy } = params;
   const idempotencyKey = params.idempotencyKey ?? null;
+  const tenant = params.tenant ?? tenantAtual();
 
   // Telefone é armazenado SEMPRE normalizado (só dígitos, 10-11). Ponto único
   // de escrita — cobre booking público e manual do admin.
@@ -92,11 +73,20 @@ export function bookAppointment(params: BookParams): BookResult {
 
   // Curto-circuito: se já existe agendamento com essa chave, retorna ele em vez de criar.
   if (idempotencyKey) {
-    const existing = stmtByIdempotencyKey.get(idempotencyKey) as {
+    const existing = await first(db.execute<{
       id: number; manage_token: string; status: string; starts_at: string; ends_at: string;
       duration_minutes: number; price_cents: number; customer_name: string;
       barber_name: string; service_name: string;
-    } | undefined;
+    }>(sql`
+      SELECT a.id, a.manage_token, a.status, a.starts_at, a.ends_at,
+             a.duration_minutes, a.price_cents, a.customer_name,
+             b.name AS barber_name, s.name AS service_name
+      FROM appointments a
+      INNER JOIN barbers  b ON b.id = a.barber_id
+      INNER JOIN services s ON s.id = a.service_id
+      WHERE a.tenant_id = ${tenant.id}
+        AND a.idempotency_key = ${idempotencyKey}
+    `));
     if (existing) {
       return {
         ok: true,
@@ -114,7 +104,7 @@ export function bookAppointment(params: BookParams): BookResult {
     }
   }
 
-  const bsRows = db
+  const bsRows = await db
     .select({
       durationMinutes: barberServices.durationMinutes,
       priceCents:      services.priceCents,
@@ -131,8 +121,8 @@ export function bookAppointment(params: BookParams): BookResult {
       eq(barberServices.active,    true),
       eq(barbers.active,           true),
       eq(services.active,          true),
-    ))
-    .all();
+      eq(barberServices.tenantId,  tenant.id),
+    ));
 
   if (bsRows.length === 0) {
     return { ok: false, httpStatus: 404, error: 'Barbeiro ou serviço não encontrado' };
@@ -149,11 +139,11 @@ export function bookAppointment(params: BookParams): BookResult {
   if (combo) {
     const pct = combo.discountPct;
     // Produto vem do banco (tabela products) — precisa existir e estar ativo.
-    const product = db
+    const product = await first(db
       .select({ name: products.name, priceCents: products.priceCents })
       .from(products)
-      .where(and(eq(products.slug, combo.productSlug), eq(products.active, true)))
-      .all()[0];
+      .where(and(eq(products.slug, combo.productSlug), eq(products.active, true),
+                 eq(products.tenantId, tenant.id))));
     if (!product) {
       return { ok: false, httpStatus: 400, error: 'Produto do combo inválido' };
     }
@@ -166,11 +156,11 @@ export function bookAppointment(params: BookParams): BookResult {
   const dateStr = startsAt.toISOString().slice(0, 10);
   const dow     = weekdayOf(dateStr);
 
-  const whRows = db
+  const whRows = await db
     .select()
     .from(workingHours)
-    .where(and(eq(workingHours.barberId, barberId), eq(workingHours.weekday, dow)))
-    .all();
+    .where(and(eq(workingHours.barberId, barberId), eq(workingHours.weekday, dow),
+               eq(workingHours.tenantId, tenant.id)));
 
   if (whRows.length === 0) {
     return { ok: false, httpStatus: 400, error: 'Barbeiro não trabalha nesse dia' };
@@ -193,36 +183,63 @@ export function bookAppointment(params: BookParams): BookResult {
   const manageToken = randomBytes(18).toString('base64url');
 
   try {
-    stmtBegin.run();
+    const novoId = await db.transaction(async (tx) => {
+      // Equivalente ao `BEGIN IMMEDIATE` do SQLite: serializa as reservas do
+      // MESMO barbeiro, para que duas requisições simultâneas não passem as
+      // duas pela checagem de conflito abaixo. O lock cai sozinho no fim da
+      // transação. A garantia definitiva vem da exclusion constraint
+      // (`ARQUITETURA-MULTI-TENANT-V1.md` §9, passo 7) — isto é o que segura
+      // até lá, e continua barato depois.
+      // `barbers.id` é serial global: dois tenants nunca compartilham o mesmo
+      // id, então o lock por barbeiro continua correto sem entrar o tenant.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${barberId})`);
 
-    const apptConflict = (stmtConflictAppt.get(barberId, endsAtIso, startsAtIso) as { c: number }).c;
-    if (apptConflict > 0) {
-      stmtRollback.run();
-      return { ok: false, httpStatus: 409, error: 'Horário não está mais disponível' };
-    }
+      const apptConflict = Number((await first(tx.execute<{ c: string }>(sql`
+        SELECT COUNT(*) AS c FROM appointments
+        WHERE tenant_id = ${tenant.id}
+          AND barber_id = ${barberId} AND status IN ('confirmed','completed')
+          AND starts_at < ${endsAtIso} AND ends_at > ${startsAtIso}
+      `)))?.c ?? 0);
+      if (apptConflict > 0) {
+        throw new ConflitoDeHorario(409, 'Horário não está mais disponível');
+      }
 
-    const offConflict = (stmtConflictOff.get(barberId, endsAtIso, startsAtIso) as { c: number }).c;
-    if (offConflict > 0) {
-      stmtRollback.run();
-      return { ok: false, httpStatus: 409, error: 'Horário bloqueado' };
-    }
+      const offConflict = Number((await first(tx.execute<{ c: string }>(sql`
+        SELECT COUNT(*) AS c FROM time_off
+        WHERE tenant_id = ${tenant.id}
+          AND (barber_id = ${barberId} OR barber_id IS NULL)
+          AND starts_at < ${endsAtIso} AND ends_at > ${startsAtIso}
+      `)))?.c ?? 0);
+      if (offConflict > 0) {
+        throw new ConflitoDeHorario(409, 'Horário bloqueado');
+      }
 
-    const result = stmtInsert.run(
-      barberId, serviceId, customerName, customerPhone, customerBirthdate,
-      startsAtIso, endsAtIso, durationMinutes, finalPriceCents, manageToken, createdBy,
-      idempotencyKey, notes
-    );
+      const inserido = await first(tx.execute<{ id: number }>(sql`
+        INSERT INTO appointments
+          (tenant_id, barber_id, service_id, customer_name, customer_phone, customer_birthdate,
+           starts_at, ends_at, duration_minutes, price_cents,
+           manage_token, created_by, idempotency_key, notes)
+        VALUES (${tenant.id}, ${barberId}, ${serviceId}, ${customerName}, ${customerPhone},
+                ${customerBirthdate}, ${startsAtIso}, ${endsAtIso}, ${durationMinutes},
+                ${finalPriceCents}, ${manageToken}, ${createdBy}, ${idempotencyKey}, ${notes})
+        RETURNING id
+      `));
+      const id = inserido!.id;
 
-    // Produto do combo entra como item da comanda na MESMA transação.
-    if (comboItem) {
-      stmtInsertItem.run(result.lastInsertRowid, null, comboItem.name, comboItem.priceCents);
-    }
+      // Produto do combo entra como item da comanda na MESMA transação.
+      if (comboItem) {
+        await tx.execute(sql`
+          INSERT INTO appointment_items (tenant_id, appointment_id, service_id, name, price_cents)
+          VALUES (${tenant.id}, ${id}, NULL, ${comboItem.name}, ${comboItem.priceCents})
+        `);
+      }
 
-    stmtCommit.run();
+      return id;
+    });
 
     return {
       ok: true,
-      id: result.lastInsertRowid,
+      id: novoId,
       manageToken,
       status: 'confirmed',
       startsAt: startsAtIso,
@@ -234,7 +251,9 @@ export function bookAppointment(params: BookParams): BookResult {
       serviceName,
     };
   } catch (err) {
-    try { stmtRollback.run(); } catch { /* noop */ }
+    if (err instanceof ConflitoDeHorario) {
+      return { ok: false, httpStatus: err.httpStatus, error: err.motivo };
+    }
     throw err;
   }
 }

@@ -1,19 +1,20 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { barbers } from '../../db/schema.js';
 import { json } from '../../lib/api.js';
+import { tenantDoHost } from '../../lib/tenant.js';
 
-export const GET: APIRoute = () => {
+export const GET: APIRoute = async ({ request }) => {
+  const tenant = tenantDoHost(request);
   try {
-    const result = db
+    const result = await db
       .select({ id: barbers.id, name: barbers.name, slug: barbers.slug })
       .from(barbers)
-      .where(eq(barbers.active, true))
-      .orderBy(barbers.id)
-      .all();
+      .where(and(eq(barbers.active, true), eq(barbers.tenantId, tenant.id)))
+      .orderBy(barbers.id);
 
     return json(result);
   } catch (err) {

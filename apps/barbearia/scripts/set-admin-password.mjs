@@ -1,26 +1,38 @@
 /**
- * Define/reseta a senha de um barbeiro direto no banco — útil quando você
- * ficou sem acesso ao painel (não dá pra trocar senha pela UI sem logar).
+ * Define/reseta a senha de um barbeiro direto no banco — o caminho de suporte
+ * para quando o dono perdeu o acesso ao painel (não dá para trocar a senha pela
+ * interface sem estar logado).
  *
  * Uso:
  *   node scripts/set-admin-password.mjs <slug> <novaSenha>
  *   node scripts/set-admin-password.mjs bayron "Bayron@2026"
  *
- * Se omitir os argumentos, usa slug "bayron" e a senha de ADMIN_NEW_PASSWORD.
- * Pode rodar com o servidor dev ligado (SQLite em WAL aguenta).
+ * Com várias barbearias no mesmo banco, o slug deixou de ser único no mundo
+ * (`UNIQUE (tenant_id, slug)` na migration 0001). Quando o mesmo slug existir em
+ * mais de uma, o script mostra quais são e pede a barbearia:
  *
- * Vars de ambiente (opcionais):
- *   DATABASE_PATH      (default: ./data/appointments.db)
- *   ADMIN_NEW_PASSWORD (usada se a senha não vier por argumento)
+ *   node scripts/set-admin-password.mjs bayron "senha" --tenant=cortes-do-ze
+ *
+ * Vars de ambiente:
+ *   DATABASE_URL        (obrigatória)
+ *   ADMIN_NEW_PASSWORD  (usada se a senha não vier por argumento)
  */
-import Database from 'better-sqlite3';
+import postgres from 'postgres';
 import bcrypt from 'bcryptjs';
 
-const DB_PATH = process.env.DATABASE_PATH ?? './data/appointments.db';
 const BCRYPT_COST = 12;
 
-const slug = (process.argv[2] ?? 'bayron').toLowerCase();
-const password = process.argv[3] ?? process.env.ADMIN_NEW_PASSWORD;
+const url = process.env.DATABASE_URL;
+if (!url) {
+  console.error('ERRO: DATABASE_URL não definido.');
+  process.exit(1);
+}
+
+const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const tenantSlug = process.argv.find((a) => a.startsWith('--tenant='))?.slice(9);
+
+const slug = (args[0] ?? 'bayron').toLowerCase();
+const password = args[1] ?? process.env.ADMIN_NEW_PASSWORD;
 
 if (!password) {
   console.error('ERRO: informe a senha. Ex: node scripts/set-admin-password.mjs bayron "Bayron@2026"');
@@ -31,26 +43,49 @@ if (password.length < 6) {
   process.exit(1);
 }
 
-const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
-db.pragma('busy_timeout = 5000');
+const sql = postgres(url, { max: 1, onnotice: () => {} });
 
-const barber = db.prepare('SELECT id, name, active FROM barbers WHERE slug = ?').get(slug);
-if (!barber) {
-  console.error(`ERRO: nenhum barbeiro com slug "${slug}". Slugs existentes:`,
-    db.prepare('SELECT slug FROM barbers').all().map((r) => r.slug).join(', '));
-  process.exit(1);
+try {
+  const candidatos = await sql`
+    SELECT b.id, b.name, b.active, t.slug AS tenant_slug, t.business_name
+      FROM barbers b
+      JOIN tenants t ON t.id = b.tenant_id
+     WHERE b.slug = ${slug}
+       ${tenantSlug ? sql`AND t.slug = ${tenantSlug}` : sql``}
+  `;
+
+  if (candidatos.length === 0) {
+    const todos = await sql`
+      SELECT b.slug, t.slug AS tenant_slug FROM barbers b JOIN tenants t ON t.id = b.tenant_id
+       ORDER BY t.slug, b.slug
+    `;
+    console.error(`ERRO: nenhum barbeiro com slug "${slug}"${tenantSlug ? ` na barbearia "${tenantSlug}"` : ''}.`);
+    console.error('Existentes:', todos.map((r) => `${r.tenant_slug}/${r.slug}`).join(', ') || '(nenhum)');
+    process.exit(1);
+  }
+
+  // Trocar a senha do barbeiro errado é pior do que não trocar nenhuma: dá
+  // acesso ao painel de outra barbearia. Na dúvida, o script não escolhe.
+  if (candidatos.length > 1) {
+    console.error(`ERRO: o slug "${slug}" existe em ${candidatos.length} barbearias:`);
+    for (const c of candidatos) console.error(`  --tenant=${c.tenant_slug}   (${c.business_name})`);
+    console.error('Repita o comando com --tenant=<slug da barbearia>.');
+    process.exit(1);
+  }
+
+  const barbeiro = candidatos[0];
+  const hash = bcrypt.hashSync(password, BCRYPT_COST);
+
+  // Reativa junto: senão o login recusa mesmo com a senha certa, e o suporte
+  // fica caçando por que "a senha nova não funciona".
+  await sql`UPDATE barbers SET password_hash = ${hash}, active = true WHERE id = ${barbeiro.id}`;
+
+  if (!barbeiro.active) console.log('(barbeiro estava inativo — reativado)');
+  console.log(`✓ Senha de "${barbeiro.name}" (${barbeiro.tenant_slug}/${slug}) atualizada.`);
+  console.log('Agora é só logar no painel com essa senha.');
+} catch (erro) {
+  console.error('✕ Falhou:', erro.message);
+  process.exitCode = 1;
+} finally {
+  await sql.end({ timeout: 5 });
 }
-
-const hash = bcrypt.hashSync(password, BCRYPT_COST);
-const res = db.prepare('UPDATE barbers SET password_hash = ? WHERE slug = ?').run(hash, slug);
-
-// Se estava inativo, reativa — senão o login recusa mesmo com a senha certa.
-if (!barber.active) {
-  db.prepare('UPDATE barbers SET active = 1 WHERE slug = ?').run(slug);
-  console.log(`(barbeiro estava inativo — reativado)`);
-}
-
-db.close();
-console.log(`✓ Senha de "${barber.name}" (slug: ${slug}) atualizada. Linhas afetadas: ${res.changes}`);
-console.log('Agora é só logar no painel com essa senha.');

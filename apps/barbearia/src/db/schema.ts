@@ -1,55 +1,81 @@
-import { sqliteTable, integer, text, unique, index } from 'drizzle-orm/sqlite-core';
+import { pgTable, serial, integer, text, boolean, unique, index, timestamp } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
-export const barbers = sqliteTable('barbers', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  name: text('name').notNull(),
+/**
+ * Passo 3 de docs/ARQUITETURA-MULTI-TENANT-V1.md §9.
+ * Uma linha por barbearia. Toda tabela de dados aponta para cá.
+ */
+export const tenants = pgTable('tenants', {
+  id: serial('id').primaryKey(),
+  /** Vira o subdomínio: {slug}.barbearianoar.com.br */
   slug: text('slug').notNull().unique(),
+  /** Domínio próprio, quando o cliente paga por um. Nulo é o padrão. */
+  domain: text('domain').unique(),
+  businessName: text('business_name').notNull(),
+  /** active | suspended (inadimplente, dados preservados) | cancelled */
+  status: text('status', { enum: ['active', 'suspended', 'cancelled'] }).notNull().default('active'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const barbers = pgTable('barbers', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
   role: text('role', { enum: ['admin', 'barber'] }).notNull(),
   passwordHash: text('password_hash').notNull(),
-  active: integer('active', { mode: 'boolean' }).notNull().default(true),
-  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
-});
+  active: boolean('active').notNull().default(true),
+  createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
+}, (t) => [
+  unique('barbers_tenant_slug_uq').on(t.tenantId, t.slug),
+]);
 
-export const services = sqliteTable('services', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const services = pgTable('services', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
   name: text('name').notNull(),
-  slug: text('slug').notNull().unique(),
+  slug: text('slug').notNull(),
   priceCents: integer('price_cents').notNull(),
-  active: integer('active', { mode: 'boolean' }).notNull().default(true),
-  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
-});
+  active: boolean('active').notNull().default(true),
+  createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
+}, (t) => [
+  unique('services_tenant_slug_uq').on(t.tenantId, t.slug),
+]);
 
-export const barberServices = sqliteTable('barber_services', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const barberServices = pgTable('barber_services', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
   barberId: integer('barber_id').notNull().references(() => barbers.id),
   serviceId: integer('service_id').notNull().references(() => services.id),
   durationMinutes: integer('duration_minutes').notNull(),
-  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  active: boolean('active').notNull().default(true),
 }, (table) => [
   unique('uniq_barber_service').on(table.barberId, table.serviceId),
 ]);
 
-export const workingHours = sqliteTable('working_hours', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const workingHours = pgTable('working_hours', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
   barberId: integer('barber_id').notNull().references(() => barbers.id),
   weekday: integer('weekday').notNull(), // 0=domingo, 1=segunda...6=sábado
   startTime: text('start_time').notNull(), // "HH:MM"
   endTime: text('end_time').notNull(),     // "HH:MM"
 });
 
-export const timeOff = sqliteTable('time_off', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const timeOff = pgTable('time_off', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
   barberId: integer('barber_id').references(() => barbers.id), // null = vale pra todos (feriado)
   startsAt: text('starts_at').notNull(), // timestamp UTC ISO string
   endsAt: text('ends_at').notNull(),
   reason: text('reason'),
   createdBy: integer('created_by').notNull().references(() => barbers.id),
-  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
 });
 
-export const appointments = sqliteTable('appointments', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const appointments = pgTable('appointments', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
   barberId: integer('barber_id').notNull().references(() => barbers.id),
   serviceId: integer('service_id').notNull().references(() => services.id),
   customerName: text('customer_name').notNull(),
@@ -66,7 +92,7 @@ export const appointments = sqliteTable('appointments', {
   cancelledAt: text('cancelled_at'),
   cancelledBy: text('cancelled_by', { enum: ['customer', 'barber', 'admin'] }),
   notes: text('notes'),
-  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
   createdBy: text('created_by', { enum: ['customer', 'barber'] }).notNull().default('customer'),
   /** Quem fez a última modificação (cancel/reschedule/notes/customer edit) */
   lastModifiedById: integer('last_modified_by_id').references(() => barbers.id),
@@ -81,13 +107,14 @@ export const appointments = sqliteTable('appointments', {
 // Itens extras cobrados no fechamento do atendimento (a "comanda"): o que o
 // cliente consumiu além do serviço agendado — ex.: agendou corte, fez barba também.
 // priceCents e name são snapshot no momento do fechamento.
-export const appointmentItems = sqliteTable('appointment_items', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const appointmentItems = pgTable('appointment_items', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
   appointmentId: integer('appointment_id').notNull().references(() => appointments.id),
   serviceId: integer('service_id').references(() => services.id), // null = item avulso
   name: text('name').notNull(),
   priceCents: integer('price_cents').notNull(),
-  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
 }, (table) => [
   index('appt_items_appt_idx').on(table.appointmentId),
 ]);
@@ -95,15 +122,16 @@ export const appointmentItems = sqliteTable('appointment_items', {
 // Venda de produto avulsa — produto vendido no balcão SEM estar ligado a um
 // agendamento (ex.: cliente entra só pra comprar um óleo Boris). Entra no
 // faturamento como "produto". priceCents é o total da linha (quantidade × unitário).
-export const productSales = sqliteTable('product_sales', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const productSales = pgTable('product_sales', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
   barberId: integer('barber_id').notNull().references(() => barbers.id),
   name: text('name').notNull(),
   quantity: integer('quantity').notNull().default(1),
   priceCents: integer('price_cents').notNull(),
   soldAt: text('sold_at').notNull(), // timestamp UTC ISO string
   createdById: integer('created_by_id').notNull().references(() => barbers.id),
-  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
 }, (table) => [
   index('product_sales_sold_at_idx').on(table.soldAt),
   index('product_sales_barber_idx').on(table.barberId),
@@ -112,34 +140,37 @@ export const productSales = sqliteTable('product_sales', {
 // Catálogo de produtos (linha Boris) — gerenciável pelo barbeiro no admin.
 // Alimenta os cards da landing, o combo e a venda avulsa. image é um caminho:
 // /products/... (estático em public) ou /api/products/image/... (upload no volume).
-export const products = sqliteTable('products', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  slug: text('slug').notNull().unique(),
+export const products = pgTable('products', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
+  slug: text('slug').notNull(),
   name: text('name').notNull(),
   shortDesc: text('short_desc'),
   priceCents: integer('price_cents').notNull(),
   image: text('image'),
-  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  active: boolean('active').notNull().default(true),
   sortOrder: integer('sort_order').notNull().default(0),
-  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
 }, (table) => [
   index('products_active_idx').on(table.active),
+  unique('products_tenant_slug_uq').on(table.tenantId, table.slug),
 ]);
 
 // Combos do dia — gerenciáveis pelo barbeiro. Cada combo é um serviço + um produto
 // fixos, com desconto próprio (discountPct), e aparece nos dias marcados em `weekdays`
 // (bitmask: bit i = dia da semana i, 0=domingo … 6=sábado; 127 = todos os dias).
-export const combos = sqliteTable('combos', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const combos = pgTable('combos', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
   name: text('name').notNull(),
   serviceId: integer('service_id').notNull().references(() => services.id),
   productId: integer('product_id').notNull().references(() => products.id),
   discountPct: integer('discount_pct').notNull().default(10),
   weekdays: integer('weekdays').notNull().default(0),
   image: text('image'),
-  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  active: boolean('active').notNull().default(true),
   sortOrder: integer('sort_order').notNull().default(0),
-  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
 }, (table) => [
   index('combos_active_idx').on(table.active),
 ]);
@@ -147,8 +178,9 @@ export const combos = sqliteTable('combos', {
 // Reservas de produto — cliente reserva pelo site pra retirar na barbearia
 // (sem serviço). O barbeiro vê a lista no admin e marca como retirado (vira
 // venda no faturamento) ou cancela. Nome/preço são snapshot do momento da reserva.
-export const reservations = sqliteTable('reservations', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+export const reservations = pgTable('reservations', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
   productId: integer('product_id').references(() => products.id), // null se o produto for removido depois
   productName: text('product_name').notNull(),
   priceCents: integer('price_cents').notNull(), // unitário, snapshot
@@ -156,7 +188,7 @@ export const reservations = sqliteTable('reservations', {
   customerName: text('customer_name').notNull(),
   customerPhone: text('customer_phone').notNull(),
   status: text('status', { enum: ['pending', 'fulfilled', 'cancelled'] }).notNull().default('pending'),
-  createdAt: text('created_at').notNull().default(sql`(datetime('now'))`),
+  createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
   handledById: integer('handled_by_id').references(() => barbers.id),
   handledAt: text('handled_at'),
 }, (table) => [
@@ -173,7 +205,8 @@ export const reservations = sqliteTable('reservations', {
 // businessHours é o horário de VITRINE (texto de marketing). O horário que
 // manda no agendamento continua sendo a tabela workingHours — as duas divergem
 // legitimamente, e o caso do Bayron prova isso.
-export const settings = sqliteTable('settings', {
+export const settings = pgTable('settings', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
   id: integer('id').primaryKey(),
   businessName: text('business_name').notNull(),
   shortName: text('short_name').notNull(),
@@ -207,5 +240,7 @@ export const settings = sqliteTable('settings', {
   googleRating: text('google_rating'),
   googleReviewCount: integer('google_review_count'),
   productsSectionTitle: text('products_section_title').notNull().default('Produtos'),
-  updatedAt: text('updated_at').notNull().default(sql`(datetime('now'))`),
-});
+  updatedAt: text('updated_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
+}, (t) => [
+  unique('settings_tenant_uq').on(t.tenantId),
+]);

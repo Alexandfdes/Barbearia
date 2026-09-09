@@ -1,8 +1,8 @@
 ---
 import { getSettings, waUrl } from '../lib/settings';
 
-const s = getSettings();
-const whatsappUrl = waUrl(`Olá! Quero agendar um horário na ${s.businessName}.`);
+const s = await getSettings();
+const whatsappUrl = waUrl(`Olá! Quero agendar um horário na ${s.businessName}.`, s);
 ---
 
 <!-- Floating circle button — all screen sizes -->

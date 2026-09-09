@@ -5,10 +5,12 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { services, barberServices, barbers } from '../../db/schema.js';
 import { json } from '../../lib/api.js';
+import { tenantDoHost } from '../../lib/tenant.js';
 
-export const GET: APIRoute = () => {
+export const GET: APIRoute = async ({ request }) => {
+  const tenant = tenantDoHost(request);
   try {
-    const rows = db
+    const rows = await db
       .select({
         serviceId:       services.id,
         serviceName:     services.name,
@@ -22,15 +24,13 @@ export const GET: APIRoute = () => {
       .from(services)
       .innerJoin(barberServices, eq(barberServices.serviceId, services.id))
       .innerJoin(barbers, eq(barbers.id, barberServices.barberId))
-      .where(
-        and(
+      .where(and(     and(
           eq(services.active, true),
           eq(barberServices.active, true),
           eq(barbers.active, true)
         )
-      )
-      .orderBy(services.id, barbers.id)
-      .all();
+     , eq(services.tenantId, tenant.id)))
+      .orderBy(services.id, barbers.id);
 
     // Agrupa barbeiros por serviço
     const map = new Map<number, {

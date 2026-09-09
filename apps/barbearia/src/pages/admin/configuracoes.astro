@@ -1,24 +1,24 @@
 ---
 export const prerender = false;
 
+import { tenantAtual } from '../../lib/tenant.js';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getSession } from '../../lib/session.js';
-import { db } from '../../db/index.js';
-import { barbers } from '../../db/schema.js';
+import { db, first } from '../../db/index.js';
+import { barbers, settings } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { parseBusinessHours, lerSettingsRow } from '../../lib/settings.js';
-import { tenantDaSessao } from '../../lib/tenant.js';
+import { parseBusinessHours } from '../../lib/settings.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
 // A marca da loja é do dono. Barbeiro comum vai para a tela dele.
 if (session.role !== 'admin') return Astro.redirect('/admin/servicos');
 
-const barberRow = db.select({ id: barbers.id, name: barbers.name })
-  .from(barbers).where(eq(barbers.id, session.barberId)).all()[0];
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name })
+  .from(barbers).where(eq(barbers.id, session.barberId)))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
-const cfg = lerSettingsRow(tenantDaSessao(session).id);
+const cfg = (await first(db.select().from(settings).where(eq(settings.tenantId, tenantAtual().id))));
 const horarios = parseBusinessHours(cfg?.businessHours);
 
 type Campo = {

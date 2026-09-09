@@ -4,19 +4,22 @@ export const prerender = false;
 import Layout from '../../layouts/Layout.astro';
 import { db } from '../../db/index.js';
 import { appointments, appointmentItems, barbers, services } from '../../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
 import { ptBR } from 'date-fns/locale';
 import { getSettings, waUrl } from '../../lib/settings';
+import { tenantDoHost } from '../../lib/tenant.js';
 
-const s = getSettings();
+const tenant = tenantDoHost(Astro.request);
+
+const s = await getSettings();
 
 const { token } = Astro.params;
 if (!token) return Astro.redirect('/agendar');
 
 const TZ = 'America/Fortaleza';
 
-const rows = db
+const rows = (await db
   .select({
     id:              appointments.id,
     barberId:        appointments.barberId,
@@ -35,8 +38,8 @@ const rows = db
   .from(appointments)
   .innerJoin(barbers,  eq(barbers.id,  appointments.barberId))
   .innerJoin(services, eq(services.id, appointments.serviceId))
-  .where(eq(appointments.manageToken, token))
-  .all();
+  .where(and(eq(appointments.manageToken, token), eq(appointments.tenantId, tenant.id)))
+  );
 
 if (rows.length === 0) return Astro.redirect('/agendar');
 
@@ -49,11 +52,11 @@ const weekdayRaw = formatInTimeZone(startsAt, TZ, 'EEEE', { locale: ptBR });
 const weekday    = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
 
 // Itens da comanda criados no agendamento (ex.: produto do Combo Boris a retirar).
-const items = db
+const items = (await db
   .select({ name: appointmentItems.name, priceCents: appointmentItems.priceCents })
   .from(appointmentItems)
-  .where(eq(appointmentItems.appointmentId, appt.id))
-  .all();
+  .where(and(eq(appointmentItems.appointmentId, appt.id), eq(appointmentItems.tenantId, tenant.id)))
+  );
 const itemsTotalCents = items.reduce((sum, it) => sum + it.priceCents, 0);
 const totalCents = appt.priceCents + itemsTotalCents;
 
@@ -66,7 +69,7 @@ const isCompleted = appt.status === 'completed';
 const isNoShow    = appt.status === 'no_show';
 
 const whatsappUrl = isConfirmed
-  ? waUrl(`Olá! Agendei *${appt.serviceName}* com *${appt.barberName}* no dia *${dateLocal}* às *${timeLocal}*.`)
+  ? waUrl(`Olá! Agendei *${appt.serviceName}* com *${appt.barberName}* no dia *${dateLocal}* às *${timeLocal}*.`, s)
   : '';
 
 const cancelledLabel = isCancelled && appt.cancelledAt

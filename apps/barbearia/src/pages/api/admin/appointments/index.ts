@@ -9,6 +9,7 @@ import { appointments, barbers, services } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { bookAppointment } from '../../../../lib/bookAppointment.js';
+import { tenantDaSessao } from '../../../../lib/tenant.js';
 
 const TZ = 'America/Fortaleza';
 
@@ -25,6 +26,7 @@ const createSchema = z.object({
 export const GET: APIRoute = async ({ request, url }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
 
   const date         = url.searchParams.get('date');
   const barberIdParam = url.searchParams.get('barberId');
@@ -46,7 +48,7 @@ export const GET: APIRoute = async ({ request, url }) => {
   const dayStart = fromZonedTime(`${date}T00:00:00`, TZ).toISOString();
   const dayEnd   = fromZonedTime(`${date}T23:59:59`, TZ).toISOString();
 
-  const rows = db
+  const rows = await db
     .select({
       id:              appointments.id,
       status:          appointments.status,
@@ -64,13 +66,13 @@ export const GET: APIRoute = async ({ request, url }) => {
     .from(appointments)
     .innerJoin(barbers,  eq(barbers.id,  appointments.barberId))
     .innerJoin(services, eq(services.id, appointments.serviceId))
-    .where(
-      filterBarberId !== null
-        ? and(gte(appointments.startsAt, dayStart), lt(appointments.startsAt, dayEnd), eq(appointments.barberId, filterBarberId))
-        : and(gte(appointments.startsAt, dayStart), lt(appointments.startsAt, dayEnd))
-    )
-    .orderBy(appointments.startsAt)
-    .all();
+    .where(and(
+      eq(appointments.tenantId, tenant.id),
+      gte(appointments.startsAt, dayStart),
+      lt(appointments.startsAt, dayEnd),
+      ...(filterBarberId !== null ? [eq(appointments.barberId, filterBarberId)] : []),
+    ))
+    .orderBy(appointments.startsAt);
 
   return json(rows.map(r => ({
     ...r,
@@ -82,6 +84,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 export const POST: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
 
   let body: unknown;
   try { body = await request.json(); }
@@ -99,7 +102,8 @@ export const POST: APIRoute = async ({ request }) => {
   const startsAt = new Date(startsAtStr);
 
   try {
-    const result = bookAppointment({
+    const result = await bookAppointment({
+      tenant,
       barberId,
       serviceId,
       customerName,

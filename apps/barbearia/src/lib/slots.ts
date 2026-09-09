@@ -25,13 +25,13 @@ function weekdayOf(dateStr: string): number {
  * @param dateStr              Data "YYYY-MM-DD" (fuso de Fortaleza)
  * @param excludeAppointmentId Ignora esse appointment no cálculo (reagendamento)
  */
-export function getAvailableSlots(
+export async function getAvailableSlots(
   barberId: number,
   serviceId: number,
   dateStr: string,
   excludeAppointmentId?: number
-): Date[] {
-  const bsRows = db
+): Promise<Date[]> {
+  const bsRows = await db
     .select({ durationMinutes: barberServices.durationMinutes })
     .from(barberServices)
     .where(
@@ -40,14 +40,13 @@ export function getAvailableSlots(
         eq(barberServices.serviceId, serviceId),
         eq(barberServices.active, true)
       )
-    )
-    .all();
+    );
 
   if (bsRows.length === 0) return [];
   const duration = bsRows[0].durationMinutes;
 
   const dow = weekdayOf(dateStr);
-  const whRows = db
+  const whRows = await db
     .select()
     .from(workingHours)
     .where(
@@ -55,8 +54,7 @@ export function getAvailableSlots(
         eq(workingHours.barberId, barberId),
         eq(workingHours.weekday, dow)
       )
-    )
-    .all();
+    );
 
   if (whRows.length === 0) return [];
 
@@ -64,20 +62,20 @@ export function getAvailableSlots(
   // Calcula slots por janela e junta tudo ordenado.
   const allSlots: Date[] = [];
   for (const wh of whRows) {
-    allSlots.push(...slotsForWindow(barberId, dateStr, wh.startTime, wh.endTime, duration, excludeAppointmentId));
+    allSlots.push(...(await slotsForWindow(barberId, dateStr, wh.startTime, wh.endTime, duration, excludeAppointmentId)));
   }
   return [...new Map(allSlots.map(s => [s.getTime(), s])).values()]
     .sort((a, b) => a.getTime() - b.getTime());
 }
 
-function slotsForWindow(
+async function slotsForWindow(
   barberId: number,
   dateStr: string,
   startTime: string,
   endTime: string,
   duration: number,
   excludeAppointmentId?: number
-): Date[] {
+): Promise<Date[]> {
   const open  = localToUtc(dateStr, startTime);
   const close = localToUtc(dateStr, endTime);
   const openIso  = open.toISOString();
@@ -104,14 +102,13 @@ function slotsForWindow(
         )
       );
 
-  const appts = db
+  const apptRows = await db
     .select({ startsAt: appointments.startsAt, endsAt: appointments.endsAt })
     .from(appointments)
-    .where(apptWhere)
-    .all()
-    .map(r => ({ startsAt: new Date(r.startsAt), endsAt: new Date(r.endsAt) }));
+    .where(apptWhere);
+  const appts = apptRows.map(r => ({ startsAt: new Date(r.startsAt), endsAt: new Date(r.endsAt) }));
 
-  const offs = db
+  const offRows = await db
     .select({ startsAt: timeOff.startsAt, endsAt: timeOff.endsAt })
     .from(timeOff)
     .where(
@@ -120,9 +117,8 @@ function slotsForWindow(
         lt(timeOff.startsAt, closeIso),
         gt(timeOff.endsAt, openIso)
       )
-    )
-    .all()
-    .map(r => ({ startsAt: new Date(r.startsAt), endsAt: new Date(r.endsAt) }));
+    );
+  const offs = offRows.map(r => ({ startsAt: new Date(r.startsAt), endsAt: new Date(r.endsAt) }));
 
   return computeAvailableSlots({ open, close, durationMinutes: duration, appts, offs });
 }

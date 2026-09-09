@@ -5,7 +5,7 @@ import { db } from '../db/index';
 import { services as servicesTable } from '../db/schema';
 import { getSettings } from '../lib/settings';
 
-const cfg = getSettings();
+const cfg = await getSettings();
 
 /**
  * ⚠️ O catálogo abaixo (`categories`) é o do Bayron, cravado no repositório: os
@@ -21,12 +21,11 @@ const cfg = getSettings();
  */
 const BAYRON = cfg.shortName === "Bayron";
 
-const doBanco = BAYRON ? [] : db
+const doBanco = BAYRON ? [] : await db
   .select({ name: servicesTable.name, slug: servicesTable.slug, priceCents: servicesTable.priceCents })
   .from(servicesTable)
   .where(eq(servicesTable.active, true))
-  .orderBy(servicesTable.name)
-  .all();
+  .orderBy(servicesTable.name);
 
 const reais = (c: number) => `R$ ${Math.round(c / 100)}`;
 

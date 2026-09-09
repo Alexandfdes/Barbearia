@@ -1,11 +1,12 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
 import { db } from '../../../../../db/index.js';
 import { appointments, barbers, services } from '../../../../../db/schema.js';
 import { getSettings } from '../../../../../lib/settings.js';
+import { tenantDoHost } from '../../../../../lib/tenant.js';
 
 const TZ = 'America/Fortaleza';
 const SITE_HOST = 'bayron.alexandrefdev.tech';
@@ -33,11 +34,12 @@ function foldLine(line: string): string {
   return out.join('\r\n');
 }
 
-export const GET: APIRoute = ({ params }) => {
+export const GET: APIRoute = async ({ params, request }) => {
+  const tenant = tenantDoHost(request);
   const { token } = params;
   if (!token) return new Response(null, { status: 400 });
 
-  const rows = db
+  const rows = await db
     .select({
       id:           appointments.id,
       status:       appointments.status,
@@ -50,8 +52,7 @@ export const GET: APIRoute = ({ params }) => {
     .from(appointments)
     .innerJoin(barbers,  eq(barbers.id,  appointments.barberId))
     .innerJoin(services, eq(services.id, appointments.serviceId))
-    .where(eq(appointments.manageToken, token))
-    .all();
+    .where(and(eq(appointments.manageToken, token), eq(appointments.tenantId, tenant.id)));
 
   if (rows.length === 0) return new Response(null, { status: 404 });
 
@@ -63,7 +64,7 @@ export const GET: APIRoute = ({ params }) => {
   const end      = toIcsDate(appt.endsAt);
   const uid      = `appointment-${appt.id}@${SITE_HOST}`;
   const url      = `https://${SITE_HOST}/a/${token}`;
-  const s = getSettings();
+  const s = await getSettings();
   const summary  = icsEscape(`${appt.serviceName} com ${appt.barberName} — ${s.businessName}`);
   const location = icsEscape(`${s.addressStreet} — ${s.addressCity}`);
   const description = icsEscape(`Cliente: ${appt.customerName}\nLink: ${url}`);

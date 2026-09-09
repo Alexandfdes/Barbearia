@@ -7,14 +7,16 @@ import { db } from '../../db/index.js';
 import { barbers, timeOff } from '../../db/schema.js';
 import { and, eq, isNull, or } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
+import { tenantDaSessao } from '../../lib/tenant.js';
 
 const TZ = 'America/Fortaleza';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
 
-const barberRow = db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
-  .from(barbers).where(eq(barbers.id, session.barberId)).all()[0];
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
 // Load time-off entries
@@ -31,11 +33,11 @@ const baseQuery = db
   .leftJoin(barbers, eq(barbers.id, timeOff.barberId));
 
 const rawRows = session.role === 'admin'
-  ? baseQuery.orderBy(timeOff.startsAt).all()
-  : baseQuery
-      .where(or(eq(timeOff.barberId, session.barberId), isNull(timeOff.barberId)))
+  ? (await baseQuery.orderBy(timeOff.startsAt))
+  : (await baseQuery
+      .where(and(or(eq(timeOff.barberId, session.barberId), isNull(timeOff.barberId)), eq(timeOff.tenantId, tenant.id)))
       .orderBy(timeOff.startsAt)
-      .all();
+      );
 
 const now = new Date();
 const entries = rawRows.map(r => ({
@@ -52,7 +54,7 @@ const entries = rawRows.map(r => ({
 
 // Load all active barbers for the form (admin)
 const allBarbers = session.role === 'admin'
-  ? db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(eq(barbers.active, true)).all()
+  ? (await db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(and(eq(barbers.active, true), eq(barbers.tenantId, tenant.id))))
   : [];
 
 const upcoming = entries.filter(e => !e.isPast);

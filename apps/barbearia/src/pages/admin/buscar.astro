@@ -5,16 +5,18 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getSession } from '../../lib/session.js';
 import { db } from '../../db/index.js';
 import { barbers } from '../../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { tenantDaSessao } from '../../lib/tenant.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
 
-const barberRow = db
+const barberRow = (await db
   .select({ id: barbers.id, name: barbers.name, role: barbers.role })
   .from(barbers)
-  .where(eq(barbers.id, session.barberId))
-  .all()[0];
+  .where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id)))
+  )[0];
 
 if (!barberRow) return Astro.redirect('/admin/login');
 ---

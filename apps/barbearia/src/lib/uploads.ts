@@ -12,16 +12,21 @@ export const UPLOAD_ROOT = process.env.UPLOAD_ROOT ?? join(dirname(DB_PATH), 'up
 /** Mantido para os caminhos de produto já gravados no banco continuarem funcionando. */
 export const PRODUCT_UPLOAD_DIR = join(UPLOAD_ROOT, 'products');
 
+/** As pastas de mídia da marca. Uma por papel — nunca tudo no mesmo saco. */
+export const TIPOS_MIDIA = ['logo', 'hero', 'og', 'favicon', 'galeria'] as const;
+export type TipoMidia = (typeof TIPOS_MIDIA)[number];
+
 /**
- * Pasta de mídia da barbearia no disco. É a ÚNICA função que monta esse caminho
- * — regra 7 da skill: nada de `join()` improvisado dentro de rota.
+ * Terceira costura do passo 1 de `docs/ARQUITETURA-MULTI-TENANT-V1.md` §9:
+ * **os dois únicos lugares que montam caminho de mídia.**
  *
- * HOJE devolve o caminho legado (`uploads/<tipo>`), porque há uma barbearia só e
- * os arquivos já estão gravados assim no disco e referenciados no banco.
+ * Nenhum outro arquivo deve concatenar `UPLOAD_ROOT` com tipo, nem escrever
+ * `/api/media/...` à mão. É o que permite escopar a mídia por barbearia
+ * mexendo em um lugar só.
  *
- * FUTURO (passo 3): `uploads/<tenant.slug>/<tipo>`, com uma migration movendo os
- * arquivos existentes e reescrevendo os caminhos guardados em `settings`.
- * Trocar aqui basta; nenhum chamador monta caminho por conta própria.
+ * ⚠️ A barbearia única mantém o caminho legado, **sem o slug**. Os arquivos já
+ * estão no disco assim e os caminhos estão gravados no banco — inserir o slug
+ * agora quebraria a instância que está em produção.
  */
 export function pastaDeMidia(tipo: TipoMidia, tenant: Tenant = TENANT_UNICO): string {
   return tenant.id === TENANT_UNICO.id
@@ -29,16 +34,12 @@ export function pastaDeMidia(tipo: TipoMidia, tenant: Tenant = TENANT_UNICO): st
     : join(UPLOAD_ROOT, tenant.slug, tipo);
 }
 
-/** Caminho público correspondente. Mesma regra do `pastaDeMidia`. */
+/** O endereço público do arquivo. Mesma regra do legado que `pastaDeMidia`. */
 export function urlDeMidia(tipo: TipoMidia, arquivo: string, tenant: Tenant = TENANT_UNICO): string {
   return tenant.id === TENANT_UNICO.id
     ? `/api/media/${tipo}/${arquivo}`
     : `/api/media/${tenant.slug}/${tipo}/${arquivo}`;
 }
-
-/** As pastas de mídia da marca. Uma por papel — nunca tudo no mesmo saco. */
-export const TIPOS_MIDIA = ['logo', 'hero', 'og', 'favicon', 'galeria'] as const;
-export type TipoMidia = (typeof TIPOS_MIDIA)[number];
 
 /**
  * Larguras geradas em WebP por tipo. O topo da página é o elemento de LCP:
@@ -116,7 +117,6 @@ export interface MidiaSalva {
 export async function salvarMidiaMarca(
   file: File,
   tipo: TipoMidia,
-  tenant: Tenant = TENANT_UNICO,
 ): Promise<MidiaSalva | { error: string }> {
   const ext = MIME_MARCA[file.type];
   if (!ext) return { error: 'A imagem deve ser JPG, PNG, WEBP ou AVIF' };
@@ -124,7 +124,7 @@ export async function salvarMidiaMarca(
 
   const buf = Buffer.from(await file.arrayBuffer());
   const stem = `${Date.now()}-${randomBytes(6).toString('hex')}`;
-  const pasta = pastaDeMidia(tipo, tenant);
+  const pasta = join(UPLOAD_ROOT, tipo);
   await mkdir(pasta, { recursive: true });
 
   await writeFile(join(pasta, `${stem}${ext}`), buf);
@@ -144,7 +144,7 @@ export async function salvarMidiaMarca(
     }
   }
 
-  return { path: urlDeMidia(tipo, `${stem}${ext}`, tenant), larguras };
+  return { path: `/api/media/${tipo}/${stem}${ext}`, larguras };
 }
 
 /**

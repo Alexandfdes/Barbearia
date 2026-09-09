@@ -4,7 +4,7 @@ import { srcsetDe } from '../lib/uploads';
 import { Image } from 'astro:assets';
 import logoSrc from '../assets/Logo-Bayron3.png';
 
-const s = getSettings();
+const s = await getSettings();
 // Mesma regra do Header: o logo empacotado é do Bayron; ninguém mais o usa.
 const BAYRON = s.shortName === "Bayron";
 const temHorario = s.businessHours.length > 0;

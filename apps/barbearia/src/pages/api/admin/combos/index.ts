@@ -1,12 +1,13 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { eq } from 'drizzle-orm';
-import { db } from '../../../../db/index.js';
+import { and, eq } from 'drizzle-orm';
+import { db, first } from '../../../../db/index.js';
 import { combos, services, products } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { saveProductImage } from '../../../../lib/uploads.js';
+import { tenantDaSessao } from '../../../../lib/tenant.js';
 
 function parseIntField(form: FormData, key: string): number {
   return parseInt(String(form.get(key) ?? ''), 10);
@@ -16,8 +17,9 @@ function parseIntField(form: FormData, key: string): number {
 export const GET: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
 
-  const rows = db.select({
+  const rows = await db.select({
     id: combos.id, name: combos.name, serviceId: combos.serviceId, productId: combos.productId,
     discountPct: combos.discountPct, weekdays: combos.weekdays, image: combos.image,
     active: combos.active, sortOrder: combos.sortOrder,
@@ -26,8 +28,8 @@ export const GET: APIRoute = async ({ request }) => {
     .from(combos)
     .leftJoin(services, eq(services.id, combos.serviceId))
     .leftJoin(products, eq(products.id, combos.productId))
-    .orderBy(combos.sortOrder, combos.id)
-    .all();
+    .where(eq(combos.tenantId, tenant.id))
+    .orderBy(combos.sortOrder, combos.id);
   return json(rows);
 };
 
@@ -35,6 +37,7 @@ export const GET: APIRoute = async ({ request }) => {
 export const POST: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
 
   let form: FormData;
@@ -48,9 +51,9 @@ export const POST: APIRoute = async ({ request }) => {
   const productId = parseIntField(form, 'productId');
   if (isNaN(serviceId) || isNaN(productId)) return json({ error: 'Escolha o serviço e o produto' }, 400);
 
-  const svc = db.select({ id: services.id }).from(services).where(eq(services.id, serviceId)).all()[0];
+  const svc = await first(db.select({ id: services.id }).from(services).where(and(eq(services.id, serviceId), eq(services.tenantId, tenant.id))));
   if (!svc) return json({ error: 'Serviço não encontrado' }, 400);
-  const prod = db.select({ id: products.id }).from(products).where(eq(products.id, productId)).all()[0];
+  const prod = await first(db.select({ id: products.id }).from(products).where(and(eq(products.id, productId), eq(products.tenantId, tenant.id))));
   if (!prod) return json({ error: 'Produto não encontrado' }, 400);
 
   let discountPct = parseIntField(form, 'discountPct');
@@ -69,12 +72,12 @@ export const POST: APIRoute = async ({ request }) => {
     image = res.path;
   }
 
-  const sorts = db.select({ s: combos.sortOrder }).from(combos).all();
+  const sorts = await db.select({ s: combos.sortOrder }).from(combos);
   const nextSort = (sorts.length ? Math.max(...sorts.map(r => r.s)) : 0) + 1;
 
-  const result = db.insert(combos).values({
+  const result = await db.insert(combos).values({ tenantId: tenant.id,
     name, serviceId, productId, discountPct, weekdays, image, active, sortOrder: nextSort,
-  }).run();
+  }).returning({ id: combos.id });
 
-  return json({ ok: true, id: Number(result.lastInsertRowid) }, 201);
+  return json({ ok: true, id: result[0].id }, 201);
 };

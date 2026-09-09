@@ -9,6 +9,7 @@ import { appointments, appointmentItems, barbers, services, workingHours, timeOf
 import { and, gte, lt, eq, ne, or, isNull } from 'drizzle-orm';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { computeOccupancy } from '../../lib/occupancy.js';
+import { tenantDaSessao } from '../../lib/tenant.js';
 
 const TZ = 'America/Fortaleza';
 const START_HOUR = 9;
@@ -16,13 +17,14 @@ const END_HOUR = 19;
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
 
 // Admin vê o negócio inteiro; barbeiro vê só os próprios dados.
 const isAdmin = session.role === 'admin';
 const viewBarberId: number | null = isAdmin ? null : session.barberId;
 
-const barberRow = db.select({ id: barbers.id, name: barbers.name })
-  .from(barbers).where(eq(barbers.id, session.barberId)).all()[0];
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -78,10 +80,10 @@ interface MonthMetrics {
   ticketCents: number;
 }
 
-function loadMonth(ym: string): MonthMetrics {
+async function loadMonth(ym: string): Promise<MonthMetrics> {
   const { start, end } = monthRange(ym);
 
-  const rows = db
+  const rows = (await db
     .select({
       status: appointments.status,
       startsAt: appointments.startsAt,
@@ -95,8 +97,8 @@ function loadMonth(ym: string): MonthMetrics {
     .from(appointments)
     .innerJoin(barbers,  eq(barbers.id,  appointments.barberId))
     .innerJoin(services, eq(services.id, appointments.serviceId))
-    .where(and(gte(appointments.startsAt, start), lt(appointments.startsAt, end), apptBarberCond))
-    .all();
+    .where(and(gte(appointments.startsAt, start), lt(appointments.startsAt, end), apptBarberCond, eq(appointments.tenantId, tenant.id)))
+    );
 
   let realizadoCents = 0, previstoCents = 0, abertoCents = 0, perdidoCents = 0;
   let servicoCents = 0, produtoCents = 0;
@@ -139,13 +141,13 @@ function loadMonth(ym: string): MonthMetrics {
 
   // Itens (só de concluídos): serviceId NULL = produto do combo Boris;
   // serviceId preenchido = serviço extra adicionado na comanda.
-  const itemRows = db
+  const itemRows = (await db
     .select({ name: appointmentItems.name, priceCents: appointmentItems.priceCents, serviceId: appointmentItems.serviceId, barberName: barbers.name })
     .from(appointmentItems)
     .innerJoin(appointments, eq(appointments.id, appointmentItems.appointmentId))
     .innerJoin(barbers, eq(barbers.id, appointments.barberId))
-    .where(and(gte(appointments.startsAt, start), lt(appointments.startsAt, end), eq(appointments.status, 'completed'), apptBarberCond))
-    .all();
+    .where(and(gte(appointments.startsAt, start), lt(appointments.startsAt, end), eq(appointments.status, 'completed'), apptBarberCond, eq(appointmentItems.tenantId, tenant.id)))
+    );
 
   for (const it of itemRows) {
     realizadoCents += it.priceCents;
@@ -171,13 +173,13 @@ function loadMonth(ym: string): MonthMetrics {
   const ticketCents = completedCount ? Math.round(realizadoCents / completedCount) : 0;
 
   // Vendas de produto avulsas (sem agendamento) — entram como produto realizado.
-  const saleRows = db
+  const saleRows = (await db
     .select({ name: productSales.name, priceCents: productSales.priceCents, barberName: barbers.name })
     .from(productSales)
     .innerJoin(barbers, eq(barbers.id, productSales.barberId))
     .where(and(gte(productSales.soldAt, start), lt(productSales.soldAt, end),
-      viewBarberId != null ? eq(productSales.barberId, viewBarberId) : undefined))
-    .all();
+      viewBarberId != null ? eq(productSales.barberId, viewBarberId) : undefined, eq(productSales.tenantId, tenant.id)))
+    );
   for (const sv of saleRows) {
     realizadoCents += sv.priceCents;
     produtoCents   += sv.priceCents;
@@ -192,16 +194,16 @@ function loadMonth(ym: string): MonthMetrics {
     monthPhones, occAppts, noShowRate, ticketCents };
 }
 
-const cur  = loadMonth(mes);
-const prev = loadMonth(prevMes);
+// Os dois meses são independentes — em rede, um de cada vez custa o dobro.
+const [cur, prev] = await Promise.all([loadMonth(mes), loadMonth(prevMes)]);
 
 // Clientes novos vs recorrentes (chave = telefone normalizado)
 const { start: curStart, end: curEnd } = monthRange(mes);
-const priorRows = db
+const priorRows = (await db
   .select({ phone: appointments.customerPhone })
   .from(appointments)
-  .where(and(lt(appointments.startsAt, curStart), ne(appointments.status, 'cancelled'), apptBarberCond))
-  .all();
+  .where(and(lt(appointments.startsAt, curStart), ne(appointments.status, 'cancelled'), apptBarberCond, eq(appointments.tenantId, tenant.id)))
+  );
 const priorSet = new Set(priorRows.map(r => r.phone));
 let novosCount = 0, recorrentesCount = 0;
 for (const p of cur.monthPhones) (priorSet.has(p) ? recorrentesCount++ : novosCount++);
@@ -209,21 +211,21 @@ const clientesUnicos = cur.monthPhones.size;
 const recorrentesPct = clientesUnicos ? Math.round((recorrentesCount / clientesUnicos) * 100) : 0;
 
 // Ocupação e faixa ociosa (reaproveita occupancy.ts)
-const whRows = db
+const whRows = (await db
   .select({ barberId: workingHours.barberId, weekday: workingHours.weekday, startTime: workingHours.startTime, endTime: workingHours.endTime })
   .from(workingHours)
-  .where(viewBarberId != null ? eq(workingHours.barberId, viewBarberId) : undefined)
-  .all();
+  .where(and(viewBarberId != null ? eq(workingHours.barberId, viewBarberId) : undefined, eq(workingHours.tenantId, tenant.id)))
+  );
 
-const timeOffRows = db
+const timeOffRows = (await db
   .select({ barberId: timeOff.barberId, startsAt: timeOff.startsAt, endsAt: timeOff.endsAt })
   .from(timeOff)
   .where(and(
     lt(timeOff.startsAt, curEnd),
     gte(timeOff.endsAt, curStart),
     viewBarberId != null ? or(isNull(timeOff.barberId), eq(timeOff.barberId, viewBarberId)) : undefined,
-  ))
-  .all();
+    eq(timeOff.tenantId, tenant.id)))
+  );
 
 // Dias do mês a considerar: passados/atual até hoje; mês inteiro se já passou.
 const daysInMonth = new Date(yy, mm, 0).getDate();

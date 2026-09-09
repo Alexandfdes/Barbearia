@@ -3,11 +3,12 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { hash } from 'bcryptjs';
-import { eq } from 'drizzle-orm';
-import { db } from '../../../../db/index.js';
+import { and, eq } from 'drizzle-orm';
+import { db, first } from '../../../../db/index.js';
 import { barbers, barberServices, services, workingHours } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
+import { tenantDaSessao } from '../../../../lib/tenant.js';
 
 const BCRYPT_COST = 12;
 
@@ -28,9 +29,10 @@ const createSchema = z.object({
 export const GET: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
 
-  const rows = db
+  const rows = await db
     .select({
       id:        barbers.id,
       name:      barbers.name,
@@ -40,8 +42,8 @@ export const GET: APIRoute = async ({ request }) => {
       createdAt: barbers.createdAt,
     })
     .from(barbers)
-    .orderBy(barbers.name)
-    .all();
+    .where(eq(barbers.tenantId, tenant.id))
+    .orderBy(barbers.name);
 
   return json(rows);
 };
@@ -50,6 +52,7 @@ export const GET: APIRoute = async ({ request }) => {
 export const POST: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
 
   let body: unknown;
@@ -66,7 +69,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   // Slug é o identificador de login: precisa ser único. Sem sufixo automático —
   // se colidir, o admin escolhe outro (senão geraria um login esquisito).
-  const existing = db.select({ id: barbers.id }).from(barbers).where(eq(barbers.slug, slug)).all();
+  const existing = await db.select({ id: barbers.id }).from(barbers).where(and(eq(barbers.slug, slug), eq(barbers.tenantId, tenant.id)));
   if (existing.length > 0) {
     return json({ error: `O slug "${slug}" já está em uso. Escolha outro.` }, 409);
   }
@@ -75,31 +78,34 @@ export const POST: APIRoute = async ({ request }) => {
 
   // Serviços ativos + uma duração de referência (a já praticada por algum barbeiro,
   // ou 30 min de fallback) para o novo barbeiro nascer oferecendo o catálogo.
-  const activeServices = db.select({ id: services.id }).from(services).where(eq(services.active, true)).all();
-  const refDuration = (serviceId: number): number => {
-    const r = db.select({ d: barberServices.durationMinutes }).from(barberServices)
-      .where(eq(barberServices.serviceId, serviceId)).limit(1).all()[0];
+  const activeServices = await db.select({ id: services.id }).from(services).where(and(eq(services.active, true), eq(services.tenantId, tenant.id)));
+  const refDuration = async (serviceId: number): Promise<number> => {
+    const r = await first(db.select({ d: barberServices.durationMinutes }).from(barberServices)
+      .where(and(eq(barberServices.serviceId, serviceId), eq(barberServices.tenantId, tenant.id))).limit(1));
     return r?.d ?? 30;
   };
-  const serviceSeed = activeServices.map(s => ({ serviceId: s.id, durationMinutes: refDuration(s.id) }));
+  const serviceSeed = await Promise.all(
+    activeServices.map(async s => ({ serviceId: s.id, durationMinutes: await refDuration(s.id) })),
+  );
 
   let newId: number | bigint;
   try {
-    newId = db.transaction((tx) => {
-      const res = tx.insert(barbers).values({ name, slug, role, passwordHash }).run();
-      const id = res.lastInsertRowid as number | bigint;
+    newId = await db.transaction(async (tx) => {
+      const res = await tx.insert(barbers).values({ tenantId: tenant.id, name, slug, role, passwordHash })
+        .returning({ id: barbers.id });
+      const id = res[0].id;
 
       // working_hours: seg–sex 09:00–20:00, sáb 09:00–18:00 (mesmo padrão do seed)
       for (let weekday = 1; weekday <= 5; weekday++) {
-        tx.insert(workingHours).values({ barberId: Number(id), weekday, startTime: '09:00', endTime: '20:00' }).run();
+        await tx.insert(workingHours).values({ tenantId: tenant.id, barberId: Number(id), weekday, startTime: '09:00', endTime: '20:00' });
       }
-      tx.insert(workingHours).values({ barberId: Number(id), weekday: 6, startTime: '09:00', endTime: '18:00' }).run();
+      await tx.insert(workingHours).values({ tenantId: tenant.id, barberId: Number(id), weekday: 6, startTime: '09:00', endTime: '18:00' });
 
       // barber_services: oferece todos os serviços ativos por padrão
       for (const s of serviceSeed) {
-        tx.insert(barberServices).values({
+        await tx.insert(barberServices).values({ tenantId: tenant.id,
           barberId: Number(id), serviceId: s.serviceId, durationMinutes: s.durationMinutes, active: true,
-        }).run();
+        });
       }
       return id;
     });

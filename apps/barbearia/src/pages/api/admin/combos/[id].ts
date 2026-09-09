@@ -3,12 +3,13 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import { eq } from 'drizzle-orm';
-import { db } from '../../../../db/index.js';
+import { and, eq } from 'drizzle-orm';
+import { db, first } from '../../../../db/index.js';
 import { combos, services, products } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { saveProductImage, PRODUCT_UPLOAD_DIR, safeUploadName } from '../../../../lib/uploads.js';
+import { tenantDaSessao } from '../../../../lib/tenant.js';
 
 const IMG_PREFIX = '/api/products/image/';
 
@@ -23,12 +24,13 @@ async function removeUploadedImage(image: string | null): Promise<void> {
 export const PATCH: APIRoute = async ({ request, params }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
 
   const id = parseInt(params.id ?? '', 10);
   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
 
-  const current = db.select().from(combos).where(eq(combos.id, id)).all()[0];
+  const current = await first(db.select().from(combos).where(and(eq(combos.id, id), eq(combos.tenantId, tenant.id))));
   if (!current) return json({ error: 'Combo não encontrado' }, 404);
 
   let form: FormData;
@@ -44,14 +46,14 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   }
   if (form.has('serviceId')) {
     const serviceId = parseInt(String(form.get('serviceId')), 10);
-    if (isNaN(serviceId) || !db.select({ id: services.id }).from(services).where(eq(services.id, serviceId)).all()[0]) {
+    if (isNaN(serviceId) || !(await first(db.select({ id: services.id }).from(services).where(and(eq(services.id, serviceId), eq(services.tenantId, tenant.id)))))) {
       return json({ error: 'Serviço inválido' }, 400);
     }
     updates.serviceId = serviceId;
   }
   if (form.has('productId')) {
     const productId = parseInt(String(form.get('productId')), 10);
-    if (isNaN(productId) || !db.select({ id: products.id }).from(products).where(eq(products.id, productId)).all()[0]) {
+    if (isNaN(productId) || !(await first(db.select({ id: products.id }).from(products).where(and(eq(products.id, productId), eq(products.tenantId, tenant.id)))))) {
       return json({ error: 'Produto inválido' }, 400);
     }
     updates.productId = productId;
@@ -80,7 +82,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 
   if (Object.keys(updates).length === 0) return json({ error: 'Nada para atualizar' }, 400);
 
-  db.update(combos).set(updates).where(eq(combos.id, id)).run();
+  await db.update(combos).set(updates).where(and(eq(combos.id, id), eq(combos.tenantId, tenant.id)));
   if (oldImageToRemove) await removeUploadedImage(oldImageToRemove);
 
   return json({ ok: true });
@@ -90,15 +92,16 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 export const DELETE: APIRoute = async ({ request, params }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
 
   const id = parseInt(params.id ?? '', 10);
   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
 
-  const current = db.select().from(combos).where(eq(combos.id, id)).all()[0];
+  const current = await first(db.select().from(combos).where(and(eq(combos.id, id), eq(combos.tenantId, tenant.id))));
   if (!current) return json({ error: 'Combo não encontrado' }, 404);
 
-  db.delete(combos).where(eq(combos.id, id)).run();
+  await db.delete(combos).where(and(eq(combos.id, id), eq(combos.tenantId, tenant.id)));
   await removeUploadedImage(current.image);
 
   return json({ ok: true });

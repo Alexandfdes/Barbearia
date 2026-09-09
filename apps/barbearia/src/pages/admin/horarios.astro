@@ -5,20 +5,22 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getSession } from '../../lib/session.js';
 import { db } from '../../db/index.js';
 import { barbers, workingHours } from '../../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { tenantDaSessao } from '../../lib/tenant.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
 
-const barberRow = db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
-  .from(barbers).where(eq(barbers.id, session.barberId)).all()[0];
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
 const isAdmin = session.role === 'admin';
 
 // Lista de barbeiros ativos (admin vê todos, barbeiro vê só o próprio)
 const allBarbers = isAdmin
-  ? db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(eq(barbers.active, true)).orderBy(barbers.name).all()
+  ? (await db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(and(eq(barbers.active, true), eq(barbers.tenantId, tenant.id))).orderBy(barbers.name))
   : [{ id: session.barberId, name: barberRow.name }];
 
 // Barbeiro selecionado na aba (param ?barber=N)
@@ -34,14 +36,14 @@ if (!allBarbers.some(b => b.id === selectedBarberId)) {
 const selectedBarber = allBarbers.find(b => b.id === selectedBarberId);
 
 // Carrega todas as janelas do barbeiro (pode haver mais de uma por dia: manhã + tarde)
-const currentHours = db.select({
+const currentHours = (await db.select({
   weekday:   workingHours.weekday,
   startTime: workingHours.startTime,
   endTime:   workingHours.endTime,
 })
   .from(workingHours)
-  .where(eq(workingHours.barberId, selectedBarberId))
-  .all();
+  .where(and(eq(workingHours.barberId, selectedBarberId), eq(workingHours.tenantId, tenant.id)))
+  );
 
 const WEEKDAY_LABELS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 const WEEKDAY_SHORT  = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];

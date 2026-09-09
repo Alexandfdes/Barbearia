@@ -1,7 +1,7 @@
 ---
 import { getSettings, waUrl } from '../lib/settings';
 
-const s = getSettings();
+const s = await getSettings();
 const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário.', s);
 
 // O Google aceita espaço como "+" na query do embed. Reproduzimos essa forma em

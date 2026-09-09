@@ -4,9 +4,10 @@ import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../../../../db/index.js';
-import { barbers, barberServices, services } from '../../../../db/schema.js';
+import { barberServices, services } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
+import { tenantDaSessao } from '../../../../lib/tenant.js';
 
 function slugify(str: string): string {
   return str.toLowerCase()
@@ -22,6 +23,7 @@ const createSchema = z.object({
 export const GET: APIRoute = async ({ request, url }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
 
   const includeInactive = url.searchParams.get('all') === 'true' && session.role === 'admin';
 
@@ -42,8 +44,8 @@ export const GET: APIRoute = async ({ request, url }) => {
     );
 
   const rows = includeInactive
-    ? baseQuery.orderBy(services.name).all()
-    : baseQuery.where(eq(services.active, true)).orderBy(services.name).all();
+    ? await baseQuery.orderBy(services.name)
+    : await baseQuery.where(and(eq(services.active, true), eq(services.tenantId, tenant.id))).orderBy(services.name);
 
   return json(rows);
 };
@@ -51,6 +53,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 export const POST: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
 
   let body: unknown;
@@ -64,10 +67,11 @@ export const POST: APIRoute = async ({ request }) => {
   let slug = slugify(name);
 
   // Garantir slug único
-  const existing = db.select({ slug: services.slug }).from(services)
-    .where(eq(services.slug, slug)).all();
+  const existing = await db.select({ slug: services.slug }).from(services)
+    .where(and(eq(services.slug, slug), eq(services.tenantId, tenant.id)));
   if (existing.length > 0) slug = `${slug}-${Date.now()}`;
 
-  const result = db.insert(services).values({ name, slug, priceCents }).run();
-  return json({ ok: true, id: result.lastInsertRowid, slug }, 201);
+  const [criado] = await db.insert(services).values({ tenantId: tenant.id, name, slug, priceCents })
+    .returning({ id: services.id });
+  return json({ ok: true, id: criado.id, slug }, 201);
 };
