@@ -1,16 +1,35 @@
 ---
-// Catálogo de produtos (linha Boris) — dinâmico. Busca /api/products e monta os
-// cards; o botão "Reservar" abre um modal que registra a reserva (o barbeiro vê
-// em /admin/reservas). Sem pagamento online: reserva e retira na barbearia.
+// Catálogo de produtos — os cards são montados no navegador a partir de
+// /api/products; o botão "Reservar" abre um modal que registra a reserva (o
+// barbeiro vê em /admin/reservas). Sem pagamento online: reserva e retira.
+//
+// ⚠️ A CONTAGEM é feita aqui, no servidor, só para decidir se a seção existe.
+// A maioria das barbearias não vende nada, e o cabeçalho sozinho com uma grade
+// vazia é a "seção meia-boca" que o `PENDENCIAS-ABERTAS.md` §4.1 proíbe.
+import { eq } from 'drizzle-orm';
+import { db } from '../db/index';
+import { products } from '../db/schema';
+import { getSettings } from '../lib/settings';
+
+const s = getSettings();
+const temProduto = db.select({ id: products.id }).from(products)
+  .where(eq(products.active, true)).all().length > 0;
+
+const BAYRON = s.shortName === "Bayron";
 ---
 
+{temProduto && (
 <section id="produtos" class="py-12 md:py-20 relative">
   <div class="relative z-10 max-w-6xl mx-auto px-4">
     <div class="text-center mb-16">
       <div class="w-10 h-px bg-teal mx-auto mb-6"></div>
-      <span class="text-teal-light text-sm font-medium tracking-[0.25em] uppercase">Linha Exclusiva</span>
-      <h2 class="font-serif text-3xl md:text-5xl font-medium mt-3 mb-4 text-neutral-50">Produtos Boris</h2>
-      <p class="text-neutral-400 max-w-lg mx-auto">Desenvolvidos para quem leva o cuidado pessoal a sério.</p>
+      {BAYRON && (
+        <span class="text-teal-light text-sm font-medium tracking-[0.25em] uppercase">Linha Exclusiva</span>
+      )}
+      <h2 class="font-serif text-3xl md:text-5xl font-medium mt-3 mb-4 text-neutral-50">{s.productsSectionTitle}</h2>
+      {BAYRON && (
+        <p class="text-neutral-400 max-w-lg mx-auto">Desenvolvidos para quem leva o cuidado pessoal a sério.</p>
+      )}
     </div>
 
     <div id="produtos-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6">
@@ -53,6 +72,7 @@
     </div>
   </div>
 </section>
+)}
 
 <script>
   (async () => {

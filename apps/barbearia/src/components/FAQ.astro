@@ -1,4 +1,7 @@
 ---
+import { getSettings } from '../lib/settings';
+
+const s = getSettings();
 import faqs from '../data/faq.json';
 
 const ldJson = {
@@ -13,8 +16,25 @@ const ldJson = {
     }
   }))
 };
+
+/**
+ * ⚠️ Esta seção só aparece na instância do Bayron.
+ *
+ * O conteúdo dela está cravado no repositório e é **dele**: as respostas citam o endereço dele, o TopSalão e os produtos Boris. Numa
+ * barbearia nova isso não seria "seção vazia" — seria a barbearia mostrando
+ * conteúdo de outra como se fosse o próprio.
+ *
+ * Regra do `PENDENCIAS-ABERTAS.md` §4.1: nenhuma seção meia-boca — ou tem
+ * conteúdo do cliente, ou não é renderizada.
+ *
+ * Para generalizar, as sete perguntas são universais, mas as respostas não — precisam vir do painel.
+ */
+const BAYRON = s.shortName === "Bayron";
+const mostrar = BAYRON && faqs.length > 0;
+
 ---
 
+{mostrar && (
 <script type="application/ld+json" set:html={JSON.stringify(ldJson)} />
 
 <section id="faq" class="py-12 md:py-20">
@@ -50,3 +70,4 @@ const ldJson = {
     </div>
   </div>
 </section>
+)}

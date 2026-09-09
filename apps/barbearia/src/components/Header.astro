@@ -10,6 +10,10 @@ interface Props {
 }
 const { solid = false } = Astro.props;
 const s = getSettings();
+
+// O logo em `assets/` é do Bayron e vai junto no build. Barbearia que ainda não
+// subiu logo mostra só o nome — nunca a marca de outra barbearia.
+const BAYRON = s.shortName === "Bayron";
 ---
 
 <header
@@ -27,25 +31,25 @@ const s = getSettings();
           width="40" height="40"
           class="w-10 h-10 rounded-sm object-contain"
         />
-      ) : (
+      ) : BAYRON ? (
         <Image
           src={logoSrc}
           alt={s.businessName}
           width={80}
           class="w-10 h-10 rounded-sm object-contain"
         />
-      )}
+      ) : null}
       <span class="text-base font-semibold tracking-[0.2em] text-white uppercase">{s.shortName}</span>
     </a>
 
     <!-- Desktop Nav -->
     <nav class="hidden lg:flex items-center gap-8 text-sm text-neutral-400 uppercase tracking-wider font-medium">
-      <a href="#servicos" class="hover:text-white transition-colors duration-300">Serviços</a>
-      <a href="#combo" class="hover:text-white transition-colors duration-300">Combos</a>
-      <a href="#produtos" class="hover:text-white transition-colors duration-300">Produtos</a>
-      <a href="#depoimentos" class="hover:text-white transition-colors duration-300">Depoimentos</a>
-      <a href="#faq" class="hover:text-white transition-colors duration-300">FAQ</a>
-      <a href="#contato" class="hover:text-white transition-colors duration-300">Contato</a>
+      <a href="#servicos" data-secao="servicos" class="hover:text-white transition-colors duration-300">Serviços</a>
+      <a href="#combo" data-secao="combo" class="hidden hover:text-white transition-colors duration-300">Combos</a>
+      <a href="#produtos" data-secao="produtos" class="hover:text-white transition-colors duration-300">Produtos</a>
+      <a href="#depoimentos" data-secao="depoimentos" class="hover:text-white transition-colors duration-300">Depoimentos</a>
+      <a href="#faq" data-secao="faq" class="hover:text-white transition-colors duration-300">FAQ</a>
+      <a href="#contato" data-secao="contato" class="hover:text-white transition-colors duration-300">Contato</a>
     </nav>
 
     <div class="flex items-center gap-4">
@@ -82,12 +86,12 @@ const s = getSettings();
   class="fixed inset-0 bg-dark z-40 flex flex-col items-center justify-center gap-8 opacity-0 pointer-events-none transition-opacity duration-300 lg:hidden"
 >
   <nav class="flex flex-col items-center gap-8 text-xl font-medium text-neutral-400 uppercase tracking-wider">
-    <a href="#servicos" class="mobile-link hover:text-white transition-colors">Serviços</a>
-    <a href="#combo" class="mobile-link hover:text-white transition-colors">Combos</a>
-    <a href="#produtos" class="mobile-link hover:text-white transition-colors">Produtos</a>
-    <a href="#depoimentos" class="mobile-link hover:text-white transition-colors">Depoimentos</a>
-    <a href="#faq" class="mobile-link hover:text-white transition-colors">FAQ</a>
-    <a href="#contato" class="mobile-link hover:text-white transition-colors">Contato</a>
+    <a href="#servicos" data-secao="servicos" class="mobile-link hover:text-white transition-colors">Serviços</a>
+    <a href="#combo" data-secao="combo" class="hidden mobile-link hover:text-white transition-colors">Combos</a>
+    <a href="#produtos" data-secao="produtos" class="mobile-link hover:text-white transition-colors">Produtos</a>
+    <a href="#depoimentos" data-secao="depoimentos" class="mobile-link hover:text-white transition-colors">Depoimentos</a>
+    <a href="#faq" data-secao="faq" class="mobile-link hover:text-white transition-colors">FAQ</a>
+    <a href="#contato" data-secao="contato" class="mobile-link hover:text-white transition-colors">Contato</a>
     <a
       href="/portal"
       class="bg-teal hover:bg-teal-hover text-white px-8 py-3 rounded-md mt-4 tracking-widest font-bold"
@@ -99,6 +103,17 @@ const s = getSettings();
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
+    // Seção que não renderiza (barbearia sem produtos, sem depoimentos…) não
+    // pode deixar um link no menu que rola para lugar nenhum. Perguntamos ao
+    // DOM em vez de repetir aqui as condições de cada componente — assim o
+    // menu não sai do lugar quando as regras dos componentes mudarem.
+    // `#combo` é a exceção: existe sempre e o ComboBoris revela o link quando
+    // há combo hoje.
+    document.querySelectorAll('[data-secao]').forEach((a) => {
+      const alvo = a.getAttribute('data-secao');
+      if (alvo !== 'combo' && !document.getElementById(alvo!)) a.remove();
+    });
+
     const header = document.getElementById('header');
     const hero = document.getElementById('hero');
 

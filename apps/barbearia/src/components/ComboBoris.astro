@@ -60,6 +60,9 @@
       }).join("");
 
       section.style.display = "";
+      // O link "Combos" do menu nasce oculto — só faz sentido quando existe
+      // combo hoje. Ver o pruning em Header.astro.
+      document.querySelectorAll('[data-secao="combo"]').forEach((a) => a.classList.remove("hidden"));
     } catch {
       /* falhou: seção fica oculta */
     }

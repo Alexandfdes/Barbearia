@@ -25,8 +25,25 @@ const photos = Object.entries(rawModules)
 const HANDLE = s.instagramHandle;
 // Glifo do Instagram, reusado no cabeçalho de perfil e no overlay dos cards.
 const IG_GLYPH = "M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z";
+
+/**
+ * ⚠️ Esta seção só aparece na instância do Bayron.
+ *
+ * O conteúdo dela está cravado no repositório e é **dele**: as fotos de corte dele, carregadas do repositório em tempo de build. Numa
+ * barbearia nova isso não seria "seção vazia" — seria a barbearia mostrando
+ * conteúdo de outra como se fosse o próprio.
+ *
+ * Regra do `PENDENCIAS-ABERTAS.md` §4.1: nenhuma seção meia-boca — ou tem
+ * conteúdo do cliente, ou não é renderizada.
+ *
+ * Para generalizar, falta ligar a galeria enviada pelo painel: o tipo `galeria` já existe em
+ * `TIPOS_MIDIA` e gera as variantes, mas nada lê essas imagens.
+ */
+const BAYRON = s.shortName === "Bayron";
+
 ---
 
+{BAYRON && (
 <section id="galeria" class="py-12 md:py-20 overflow-hidden bg-dark-alt">
   <div class="max-w-6xl mx-auto px-4">
     <!-- Header -->
@@ -233,3 +250,4 @@ const IG_GLYPH = "M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.91
     requestAnimationFrame(scroll);
   });
 </script>
+)}

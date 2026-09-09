@@ -5,8 +5,12 @@ import { Image } from 'astro:assets';
 import logoSrc from '../assets/Logo-Bayron3.png';
 
 const s = getSettings();
+// Mesma regra do Header: o logo empacotado é do Bayron; ninguém mais o usa.
+const BAYRON = s.shortName === "Bayron";
+const temHorario = s.businessHours.length > 0;
+const temLogo = Boolean(s.logoPath) || BAYRON;
 const currentYear = new Date().getFullYear();
-const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário.');
+const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário.', s);
 ---
 
 <footer id="contato" class="bg-dark relative overflow-hidden">
@@ -19,11 +23,15 @@ const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário
 
   <div class="max-w-6xl mx-auto px-4 pt-20 pb-12 relative z-10">
     <!-- Grid principal: 4 colunas a partir de 850px, 2 colunas no tablet, 1 no mobile -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 lg:gap-8 items-start">
+    {/* Sem a coluna de horários sobrariam 3 colunas num grid de 4, com um
+        buraco à direita. */}
+    <div class:list={["grid grid-cols-1 sm:grid-cols-2 gap-10 lg:gap-8 items-start",
+      temHorario ? "md:grid-cols-4" : "md:grid-cols-3"]}>
 
       <!-- Coluna 1: Brand / Sobre -->
       <div class="space-y-6 flex flex-col items-start text-left">
         <div class="flex items-center gap-3.5 group cursor-default">
+          {temLogo && (
           <div class="relative overflow-hidden rounded-md p-1 bg-white/[0.02] border border-white/5 group-hover:border-teal/30 transition-colors duration-500">
             {s.logoPath ? (
               <img
@@ -34,18 +42,21 @@ const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário
                 width="48" height="48"
                 class="w-8 h-8 object-contain transition-all duration-700 group-hover:scale-110 group-hover:rotate-3 filter drop-shadow-[0_0_8px_rgba(15,118,110,0.4)]"
               />
-            ) : (
+            ) : BAYRON ? (
               <Image
               src={logoSrc}
               alt={s.businessName}
               width={80}
               class="w-8 h-8 object-contain transition-all duration-700 group-hover:scale-110 group-hover:rotate-3 filter drop-shadow-[0_0_8px_rgba(15,118,110,0.4)]"
             />
-            )}
+            ) : null}
           </div>
+          )}
           <div class="flex flex-col text-left">
             <span class="text-base font-serif font-medium tracking-[0.25em] text-cream uppercase transition-colors duration-300 group-hover:text-white">{s.shortName}</span>
-            <span class="text-[8px] tracking-[0.3em] text-neutral-500 uppercase font-sans">Premium Barber</span>
+            {BAYRON && (
+              <span class="text-[8px] tracking-[0.3em] text-neutral-500 uppercase font-sans">Premium Barber</span>
+            )}
           </div>
         </div>
         
@@ -67,7 +78,8 @@ const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário
         </a>
       </div>
 
-      <!-- Coluna 2: Horários (Estilo "Nossa Missão" com blockquote) -->
+      {/* Coluna 2: Horários — some inteira se a barbearia ainda não cadastrou. */}
+      {temHorario && (
       <div class="space-y-5">
         <h4 class="text-xs font-bold uppercase tracking-[0.2em] text-neutral-300">Horários</h4>
         <div class="border-l-2 border-teal pl-4 space-y-4 text-xs leading-relaxed">
@@ -91,6 +103,7 @@ const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário
           })}
         </div>
       </div>
+      )}
 
       <!-- Coluna 3: Contato Corporativo -->
       <div class="space-y-5 w-full">
@@ -155,7 +168,7 @@ const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário
             </a>
           </li>
           <li>
-            <a href="/admin/dia/2026-06-02" class="flex items-center text-neutral-500 hover:text-neutral-300 transition-colors group">
+            <a href="/admin" class="flex items-center text-neutral-500 hover:text-neutral-300 transition-colors group">
               <span class="text-neutral-500/50 mr-2.5 transition-transform duration-200 group-hover:translate-x-0.5 font-mono text-[9px]">&gt;</span>
               Painel Administrativo
             </a>
