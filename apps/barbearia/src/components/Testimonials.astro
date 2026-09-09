@@ -25,8 +25,26 @@ const ldJson = {
     "reviewBody": d.text
   }))
 };
+
+/**
+ * ⚠️ Esta seção só aparece na instância do Bayron.
+ *
+ * O conteúdo dela está cravado no repositório e é **dele**: seis depoimentos com **nome de pessoa real**, que avaliaram a barbearia dele. Numa
+ * barbearia nova isso não seria "seção vazia" — seria a barbearia mostrando
+ * conteúdo de outra como se fosse o próprio.
+ *
+ * Regra do `PENDENCIAS-ABERTAS.md` §4.1: nenhuma seção meia-boca — ou tem
+ * conteúdo do cliente, ou não é renderizada.
+ *
+ * Para generalizar, cada barbearia precisa das próprias avaliações — hoje não há onde guardá-las.
+ */
+const BAYRON = s.shortName === "Bayron";
+// Arquivo vazio = seção vazia. Nem o Bayron mostra carrossel sem avaliação.
+const mostrar = BAYRON && depoimentos.length > 0;
+
 ---
 
+{mostrar && (
 <script type="application/ld+json" set:html={JSON.stringify(ldJson)} />
 
 <section id="depoimentos" class="py-12 md:py-20 bg-dark-alt">
@@ -186,3 +204,4 @@ const ldJson = {
     requestAnimationFrame(tick);
   });
 </script>
+)}

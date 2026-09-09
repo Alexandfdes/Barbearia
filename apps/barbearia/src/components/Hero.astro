@@ -6,69 +6,152 @@ import { getSettings } from "../lib/settings";
 import { srcsetDe } from "../lib/uploads";
 
 const s = getSettings();
+
+/**
+ * O topo tem DUAS versões, e a segunda não é um erro — é escolha de design
+ * (`PENDENCIAS-ABERTAS.md` §4.1).
+ *
+ * 1. **Com foto** (`s.heroPath`): a foto da barbearia, escurecida.
+ * 2. **Sem foto**: versão tipográfica — fundo escuro, brilho na cor de destaque
+ *    do cliente, nome em serifada grande. Nada de retângulo preto.
+ *
+ * ⚠️ A foto do Bayron (`heroImg`) SÓ aparece na instância dele. Antes ela era o
+ * fallback de qualquer barbearia sem foto: um cliente novo abria o site e via a
+ * fachada de outra barbearia. `BAYRON` é o interruptor até a foto sair do
+ * repositório e virar upload como todas as outras.
+ */
+const BAYRON = s.shortName === "Bayron";
+const comFoto = Boolean(s.heroPath) || BAYRON;
+
+/** Título: o do cliente quando existe; o do Bayron continua sendo o dele. */
+const titulo = s.tagline || (BAYRON ? null : s.businessName);
+const subtitulo = s.heroSubtitle;
 ---
 
 <section
   id="hero"
-  class="relative min-h-[100svh] flex items-end lg:items-center overflow-hidden pt-24 pb-28 sm:pb-32 lg:py-24"
+  class:list={[
+    "relative min-h-[100svh] overflow-hidden flex",
+    comFoto
+      ? "items-end lg:items-center pt-24 pb-28 sm:pb-32 lg:py-24"
+      : "items-center py-24",
+  ]}
 >
-  <!-- Background image -->
-  <div class="absolute inset-0 z-0">
-    {s.heroPath ? (
-      <img
-        src={s.heroPath}
-        srcset={srcsetDe(s.heroPath, [640, 1280, 1920])}
-        sizes="100vw"
-        alt={s.businessName}
-        loading="eager"
-        fetchpriority="high"
-        class="w-full h-full object-cover object-[center_20%] lg:object-[70%_30%]"
-      />
-    ) : (
-      <Image
-        src={heroImg}
-        alt={s.businessName}
-        class="w-full h-full object-cover object-[center_20%] lg:object-[70%_30%]"
-        loading="eager"
-        fetchpriority="high"
-        widths={[640, 1280, 1920]}
-        sizes="100vw"
-      />
-    )}
-    <!-- Gradiente inferior: mais denso no mobile para cobrir a roupa -->
-    <div
-      class="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 lg:via-black/40 to-black/10 lg:to-black/10"
-    >
+  {comFoto ? (
+    <div class="absolute inset-0 z-0">
+      {s.heroPath ? (
+        <img
+          src={s.heroPath}
+          srcset={srcsetDe(s.heroPath, [640, 1280, 1920])}
+          sizes="100vw"
+          alt={s.businessName}
+          loading="eager"
+          fetchpriority="high"
+          class="w-full h-full object-cover object-[center_20%] lg:object-[70%_30%]"
+        />
+      ) : (
+        <Image
+          src={heroImg}
+          alt={s.businessName}
+          class="w-full h-full object-cover object-[center_20%] lg:object-[70%_30%]"
+          loading="eager"
+          fetchpriority="high"
+          widths={[640, 1280, 1920]}
+          sizes="100vw"
+        />
+      )}
+      <!-- Gradiente inferior: mais denso no mobile para cobrir a roupa -->
+      <div
+        class="absolute inset-0 bg-gradient-to-t from-black/95 via-black/60 lg:via-black/40 to-black/10 lg:to-black/10"
+      >
+      </div>
+      <!-- Gradiente lateral esquerdo (desktop) -->
+      <div
+        class="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent"
+      >
+      </div>
     </div>
-    <!-- Gradiente lateral esquerdo (desktop) -->
-    <div
-      class="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent"
-    >
+  ) : (
+    <!--
+      Versão tipográfica. O brilho usa a cor de destaque do cliente por variável
+      CSS: `bg-teal` seria opaco demais atrás do texto, e hex cravado escaparia
+      do tema (ver a skill `barbearia-paleta`).
+    -->
+    <div class="absolute inset-0 z-0 bg-dark" aria-hidden="true">
+      <!-- Brilho principal, atrás do texto -->
+      <div
+        class="absolute left-[-10%] top-[35%] h-[85vmin] w-[85vmin] -translate-y-1/2 rounded-full blur-[80px] opacity-55"
+        style="background: radial-gradient(closest-side, var(--color-teal), transparent 72%)"
+      >
+      </div>
+      <!-- Segundo foco, mais claro e menor: dá profundidade em vez de mancha única -->
+      <div
+        class="absolute right-[5%] top-[15%] h-[45vmin] w-[45vmin] rounded-full blur-[70px] opacity-25"
+        style="background: radial-gradient(closest-side, var(--color-teal-light), transparent 70%)"
+      >
+      </div>
+      <!-- Vinheta: fecha as bordas para o brilho não vazar em faixa reta -->
+      <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_25%,rgba(10,10,10,0.85)_100%)]"></div>
+      <div class="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-dark to-transparent"></div>
     </div>
-  </div>
+  )}
 
   <!-- Content -->
   <div class="relative z-10 w-full px-6 sm:px-10 md:px-20 max-w-4xl flex flex-col items-center text-center lg:items-start lg:text-left">
+    {!comFoto && (
+      <span class="mb-5 inline-flex items-center gap-2.5 text-teal-light text-xs font-medium tracking-[0.25em] uppercase">
+        <span class="w-8 h-px bg-teal"></span>
+        {s.addressCity}
+      </span>
+    )}
+
     <h1
-      class="font-serif text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-medium leading-tight text-white mb-2"
+      class:list={[
+        "font-serif font-medium text-white",
+        comFoto
+          ? "leading-tight text-2xl sm:text-3xl md:text-4xl lg:text-5xl"
+          // `leading-[1.15]` e não `leading-tight`: na versão tipográfica a
+          // serifada é bem maior e os acentos encostavam no topo da linha.
+          : "leading-[1.15] text-3xl sm:text-4xl md:text-5xl lg:text-6xl",
+        // Sem subtítulo o botão colava no título — o respiro vem do h1.
+        subtitulo || BAYRON ? "mb-2" : "mb-8",
+      ]}
     >
-      Estilo com
-      <span class="italic text-teal-light">respeito.</span><br />
-      Corte com
-      <span class="italic text-teal-light">precisão.</span>
+      {titulo ? titulo : (
+        <Fragment>
+          Estilo com
+          <span class="italic text-teal-light">respeito.</span><br />
+          Corte com
+          <span class="italic text-teal-light">precisão.</span>
+        </Fragment>
+      )}
     </h1>
 
-    <p
-      class="font-sans text-sm md:text-base text-neutral-300 max-w-md mb-7 leading-relaxed"
-    >
-      Visagismo personalizado que valoriza o formato do seu rosto, seu estilo e
-      sua identidade.
-    </p>
+    {!titulo && !comFoto && (
+      <p class="font-serif text-xl sm:text-2xl italic text-teal-light mb-2">{s.businessName}</p>
+    )}
+
+    {subtitulo && (
+      <p
+        class="font-sans text-sm md:text-base text-neutral-300 max-w-md mb-7 leading-relaxed"
+      >
+        {subtitulo}
+      </p>
+    )}
+
+    {!subtitulo && BAYRON && (
+      <p
+        class="font-sans text-sm md:text-base text-neutral-300 max-w-md mb-7 leading-relaxed"
+      >
+        Visagismo personalizado que valoriza o formato do seu rosto, seu estilo e
+        sua identidade.
+      </p>
+    )}
 
     <a
       href={TOPSALAO_URL}
       id="hero-cta"
-      class="inline-flex items-center gap-3 bg-[#0f766e] hover:bg-[#0d9488] text-white font-bold uppercase tracking-widest rounded-sm transition-colors duration-300 px-6 py-3 text-xs lg:px-10 lg:py-4 lg:text-sm"
+      class="inline-flex items-center gap-3 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded-sm transition-colors duration-300 px-6 py-3 text-xs lg:px-10 lg:py-4 lg:text-sm"
     >
       Reservar Horário
       <svg
