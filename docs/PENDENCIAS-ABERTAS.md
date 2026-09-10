@@ -300,13 +300,33 @@ o comportamento. Verificado no navegador. Ver `ARQUITETURA-PRODUTO-V1.md` D5.1 e
 A moldura no estilo Trinks já foi feita, mas o painel ainda mostra pouco. Falta: agenda
 de hoje, faturamento da semana e do mês, próximos agendamentos e faltas.
 
-### 4.4 🔴 `[TÉCNICO]` Medidor de completude no painel — pré-requisito do preço
+### 4.4 ✅ `[TÉCNICO]` Medidor de completude no painel — FEITO em 10/09/2026
 
-"Seu site está 70% completo — faltam fotos da galeria e o texto sobre a barbearia."
-Empurra o dono a preencher sozinho e reduz suporte. Falta definir os itens e os pesos.
+Empurra o dono a preencher sozinho e reduz suporte — uma das duas alavancas que derrubam
+a hora de suporte, e a R$ 100 isso decide se existe margem (§1.4 e `PRECIFICACAO.md` §5.1).
 
-⚠️ **Subiu de 🟠 para 🔴 em 01/09/2026.** É uma das duas alavancas que derrubam a hora
-de suporte, e a R$ 100 isso decide se existe margem (§1.4 e `PRECIFICACAO.md` §5.1).
+**Feito em 10/09/2026.** A regra está em `src/lib/completude.ts` (função pura, 13 testes)
+e o card no topo de `/admin`. Cada item entrou respondendo uma pergunta só: *que mensagem
+de WhatsApp no sábado isso evita?*
+
+⚠️ **São duas listas, não uma porcentagem.** Uma barbearia pode ter 90% dos campos
+preenchidos e **não receber um agendamento sequer**, por falta do primeiro serviço. Dizer
+"90% completo" ali é pior que não ter medidor. Enquanto faltar serviço, barbeiro com
+expediente, WhatsApp ou endereço, aparece só o que impede de **funcionar**, em vermelho e
+sem porcentagem. Resolvido isso, vira a barra com o que falta para ficar **apresentável**.
+
+⚠️ **Mostra três itens de cada vez.** A primeira versão listava os oito pendentes; na
+tela, 15% com oito linhas paralisa — o dono olha, não sabe por onde começar e não faz
+nenhum. Os três mais pesados valem metade dos pontos; o resto fica atrás de um clique.
+
+⚠️ **O exemplo original desta seção não era implementável.** Ela dizia *"faltam fotos da
+galeria"*, mas a galeria é build-time (`import.meta.glob` dos assets), sem tabela nem
+coluna — não dá para medir por barbearia. Mede-se logo, capa, ícone e OG, que têm coluna
+em `settings`. Ligar a galeria enviada pelo painel continua pendente.
+
+**Pesos, para quem for mexer:** logo 20; horários publicados, texto sobre a barbearia e
+frase do topo 15 cada; foto de capa e cor da marca 10; Instagram, avaliações do Google e
+SEO 5 cada. Peso alto para o que gera pergunta, baixo para o que é cosmético.
 
 ### 4.5 🟠 `[DECISÃO]` Catálogo de serviços padrão do template
 
@@ -405,7 +425,8 @@ em uma função só, para trocar em um lugar.
 3. **Registrar o domínio** (`PENDENCIAS-ABERTAS.md` §0). Nome escolhido sem domínio registrado é nome de outra pessoa amanhã.
 4. ~~**Tela sem fotos** (§4.1)~~ — feita em 06/09/2026, topo e resto da página.
    A cor de destaque (§4.2) já estava feita.
-4b. **Política de suporte e medidor de completude** (§1.4, §4.4). A R$ 100 eles decidem
-   se existe margem — deixaram de ser melhoria.
+4b. **Política de suporte** (§1.4). O medidor de completude, que era a outra metade
+   deste item, foi feito em 10/09 (§4.4). A R$ 100 a política escrita decide se existe
+   margem — deixou de ser melhoria.
 5. **Contrato e política de inadimplência** (§1.2, §1.3). Antes do primeiro real entrar.
 6. Operação (§3.x) — pode esperar o **segundo** cliente, não o décimo.

@@ -313,6 +313,7 @@ Lista completa e priorizada em `PENDENCIAS-ABERTAS.md`. Os que travam mais:
 | 🔴 | As migrations plantam os dados do Bayron em todo banco SQLite novo | `PENDENCIAS-ABERTAS.md` §4.6 |
 | 🔴 | Timezone escrito em 19 arquivos como constante, não lido do ambiente | `PENDENCIAS-ABERTAS.md` §2.1 |
 | 🔴 | Política de suporte, que a R$ 100/mês decide se existe margem | `PENDENCIAS-ABERTAS.md` §1.4 |
+| ✅ | ~~Medidor de completude no painel~~ — feito em 10/09 | `PENDENCIAS-ABERTAS.md` §4.4 |
 | 🔴 | Contrato, LGPD e o que acontece quando o cliente não paga | `PENDENCIAS-ABERTAS.md` §1.2 |
 | ✅ | ~~Tela inicial sem fotos e seções com conteúdo do Bayron~~ — resolvido em 06/09 | `PENDENCIAS-ABERTAS.md` §4.1 |
 
@@ -331,6 +332,9 @@ um catálogo sugerido pronto para editar.
 
 | Quando | O quê |
 |---|---|
+| 10/09 | Medidor de completude no painel (`PENDENCIAS-ABERTAS.md` §4.4) |
+| 10/09 | `/admin/configuracoes` lia e gravava sempre no tenant 1 — corrigido, e o teste-guarda passou a exigir que o tenant venha da sessão |
+| 09/09 | Login do painel por telefone; a sessão passa a decidir a barbearia (passos 4 e 5) |
 | 06/09 | Nenhuma seção do site mostra conteúdo do Bayron numa barbearia nova (`PENDENCIAS-ABERTAS.md` §4.1 fechado) |
 | 06/09 | Descoberto que as migrations SQLite plantam os dados do Bayron — inclusive **5.0 com 227 avaliações** (`PENDENCIAS-ABERTAS.md` §4.6, novo) |
 | 06/09 | Porte para Postgres completado: 4 scripts portados, migrador próprio, migrations SQLite removidas da pasta |
