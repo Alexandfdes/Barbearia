@@ -64,7 +64,7 @@ beforeAll(async () => {
 
   // Conexão própria para o schema: as migrations trazem BEGIN/COMMIT, e o
   // driver recusa transação explícita num pool com mais de uma conexão.
-  const migrador = postgres(process.env.DATABASE_URL!, { max: 1 });
+  const migrador = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
   await migrador.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
   for (const f of ['0000_init_postgres.sql', '0001_tenants.sql']) {
     await migrador.unsafe(migrationSql(f));
