@@ -6,7 +6,7 @@
  * contraste garantido — duplicar essa conta aqui era pedir para as duas versões
  * divergirem):
  *
- *   npx tsx scripts/provisionar.mjs \
+ *   npm run db:provisionar -- \
  *     --slug=cortes-do-ze \
  *     --nome="Barbearia Cortes do Zé" \
  *     --dono="José da Silva" \
