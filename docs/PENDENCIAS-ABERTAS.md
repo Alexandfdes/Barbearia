@@ -93,11 +93,15 @@ que é **pequeno**, antes que um cliente decida que refazer o site inteiro é pe
 
 ---
 
-### 1.5 🔴 `[DECISÃO]` Como o barbeiro entra no painel com várias barbearias
+### 1.5 ✅ `[DECISÃO]` Como o barbeiro entra no painel — RESOLVIDA em 09/09/2026
 
-**Trava o fim do passo 4 do multi-tenant.** Verificado em 06/09/2026: das 54 rotas e
-páginas que tocam o banco, 53 foram escopadas por tenant. A que sobrou é
-`apps/barbearia/src/pages/api/auth/login.ts`, e não é falta de trabalho.
+**Era o que travava o fim do passo 4.** Das 54 rotas e páginas que tocam o banco,
+a última sem escopo era `apps/barbearia/src/pages/api/auth/login.ts` — e não por
+falta de trabalho.
+
+✅ **Resolvida: login por telefone**, implementado em 09/09/2026. São **54 de 54**
+e a lista de pendentes do teste-guarda está vazia. Detalhes em
+`ESTADO-ATUAL.md` §9.7.
 
 O login busca o barbeiro por `slug`. Com a migration 0001 esse slug passou a ser único
 **por barbearia** (`UNIQUE (tenant_id, slug)`) em vez de único no mundo. E o painel é
@@ -112,9 +116,10 @@ no portal dele.
 Funciona, mas põe no dono a tarefa de lembrar um identificador que ele nunca escolheu, e
 some com a vantagem de o painel ser um endereço só.
 
-⚠️ **Não ligue o RLS (passo 5) antes de resolver isto.** Com o RLS ligado e essa rota
-ainda sem escopo, ela passa a devolver zero linhas em silêncio: o login para de funcionar
-sem nenhum erro que explique o motivo.
+⚠️ **O que sobrou:** cadastrar o telefone dos barbeiros que já existem. Enquanto
+não fizerem isso, eles entram pelo caminho antigo (slug), que só vale enquanto
+houver **uma barbearia só**. No dia do segundo cliente, quem estiver sem telefone
+perde o acesso — e a rota recusa de propósito, em vez de escolher a barbearia errada.
 
 ## 2. Minas no código (verificadas)
 
@@ -394,8 +399,8 @@ em uma função só, para trocar em um lugar.
    06/09/2026: enquanto isso não for feito, todo banco novo nasce com o nome, o endereço,
    os produtos e **as 227 avaliações** do Bayron — e o §4.1 inteiro fica desarmado, porque
    ele decide pelo `short_name` que a migration grava como `'Bayron'`.
-1. **Decidir o login do painel** (`PENDENCIAS-ABERTAS.md` §1.5). Trava o fim do passo 4 e
-   não pode esperar o RLS.
+1. ~~**Decidir o login do painel** (§1.5)~~ — decidido e implementado em 09/09.
+   Falta cadastrar o telefone dos barbeiros do Bayron antes do segundo cliente.
 2. **As duas minas** (`PENDENCIAS-ABERTAS.md` §2.1, §2.2). Baratas agora, caras com cliente pagando.
 3. **Registrar o domínio** (`PENDENCIAS-ABERTAS.md` §0). Nome escolhido sem domínio registrado é nome de outra pessoa amanhã.
 4. ~~**Tela sem fotos** (§4.1)~~ — feita em 06/09/2026, topo e resto da página.

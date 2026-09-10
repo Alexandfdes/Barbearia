@@ -72,10 +72,10 @@ O plano tem sete passos, em `ARQUITETURA-MULTI-TENANT-V1.md` §9.
 | 2. Porte para Postgres | ✅ **aplicado em 06/09** — falta o `npm install` e a carga dos dados |
 | 3. Tabela `tenants` e `tenant_id` | ✅ **aplicado em 06/09** |
 | 3.5. Rede de testes em Postgres | ✅ **aplicado em 06/09** — 124 testes |
-| 4. Escopar as rotas | ✅ **53 de 54 aplicadas**; a 54ª depende do login (§9.7) |
+| 4. Escopar as rotas | ✅ **54 de 54** — fechado em 09/09 com o login por telefone |
 | 5. Ligar RLS | não começado |
 | 6. Separar site do painel | não começado |
-| 7. Login por telefone e exclusion constraint | 🟠 **decidido em 06/09 (telefone); falta implementar** — ver §9.7 |
+| 7. Login por telefone e exclusion constraint | ✅ login feito em 09/09; falta a exclusion constraint |
 
 ⚠️ **A terceira costura do passo 1 não existia.** Até 06/09/2026 este documento e o
 `CLAUDE.md` afirmavam que `pastaDeMidia()`/`urlDeMidia()` centralizavam o caminho de mídia.
@@ -437,41 +437,52 @@ coisa não entrou.
 ⚠️ **Nada disso está commitado ainda** — são ~120 arquivos na árvore de trabalho. Vale
 separar em dois commits: o do site (10 componentes + docs) e o da migração (o resto).
 
-### 9.7 🔴 O que trava o fim do passo 4 — e é decisão sua
+### 9.7 ✅ Login do painel — resolvido em 09/09/2026
 
-**O login do painel.** Uma rota ficou sem escopo, `api/auth/login.ts`, e não por
-falta de trabalho: ela busca o barbeiro por `slug`, que agora é único **por
-barbearia**, e o painel é central (`painel.barbearianoar.com.br`) — não há host de
-onde tirar qual barbearia. Dois donos "bayron" colidem no login.
+**Login por telefone**, decidido em 06/09 e implementado em 09/09. A rota
+`api/auth/login.ts` era a última das 54 sem escopo de tenant; agora são **54 de
+54** e a lista `PENDENTES` do `tests/escopo-rotas.test.ts` está vazia.
 
-**Decidido em 06/09/2026: login por telefone.** Todo barbeiro tem, é único no
-mundo, e é o mesmo jeito que o cliente já entra no portal dele.
+Por que telefone: o slug virou único **por barbearia** na migration 0001, e o
+painel é central — não há endereço de onde deduzir de quem é o login. O telefone
+é único no mundo por natureza, então identifica a pessoa e a barbearia de uma vez.
 
-⚠️ **É maior do que "trocar slug por telefone".** Ao desenhar a implementação
-apareceram duas coisas que o passo 7 de `ARQUITETURA-MULTI-TENANT-V1.md` §9 não dizia:
+⚠️ **O índice é único GLOBAL, não por tenant** (migration 0002). É o oposto do que
+a 0001 fez com o slug, de propósito: `(tenant_id, phone)` deixaria o mesmo número
+em duas barbearias e a ambiguidade voltaria. Consequência aceita: barbeiro que
+trabalha em duas barbearias precisa de dois números.
 
-1. **A tabela `barbers` não tem coluna de telefone.** Precisa de migration nova,
-   com índice único **global** (não por tenant) — é justamente a unicidade global
-   que permite deduzir a barbearia a partir do login. Como os barbeiros atuais não
-   têm telefone cadastrado, a coluna nasce anulável e alguém precisa preencher os
-   do Bayron antes que o slug possa sair de cena.
-2. **`tenantDaSessao()` ainda devolve `TENANT_UNICO` fixo, e é chamada em 53
-   lugares.** O login por telefone é a peça que grava o `tenantId` na sessão —
-   o campo já existe em `SessionData`, vazio. Fazer `tenantDaSessao()` ler esse
-   campo e revalidar o status no banco é o que **liga** o multi-tenant no painel,
-   e é o passo 5 de fato.
+**A coluna é anulável**, e é o que sustenta a transição: enquanto houver uma
+barbearia só, o slug continua funcionando e o Bayron não perde acesso. Com duas
+ou mais, a rota **recusa** o slug em vez de escolher — entrar na barbearia errada
+dá a um dono o painel do outro. Como remover esse bloco está comentado no próprio
+arquivo.
 
-**Recomendação para o passo 5:** manter `tenantDaSessao()` **síncrona**, servida
-por um cache dos tenants carregado no boot e revalidado em segundo plano. A
-alternativa — ir ao banco a cada requisição — a torna assíncrona e obriga a tocar
-nas 53 chamadas, com 53 chances de errar. Tenant suspenso demorar segundos para
-ser cortado é irrelevante numa cobrança mensal.
+**A rota grava `session.tenantId`**, que existia vazio desde o passo 1. É a peça
+que o passo 5 precisa.
+
+Coberto por `tests/login.test.ts` — 13 casos, incluindo o que motivou a mudança:
+dois barbeiros chamados "bayron" em barbearias diferentes, cada um entrando na sua.
+
+### 9.8 O passo 5 — ligar o multi-tenant no painel
+
+Com o `tenantId` na sessão, falta `tenantDaSessao()` **ler** esse campo: hoje ela
+ainda devolve `TENANT_UNICO` fixo, e é chamada em **53 lugares**.
+
+**Recomendação: mantê-la síncrona**, servida por um cache dos tenants carregado no
+boot e revalidado em segundo plano. Ir ao banco a cada requisição a torna
+assíncrona e obriga a tocar nas 53 chamadas, com 53 chances de errar. Tenant
+suspenso demorar segundos para ser cortado é irrelevante numa cobrança mensal — e
+o login já recusa barbearia suspensa na entrada.
 
 ⚠️ **Sessões antigas não têm `tenantId`.** Quando `tenantDaSessao()` passar a
-lê-lo, o correto é recusar a sessão e mandar logar de novo — nunca cair num
-tenant padrão, que serviria os dados da barbearia errada. Na prática: os
-barbeiros do Bayron entram uma vez a mais, no dia da virada.
+lê-lo, o certo é recusar a sessão e mandar logar de novo — nunca cair num tenant
+padrão, que serviria os dados da barbearia errada. Na prática: os barbeiros
+entram uma vez a mais no dia da virada.
 
-### 9.8 Só então — RLS e o resto
+Depois disso, os passos 6 e 7 do `ARQUITETURA-MULTI-TENANT-V1.md` §9: separar o
+site do painel, e a exclusion constraint.
+
+### 9.9 Só então — RLS e o resto
 
 Passos 5 a 7 do `ARQUITETURA-MULTI-TENANT-V1.md` §9.
