@@ -19,6 +19,7 @@
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
@@ -130,8 +131,37 @@ async function main() {
   );
 }
 
+/**
+ * Avisa, no boot, se o backup não tem como funcionar.
+ *
+ * `scripts/backup.mjs` é um wrapper de `pg_dump`, que **não vem** na imagem
+ * node:22-alpine. Sem o binário, o app sobe perfeitamente e todo backup falha:
+ * o container roda, a barbearia atende, e a primeira notícia de que não existe
+ * backup chega no dia em que alguém precisa restaurar.
+ *
+ * Não derruba o boot de propósito: barbearia fora do ar é pior que barbearia
+ * sem backup de hoje. Mas o aviso sai aqui, no lugar onde se olha quando o
+ * deploy termina — e não escondido no log do daemon 24 horas depois.
+ */
+function conferirPgDump() {
+  const r = spawnSync('pg_dump', ['--version'], { encoding: 'utf8' });
+  if (r.error || r.status !== 0) {
+    console.warn(
+      '\n' +
+      '  ┌──────────────────────────────────────────────────────────────┐\n' +
+      '  │  ⚠️  pg_dump NÃO ENCONTRADO — NÃO EXISTE BACKUP NESTA IMAGEM │\n' +
+      '  └──────────────────────────────────────────────────────────────┘\n' +
+      '  O app vai subir e atender normalmente. Todo backup vai falhar.\n' +
+      '  Corrija na imagem: apk add --no-cache postgresql16-client\n'
+    );
+    return;
+  }
+  console.log(`✓ backup: ${r.stdout.trim()}`);
+}
+
 try {
   await main();
+  conferirPgDump();
 } catch (erro) {
   console.error('\n✗ Migration falhou. O que ela mudaria foi desfeito.\n');
   console.error(erro);
