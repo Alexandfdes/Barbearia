@@ -16,6 +16,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import postgres from 'postgres';
+import { exigirBancoDeTeste } from './guardaBanco.js';
 
 /**
  * Acha o SQL da migration. O `0000_init_postgres.sql` vive em
@@ -35,6 +36,10 @@ function migrationSql(nome: string): string {
 }
 
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
+
+// ⚠️ Esta suíte roda DROP SCHEMA. A guarda recusa qualquer banco cujo nome não
+// termine em _test — apontar DATABASE_URL para produção apagaria a barbearia.
+if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
 
 // `src/db/index.ts` cria a conexão no import e joga erro sem DATABASE_URL — o que
 // torna qualquer módulo que dependa dele impossível de importar numa máquina sem

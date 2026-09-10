@@ -16,6 +16,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { fromZonedTime } from 'date-fns-tz';
 import { readFileSync, existsSync } from 'node:fs';
 import postgres from 'postgres';
+import { exigirBancoDeTeste } from './guardaBanco.js';
 
 const TZ = 'America/Fortaleza';
 const DATE = '2030-03-15';                                   // data futura fixa
@@ -42,6 +43,10 @@ function migrationSql(nome: string): string {
 }
 
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
+
+// ⚠️ Esta suíte roda DROP SCHEMA. A guarda recusa qualquer banco cujo nome não
+// termine em _test — apontar DATABASE_URL para produção apagaria a barbearia.
+if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
 
 type BookFn = typeof import('../src/lib/bookAppointment')['bookAppointment'];
 let bookAppointment: BookFn;

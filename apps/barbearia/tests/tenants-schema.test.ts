@@ -8,8 +8,13 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import postgres from 'postgres';
+import { exigirBancoDeTeste } from './guardaBanco.js';
 
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
+
+// ⚠️ Esta suíte roda DROP SCHEMA. A guarda recusa qualquer banco cujo nome não
+// termine em _test — apontar DATABASE_URL para produção apagaria a barbearia.
+if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
 
 function migrationSql(nome: string): string {
   for (const p of [`drizzle/${nome}`, `../../migracao-postgres/${nome}`]) {
