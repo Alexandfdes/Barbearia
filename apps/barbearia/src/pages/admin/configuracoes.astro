@@ -1,7 +1,7 @@
 ---
 export const prerender = false;
 
-import { tenantAtual } from '../../lib/tenant.js';
+import { tenantDaSessao } from '../../lib/tenant.js';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getSession } from '../../lib/session.js';
 import { db, first } from '../../db/index.js';
@@ -18,7 +18,8 @@ const barberRow = (await db.select({ id: barbers.id, name: barbers.name })
   .from(barbers).where(eq(barbers.id, session.barberId)))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
-const cfg = (await first(db.select().from(settings).where(eq(settings.tenantId, tenantAtual().id))));
+const tenant = tenantDaSessao(session);
+const cfg = (await first(db.select().from(settings).where(eq(settings.tenantId, tenant.id))));
 const horarios = parseBusinessHours(cfg?.businessHours);
 
 type Campo = {

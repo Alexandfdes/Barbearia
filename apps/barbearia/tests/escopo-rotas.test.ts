@@ -41,7 +41,7 @@ const PENDENTES = new Set<string>([
   // escrever ao lado por que não dá para escopar agora.
 ]);
 
-interface Rota { nome: string; escopada: boolean; tocaBanco: boolean }
+interface Rota { nome: string; escopada: boolean; tocaBanco: boolean; usaTenantFixo: boolean; doPainel: boolean }
 
 /**
  * ⚠️ As rotas de API NÃO são a superfície toda. Doze páginas `.astro` consultam
@@ -64,6 +64,9 @@ const rotas: Rota[] = [...globSync('src/pages/api/**/*.ts'), ...globSync('src/pa
       nome: norm.replace('src/pages/api/', '').replace('src/pages/', 'PÁGINA:'),
       tocaBanco: tocaTabela && consulta,
       escopada: /tenant\.id|tenantId/.test(s),
+      // ⚠️ De ONDE veio o tenant importa tanto quanto se ele foi usado.
+      usaTenantFixo: /tenantAtual\(\)/.test(s),
+      doPainel: norm.includes('pages/admin/') || norm.includes('pages/api/admin/'),
     };
   });
 
@@ -92,6 +95,22 @@ describe('escopo por tenant nas rotas de API', () => {
   });
 
   // Documenta o progresso. Ajuste o número ao tirar rotas de PENDENTES.
+  it('nenhuma tela do painel resolve o tenant com tenantAtual()', () => {
+    // `tenantAtual()` devolve TENANT_UNICO — id 1, sempre. Numa tela do painel
+    // isso significa ler e ESCREVER os dados da barbearia 1, qualquer que seja
+    // quem esteja logado.
+    //
+    // O caso que motivou este teste: `admin/configuracoes.astro` filtrava por
+    // `tenantAtual().id`. Como o arquivo mencionava `tenantId`, ele contava como
+    // "escopado" — mas o dono da barbearia 2 editaria a configuração da 1.
+    //
+    // Contar que o filtro existe não basta: o tenant tem que vir da SESSÃO.
+    const erradas = rotas
+      .filter((r) => r.doPainel && r.usaTenantFixo)
+      .map((r) => r.nome);
+    expect(erradas).toEqual([]);
+  });
+
   it('o passo 4 está no ponto que a documentação afirma', () => {
     const escopadas = rotas.filter((r) => r.tocaBanco && r.escopada).length;
     const total = rotas.filter((r) => r.tocaBanco).length;
