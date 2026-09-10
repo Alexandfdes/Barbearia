@@ -19,6 +19,8 @@
  *   --dominio=x.com.br   domínio próprio; sem isso usa só o subdomínio
  *   --curto="Cortes"     nome curto (o do topo e do rodapé); sem isso, o --nome
  *                        sem o prefixo "Barbearia"/"Salão"
+ *   --telefone-dono=...  telefone com que o DONO entra no painel; sem isso, o
+ *                        mesmo --telefone da barbearia
  *
  * A senha inicial NÃO vai por argumento — argumento fica no histórico do shell.
  * Use a variável de ambiente SENHA_INICIAL.
@@ -39,9 +41,23 @@ import { derivarAccent, ACCENT_PADRAO, isHex } from '../src/lib/accent.js';
 
 const BCRYPT_COST = 12;
 
-function arg(nome) {
+function arg(nome: string): string | undefined {
   const p = process.argv.find((a) => a.startsWith(`--${nome}=`));
   return p ? p.slice(nome.length + 3) : undefined;
+}
+
+/**
+ * Encerra o script quando falta informação.
+ *
+ * O `never` no retorno é o que faz o TypeScript entender que, depois desta
+ * chamada, as variáveis conferidas não são mais `undefined`. Sem ele, cada uso
+ * adiante exigiria um `!` — e `!` é exatamente o que esconde o campo que alguém
+ * esqueceu de validar.
+ */
+function faltou(itens: string[]): never {
+  console.error('ERRO: falta informar:\n  ' + itens.join('\n  '));
+  console.error('\nVeja o cabeçalho deste arquivo para um exemplo completo.');
+  process.exit(1);
 }
 
 const url = process.env.DATABASE_URL;
@@ -58,21 +74,30 @@ const cidade = arg('cidade');
 // genérico e ficamos com a parte que identifica a barbearia.
 const semPrefixo = nome?.replace(/^\s*(barbearia|barber\s*shop|salão|salao)\s+(do\s+|da\s+|de\s+)?/i, '').trim();
 const curto = arg('curto') ?? (semPrefixo || nome);
+// ⚠️ É por este número que o dono ENTRA no painel (migration 0002). Por padrão
+// é o mesmo da barbearia — no negócio de uma pessoa só costuma ser —, mas numa
+// barbearia com recepção o número do balcão não é o de ninguém, e aí o dono
+// precisa do dele.
+const telefoneDono = arg('telefone-dono') ?? telefone;
 const cor = arg('cor');
 const dominio = arg('dominio') ?? null;
 
-const faltando = [];
+const faltando: string[] = [];
 if (!url) faltando.push('DATABASE_URL (variável de ambiente)');
 if (!senha) faltando.push('SENHA_INICIAL (variável de ambiente)');
 for (const [k, v] of [['slug', slug], ['nome', nome], ['dono', dono],
-                      ['telefone', telefone], ['endereco', endereco], ['cidade', cidade]]) {
+                      ['telefone', telefone], ['endereco', endereco], ['cidade', cidade]] as const) {
   if (!v) faltando.push(`--${k}`);
 }
-if (faltando.length) {
-  console.error('ERRO: falta informar:\n  ' + faltando.join('\n  '));
-  console.error('\nVeja o cabeçalho deste arquivo para um exemplo completo.');
-  process.exit(1);
+if (faltando.length) faltou(faltando);
+
+// Depois do `faltou()` acima, nada aqui é undefined — mas o TypeScript não
+// consegue ligar o `push` dentro do laço às variáveis. Estreitamos uma vez, aqui,
+// em vez de espalhar `!` pelo arquivo.
+if (!url || !senha || !slug || !nome || !dono || !telefone || !telefoneDono || !endereco || !cidade || !curto) {
+  faltou(faltando.length ? faltando : ['(erro interno: validação inconsistente)']);
 }
+
 if (senha.length < 8) {
   console.error('ERRO: SENHA_INICIAL precisa de pelo menos 8 caracteres.');
   process.exit(1);
@@ -88,9 +113,15 @@ if (cor && !isHex(cor)) {
 }
 
 // Só dígitos, como o resto do sistema guarda (migration 0004).
-const telefoneDigitos = telefone.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+const limpar = (t: string) => t.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+const telefoneDigitos = limpar(telefone);
 if (telefoneDigitos.length < 10 || telefoneDigitos.length > 11) {
   console.error(`ERRO: telefone "${telefone}" não tem 10 ou 11 dígitos depois de limpo.`);
+  process.exit(1);
+}
+const telefoneLogin = limpar(telefoneDono);
+if (telefoneLogin.length < 10 || telefoneLogin.length > 11) {
+  console.error(`ERRO: --telefone-dono "${telefoneDono}" não tem 10 ou 11 dígitos depois de limpo.`);
   process.exit(1);
 }
 
@@ -122,6 +153,15 @@ try {
     process.exit(1);
   }
 
+  // O telefone de login é único NO MUNDO (migration 0002). Conferimos antes para
+  // dar uma mensagem útil, em vez de estourar a constraint no meio da transação.
+  const telefoneEmUso = await sql`SELECT 1 FROM barbers WHERE phone = ${telefoneLogin}`;
+  if (telefoneEmUso.length) {
+    console.error(`ERRO: o telefone ${telefoneLogin} já é o login de outro barbeiro.`);
+    console.error('Use --telefone-dono com outro número.');
+    process.exit(1);
+  }
+
   const hash = bcrypt.hashSync(senha, BCRYPT_COST);
 
   // Tudo numa transação: barbearia meio criada — com tenant e sem dono, por
@@ -148,9 +188,11 @@ try {
       )
     `;
 
+    // Sem `phone` o dono é criado e NÃO consegue entrar: o login do painel é
+    // por telefone. A falha só apareceria no primeiro acesso dele.
     const [barbeiro] = await tx`
-      INSERT INTO barbers (tenant_id, name, slug, role, password_hash)
-      VALUES (${tenant.id}, ${dono}, ${slugDono}, 'admin', ${hash})
+      INSERT INTO barbers (tenant_id, name, slug, phone, role, password_hash)
+      VALUES (${tenant.id}, ${dono}, ${slugDono}, ${telefoneLogin}, 'admin', ${hash})
       RETURNING id
     `;
 
@@ -166,7 +208,8 @@ try {
 
   console.log(`\n✓ ${nome} criada.\n`);
   console.log(`  barbearia   ${slug} (id ${resultado.tenantId})`);
-  console.log(`  dono        ${dono} — entra como "${slugDono}"`);
+  console.log(`  dono        ${dono}`);
+  console.log(`  entra com   ${telefoneLogin}  (telefone, não usuário)`);
   console.log(`  cor         ${accent.color}${cor ? '' : ' (padrão)'}`);
   console.log(`  horário     seg–sex 09:00–19:00, sáb 09:00–18:00`);
   console.log(`\n⚠️  A barbearia está SEM SERVIÇOS. Enquanto o dono não cadastrar o`);
@@ -175,7 +218,7 @@ try {
   console.log(`\n   Peça a ele para, no primeiro acesso: trocar a senha, cadastrar os`);
   console.log(`   serviços com preço, conferir o horário e subir a logo.\n`);
 } catch (erro) {
-  console.error('\n✕ Não criou nada:', erro.message);
+  console.error('\n✕ Não criou nada:', erro instanceof Error ? erro.message : erro);
   process.exitCode = 1;
 } finally {
   await sql.end({ timeout: 5 });

@@ -7,6 +7,7 @@ import { and, eq } from 'drizzle-orm';
 import { db, first } from '../../../../db/index.js';
 import { barbers, barberServices, services, workingHours } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
+import { normalizePhone } from '../../../../lib/phone.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 
@@ -21,6 +22,10 @@ function slugify(str: string): string {
 const createSchema = z.object({
   name:     z.string().min(2).max(80),
   slug:     z.string().min(1).max(50).optional(),
+  // Telefone é como o barbeiro ENTRA no painel (migration 0002). Obrigatório em
+  // cadastro novo: sem ele, o barbeiro é criado e não consegue logar — e a falha
+  // só aparece no dia em que ele tenta.
+  phone:    z.string().min(10).max(25),
   role:     z.enum(['admin', 'barber']),
   password: z.string().min(6).max(200),
 });
@@ -37,6 +42,7 @@ export const GET: APIRoute = async ({ request }) => {
       id:        barbers.id,
       name:      barbers.name,
       slug:      barbers.slug,
+      phone:     barbers.phone,
       role:      barbers.role,
       active:    barbers.active,
       createdAt: barbers.createdAt,
@@ -67,6 +73,18 @@ export const POST: APIRoute = async ({ request }) => {
 
   if (!slug) return json({ error: 'Nome/slug inválido' }, 400);
 
+  const phone = normalizePhone(parsed.data.phone);
+  if (!phone) return json({ error: 'Telefone inválido: informe DDD + número.' }, 400);
+
+  // ⚠️ Único NO MUNDO, não nesta barbearia: é a unicidade global que faz o login
+  // do painel central saber de qual barbearia é quem está entrando. Por isso a
+  // consulta NÃO filtra por tenant — de propósito, ao contrário de todo o resto
+  // deste arquivo.
+  const comEsseTelefone = await db.select({ id: barbers.id }).from(barbers).where(eq(barbers.phone, phone));
+  if (comEsseTelefone.length > 0) {
+    return json({ error: 'Este telefone já está cadastrado para outro barbeiro.' }, 409);
+  }
+
   // Slug é o identificador de login: precisa ser único. Sem sufixo automático —
   // se colidir, o admin escolhe outro (senão geraria um login esquisito).
   const existing = await db.select({ id: barbers.id }).from(barbers).where(and(eq(barbers.slug, slug), eq(barbers.tenantId, tenant.id)));
@@ -91,7 +109,7 @@ export const POST: APIRoute = async ({ request }) => {
   let newId: number | bigint;
   try {
     newId = await db.transaction(async (tx) => {
-      const res = await tx.insert(barbers).values({ tenantId: tenant.id, name, slug, role, passwordHash })
+      const res = await tx.insert(barbers).values({ tenantId: tenant.id, name, slug, phone, role, passwordHash })
         .returning({ id: barbers.id });
       const id = res[0].id;
 

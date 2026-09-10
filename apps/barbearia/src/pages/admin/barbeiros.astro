@@ -58,6 +58,11 @@ const inactiveCount = list.length - activeCount;
             class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
         </div>
         <div>
+          <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Telefone (login)</label>
+          <input id="new-phone" type="tel" inputmode="tel" placeholder="(84) 99999-0000"
+            class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
+        </div>
+        <div>
           <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Acesso</label>
           <select id="new-role"
             class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50">
@@ -71,7 +76,7 @@ const inactiveCount = list.length - activeCount;
             class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
         </div>
       </div>
-      <p class="text-xs text-slate-400">O slug é o usuário de login e não poderá ser alterado depois. O barbeiro já nasce com horário padrão (seg–sáb) e oferecendo o catálogo atual.</p>
+      <p class="text-xs text-slate-400"><strong>É pelo telefone que ele entra no painel</strong> — cadastre o número dele, não o seu. O slug identifica o barbeiro dentro desta barbearia e não muda depois. Ele já nasce com horário padrão (seg–sáb) e oferecendo o catálogo atual.</p>
       <div id="new-error" class="hidden text-red-600 text-xs"></div>
       <div class="flex gap-2">
         <button id="new-submit"
@@ -197,15 +202,18 @@ const inactiveCount = list.length - activeCount;
     const btn     = document.getElementById('new-submit') as HTMLButtonElement;
     const roleEl  = document.getElementById('new-role') as HTMLSelectElement;
     const passEl  = document.getElementById('new-password') as HTMLInputElement;
+    const phoneEl = document.getElementById('new-phone') as HTMLInputElement;
 
     errorEl.classList.add('hidden');
     const name = newName?.value.trim() ?? '';
     const slug = slugify(newSlug?.value ?? '') || slugify(name);
     const role = roleEl.value;
     const password = passEl.value;
+    const phone = phoneEl?.value.trim() ?? '';
 
     if (name.length < 2)     { errorEl.textContent = 'Informe o nome (mín. 2 caracteres)'; errorEl.classList.remove('hidden'); return; }
     if (!slug)               { errorEl.textContent = 'Slug inválido'; errorEl.classList.remove('hidden'); return; }
+    if (phone.replace(/\D/g, '').length < 10) { errorEl.textContent = 'Informe o telefone com DDD — é por ele que o barbeiro entra no painel'; errorEl.classList.remove('hidden'); return; }
     if (password.length < 6) { errorEl.textContent = 'A senha precisa ter ao menos 6 caracteres'; errorEl.classList.remove('hidden'); return; }
 
     btn.disabled = true; btn.textContent = 'Criando...';
@@ -213,7 +221,7 @@ const inactiveCount = list.length - activeCount;
       const res  = await fetch('/api/admin/barbers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, slug, role, password }),
+        body: JSON.stringify({ name, slug, phone, role, password }),
       });
       const data = await res.json();
       if (res.ok) { location.reload(); return; }

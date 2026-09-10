@@ -24,6 +24,16 @@ export const barbers = pgTable('barbers', {
   slug: text('slug').notNull(),
   role: text('role', { enum: ['admin', 'barber'] }).notNull(),
   passwordHash: text('password_hash').notNull(),
+  /**
+   * Telefone de login do painel — só dígitos, normalizado por `lib/phone.ts`.
+   *
+   * ⚠️ Único NO MUNDO, não por tenant (migration 0002). É o oposto do `slug`
+   * logo acima, e de propósito: o painel é central, então é a unicidade global
+   * do telefone que permite descobrir a barbearia a partir do login.
+   *
+   * Anulável porque os barbeiros que já existem não têm telefone cadastrado.
+   */
+  phone: text('phone'),
   active: boolean('active').notNull().default(true),
   createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
 }, (t) => [

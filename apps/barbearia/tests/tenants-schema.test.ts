@@ -9,19 +9,13 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import postgres from 'postgres';
 import { exigirBancoDeTeste } from './guardaBanco.js';
+import { recriarSchema, migrationSql } from './migrations.js';
 
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 
 // ⚠️ Esta suíte roda DROP SCHEMA. A guarda recusa qualquer banco cujo nome não
 // termine em _test — apontar DATABASE_URL para produção apagaria a barbearia.
 if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
-
-function migrationSql(nome: string): string {
-  for (const p of [`drizzle/${nome}`, `../../migracao-postgres/${nome}`]) {
-    if (existsSync(p)) return readFileSync(p, 'utf8');
-  }
-  throw new Error(`Migration ${nome} não encontrada. Ver migracao-postgres/LEIA-ME.md §2.`);
-}
 
 let sql: ReturnType<typeof postgres>;
 let A = 0, B = 0;
@@ -34,8 +28,7 @@ beforeAll(async () => {
   // linhas por suíte, e enterram o que interessa — inclusive uma falha de
   // verdade. Ver os avisos: rode a migration à mão no psql.
   sql = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
-  await sql.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-  for (const f of ['0000_init_postgres.sql', '0001_tenants.sql']) await sql.unsafe(migrationSql(f));
+  await recriarSchema(sql);
   // Os tenants são criados AQUI de propósito. A 0001 só cria o tenant de
   // backfill quando encontra dados antigos, e o banco de teste nasce vazio —
   // depender daquele INSERT era depender do seed, não do schema.
@@ -173,14 +166,12 @@ describe.skipIf(!TEM_BANCO)('o que a migration 0001 tem que garantir', () => {
     // subdomínio e o nome de outra barbearia (`PENDENCIAS-ABERTAS.md` §4.6).
     const s2 = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
     try {
-      await s2.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-      for (const f of ['0000_init_postgres.sql', '0001_tenants.sql']) await s2.unsafe(migrationSql(f));
+      await recriarSchema(s2);
       const [{ c }] = await s2`SELECT COUNT(*)::int AS c FROM tenants`;
       expect(c).toBe(0);
     } finally {
       // devolve o schema como os outros casos esperam
-      await s2.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-      for (const f of ['0000_init_postgres.sql', '0001_tenants.sql']) await s2.unsafe(migrationSql(f));
+      await recriarSchema(s2);
       await s2`INSERT INTO tenants (slug, business_name)
                VALUES ('bayron','Barbearia Bayron'), ('cortes-do-ze','Cortes do Zé')
                ON CONFLICT DO NOTHING`;
