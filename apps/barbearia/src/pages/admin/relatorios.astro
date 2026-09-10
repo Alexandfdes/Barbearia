@@ -10,8 +10,8 @@ import { and, gte, lt, eq, ne, or, isNull } from 'drizzle-orm';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { computeOccupancy } from '../../lib/occupancy.js';
 import { tenantDaSessao } from '../../lib/tenant.js';
+import { TZ } from '../../lib/timezone.js';
 
-const TZ = 'America/Fortaleza';
 const START_HOUR = 9;
 const END_HOUR = 19;
 
@@ -30,7 +30,6 @@ if (!barberRow) return Astro.redirect('/admin/login');
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DIAS_SEMANA = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 
-// Mês selecionado (YYYY-MM). Default: mês atual no fuso local.
 const nowUtc = new Date();
 const thisMonth = formatInTimeZone(nowUtc, TZ, 'yyyy-MM');
 const todayLocal = formatInTimeZone(nowUtc, TZ, 'yyyy-MM-dd');

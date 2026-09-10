@@ -9,8 +9,8 @@ import { barbers, productSales } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
+import { TZ } from '../../../../lib/timezone.js';
 
-const TZ = 'America/Fortaleza';
 
 const bodySchema = z.object({
   // Admin pode lançar para outro barbeiro; barbeiro lança sempre pra si.

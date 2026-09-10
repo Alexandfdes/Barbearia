@@ -7,8 +7,8 @@ import { db } from '../../../../../db/index.js';
 import { appointments, barbers, services } from '../../../../../db/schema.js';
 import { getSettings } from '../../../../../lib/settings.js';
 import { tenantDoHost } from '../../../../../lib/tenant.js';
+import { TZ } from '../../../../../lib/timezone.js';
 
-const TZ = 'America/Fortaleza';
 const SITE_HOST = 'bayron.alexandrefdev.tech';
 
 function toIcsDate(isoStr: string): string {

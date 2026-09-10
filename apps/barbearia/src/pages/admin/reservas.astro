@@ -9,8 +9,8 @@ import { and, eq } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
 import { waPhone } from '../../lib/whatsapp.js';
 import { tenantDaSessao } from '../../lib/tenant.js';
+import { TZ } from '../../lib/timezone.js';
 
-const TZ = 'America/Fortaleza';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
