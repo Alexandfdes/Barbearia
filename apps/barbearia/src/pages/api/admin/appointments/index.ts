@@ -10,8 +10,8 @@ import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { bookAppointment } from '../../../../lib/bookAppointment.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
+import { TZ } from '../../../../lib/timezone.js';
 
-const TZ = 'America/Fortaleza';
 
 const createSchema = z.object({
   barberId:          z.number().int().positive(),

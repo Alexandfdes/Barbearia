@@ -6,8 +6,8 @@ import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { sql } from 'drizzle-orm';
 import { db } from '../../../../db/index.js';
+import { TZ } from '../../../../lib/timezone.js';
 
-const TZ = 'America/Fortaleza';
 
 // Busca por telefone (customer_phone é só dígitos) OU por nome. Quando um dos
 // padrões vem vazio ('') o lado correspondente é ignorado.

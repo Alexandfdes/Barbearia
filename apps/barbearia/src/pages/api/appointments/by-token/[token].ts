@@ -8,8 +8,8 @@ import { appointments, barbers, services } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSettings, waUrl } from '../../../../lib/settings.js';
 import { tenantDoHost } from '../../../../lib/tenant.js';
+import { TZ } from '../../../../lib/timezone.js';
 
-const TZ = 'America/Fortaleza';
 
 export const GET: APIRoute = async ({ params, request }) => {
   const tenant = tenantDoHost(request);

@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '../../../../db/index.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
+import { TZ } from '../../../../lib/timezone.js';
 
 /**
  * GET /api/admin/appointments/calendar?month=YYYY-MM[&barber=N]
@@ -16,7 +17,7 @@ import { getSession } from '../../../../lib/session.js';
  */
 
 /**
- * Agrupa por dia local de Fortaleza.
+ * Agrupa por dia local da barbearia.
  *
  * O SQLite fazia `datetime(starts_at, '-3 hours')` — subtração fixa. Aqui a
  * conversão usa a zona nomeada: `starts_at` é TEXT com ISO em UTC, então o cast
@@ -24,15 +25,19 @@ import { getSession } from '../../../../lib/session.js';
  * não tem horário de verão, então o resultado é o mesmo hoje; a diferença é que
  * a consulta continua certa se um dia a barbearia não for em Fortaleza — e com
  * multi-tenant isso deixa de ser hipótese (a zona vira coluna do tenant).
+ *
+ * ⚠️ A zona é PARÂMETRO, não texto interpolado. `AT TIME ZONE ${TZ}` com o valor
+ * vindo do driver é uma bind, não concatenação — se um dia o fuso vier do banco
+ * ou de configuração do dono, isto continua sendo consulta preparada.
  */
 function porDia(barberId: number | null, month: string) {
   return db.execute<{ day_local: string; qty: string }>(sql`
     SELECT
-      to_char((starts_at::timestamptz) AT TIME ZONE 'America/Fortaleza', 'YYYY-MM-DD') AS day_local,
+      to_char((starts_at::timestamptz) AT TIME ZONE ${TZ}, 'YYYY-MM-DD') AS day_local,
       COUNT(*) AS qty
     FROM appointments
     WHERE status IN ('confirmed', 'completed')
-      AND to_char((starts_at::timestamptz) AT TIME ZONE 'America/Fortaleza', 'YYYY-MM') = ${month}
+      AND to_char((starts_at::timestamptz) AT TIME ZONE ${TZ}, 'YYYY-MM') = ${month}
       AND (${barberId}::int IS NULL OR barber_id = ${barberId}::int)
     GROUP BY day_local
   `);

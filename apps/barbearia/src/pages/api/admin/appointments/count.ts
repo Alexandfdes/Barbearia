@@ -7,6 +7,7 @@ import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { fromZonedTime } from 'date-fns-tz';
 import { tenantDaSessao, type Tenant } from '../../../../lib/tenant.js';
+import { TZ } from '../../../../lib/timezone.js';
 
 /**
  * GET /api/admin/appointments/count?date=YYYY-MM-DD[&barber=N]
@@ -19,7 +20,6 @@ import { tenantDaSessao, type Tenant } from '../../../../lib/tenant.js';
  *              detectar mudanças mesmo se a contagem não mudou (ex: notes editadas).
  */
 
-const TZ = 'America/Fortaleza';
 
 /**
  * Uma consulta só: `barberId` nulo desliga o filtro dentro do próprio SQL.

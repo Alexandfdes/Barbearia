@@ -5,8 +5,8 @@ import { z } from 'zod';
 import { addDays } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { getAvailableSlots } from '../../lib/slots.js';
+import { TZ } from '../../lib/timezone.js';
 
-const TZ = 'America/Fortaleza';
 
 const querySchema = z.object({
   barberId:             z.coerce.number().int().positive(),

@@ -9,6 +9,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { ptBR } from 'date-fns/locale';
 import { getSettings, waUrl } from '../../lib/settings';
 import { tenantDoHost } from '../../lib/tenant.js';
+import { TZ } from '../../lib/timezone.js';
 
 const tenant = tenantDoHost(Astro.request);
 
@@ -17,7 +18,6 @@ const s = await getSettings();
 const { token } = Astro.params;
 if (!token) return Astro.redirect('/agendar');
 
-const TZ = 'America/Fortaleza';
 
 const rows = (await db
   .select({

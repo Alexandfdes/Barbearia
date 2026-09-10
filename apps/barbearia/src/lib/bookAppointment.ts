@@ -7,8 +7,8 @@ import { barbers, barberServices, products, services, workingHours } from '../db
 import { tenantAtual, type Tenant } from './tenant.js';
 import { normalizePhone } from './phone.js';
 import { applyDiscountPct } from './combo.js';
+import { TZ } from './timezone.js';
 
-const TZ = 'America/Fortaleza';
 
 function weekdayOf(dateStr: string): number {
   const [y, m, d] = dateStr.split('-').map(Number);

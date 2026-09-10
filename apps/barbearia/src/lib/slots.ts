@@ -3,8 +3,8 @@ import { barberServices, workingHours, appointments, timeOff } from '../db/schem
 import { eq, and, or, isNull, gte, lt, gt, ne } from 'drizzle-orm';
 import { fromZonedTime } from 'date-fns-tz';
 import { computeAvailableSlots } from './slotsCore.js';
+import { TZ } from './timezone.js';
 
-const TZ = 'America/Fortaleza';
 
 /** Combina "YYYY-MM-DD" + "HH:MM" no fuso de Fortaleza e devolve Date UTC */
 function localToUtc(dateStr: string, timeStr: string): Date {
