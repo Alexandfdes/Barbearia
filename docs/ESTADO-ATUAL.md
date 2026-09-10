@@ -73,7 +73,8 @@ O plano tem sete passos, em `ARQUITETURA-MULTI-TENANT-V1.md` §9.
 | 3. Tabela `tenants` e `tenant_id` | ✅ **aplicado em 06/09** |
 | 3.5. Rede de testes em Postgres | ✅ **aplicado em 06/09** — 124 testes |
 | 4. Escopar as rotas | ✅ **54 de 54** — fechado em 09/09 com o login por telefone |
-| 5. Ligar RLS | não começado |
+| 5. Sessão decide a barbearia | ✅ **feito em 09/09** — ver §9.8 |
+| 5.1. Ligar RLS | não começado |
 | 6. Separar site do painel | não começado |
 | 7. Login por telefone e exclusion constraint | ✅ login feito em 09/09; falta a exclusion constraint |
 
@@ -464,25 +465,69 @@ que o passo 5 precisa.
 Coberto por `tests/login.test.ts` — 13 casos, incluindo o que motivou a mudança:
 dois barbeiros chamados "bayron" em barbearias diferentes, cada um entrando na sua.
 
-### 9.8 O passo 5 — ligar o multi-tenant no painel
+### 9.8 ✅ O passo 5 — a sessão decide a barbearia (09/09/2026)
 
-Com o `tenantId` na sessão, falta `tenantDaSessao()` **ler** esse campo: hoje ela
-ainda devolve `TENANT_UNICO` fixo, e é chamada em **53 lugares**.
+`tenantDaSessao()` devolvia `TENANT_UNICO` fixo, então os filtros que o passo 4
+espalhou pelas 53 rotas **não tinham efeito real**. Agora ela lê o `tenantId` que
+o login grava.
 
-**Recomendação: mantê-la síncrona**, servida por um cache dos tenants carregado no
-boot e revalidado em segundo plano. Ir ao banco a cada requisição a torna
-assíncrona e obriga a tocar nas 53 chamadas, com 53 chances de errar. Tenant
-suspenso demorar segundos para ser cortado é irrelevante numa cobrança mensal — e
-o login já recusa barbearia suspensa na entrada.
+**Como isso não virou 53 arquivos.** A tabela `tenants` foi para a memória (TTL de
+30s) e a validação subiu para `getSession()` — que toda rota do painel já chama
+antes, e cujo retorno nulo elas já tratam com 401. As 53 chamadas continuam
+síncronas e intocadas.
 
-⚠️ **Sessões antigas não têm `tenantId`.** Quando `tenantDaSessao()` passar a
-lê-lo, o certo é recusar a sessão e mandar logar de novo — nunca cair num tenant
-padrão, que serviria os dados da barbearia errada. Na prática: os barbeiros
-entram uma vez a mais no dia da virada.
+Ir ao banco por requisição tornaria a função assíncrona e exigiria 53 `await`
+novos. Este projeto já perdeu o catálogo do Bayron por **um** `await` esquecido em
+`Services.astro`: `cfg.shortName` virou `undefined` em silêncio.
 
-Depois disso, os passos 6 e 7 do `ARQUITETURA-MULTI-TENANT-V1.md` §9: separar o
-site do painel, e a exclusion constraint.
+**O que o cache custa, e por que vale:**
 
-### 9.9 Só então — RLS e o resto
+| | |
+|---|---|
+| Barbearia suspensa continua entrando | por até 30s. Numa cobrança mensal é irrelevante, e o login já recusa suspensa na porta |
+| Barbearia nova demora a aparecer | o mesmo tanto. `invalidarTenants()` existe para o provisionamento não esperar |
 
-Passos 5 a 7 do `ARQUITETURA-MULTI-TENANT-V1.md` §9.
+`getSession()` passou a recusar em três casos, todos aparecendo para o barbeiro
+como "faça login": sessão sem `tenantId`, tenant que sumiu do banco, e barbearia
+suspensa ou cancelada.
+
+⚠️ **No dia da virada, todo mundo entra uma vez a mais.** As sessões existentes não
+têm `tenantId`, e cair num tenant padrão serviria os dados da barbearia errada.
+
+⚠️ **`tenantDoHost()` ainda devolve `TENANT_UNICO`** — o site público continua
+sendo uma instância por barbearia. `resolverHost()` já está escrito e testado
+(subdomínio e domínio próprio) e entra no lugar dele no passo 6. Ligar agora
+seria pior: nada no site público chama `getSession()`, então o cache não estaria
+quente e toda página precisaria de um `await` no caminho mais quente que existe.
+
+Coberto por `tests/sessao-tenant.test.ts` — 8 casos, incluindo suspender uma
+barbearia e ver o acesso cair.
+
+### 9.9 O que vem agora
+
+Na ordem, e cada um só faz sentido depois do anterior:
+
+**1. Cadastrar o telefone dos barbeiros do Bayron.** Enquanto não fizerem, eles
+entram pelo caminho antigo (slug), que só vale com **uma** barbearia no banco. No
+dia do segundo cliente, quem estiver sem telefone perde o painel. É trabalho de
+minutos e tem prazo: antes da segunda venda.
+
+**2. A carga do Bayron, de SQLite para Postgres.** A ordem é obrigatória — ver
+"O porte estava incompleto" no §4 deste documento. Rodar as migrations de uma vez
+deixa as linhas carregadas sem `tenant_id`.
+
+**3. Ligar o RLS** (passo 5.1 da tabela do §4). Agora é seguro: as 54 rotas estão
+escopadas e a sessão resolve o tenant de verdade. Antes disso, o RLS devolveria
+zero linhas em silêncio.
+
+**4. Separar site e painel** (passo 6). É quando `tenantDoHost()` deixa de
+devolver `TENANT_UNICO` e passa a usar o `resolverHost()` que já está pronto.
+
+**5. A exclusion constraint** (passo 7), contra dois agendamentos no mesmo
+horário do mesmo barbeiro. Hoje isso é garantido por `pg_advisory_xact_lock` no
+código; a constraint move a garantia para o banco.
+
+⚠️ **Nada disso é o que trava a primeira venda.** Os três itens que decidem se o
+negócio fecha estão em `PENDENCIAS-ABERTAS.md`: política de suporte (§1.4),
+medidor de completude (§4.4) e contrato (§1.2). A R$ 100/mês, meia hora de
+suporte a mais por cliente come toda a margem — o multi-tenant não resolve isso.
