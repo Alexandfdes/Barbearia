@@ -28,7 +28,12 @@ let A = 0, B = 0;
 
 beforeAll(async () => {
   if (!TEM_BANCO) return;
-  sql = postgres(process.env.DATABASE_URL!, { max: 1 });
+  // `onnotice` silenciado: a migration 0001 é toda `IF NOT EXISTS` e `RAISE
+  // NOTICE`, então cada rodada cospe ~40 avisos do Postgres dizendo que está
+  // funcionando ("already exists, skipping", "FK composta: ..."). São centenas de
+  // linhas por suíte, e enterram o que interessa — inclusive uma falha de
+  // verdade. Ver os avisos: rode a migration à mão no psql.
+  sql = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
   await sql.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
   for (const f of ['0000_init_postgres.sql', '0001_tenants.sql']) await sql.unsafe(migrationSql(f));
   // Os tenants são criados AQUI de propósito. A 0001 só cria o tenant de
@@ -166,7 +171,7 @@ describe.skipIf(!TEM_BANCO)('o que a migration 0001 tem que garantir', () => {
     // A 0001 cria 'bayron' só para dar tenant_id aos dados que já existem. Num
     // banco recém-criado ela não deve criar nada: o cliente novo nasceria com o
     // subdomínio e o nome de outra barbearia (`PENDENCIAS-ABERTAS.md` §4.6).
-    const s2 = postgres(process.env.DATABASE_URL!, { max: 1 });
+    const s2 = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
     try {
       await s2.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
       for (const f of ['0000_init_postgres.sql', '0001_tenants.sql']) await s2.unsafe(migrationSql(f));
