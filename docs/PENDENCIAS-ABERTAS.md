@@ -188,6 +188,44 @@ Resolvido pela unificação: o site do produto virou `apps/vendas/` dentro do mo
 arquivo — é abrir a pasta velha por hábito e trabalhar uma hora no lugar errado. Já
 aconteceu em 06/09.
 
+### 2.4 ✅ `[TÉCNICO]` Restos do porte para Postgres — RESOLVIDOS em 10/09/2026
+
+Achados enquanto eu procurava o que mais tinha ficado amarrado ao SQLite depois do
+fuso. **Nenhum chegou a produção** — a versão Postgres ainda não subiu. Todos tinham a
+mesma assinatura: passam na suíte inteira, sobem no container sem erro, e só aparecem
+depois do deploy.
+
+**A pasta das fotos.** `src/lib/uploads.ts` derivava a raiz de
+`dirname(DATABASE_PATH)`. Com SQLite dava `/data/uploads`, dentro do volume — certo por
+acidente. O porte trocou a variável por `DATABASE_URL`, e sem ela a raiz virava
+`data/uploads`, **relativa**: no container, `/app/data/uploads`, dentro da camada da
+imagem. O logo, a capa e as fotos de produto parariam de ser servidos (404 em imagem
+não derruba página, só deixa o site feio) e cada foto nova sumiria no deploy seguinte.
+A raiz agora não depende de variável de banco nenhuma, e o padrão de produção aponta
+para onde os arquivos do Bayron já estão — nada precisa ser movido.
+
+**O backup.** `pg_dump` **não vem** na imagem `node:22-alpine`, e `scripts/backup.mjs` é
+um wrapper dele. O app subiria normalmente e todo backup falharia: container rodando,
+barbearia atendendo, e a primeira notícia de que não existe backup chegando no dia em
+que alguém precisa restaurar. O `Dockerfile` passa a instalar `postgresql16-client`, e o
+boot confere e avisa em banner se o binário não estiver lá — sem derrubar o boot, porque
+barbearia fora do ar é pior que barbearia sem o backup de hoje.
+
+**Os comandos.** `npm run db:seed` apontava para `scripts/seed.mjs`, apagado no porte.
+`db:migrate` rodava `drizzle-kit migrate`, que depende do journal que este projeto
+apagou. E `db:push` continuava lá: ele compara o `schema.ts` com o banco e **aplica o
+`ALTER` na hora**, sem migration, sem revisão e sem registro — num banco de cliente, uma
+mudança de schema que ninguém escreveu e ninguém pode reler depois. Agora `db:migrate`
+roda o migrador de verdade, entraram `db:provisionar` e `db:seed-bayron`, e `db:push` /
+`db:generate` recusam com explicação. Comando que continua no `package.json` vai ser
+rodado um dia, nem que seja por autocompletar.
+
+`tests/uploads.test.ts` e `tests/deploy.test.ts` (11 casos) leem o código, o `Dockerfile`
+e o `package.json` e travam tudo isso. Verificado que falham com cada defeito de volta.
+
+⚠️ **O que este item deixou aberto:** ver §3.7 — o backup cobre o banco e **não cobre as
+fotos**.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -226,6 +264,23 @@ instância sem apagar dados e de religar em um clique.
 
 Depende de §1.2. CSV de clientes e agendamentos, baixável pelo próprio dono no painel.
 É resposta comercial a uma objeção de venda, não só conformidade.
+
+### 3.7 🟠 `[TÉCNICO]` O backup não inclui as fotos
+
+Descoberto em 10/09/2026, junto com §2.4. `scripts/backup.mjs` roda `pg_dump`: salva o
+banco inteiro e **nada do volume**. O logo, a foto de capa, o favicon, a galeria e as
+fotos de produto vivem só em `/data/uploads`, sem cópia em lugar nenhum.
+
+Não é regressão — com SQLite o backup também era só do banco. Mas era menos visível: o
+`.db` ficava no mesmo `/data`, e quem copiasse o volume levava tudo junto. Agora o banco
+está fora do volume e o volume não está no backup.
+
+O tamanho do estrago: se o volume morrer, o banco volta e a barbearia perde a identidade
+visual inteira, que foi justamente o trabalho manual do dono. Restaurar isso significa
+pedir as fotos de novo para um cliente pagante.
+
+Correção: `tar` do `UPLOAD_ROOT` junto com o dump, no mesmo `.sql.gz`/`.tar.gz` do dia, e
+o mesmo upload off-site. É barato: as fotos mudam pouco e pesam pouco.
 
 ---
 
@@ -436,7 +491,8 @@ em uma função só, para trocar em um lugar.
   projeto inteiro, agora com margem mais apertada para errar. Só 5 conversas respondem.
 - **Quantas instâncias cabem na VPS?** Ela já foi comprada e a premissa é que as 10
   cabem. `docker stats` com 5 containers confirma ou desmente numa tarde.
-- **Restauração de backup** (§3.3), uma vez, antes do primeiro cliente pago.
+- **Restauração de backup** (§3.3), uma vez, antes do primeiro cliente pago — e agora
+  também **incluir as fotos no backup** (§3.7), que hoje ficam de fora.
 
 ---
 

@@ -312,6 +312,7 @@ Lista completa e priorizada em `PENDENCIAS-ABERTAS.md`. Os que travam mais:
 | 🔴 | Como o barbeiro entra no painel com várias barbearias — **é decisão sua e trava o passo 5** | `PENDENCIAS-ABERTAS.md` §1.5 |
 | 🔴 | As migrations plantam os dados do Bayron em todo banco SQLite novo | `PENDENCIAS-ABERTAS.md` §4.6 |
 | ✅ | ~~Timezone escrito em 20 arquivos como constante~~ — centralizado em 10/09 em `src/lib/timezone.ts`, com teste-guarda. **Sobrou o fuso por barbearia**, que só morde no passo 6 | `PENDENCIAS-ABERTAS.md` §2.1 |
+| 🟠 | **O backup salva o banco e não salva as fotos.** Volume morto = barbearia perde logo, capa e galeria | `PENDENCIAS-ABERTAS.md` §3.7 |
 | 🔴 | Política de suporte, que a R$ 100/mês decide se existe margem | `PENDENCIAS-ABERTAS.md` §1.4 |
 | ✅ | ~~Medidor de completude no painel~~ — feito em 10/09 | `PENDENCIAS-ABERTAS.md` §4.4 |
 | 🔴 | Contrato, LGPD e o que acontece quando o cliente não paga | `PENDENCIAS-ABERTAS.md` §1.2 |
@@ -332,6 +333,7 @@ um catálogo sugerido pronto para editar.
 
 | Quando | O quê |
 |---|---|
+| 10/09 | Restos do porte para Postgres, achados e corrigidos antes do deploy: a pasta das fotos saía de `DATABASE_PATH` e virava relativa; `pg_dump` não existia na imagem, ou seja, backup nenhum; `db:seed` apontava para arquivo apagado e `db:push` continuava podendo alterar o schema sem migration (`PENDENCIAS-ABERTAS.md` §2.4) |
 | 10/09 | Fuso horário sai de 20 arquivos e vira `src/lib/timezone.ts`, com `tests/timezone-unico.test.ts` impedindo que volte a espalhar (`PENDENCIAS-ABERTAS.md` §2.1) |
 | 10/09 | Medidor de completude no painel (`PENDENCIAS-ABERTAS.md` §4.4) |
 | 10/09 | `/admin/configuracoes` lia e gravava sempre no tenant 1 — corrigido, e o teste-guarda passou a exigir que o tenant venha da sessão |
