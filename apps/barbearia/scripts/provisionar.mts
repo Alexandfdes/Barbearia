@@ -212,6 +212,8 @@ try {
   console.log(`  entra com   ${telefoneLogin}  (telefone, não usuário)`);
   console.log(`  cor         ${accent.color}${cor ? '' : ' (padrão)'}`);
   console.log(`  horário     seg–sex 09:00–19:00, sáb 09:00–18:00`);
+  console.log(`\n  ⓘ  Se o painel já estiver no ar, ele leva até 30s para enxergar`);
+  console.log(`     esta barbearia — é o cache de tenants (src/lib/tenant.ts).`);
   console.log(`\n⚠️  A barbearia está SEM SERVIÇOS. Enquanto o dono não cadastrar o`);
   console.log(`   primeiro em /admin/servicos, ninguém consegue agendar — a seção`);
   console.log(`   de serviços do site nem aparece.`);
