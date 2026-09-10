@@ -28,18 +28,17 @@ const TABELAS = [
  * Rotas ainda não escopadas. **Só encolhe.**
  * Ver `migracao-tenants/LEIA-ME.md` para a ordem sugerida.
  */
-const PENDENTES = new Set([
-  // 🔴 BLOQUEADA POR DECISÃO, não por falta de trabalho.
+const PENDENTES = new Set<string>([
+  // ✅ VAZIA desde 09/09/2026 — as 54 rotas e páginas estão escopadas.
   //
-  // O login do painel busca o barbeiro por `slug`, que era único no mundo. Com
-  // vários tenants ele vira único POR TENANT — e o painel é central
-  // (painel.barbearianoar.com.br), então não há host de onde tirar a barbearia.
-  // Dois donos chamados "bayron" colidem no login.
+  // A última era `auth/login.ts`, e não era falta de trabalho: ela buscava o
+  // barbeiro por `slug`, que a migration 0001 tornou único só POR barbearia.
+  // Resolvida trocando o login para TELEFONE (migration 0002), que é único no
+  // mundo e por isso identifica a pessoa e a barbearia de uma vez.
   //
-  // A recomendação registrada no §6 do ARQUITETURA-MULTI-TENANT-V1.md é login
-  // por telefone: todo barbeiro tem, é único, e é consistente com o portal do
-  // cliente. Enquanto essa decisão não for tomada, escopar esta rota é chutar.
-  'auth/login.ts',
+  // Rota nova que toque tabela com `tenant_id` sem filtrar por tenant faz o
+  // teste abaixo falhar. Não adicione nada aqui para "resolver depois" sem
+  // escrever ao lado por que não dá para escopar agora.
 ]);
 
 interface Rota { nome: string; escopada: boolean; tocaBanco: boolean }
@@ -96,6 +95,6 @@ describe('escopo por tenant nas rotas de API', () => {
   it('o passo 4 está no ponto que a documentação afirma', () => {
     const escopadas = rotas.filter((r) => r.tocaBanco && r.escopada).length;
     const total = rotas.filter((r) => r.tocaBanco).length;
-    expect({ escopadas, total }).toEqual({ escopadas: 53, total: 54 });
+    expect({ escopadas, total }).toEqual({ escopadas: 54, total: 54 });
   });
 });

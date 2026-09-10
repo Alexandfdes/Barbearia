@@ -17,6 +17,7 @@ import { fromZonedTime } from 'date-fns-tz';
 import { readFileSync, existsSync } from 'node:fs';
 import postgres from 'postgres';
 import { exigirBancoDeTeste } from './guardaBanco.js';
+import { recriarSchema } from './migrations.js';
 
 const TZ = 'America/Fortaleza';
 const DATE = '2030-03-15';                                   // data futura fixa
@@ -31,17 +32,6 @@ const SPLIT_WEEKDAY = new Date(Date.UTC(2030, 2, 18, 12)).getUTCDay();
  * `drizzle/` — ver o §2 do `migracao-postgres/LEIA-ME.md`. Procurar nos dois
  * lugares evita o ENOENT críptico de quem roda o teste antes dessa cópia.
  */
-function migrationSql(nome: string): string {
-  for (const p of [`drizzle/${nome}`, `../../migracao-postgres/${nome}`]) {
-    if (existsSync(p)) return readFileSync(p, 'utf8');
-  }
-  throw new Error(
-    `Migration ${nome} não encontrada. Aplique o passo 2 primeiro:\n` +
-    `  cp migracao-postgres/0000_init_postgres.sql apps/barbearia/drizzle/\n` +
-    `Ver migracao-postgres/LEIA-ME.md §2.`
-  );
-}
-
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 
 // ⚠️ Esta suíte roda DROP SCHEMA. A guarda recusa qualquer banco cujo nome não
@@ -65,10 +55,7 @@ beforeAll(async () => {
   // Conexão própria para o schema: as migrations trazem BEGIN/COMMIT, e o
   // driver recusa transação explícita num pool com mais de uma conexão.
   const migrador = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
-  await migrador.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-  for (const f of ['0000_init_postgres.sql', '0001_tenants.sql']) {
-    await migrador.unsafe(migrationSql(f));
-  }
+  await recriarSchema(migrador);
   await migrador.end();
 
   ({ sqlConn } = await import('../src/db/index'));

@@ -12,25 +12,27 @@ if (session) return Astro.redirect('/admin');
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>Login — Bayron Admin</title>
+    <title>Entrar — Barbearia no Ar</title>
   </head>
   <body class="bg-slate-50 text-slate-800 min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-sm">
 
       <div class="text-center mb-8">
-        <p class="text-xs text-slate-500 uppercase tracking-widest mb-1">Barbearia Bayron</p>
-        <h1 class="font-serif text-2xl font-medium text-slate-900">Painel Admin</h1>
+        <p class="text-xs text-slate-500 uppercase tracking-widest mb-1">Barbearia no Ar</p>
+        <h1 class="font-serif text-2xl font-medium text-slate-900">Painel</h1>
       </div>
 
       <form id="login-form" class="bg-white border border-slate-200 rounded-md p-6 space-y-4">
         <div>
-          <label for="slug" class="block text-xs text-slate-500 uppercase tracking-widest mb-2">
-            Usuário
+          <label for="identificador" class="block text-xs text-slate-500 uppercase tracking-widest mb-2">
+            Telefone
           </label>
           <input
-            id="slug"
-            type="text"
-            autocomplete="username"
+            id="identificador"
+            type="tel"
+            inputmode="tel"
+            placeholder="(84) 99999-0000"
+            autocomplete="tel"
             autofocus
             class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-teal/50 transition-colors"
           />
@@ -83,7 +85,7 @@ if (session) return Astro.redirect('/admin');
 
     <script>
       const form     = document.getElementById('login-form') as HTMLFormElement;
-      const slugEl   = document.getElementById('slug') as HTMLInputElement;
+      const identEl  = document.getElementById('identificador') as HTMLInputElement;
       const passEl   = document.getElementById('password') as HTMLInputElement;
       const errorEl  = document.getElementById('login-error') as HTMLDivElement;
       const btnEl    = document.getElementById('login-btn') as HTMLButtonElement;
@@ -112,7 +114,7 @@ if (session) return Astro.redirect('/admin');
           const res = await fetch('/api/auth/login', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ slug: slugEl.value.trim(), password: passEl.value }),
+            body:    JSON.stringify({ identificador: identEl.value.trim(), password: passEl.value }),
           });
 
           if (res.ok) {
