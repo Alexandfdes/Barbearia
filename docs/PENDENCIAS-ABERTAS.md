@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-09-01.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-09-10.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -123,19 +123,46 @@ perde o acesso — e a rota recusa de propósito, em vez de escolher a barbearia
 
 ## 2. Minas no código (verificadas)
 
-### 2.1 🔴 `[TÉCNICO]` Timezone escrito em 19 arquivos
+### 2.1 🟡 `[TÉCNICO]` Timezone — centralizado em 10/09/2026, falta o fuso por barbearia
 
-`America/Fortaleza` aparece **22 vezes em 19 arquivos de `src/`** como constante de
-código, não lida do ambiente. O `.env.example` tem `TZ`, mas só
-`scripts/backup-daemon.mjs` respeita (`process.env.TZ ?? ...`); o resto ignora.
+**Era:** `America/Fortaleza` aparecia **24 vezes em 20 arquivos de `src/`** como
+constante de código, não lida do ambiente. O `.env.example` tinha `TZ`, mas só
+`scripts/backup-daemon.mjs` respeitava; o resto ignorava.
 
-Hoje você escapa por coincidência: Fortaleza é UTC-3 sem horário de verão, igual a São
-Paulo, Recife, Salvador e Rio. **Manaus e Cuiabá são UTC-4; o Acre é UTC-5.** Vender
-para lá gera horário errado em silêncio — o pior tipo de defeito possível num sistema de
-agendamento, porque ninguém percebe até o cliente chegar na hora errada.
+O risco continua o mesmo e vale relembrar: Fortaleza é UTC-3 sem horário de verão,
+igual a São Paulo, Recife, Salvador e Rio — por isso nunca quebrou. **Manaus e Cuiabá
+são UTC-4; o Acre é UTC-5.** Horário errado num sistema de agendamento não aparece em
+log nem em teste: aparece no cliente que chega na hora errada e culpa a barbearia.
 
-Correção: uma constante única lida de `process.env.TZ`, substituindo as 22 ocorrências.
-É barato agora e caríssimo de descobrir com cliente pagando.
+**Feito:** `src/lib/timezone.ts` é a fonte única. Exporta `TZ_PADRAO`
+(`America/Fortaleza`) e `TZ`, que lê `TZ_BARBEARIA` do ambiente e cai no padrão, com
+erro no log, se o valor não for uma zona IANA válida — porque um `RangeError` na
+formatação deixaria o painel inteiro em branco. Os 20 arquivos importam. Inclui os dois
+casos que não eram constante de código: o SQL de `api/admin/appointments/calendar.ts`
+(agora o fuso vai como parâmetro do bind) e `admin/dia/[date].astro` (o navegador
+recebe o valor por `define:vars`, em vez de ter a própria cópia).
+
+`tests/timezone-unico.test.ts` é o guarda-corpo: lê o código-fonte e falha se qualquer
+arquivo de `src/` cravar uma zona IANA de novo, ou usar `timeZone:` / `AT TIME ZONE`
+sem importar do módulo. Foi testado recravando o fuso em `slots.ts` de propósito — o
+teste pegou. Sem isso, o problema volta na primeira linha copiada de outro arquivo.
+
+⚠️ **O que sobrou — e por isso o item não está fechado:** variável de ambiente vale
+para **o processo inteiro**. Enquanto cada barbearia tem a própria instância, está
+certo. No passo 6 de `ARQUITETURA-MULTI-TENANT-V1.md` §9 — um processo servindo vários
+domínios — uma barbearia em Manaus e outra em Mossoró não cabem numa variável só.
+
+A correção definitiva é uma coluna `timezone` em `settings`, com o fuso vindo do tenant
+como a cor de destaque já vem, e o `TZ` do módulo deixando de ser constante para virar
+argumento das funções que formatam data. Centralizar agora é o que torna essa mudança
+**um arquivo, e não vinte** — e o que faz o teste acima falhar se alguém espalhar de
+novo enquanto ela não chega.
+
+Fora de `src/`, dois lugares ainda cravam o fuso e ficaram de fora de propósito:
+`scripts/backup-daemon.mjs` (usa `process.env.TZ` — é o relógio do **container**,
+decidindo a hora do backup, não o horário da barbearia) e
+`scripts/seed-relatorio-demo.mjs` (gerador de dados de demonstração, com o offset
+UTC-3 fixo). Nenhum dos dois afeta agendamento; entram junto com a coluna por tenant.
 
 ### 2.2 🟠 `[TÉCNICO]` Wizard obriga escolher barbeiro mesmo havendo um só
 
@@ -421,7 +448,9 @@ em uma função só, para trocar em um lugar.
    ele decide pelo `short_name` que a migration grava como `'Bayron'`.
 1. ~~**Decidir o login do painel** (§1.5)~~ — decidido e implementado em 09/09.
    Falta cadastrar o telefone dos barbeiros do Bayron antes do segundo cliente.
-2. **As duas minas** (`PENDENCIAS-ABERTAS.md` §2.1, §2.2). Baratas agora, caras com cliente pagando.
+2. ~~**As duas minas** (§2.1, §2.2)~~ — o fuso (§2.1) foi centralizado em 10/09 e
+   está com guarda-corpo; sobrou o fuso por barbearia, que só morde no passo 6.
+   **Falta o wizard (§2.2)**: barato agora, caro com cliente pagando.
 3. **Registrar o domínio** (`PENDENCIAS-ABERTAS.md` §0). Nome escolhido sem domínio registrado é nome de outra pessoa amanhã.
 4. ~~**Tela sem fotos** (§4.1)~~ — feita em 06/09/2026, topo e resto da página.
    A cor de destaque (§4.2) já estava feita.
