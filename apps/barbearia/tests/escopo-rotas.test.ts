@@ -14,6 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { globSync } from 'node:fs';
+import { sep } from 'node:path';
 
 /** Tabelas que ganharam `tenant_id` na migration 0001. */
 const TABELAS = [
@@ -54,8 +55,14 @@ const rotas: Rota[] = [...globSync('src/pages/api/**/*.ts'), ...globSync('src/pa
     const s = readFileSync(caminho, 'utf8');
     const tocaTabela = TABELAS.some((t) => new RegExp(`\\b${t}\\b`).test(s));
     const consulta = /\.(select|insert|update|delete)\(|SELECT |INSERT INTO|UPDATE |DELETE FROM/.test(s);
+    // ⚠️ `globSync` devolve o separador do sistema: `/` no Linux, `\` no Windows.
+    // Sem normalizar, no Windows nenhum `replace` abaixo casa — os nomes saem
+    // como `src\pages\api\auth\login.ts`, não batem com `PENDENTES`, e a
+    // contagem de páginas dá zero. O desenvolvimento é em Windows e a produção
+    // em Linux: teste que só roda num dos dois não é guarda-corpo.
+    const norm = caminho.split(sep).join('/');
     return {
-      nome: caminho.replace('src/pages/api/', '').replace('src/pages/', 'PÁGINA:'),
+      nome: norm.replace('src/pages/api/', '').replace('src/pages/', 'PÁGINA:'),
       tocaBanco: tocaTabela && consulta,
       escopada: /tenant\.id|tenantId/.test(s),
     };
