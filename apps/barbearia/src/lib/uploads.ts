@@ -1,13 +1,35 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { TENANT_UNICO, type Tenant } from './tenant.js';
 
-// Uploads ficam no MESMO volume persistente do banco (/data em produção,
-// ./data localmente). Assim a imagem sobrevive a deploys e a rebuilds da imagem.
-const DB_PATH = process.env.DATABASE_PATH ?? './data/appointments.db';
-export const UPLOAD_ROOT = process.env.UPLOAD_ROOT ?? join(dirname(DB_PATH), 'uploads');
+/**
+ * Onde a mídia enviada pelo dono da barbearia mora no disco.
+ *
+ * ⚠️ ISTO JÁ FOI DERIVADO DE `DATABASE_PATH` — E QUASE CUSTOU AS FOTOS.
+ *
+ * Enquanto o banco era SQLite, a raiz saía de `dirname(DATABASE_PATH)`: em
+ * produção `DATABASE_PATH=/data/appointments.db` dava `/data/uploads`, dentro
+ * do volume. Correto por acidente.
+ *
+ * O porte para Postgres tirou `DATABASE_PATH` do `.env` (agora é `DATABASE_URL`).
+ * Sem ele, o `??` caía no padrão `./data/appointments.db` e a raiz virava
+ * `data/uploads` — **relativa**. No container (`WORKDIR /app`) isso é
+ * `/app/data/uploads`: dentro da camada da imagem, fora do volume.
+ *
+ * O estrago seria mudo e em duas partes: o logo, a capa e as fotos de produto
+ * que já estão em `/data/uploads` parariam de ser servidos (404 em imagem não
+ * derruba página, só deixa o site feio), e cada foto nova enviada depois disso
+ * sumiria no deploy seguinte, junto com a camada descartada.
+ *
+ * Por isso a raiz não depende mais de variável de banco nenhuma. O padrão de
+ * produção é o volume, absoluto, e `UPLOAD_ROOT` existe para quem montar o
+ * volume em outro lugar.
+ */
+export const UPLOAD_ROOT =
+  process.env.UPLOAD_ROOT ??
+  (process.env.NODE_ENV === 'production' ? '/data/uploads' : './data/uploads');
 
 /** Mantido para os caminhos de produto já gravados no banco continuarem funcionando. */
 export const PRODUCT_UPLOAD_DIR = join(UPLOAD_ROOT, 'products');
