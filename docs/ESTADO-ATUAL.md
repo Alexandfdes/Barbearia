@@ -228,6 +228,28 @@ da marca dela em tudo; **nenhum resquício do Bayron**; seções sem conteúdo n
 **ninguém consegue agendar** — nada na tela indica que falta algo. Ver
 `PENDENCIAS-ABERTAS.md` §4.5.
 
+### ⚠️ Windows e Linux — 09/09/2026
+
+O desenvolvimento é em **Windows** e a produção roda em **Linux**. Isso já
+custou um teste: `tests/escopo-rotas.test.ts` usava `globSync` e depois
+`caminho.replace('src/pages/api/', '')`. `globSync` devolve o separador do
+sistema — `/` no Linux, `\` no Windows — então no Windows nenhum `replace`
+casava: a contagem de páginas dava zero e os nomes não batiam com a lista de
+pendentes. **Três dos cinco casos falhavam**, e o problema não tinha nada a ver
+com o porte para Postgres.
+
+Passou porque a verificação foi feita só em Linux.
+
+⚠️ **Todo teste que monta caminho a partir de `glob`, `readdir` ou `path.join`
+precisa normalizar antes de comparar com texto:**
+
+```ts
+import { sep } from 'node:path';
+const norm = caminho.split(sep).join('/');
+```
+
+Vale para qualquer código que compare caminho como string, não só testes.
+
 ### ⚠️ Restauração de backup testada — 06/09/2026
 
 `PENDENCIAS-ABERTAS.md` §5 pedia "um teste de restauração de verdade, feito uma
