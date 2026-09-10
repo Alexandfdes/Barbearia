@@ -1,33 +1,39 @@
 import { describe, it, expect } from 'vitest';
 import {
-  tenantDoHost, tenantDaSessao, tenantAtual, TENANT_UNICO, type Tenant,
+  tenantDoHost, tenantDaSessao, tenantDaSessaoOuNulo, resolverHost,
+  tenantAtual, TENANT_UNICO, type Tenant,
 } from '../src/lib/tenant.js';
 import { pastaDeMidia, urlDeMidia } from '../src/lib/uploads.js';
 
 /** Como um tenant de verdade vai ser depois do passo 3. */
-const OUTRO: Tenant = { id: 7, slug: 'vintage', status: 'active' };
+const OUTRO: Tenant = { id: 7, slug: 'vintage', status: 'active', domain: null };
 
-describe('resolvedor de tenant — a costura', () => {
-  it('nunca devolve nulo, seja qual for a entrada', () => {
-    const lixo = [
-      new Request('https://qualquer.coisa/'),
-      new Request('https://vintage.barbearianoar.com.br/agendar'),
-    ];
-    for (const req of lixo) {
-      expect(tenantDoHost(req).id).toBeTypeOf('number');
-      expect(tenantDoHost(req).slug).toBeTruthy();
-    }
-    for (const sessao of [null, {}, { tenantId: 99 }]) {
-      expect(tenantDaSessao(sessao as any).id).toBeTypeOf('number');
-    }
+describe('resolvedor de tenant — sessão', () => {
+  it('recusa sessão sem tenantId em vez de cair num padrão', () => {
+    // Sessão de antes do passo 7. Cair em TENANT_UNICO aqui serviria os dados
+    // da barbearia errada — o modo de falha mais caro que este sistema tem.
+    expect(tenantDaSessaoOuNulo(null)).toBeNull();
+    expect(tenantDaSessaoOuNulo({})).toBeNull();
   });
 
-  it('devolve o tenant único enquanto a tabela `tenants` não existe', () => {
-    // ⚠️ Este teste DEVE falhar quando o passo 3 for implementado. É de propósito:
-    // é o alarme de que os chamadores precisam passar a mandar host e sessão de verdade.
-    expect(tenantDoHost(new Request('https://vintage.barbearianoar.com.br/'))).toEqual(TENANT_UNICO);
-    expect(tenantDaSessao({ tenantId: 7 })).toEqual(TENANT_UNICO);
-    expect(tenantAtual()).toEqual(TENANT_UNICO);
+  it('recusa tenant que não está no cache', () => {
+    expect(tenantDaSessaoOuNulo({ tenantId: 99999 })).toBeNull();
+  });
+
+  it('a versão que estoura estoura mesmo — não devolve um tenant qualquer', () => {
+    // `tenantDaSessao()` é chamada em 53 rotas DEPOIS de `getSession()` já ter
+    // validado. Se alguém pular essa ordem, o erro precisa ser barulhento: um
+    // tenant improvisado aqui vira vazamento silencioso entre barbearias.
+    expect(() => tenantDaSessao(null)).toThrow(/barbearia válida/i);
+    expect(() => tenantDaSessao({ tenantId: 99999 })).toThrow();
+  });
+
+  it('resolverHost recusa host desconhecido em vez de chutar', () => {
+    // Servir o site da barbearia errada é pior que não servir nada: quem chama
+    // responde 404.
+    expect(resolverHost(null)).toBeNull();
+    expect(resolverHost('naoexiste.barbearianoar.com.br')).toBeNull();
+    expect(resolverHost('')).toBeNull();
   });
 
   it('o tenant único tem a forma definitiva, não um objeto improvisado', () => {
@@ -35,6 +41,14 @@ describe('resolvedor de tenant — a costura', () => {
     expect(TENANT_UNICO).toHaveProperty('slug');
     expect(TENANT_UNICO).toHaveProperty('status');
     expect(TENANT_UNICO.status).toBe('active');
+  });
+
+  it('tenantDoHost e tenantAtual ainda devolvem o tenant único — passo 6', () => {
+    // ⚠️ Estes DEVEM falhar quando o passo 6 (separar site e painel) chegar. É o
+    // alarme de que o site público passou a servir várias barbearias e não pode
+    // mais ignorar o endereço.
+    expect(tenantDoHost(new Request('https://vintage.barbearianoar.com.br/'))).toEqual(TENANT_UNICO);
+    expect(tenantAtual()).toEqual(TENANT_UNICO);
   });
 });
 
@@ -59,8 +73,8 @@ describe('caminho de mídia — escopo por tenant', () => {
   });
 
   it('barbearias diferentes nunca compartilham pasta', () => {
-    const a = pastaDeMidia('galeria', { id: 2, slug: 'a', status: 'active' });
-    const b = pastaDeMidia('galeria', { id: 3, slug: 'b', status: 'active' });
+    const a = pastaDeMidia('galeria', { id: 2, slug: 'a', status: 'active', domain: null });
+    const b = pastaDeMidia('galeria', { id: 3, slug: 'b', status: 'active', domain: null });
     expect(a).not.toBe(b);
   });
 });
