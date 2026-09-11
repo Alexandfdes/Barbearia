@@ -109,7 +109,7 @@ describe('nenhuma página pública serve barbearia sem perguntar de quem é o en
     'src/pages/api/customer/logout.ts':
       'idem',
     'src/pages/api/products/image/[name].ts':
-      'as fotos de produto ainda moram numa pasta só, compartilhada — PENDENCIAS-ABERTAS.md §6.1',
+      'as fotos de produto ainda moram numa pasta só, compartilhada — PENDENCIAS-ABERTAS.md §2.7',
   };
 
   it('toda rota e página pública chama `tenantDoHost`', () => {
