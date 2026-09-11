@@ -74,7 +74,7 @@ Um único módulo resolve isso nos dois apps. **É a costura que não pode estar
 > o estado do tenant (suspenso, cancelado). Sessão viva de tenant suspenso é o caminho
 > mais fácil para um inadimplente continuar usando.
 
-## 4. RLS — o que devolve a parede
+## 4. RLS — o que devolve a parede · ✅ LIGADO EM 11/09/2026
 
 Este é o principal motivo de escolher Postgres, e o que responde à objeção original.
 
@@ -97,6 +97,19 @@ A aplicação faz `SET LOCAL app.tenant_id = $1` no início de cada transação.
 um bug visível em vez de um incidente silencioso de LGPD.
 
 Isso não dispensa filtrar na aplicação — é a segunda parede, não a única.
+
+> **Como ficou de verdade, em 11/09/2026** (`drizzle/0003_rls.sql`):
+>
+> - A política é `USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::int)`.
+>   O `NULLIF` não é enfeite: depois de um `RESET`, a variável vira string vazia, e
+>   `''::int` **estoura** em vez de devolver `NULL`.
+> - Não é `SET LOCAL` por transação: é `set_config(..., false)` numa conexão
+>   **reservada por requisição**, porque as consultas de uma requisição não estão
+>   todas dentro de uma transação só.
+> - O `SET` vem acompanhado de `SET ROLE barbearia_app`. Sem isso nada disso valeria:
+>   o dono das tabelas passa por cima das políticas, e o app conecta como dono.
+>
+> Detalhes e as decisões em `ESTADO-ATUAL.md` §9.10.
 
 ## 5. Schema
 
