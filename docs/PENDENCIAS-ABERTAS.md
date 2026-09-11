@@ -336,22 +336,55 @@ instância sem apagar dados e de religar em um clique.
 Depende de §1.2. CSV de clientes e agendamentos, baixável pelo próprio dono no painel.
 É resposta comercial a uma objeção de venda, não só conformidade.
 
-### 3.7 🟠 `[TÉCNICO]` O backup não inclui as fotos
+### 3.7 ✅ `[TÉCNICO]` O backup não incluía as fotos — RESOLVIDO em 11/09/2026
 
-Descoberto em 10/09/2026, junto com §2.4. `scripts/backup.mjs` roda `pg_dump`: salva o
-banco inteiro e **nada do volume**. O logo, a foto de capa, o favicon, a galeria e as
-fotos de produto vivem só em `/data/uploads`, sem cópia em lugar nenhum.
+**Era:** `scripts/backup.mjs` rodava `pg_dump` e salvava o banco inteiro e **nada do
+volume**. O logo, a foto de capa, o favicon, a galeria e as fotos de produto viviam só
+em `/data/uploads`, sem cópia em lugar nenhum.
 
-Não é regressão — com SQLite o backup também era só do banco. Mas era menos visível: o
-`.db` ficava no mesmo `/data`, e quem copiasse o volume levava tudo junto. Agora o banco
-está fora do volume e o volume não está no backup.
+Não era regressão — com SQLite o backup também era só do banco. Mas era menos visível: o
+`.db` ficava no mesmo `/data`, e quem copiasse o volume levava tudo junto. O porte tirou
+o banco do volume e ninguém percebeu que o volume tinha ficado de fora.
 
-O tamanho do estrago: se o volume morrer, o banco volta e a barbearia perde a identidade
-visual inteira, que foi justamente o trabalho manual do dono. Restaurar isso significa
+O tamanho do estrago: volume morto significava banco voltando inteiro e a barbearia sem
+identidade visual nenhuma — que é justamente o trabalho manual do dono. Recuperar seria
 pedir as fotos de novo para um cliente pagante.
 
-Correção: `tar` do `UPLOAD_ROOT` junto com o dump, no mesmo `.sql.gz`/`.tar.gz` do dia, e
-o mesmo upload off-site. É barato: as fotos mudam pouco e pesam pouco.
+**Feito.** Cada dia gera dois arquivos, separados de propósito:
+
+```
+barbearia_<data>.sql.gz          o banco
+barbearia_<data>-fotos.tar.gz    o conteúdo de UPLOAD_ROOT
+```
+
+Restaurar um não deveria exigir o outro: banco corrompido com fotos intactas é o caso
+comum, e nele ninguém quer mexer nas fotos. Os caminhos dentro do `tar` são relativos,
+então a restauração é `tar -xzf <arquivo> -C /data/uploads` e funciona mesmo se o volume
+estiver montado em outro lugar.
+
+Três decisões que valem lembrar: falha no `tar` **não** invalida o backup do banco (o
+dump já está no disco e é a parte insubstituível); barbearia sem foto nenhuma não gera
+arquivo vazio; e a retenção passou a olhar os dois sufixos — sem isso o volume enche de
+fotos antigas até o disco acabar, e disco cheio derruba o banco junto.
+
+⚠️ **A regra do `UPLOAD_ROOT` está escrita em dois lugares** — `src/lib/uploads.ts` e
+`scripts/backup.mjs`, que é `.mjs` e não importa o `.ts`. Repetição de regra foi
+exatamente como o fuso horário se espalhou por 20 arquivos (§2.1), então
+`tests/deploy.test.ts` lê os dois e falha se divergirem. Se divergissem em silêncio, o
+backup salvaria uma pasta vazia dizendo que deu certo — o pior defeito possível num
+backup.
+
+`tests/backup-fotos.test.ts` (5 casos) confere o **conteúdo**, não a existência: as fotos
+são restauradas num diretório limpo e comparadas com `diff -r` contra o original. Arquivo
+que existe e não restaura é o mesmo que arquivo nenhum, com a desvantagem de parecer
+backup.
+
+⚠️ **Custo que ficou de pé:** as fotos são reempacotadas todo dia, mudem ou não. Com 30
+dias de retenção são 30 cópias das mesmas imagens no bucket. Para uma barbearia é pouco;
+se incomodar com 10 clientes, a saída é comparar o conteúdo antes de gerar e reaproveitar
+o arquivo do dia anterior — mas aí restaurar um dia qualquer passa a exigir procurar o
+arquivo mais recente até ele, e isso é complexidade num caminho que só é usado em
+emergência. Foi deixado simples de propósito.
 
 ---
 
