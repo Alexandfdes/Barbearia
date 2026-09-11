@@ -31,29 +31,83 @@ import postgres from 'postgres';
 import * as schema from './schema.js';
 import { armazemTenant } from './contexto.js';
 
-const url = process.env.DATABASE_URL;
-if (!url) {
-  throw new Error(
-    'DATABASE_URL não definido. Exemplo: postgres://usuario:senha@host:5432/barbearia'
-  );
+/**
+ * ⚠️ A conexão nasce no PRIMEIRO USO, não ao importar este arquivo.
+ *
+ * Antes, `DATABASE_URL` ausente estourava no topo do módulo. Parecia rigor e era
+ * um buraco: **qualquer** arquivo que importasse daqui, mesmo de longe, deixava
+ * de poder ser carregado sem banco — e `lib/tenant.ts` importa daqui, então
+ * `lib/uploads.ts` e meia dúzia de outros também, por tabela.
+ *
+ * O efeito aparecia só na máquina de quem não exporta `DATABASE_URL`: os testes
+ * que NÃO precisam de banco quebravam no import, antes do `describe.skipIf` ter
+ * chance de pular. Ficavam vermelhos sem ter nada a ver com o assunto.
+ *
+ * A mensagem continua igual e o erro continua existindo — só mudou de hora: sai
+ * quando alguém tenta CONSULTAR sem `DATABASE_URL`, não quando alguém importa um
+ * tipo. E produção não perdeu nada: `scripts/startup.mjs` roda antes do servidor
+ * no CMD do Dockerfile e já recusa subir sem a variável.
+ */
+let poolCriado: ReturnType<typeof postgres> | null = null;
+
+function pool(): ReturnType<typeof postgres> {
+  if (poolCriado) return poolCriado;
+
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error(
+      'DATABASE_URL não definido. Exemplo: postgres://usuario:senha@host:5432/barbearia'
+    );
+  }
+
+  // `max` limita o pool: com dois apps no mesmo Postgres, somar pools maiores que
+  // o `max_connections` do servidor derruba os dois ao mesmo tempo.
+  poolCriado = postgres(url, {
+    max: Number(process.env.DATABASE_POOL_MAX ?? 10),
+    // As colunas de data são TEXT com ISO string, não timestamptz — o driver não
+    // deve tentar converter nada sozinho. Ver o comentário no schema.
+    transform: { undefined: null },
+  });
+  return poolCriado;
+}
+
+let dbDonoCriado: ReturnType<typeof drizzle> | null = null;
+
+function donoReal(): ReturnType<typeof drizzle> {
+  return (dbDonoCriado ??= drizzle(pool(), { schema }));
 }
 
 /**
  * Conexão para SQL literal (`sqlConn\`SELECT ...\``), usada onde o Drizzle não
  * expressa bem — agregações do painel, por exemplo.
- *
- * `max` limita o pool: com dois apps no mesmo Postgres, somar pools maiores que
- * o `max_connections` do servidor derruba os dois ao mesmo tempo.
  */
-export const sqlConn = postgres(url, {
-  max: Number(process.env.DATABASE_POOL_MAX ?? 10),
-  // As colunas de data são TEXT com ISO string, não timestamptz — o driver não
-  // deve tentar converter nada sozinho. Ver o comentário no schema.
-  transform: { undefined: null },
-});
+export const sqlConn: ReturnType<typeof postgres> = new Proxy(
+  (() => {}) as unknown as ReturnType<typeof postgres>,
+  {
+    apply: (_a, _b, args) => (pool() as unknown as (...x: unknown[]) => unknown)(...args),
+    get(_alvo, propriedade) {
+      // Fechar uma conexão que nunca foi aberta não precisa abri-la primeiro.
+      // Sem esta saída, o `afterAll` de um teste sem banco criaria o pool só
+      // para encerrá-lo — e estouraria por falta de `DATABASE_URL`.
+      if (propriedade === 'end' && !poolCriado) return async () => {};
+      const real = pool();
+      const valor = Reflect.get(real as object, propriedade);
+      return typeof valor === 'function' ? valor.bind(real) : valor;
+    },
+  },
+);
 
 /** O Drizzle do dono das tabelas. Ver o aviso no cabeçalho antes de usar. */
-export const dbDono = drizzle(sqlConn, { schema });
+export const dbDono: ReturnType<typeof drizzle> = new Proxy(
+  {} as ReturnType<typeof drizzle>,
+  {
+    get(_alvo, propriedade) {
+      const real = donoReal();
+      const valor = Reflect.get(real as object, propriedade);
+      return typeof valor === 'function' ? valor.bind(real) : valor;
+    },
+  },
+);
 
 /**
  * O Drizzle da requisição.
@@ -74,7 +128,7 @@ export const dbDono = drizzle(sqlConn, { schema });
  */
 export const db: typeof dbDono = new Proxy({} as typeof dbDono, {
   get(_alvo, propriedade) {
-    const real = armazemTenant.getStore()?.db ?? dbDono;
+    const real = armazemTenant.getStore()?.db ?? donoReal();
     const valor = Reflect.get(real as object, propriedade);
     return typeof valor === 'function' ? valor.bind(real) : valor;
   },

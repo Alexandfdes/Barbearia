@@ -15,7 +15,7 @@
 //
 // Nenhum teste de unidade pega isso, porque nenhum deles lê o Dockerfile.
 // Estes leem.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 
 const dockerfile = readFileSync('Dockerfile', 'utf8');
@@ -97,5 +97,53 @@ describe('os comandos do package.json apontam para arquivos que existem', () => 
   it('existe um caminho para aplicar migration e outro para criar barbearia', () => {
     expect(scripts['db:migrate']).toMatch(/startup\.mjs/);
     expect(scripts['db:provisionar']).toMatch(/provisionar\.mts/);
+  });
+});
+
+describe('a suíte roda na máquina de quem não tem banco', () => {
+  // POR QUE ESTE CASO EXISTE
+  //
+  // `src/db/index.ts` estourava no TOPO do módulo quando `DATABASE_URL` não
+  // estava definida. Parecia rigor e era um buraco: `lib/tenant.ts` importa de
+  // lá, e `lib/uploads.ts` importa de `tenant.ts` — então testes que não têm
+  // nada a ver com banco quebravam no import, antes de o `describe.skipIf` ter
+  // chance de pular.
+  //
+  // O efeito só aparecia em quem não exporta a variável — ou seja, na máquina de
+  // desenvolvimento, nunca aqui. Foi assim que 10 casos ficaram vermelhos sem
+  // ninguém notar.
+  it('importar o módulo de banco sem DATABASE_URL não estoura', async () => {
+    const guardado = process.env.DATABASE_URL;
+    delete process.env.DATABASE_URL;
+    vi.resetModules();
+    try {
+      await expect(import('../src/db/index.js')).resolves.toBeDefined();
+    } finally {
+      if (guardado !== undefined) process.env.DATABASE_URL = guardado;
+      vi.resetModules();
+    }
+  });
+
+  it('mas CONSULTAR sem DATABASE_URL continua estourando, com a mesma mensagem', async () => {
+    // O erro não sumiu, mudou de hora: sai quando alguém usa o banco, não
+    // quando alguém importa um tipo.
+    const guardado = process.env.DATABASE_URL;
+    delete process.env.DATABASE_URL;
+    vi.resetModules();
+    try {
+      const { dbDono } = await import('../src/db/index.js');
+      expect(() => dbDono.select()).toThrow(/DATABASE_URL não definido/);
+    } finally {
+      if (guardado !== undefined) process.env.DATABASE_URL = guardado;
+      vi.resetModules();
+    }
+  });
+
+  it('o boot de produção continua recusando subir sem DATABASE_URL', () => {
+    // É o que torna seguro adiar o erro para o uso: quem garante que o servidor
+    // não sobe sem banco é o CMD, que roda o migrador ANTES e encadeia com `&&`.
+    const cmd = dockerfile.match(/CMD \[([^\]]+)\]/s)?.[1] ?? '';
+    expect(cmd).toMatch(/startup\.mjs/);
+    expect(cmd).toMatch(/startup\.mjs\s*&&/);
   });
 });
