@@ -15,9 +15,10 @@
 // Precisa de Postgres (o dump é de verdade). Sem DATABASE_URL a suíte é pulada.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, rmSync, utimesSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, statSync, utimesSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { exigirBancoDeTeste } from './guardaBanco.js';
 
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
@@ -33,6 +34,29 @@ if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
  * saída, do mesmo jeito que avisa quando falta banco.
  */
 const TEM_PGDUMP = spawnSync('pg_dump', ['--version'], { stdio: 'ignore' }).status === 0;
+
+/**
+ * Mapa `caminho relativo -> hash do conteúdo` de uma árvore de arquivos.
+ *
+ * ⚠️ Isto já foi `execFileSync('diff', ['-r', ...])`, que é mais curto de
+ * escrever e **não existe no Windows** — a máquina de desenvolvimento deste
+ * projeto. O caso passava aqui e quebrava lá com `spawnSync diff ENOENT`: um
+ * vermelho que não falava do backup, que é como se ensina a ignorar vermelho.
+ *
+ * Comparar em Node também diz melhor o que deu errado: o que falta, o que
+ * sobra e o que mudou de conteúdo, em vez de um código de saída.
+ */
+function arvore(raizDir: string, atual = raizDir, acc = new Map<string, string>()): Map<string, string> {
+  for (const nome of readdirSync(atual)) {
+    const caminho = join(atual, nome);
+    if (statSync(caminho).isDirectory()) arvore(raizDir, caminho, acc);
+    else acc.set(
+      relative(raizDir, caminho).split(sep).join('/'),
+      createHash('sha256').update(readFileSync(caminho)).digest('hex'),
+    );
+  }
+  return acc;
+}
 
 let raiz: string;
 let pastaBackup: string;
@@ -81,8 +105,14 @@ describe.skipIf(!TEM_BANCO || !TEM_PGDUMP)('o backup das fotos', () => {
     mkdirSync(destino, { recursive: true });
     execFileSync('tar', ['-xzf', String(r.fotos), '-C', destino]);
 
-    // `diff -r` compara árvore inteira: nome, conteúdo e o que sobra dos dois lados.
-    expect(() => execFileSync('diff', ['-r', pastaFotos, destino])).not.toThrow();
+    // Compara a árvore inteira: nome, conteúdo e o que sobra dos dois lados.
+    const original = arvore(pastaFotos);
+    const voltou = arvore(destino);
+
+    expect([...voltou.keys()].sort()).toEqual([...original.keys()].sort());
+    for (const [caminho, hash] of original) {
+      expect(voltou.get(caminho), `conteúdo de ${caminho}`).toBe(hash);
+    }
   });
 
   it('os caminhos dentro do arquivo são relativos — restauração não fica presa à máquina', async () => {

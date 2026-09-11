@@ -117,7 +117,10 @@ async function montarSqlite(): Promise<void> {
 /** Roda o carregador como processo, igual a quem digita o comando. */
 function carregar(): { codigo: number; saida: string } {
   try {
-    const saida = execFileSync('node', ['scripts/carregar-sqlite.mjs', caminhoDb], {
+    // `process.execPath` e não 'node': garante o MESMO Node que roda o teste e
+    // não depende de `node` estar no PATH — que é o tipo de suposição que só
+    // falha na máquina dos outros.
+    const saida = execFileSync(process.execPath, ['scripts/carregar-sqlite.mjs', caminhoDb], {
       env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL! },
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
