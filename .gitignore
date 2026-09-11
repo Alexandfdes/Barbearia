@@ -61,3 +61,9 @@ Claude outputs/
 
 # Orçamentos e propostas comerciais
 orcamentos/
+
+# Pasta de arquivos aguardando remoção manual (o app não tem permissão de apagar)
+_to_delete/
+
+# Pasta de arquivos aguardando remoção manual (o app não tem permissão de apagar)
+_to_delete/
