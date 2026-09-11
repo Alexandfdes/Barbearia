@@ -111,9 +111,19 @@ describe('escopo por tenant nas rotas de API', () => {
     expect(erradas).toEqual([]);
   });
 
-  it('o passo 4 está no ponto que a documentação afirma', () => {
+  it('TODA rota que toca o banco é escopada — sem exceção pendente', () => {
     const escopadas = rotas.filter((r) => r.tocaBanco && r.escopada).length;
     const total = rotas.filter((r) => r.tocaBanco).length;
-    expect({ escopadas, total }).toEqual({ escopadas: 54, total: 54 });
+
+    // ⚠️ O que importa é a IGUALDADE, não o número.
+    //
+    // Este caso já afirmou `{escopadas: 54, total: 54}` — e quebrou no dia em
+    // que uma rota nova e corretamente escopada entrou, porque virou 55 de 55.
+    // Vermelho por crescer é vermelho que ensina a ignorar vermelho.
+    //
+    // O piso abaixo continua existindo para o caso de o glob deixar de achar os
+    // arquivos: sem ele, "0 de 0" passaria como sucesso.
+    expect(total).toBeGreaterThanOrEqual(54);
+    expect({ escopadas, total }).toEqual({ escopadas: total, total });
   });
 });

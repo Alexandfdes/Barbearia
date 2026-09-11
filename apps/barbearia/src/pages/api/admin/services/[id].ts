@@ -38,8 +38,20 @@ export const PUT: APIRoute = async ({ request, params }) => {
 
   if (Object.keys(updates).length === 0) return json({ error: 'Nenhum campo para atualizar' }, 400);
 
-  const rows = await db.select({ id: services.id }).from(services).where(and(eq(services.id, id), eq(services.tenantId, tenant.id)));
+  const rows = await db.select({ id: services.id, priceCents: services.priceCents })
+    .from(services).where(and(eq(services.id, id), eq(services.tenantId, tenant.id)));
   if (rows.length === 0) return json({ error: 'Serviço não encontrado' }, 404);
+
+  // ⚠️ Não dá para ativar serviço sem preço.
+  //
+  // O catálogo sugerido (`PENDENCIAS-ABERTAS.md` §4.5) entra com preço zero de
+  // propósito: preço sugerido que o dono não reparou vira o preço no site dele.
+  // O que segura essa decisão é esta linha — sem ela, um clique em "ativar"
+  // publicaria "R$ 0,00" no site, e a intenção do preço vazio viraria defeito.
+  const precoDepois = parsed.data.priceCents ?? rows[0].priceCents;
+  if (parsed.data.active === true && precoDepois <= 0) {
+    return json({ error: 'Defina o preço antes de ativar este serviço.' }, 400);
+  }
 
   await db.update(services).set(updates).where(and(eq(services.id, id), eq(services.tenantId, tenant.id)));
   return json({ ok: true });
