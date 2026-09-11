@@ -23,11 +23,18 @@
 | **01/09** | Domínio: **subdomínio nosso incluso, domínio próprio como opção paga pelo cliente** | `PRECIFICACAO.md` §6 |
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
+| **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
 
 **Ainda pendente dentro dos itens acima:** registrar `barbearianoar.com.br` (estava
 livre em 30/08/2026, **não registrado**) e, se quiser segurar para SEO,
 `sitedabarbearia.com.br`. Enquanto não registrar, o `SITE_URL` do produto aponta para um
 domínio que não existe.
+
+⚠️ **Adiado por decisão de 11/09/2026** (`PLANO-PRODUTIZACAO.md` §12): o nome definitivo
+ainda não está escolhido, e registrar antes de decidir é pagar por endereço que não vai
+usar. **O gatilho deixou de ser uma data e passou a ser um evento:** antes de o nome
+aparecer em qualquer lugar que o cliente veja — link, e-mail, nota, subdomínio. Trocar
+depois de ter cliente é migração, não renomeação.
 
 ---
 
@@ -70,6 +77,13 @@ tempo.
 Não é área para improviso. Vale pagar um advogado uma vez e reusar o contrato em todos
 os clientes.
 
+⚠️ **Adiado por decisão de 11/09/2026** (`PLANO-PRODUTIZACAO.md` §12) — e é o único dos
+três adiados que não tem folga de verdade. **O prazo não é "depois", é a primeira venda:**
+no dia em que a primeira barbearia de terceiro paga, o banco passa a guardar nome,
+telefone e data de nascimento dos clientes dela sob a sua operação, e a exposição começa
+nesse dia. Sem contrato, a resposta para *"se eu sair, levo minha lista de clientes?"* é
+improvisada na frente do cliente — e a improvisada vira o combinado.
+
 ### 1.3 🔴 `[DECISÃO]` O que acontece quando não paga
 
 O gateway está escolhido, mas a política não. Hoje **não existe nada que suspenda uma
@@ -90,6 +104,14 @@ que mata negócio de um desenvolvedor só, não a tecnologia.
 
 A página de vendas promete *"ajustes pequenos entram na mensalidade"*. Falta definir o
 que é **pequeno**, antes que um cliente decida que refazer o site inteiro é pequeno.
+
+⚠️ **Adiado por decisão de 11/09/2026** (`PLANO-PRODUTIZACAO.md` §12). Não trava o
+lançamento — decide se existe margem. **Quem paga o atraso é você, em horas não
+cobradas**, e a conta só aparece no terceiro ou quarto cliente, quando já é tarde para
+mudar o combinado. Gatilho: antes de combinar escopo com o primeiro cliente.
+
+Metade deste item foi construída: o medidor de completude do painel (§4.4, feito em
+10/09) existe para o dono preencher sozinho e gerar menos pergunta.
 
 ---
 
@@ -270,13 +292,28 @@ uma vez só — o que mudou é que agora ela tem ferramenta, recusas e um ensaio
 
 ⚠️ **Dois achados de DADOS, que a carga não corrige** — ver §2.6.
 
-### 2.6 🔴 `[DECISÃO]` O telefone de contato da barbearia é um número falso
+### 2.6 🔴 `[TÉCNICO]` O telefone de contato da barbearia é um número falso — conhecido desde 27/08
 
-Encontrado em 11/09/2026, durante o ensaio da carga, na cópia local do banco.
+⚠️ **Correção de 11/09/2026: a primeira versão desta seção dizia "encontrado em
+11/09". Estava errado, e o erro importa.** Este número já estava registrado em
+`PLANO-PRODUTIZACAO.md` §9 desde **27/08/2026**, como primeiro item da lista
+"pendências que bloqueiam a primeira venda". Ele não é novo — ele **mudou de esconderijo**:
+era constante de código, e o trabalho de multi-tenant o copiou para dentro do banco.
 
 `settings.whatsapp_number` é **`15551547238`**, exibido como `+1 (555) 154-7238`. É um
 número de área fictícia norte-americana — o `555` é o prefixo que Hollywood usa
-justamente para não existir.
+justamente para não existir. **O número real está no README e no próprio comentário do
+`src/config.ts:5`: `+55 84 99905-1196` → `5584999051196`.**
+
+Hoje o valor mora em dois lugares, e só um deles importa:
+
+| Onde | Estado |
+|---|---|
+| `settings.whatsapp_number`, no banco | **É o que o site usa** — `Layout.astro` e `lib/settings.ts` leem daí |
+| `src/config.ts:6`, `WHATSAPP_NUMBER` | Sobra morta: a `waLink()` daquele arquivo não é importada por ninguém; quem usa `waLink` importa de `lib/whatsapp.ts`, que recebe o telefone como argumento |
+
+Corrigir o `config.ts` **não conserta nada** — é a linha do banco que aparece no site. E
+essa linha, em produção, ainda não foi conferida.
 
 Duas consequências, se o banco de produção tiver o mesmo valor:
 
@@ -611,11 +648,14 @@ em uma função só, para trocar em um lugar.
 2. ~~**As duas minas** (§2.1, §2.2)~~ — o fuso (§2.1) foi centralizado em 10/09 e
    está com guarda-corpo; sobrou o fuso por barbearia, que só morde no passo 6.
    **Falta o wizard (§2.2)**: barato agora, caro com cliente pagando.
-3. **Registrar o domínio** (`PENDENCIAS-ABERTAS.md` §0). Nome escolhido sem domínio registrado é nome de outra pessoa amanhã.
+3. ~~**Registrar o domínio** (`PENDENCIAS-ABERTAS.md` §0)~~ — **adiado em 11/09**
+   (`PLANO-PRODUTIZACAO.md` §12): o nome ainda não está escolhido.
 4. ~~**Tela sem fotos** (§4.1)~~ — feita em 06/09/2026, topo e resto da página.
    A cor de destaque (§4.2) já estava feita.
-4b. **Política de suporte** (§1.4). O medidor de completude, que era a outra metade
-   deste item, foi feito em 10/09 (§4.4). A R$ 100 a política escrita decide se existe
-   margem — deixou de ser melhoria.
-5. **Contrato e política de inadimplência** (§1.2, §1.3). Antes do primeiro real entrar.
+4b. ~~**Política de suporte** (`PENDENCIAS-ABERTAS.md` §1.4)~~ — **adiada em 11/09**
+   (`PLANO-PRODUTIZACAO.md` §12). O medidor de completude, que era a outra metade deste
+   item, foi feito em 10/09 (`PENDENCIAS-ABERTAS.md` §4.4).
+5. **Contrato e política de inadimplência** (`PENDENCIAS-ABERTAS.md` §1.2 e
+   `PENDENCIAS-ABERTAS.md` §1.3). **Adiado em 11/09, mas com prazo duro: antes da
+   primeira venda a terceiro.** Ver `PLANO-PRODUTIZACAO.md` §12.
 6. Operação (§3.x) — pode esperar o **segundo** cliente, não o décimo.
