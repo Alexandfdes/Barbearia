@@ -153,6 +153,23 @@ describe('a suíte roda na máquina de quem não tem banco', () => {
     expect(compose).not.toMatch(/^\s*volumes:/m);
   });
 
+  it('a raiz do monorepo delega TODO comando de teste do app', () => {
+    // ⚠️ Este caso existe porque o erro já aconteceu: `test:db` foi criado só em
+    // `apps/barbearia/package.json`, e quem roda da raiz — que é de onde se
+    // roda — levou "Missing script: test:db".
+    //
+    // A raiz é a porta de entrada do monorepo. Comando que existe só lá dentro
+    // não existe para quem usa.
+    const raiz = '../../package.json';
+    if (!existsSync(raiz)) return;   // app fora do monorepo: nada a delegar
+
+    const daRaiz: Record<string, string> = JSON.parse(readFileSync(raiz, 'utf8')).scripts ?? {};
+    const doApp = Object.keys(pkg.scripts ?? {}).filter((n) => n.startsWith('test'));
+
+    const naoDelegados = doApp.filter((n) => !(n in daRaiz));
+    expect(naoDelegados).toEqual([]);
+  });
+
   it('o boot de produção continua recusando subir sem DATABASE_URL', () => {
     // É o que torna seguro adiar o erro para o uso: quem garante que o servidor
     // não sobe sem banco é o CMD, que roda o migrador ANTES e encadeia com `&&`.

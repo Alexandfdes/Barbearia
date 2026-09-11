@@ -20,6 +20,8 @@
     "dev:vendas": "npm run dev --prefix apps/vendas",
     "build": "npm run build --prefix apps/barbearia && npm run build --prefix apps/vendas",
     "test": "npm run test --prefix apps/barbearia",
+    "test:db": "npm run test:db --prefix apps/barbearia --",
+    "test:watch": "npm run test:watch --prefix apps/barbearia --",
     "check": "npm run astro --prefix apps/barbearia -- check",
     "instalar": "npm install --prefix apps/barbearia && npm install --prefix apps/vendas"
   }
