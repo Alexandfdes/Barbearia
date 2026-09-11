@@ -307,16 +307,22 @@ skill `barbearia-docs` existir.
 
 Lista completa e priorizada em `PENDENCIAS-ABERTAS.md`. Os que travam mais:
 
+> ⚠️ **Decisão de 11/09/2026:** construir primeiro; domínio, contrato e política de
+> suporte ficam para depois (`PLANO-PRODUTIZACAO.md` §12). Os itens marcados ⏸️ abaixo
+> estão adiados **por escolha, não por esquecimento** — e o do contrato continua com
+> prazo duro. O critério de parada acordado não é "100%", é **um dono de barbearia
+> usar de ponta a ponta sem ninguém do lado**.
+
 | | O quê | Onde |
 |---|---|---|
 | 🔴 | Como o barbeiro entra no painel com várias barbearias — **é decisão sua e trava o passo 5** | `PENDENCIAS-ABERTAS.md` §1.5 |
-| 🔴 | **O telefone de contato da barbearia no banco é um número falso** (+1 555). O botão de WhatsApp do site não leva a lugar nenhum | `PENDENCIAS-ABERTAS.md` §2.6 |
+| 🔴 | **O telefone de contato no banco é um número falso** (+1 555), conhecido desde 27/08 e ainda não conferido em produção. O botão de WhatsApp do site não leva a lugar nenhum | `PENDENCIAS-ABERTAS.md` §2.6 |
 | 🔴 | As migrations plantam os dados do Bayron em todo banco SQLite novo | `PENDENCIAS-ABERTAS.md` §4.6 |
 | ✅ | ~~Timezone escrito em 20 arquivos como constante~~ — centralizado em 10/09 em `src/lib/timezone.ts`, com teste-guarda. **Sobrou o fuso por barbearia**, que só morde no passo 6 | `PENDENCIAS-ABERTAS.md` §2.1 |
 | ✅ | ~~O backup salva o banco e não salva as fotos~~ — resolvido em 11/09, com restauração conferida por `diff -r` | `PENDENCIAS-ABERTAS.md` §3.7 |
-| 🔴 | Política de suporte, que a R$ 100/mês decide se existe margem | `PENDENCIAS-ABERTAS.md` §1.4 |
+| ⏸️ | Política de suporte — **adiada em 11/09** por decisão do dono (`PLANO-PRODUTIZACAO.md` §12). Gatilho: antes de combinar escopo com o primeiro cliente | `PENDENCIAS-ABERTAS.md` §1.4 |
 | ✅ | ~~Medidor de completude no painel~~ — feito em 10/09 | `PENDENCIAS-ABERTAS.md` §4.4 |
-| 🔴 | Contrato, LGPD e o que acontece quando o cliente não paga | `PENDENCIAS-ABERTAS.md` §1.2 |
+| ⏸️🔴 | Contrato, LGPD e inadimplência — **adiado em 11/09** (`PLANO-PRODUTIZACAO.md` §12), mas **com prazo duro: antes da primeira venda a terceiro**, porque a exposição começa no dia em que o primeiro cliente paga | `PENDENCIAS-ABERTAS.md` §1.2 |
 | ✅ | ~~Tela inicial sem fotos e seções com conteúdo do Bayron~~ — resolvido em 06/09 | `PENDENCIAS-ABERTAS.md` §4.1 |
 
 **A Fase 3 deixou de ser bloqueio de MVP em 06/09/2026.** Galeria, depoimentos,
@@ -591,6 +597,6 @@ não o conserta: uma rota sem filtro passa a devolver zero linhas, o que ainda �
 tela vazia para o dono. `tests/escopo-rotas.test.ts` continua valendo.
 
 ⚠️ **Nada disso é o que trava a primeira venda.** Os três itens que decidem se o
-negócio fecha estão em `PENDENCIAS-ABERTAS.md`: política de suporte (§1.4),
-medidor de completude (§4.4) e contrato (§1.2). A R$ 100/mês, meia hora de
+negócio fecha: política de suporte (`PENDENCIAS-ABERTAS.md` §1.4), medidor de
+completude (`PENDENCIAS-ABERTAS.md` §4.4) e contrato (`PENDENCIAS-ABERTAS.md` §1.2). A R$ 100/mês, meia hora de
 suporte a mais por cliente come toda a margem — o multi-tenant não resolve isso.

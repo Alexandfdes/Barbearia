@@ -281,3 +281,83 @@ pagante, em vez de suposição.
    vale comissão por indicação.
 3. **Fornecedor da linha Boris.** Visita várias barbearias por semana. É um canal
    inteiro, hoje inexplorado.
+
+## 12. Decisão: construir primeiro, fechar domínio, contrato e suporte depois
+
+> Data: **11/09/2026**. Decisão do dono do projeto, registrada aqui para encerrar a
+> discussão e não voltar a ela a cada sessão.
+
+**O que foi decidido.** Terminar o produto primeiro. A política de suporte
+(`PENDENCIAS-ABERTAS.md` §1.4), o contrato e a LGPD (`PENDENCIAS-ABERTAS.md` §1.2) e o
+registro do domínio (`PENDENCIAS-ABERTAS.md` §0) ficam para depois. O nome definitivo
+ainda não está escolhido, e registrar domínio antes de decidir o nome é pagar por
+endereço que não vai usar.
+
+**Rejeitado: parar o desenvolvimento até os três estarem fechados.** Os três dependem de
+decisão e de terceiro (advogado), e nenhum deles fica melhor por ser escrito antes de o
+produto existir — política de suporte escrita sem saber quanto suporte o produto gera é
+chute com aparência de decisão.
+
+### O que esta decisão custa
+
+Registrado agora para não parecer surpresa depois. Nenhum destes é argumento para
+reverter — são o preço, e o preço foi aceito.
+
+**1. O contrato não tem prazo "depois". Tem prazo: a primeira venda.**
+
+No dia em que a primeira barbearia de terceiro paga, o banco passa a guardar nome,
+telefone e **data de nascimento** dos clientes dela, sob a operação de vocês. Isso é ser
+operador de dados pessoais de terceiros, e a exposição começa no primeiro dia — não numa
+maturidade futura do produto. Adiar aqui é adiar até a véspera da venda, não até "quando
+der".
+
+⚠️ Esta é a única das três que não é reversível por esforço depois. Sem contrato, a
+resposta para *"se eu sair, levo minha lista de clientes?"* é improvisada na frente do
+cliente — e a resposta improvisada vira o contrato.
+
+**2. A política de suporte não trava o lançamento; ela decide se existe margem.**
+
+A R$ 100/mês (`PRECIFICACAO.md` §5.1), 1,5h de suporte por cliente/mês come 60% da
+mensalidade; a R$ 110/h o valor-hora honesto, vira **prejuízo de R$ 75 por cliente**.
+Lançar sem a política não impede vender — impede saber se vender vale a pena. Quem paga
+o atraso é você, em horas não cobradas, e a conta só aparece no terceiro ou quarto
+cliente, quando já é tarde para mudar o combinado.
+
+Mitigação parcial já construída: o medidor de completude do painel
+(`PENDENCIAS-ABERTAS.md` §4.4), feito em 10/09, existe justamente para o dono preencher
+sozinho e gerar menos pergunta.
+
+**3. Sem domínio escolhido, o site de vendas aponta para um endereço que não existe.**
+
+O `SITE_URL` do produto usa `barbearianoar.com.br`, que **não está registrado**
+(verificado livre em 30/08/2026). Enquanto o nome não for decidido, qualquer link
+compartilhado, e-mail transacional ou print de tela carrega um endereço morto. O nome
+entra em nota fiscal, contrato, e-mail e subdomínio de cliente: trocar depois de ter
+cliente é migração, não renomeação.
+
+**4. "Deixar o produto 100% primeiro" é a parte que merece desconfiança.**
+
+Produto não fica 100% — a lista cresce enquanto se trabalha nela. Só na semana de
+06 a 11/09 foram **fechados cinco** itens e **abertos quatro novos**
+(`PENDENCIAS-ABERTAS.md` §2.4, `PENDENCIAS-ABERTAS.md` §2.5,
+`PENDENCIAS-ABERTAS.md` §2.6 e `PENDENCIAS-ABERTAS.md` §3.7), todos achados por contato
+com a
+realidade: servir o site contra dois bancos, ensaiar a carga, ler o Dockerfile. Nenhum
+deles apareceu por mais construção.
+
+O critério honesto de parada não é "acabou", é **"um dono de barbearia consegue usar de
+ponta a ponta sem eu do lado"**. Esse é verificável; "100%" não é.
+
+### O gatilho que substitui a data
+
+Os três itens continuam 🔴 em `PENDENCIAS-ABERTAS.md`, e 🔴 ali quer dizer "trava a
+primeira venda" — o que esta decisão muda é a **ordem do trabalho**, não o fato de eles
+travarem a venda.
+
+Concretamente:
+
+| Item | Quando deixa de poder esperar |
+|---|---|
+| Contrato e LGPD (`PENDENCIAS-ABERTAS.md` §1.2) | Antes de a **primeira barbearia de terceiro** pagar |
+| Política de suporte (`PENDENCIAS-ABERTAS.md` §1.4) | Antes de **combinar o escopo** com o primeiro cliente |
+| Domínio (`PENDENCIAS-ABERTAS.md` §0) | Antes de o **nome aparecer em qualquer lugar** que o cliente veja |
