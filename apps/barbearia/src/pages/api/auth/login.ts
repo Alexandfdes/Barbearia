@@ -23,7 +23,17 @@ import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { compare } from 'bcryptjs';
 import { and, eq, sql } from 'drizzle-orm';
-import { db, first } from '../../../db/index.js';
+/**
+ * ⚠️ `dbDono` e não `db`, e este é UM DOS DOIS lugares onde isso é certo.
+ *
+ * O login é a porta: ele precisa achar o barbeiro pelo telefone ANTES de saber
+ * de qual barbearia ele é — é esse o trabalho da rota. Com a conexão da
+ * requisição (sob row level security, passo 5.1), a busca só enxergaria a
+ * barbearia do host, e o dono da segunda barbearia simplesmente não entraria.
+ *
+ * `tests/rls.test.ts` mantém a lista de quem pode usar `dbDono` fechada.
+ */
+import { dbDono, first } from '../../../db/index.js';
 import { barbers, tenants } from '../../../db/schema.js';
 import { json } from '../../../lib/api.js';
 import { makeSessionCookie } from '../../../lib/session.js';
@@ -81,7 +91,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   let barbeiro: { id: number; tenantId: number; role: string; passwordHash: string; active: boolean } | undefined;
 
   if (telefone) {
-    barbeiro = await first(db.select(colunas).from(barbers).where(eq(barbers.phone, telefone)));
+    barbeiro = await first(dbDono.select(colunas).from(barbers).where(eq(barbers.phone, telefone)));
   } else {
     /**
      * ── TRANSIÇÃO ────────────────────────────────────────────────────────────
@@ -98,14 +108,14 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
      * apague daqui até o `}` abaixo. O teste `login.test.ts` cobre os dois
      * caminhos e vai apontar se algo depender do slug depois disso.
      */
-    const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(tenants);
+    const [{ n }] = await dbDono.select({ n: sql<number>`count(*)::int` }).from(tenants);
     if (n > 1) {
       return json({
         error: 'Entre com o seu telefone. O acesso por usuário não vale mais com várias barbearias.',
       }, 400);
     }
     barbeiro = await first(
-      db.select(colunas).from(barbers).where(eq(barbers.slug, identificador.toLowerCase()))
+      dbDono.select(colunas).from(barbers).where(eq(barbers.slug, identificador.toLowerCase()))
     );
   }
 
@@ -122,7 +132,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   // A barbearia precisa estar ativa. Sessão viva de barbearia suspensa é como um
   // inadimplente continua usando o sistema (regra 6 da skill barbearia-multi-tenant).
   const barbearia = await first(
-    db.select({ status: tenants.status })
+    dbDono.select({ status: tenants.status })
       .from(tenants)
       .where(and(eq(tenants.id, barbeiro.tenantId), eq(tenants.status, 'active')))
   );
