@@ -43,11 +43,21 @@ describe('resolvedor de tenant — sessão', () => {
     expect(TENANT_UNICO.status).toBe('active');
   });
 
-  it('tenantDoHost e tenantAtual ainda devolvem o tenant único — passo 6', () => {
-    // ⚠️ Estes DEVEM falhar quando o passo 6 (separar site e painel) chegar. É o
-    // alarme de que o site público passou a servir várias barbearias e não pode
-    // mais ignorar o endereço.
-    expect(tenantDoHost(new Request('https://vintage.barbearianoar.com.br/'))).toEqual(TENANT_UNICO);
+  it('tenantDoHost deixou de devolver o tenant único — passo 6, feito em 11/09/2026', () => {
+    // ⚠️ Este caso era o alarme do passo 6: ele afirmava que `tenantDoHost()`
+    // devolvia `TENANT_UNICO` e mandava falhar no dia em que isso mudasse.
+    // Mudou em 11/09/2026, ele falhou como prometido, e virou o oposto.
+    //
+    // Com o cache VAZIO — que é o estado deste arquivo, que não abre banco —
+    // qualquer endereço devolve null. Não é limitação do teste: é o
+    // comportamento, e é por isso que `src/middleware.ts` aquece o cache uma vez
+    // por requisição, antes de qualquer rota. Sem aquecer, a primeira visita
+    // depois de cada boot cairia em 404.
+    expect(tenantDoHost(new Request('https://vintage.barbearianoar.com.br/'))).toBeNull();
+
+    // Fora de requisição, `tenantAtual()` segue sendo a barbearia única: é o que
+    // scripts, seeds e testes querem dizer. Dentro de requisição ela entrega a
+    // barbearia do contexto — coberto em `tests/host-tenant.test.ts`.
     expect(tenantAtual()).toEqual(TENANT_UNICO);
   });
 });

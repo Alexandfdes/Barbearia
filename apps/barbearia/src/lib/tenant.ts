@@ -27,6 +27,7 @@
  * espera.
  */
 import { db } from '../db/index.js';
+import { armazemTenant } from '../db/contexto.js';
 import { tenants as tenantsTable } from '../db/schema.js';
 
 export interface Tenant {
@@ -141,26 +142,27 @@ export function tenantDaSessaoOuNulo(session: SessaoComTenant | null): Tenant | 
 /**
  * Site público: descobre a barbearia pelo endereço acessado.
  *
- * ⚠️ AINDA DEVOLVE `TENANT_UNICO`. Hoje cada barbearia tem a própria instância e
- * o próprio banco, então o host não precisa distinguir ninguém. Isso muda no
- * passo 6 (`ARQUITETURA-MULTI-TENANT-V1.md` §9), quando o site público passar a
- * servir várias barbearias do mesmo banco — aí `resolverHost()` abaixo entra no
- * lugar deste corpo.
+ * ✅ **Passo 6, ligado em 11/09/2026.** Antes devolvia `TENANT_UNICO` fixo: o
+ * produto tinha multi-tenant por dentro e uma barbearia só por fora — a segunda
+ * podia existir no banco e **não tinha endereço**.
  *
- * Ligar agora seria pior que esperar: sem o cache aquecido (nada aqui chama
- * `getSession()`), toda página pública precisaria de um await no caminho quente.
+ * ⚠️ Devolve `null` para endereço desconhecido, e quem chama responde **404**.
+ * Nunca um tenant padrão: servir o site da barbearia errada é pior que não
+ * servir nada, e um padrão silencioso é exatamente como isso aconteceria.
+ *
+ * ⚠️ **Continua SÍNCRONA, e isso depende do `src/middleware.ts`.** A resolução
+ * lê o cache em memória; quem o aquece, uma vez por requisição e antes de
+ * qualquer rota, é o middleware. Sem ele, a primeira visita depois de cada boot
+ * cairia em 404 com o cache frio — defeito que aparece só em produção, no
+ * primeiro acesso depois de cada deploy, e some quando alguém vai conferir.
  */
-export function tenantDoHost(_request: Request): Tenant {
-  return TENANT_UNICO;
+export function tenantDoHost(request: Request): Tenant | null {
+  return resolverHost(request.headers.get('host'));
 }
 
 /**
- * O que `tenantDoHost()` vai usar no passo 6. Já testado, ainda não ligado.
- *
  * Resolve `barbeariax.barbearianoar.com.br` pelo slug e um domínio próprio pela
- * coluna `domain`. Tenant não encontrado devolve `null` — quem chama responde
- * **404**, nunca um tenant padrão: servir o site da barbearia errada é pior que
- * não servir nada.
+ * coluna `domain`. Tenant não encontrado devolve `null`.
  */
 export function resolverHost(host: string | null): Tenant | null {
   if (!host) return null;
@@ -175,13 +177,34 @@ export function resolverHost(host: string | null): Tenant | null {
 }
 
 /**
- * Ponte para código que não recebe requisição nem sessão — os componentes do
- * site que só chamam `await getSettings()`.
+ * A barbearia da requisição em curso, para quem não recebe requisição nem sessão.
  *
- * ⚠️ NÃO usar em código novo. Enquanto o site público for uma instância por
- * barbearia, devolver `TENANT_UNICO` está certo. No passo 6 esta função precisa
- * sumir, e cada componente passar a receber o tenant de quem o renderizou.
+ * ── O QUE ELA ERA, E POR QUE PRECISOU MUDAR ──────────────────────────────────
+ *
+ * Até o passo 6 esta função devolvia `TENANT_UNICO` — a barbearia número 1,
+ * sempre. Estava certo enquanto cada cliente tinha a própria instância.
+ *
+ * O problema aparecia no instante em que o host passasse a decidir: **doze
+ * componentes e layouts chamam `await getSettings()` sem argumento** — topo,
+ * cabeçalho, rodapé, serviços, produtos, galeria, depoimentos, FAQ,
+ * localização, barra de WhatsApp e os dois layouts. Com a função devolvendo 1
+ * fixo, abrir o endereço da segunda barbearia renderizaria o site dela com o
+ * nome, o endereço, os horários e a marca da PRIMEIRA. Ligar o passo 6 sem
+ * mexer aqui seria pior que não ligar.
+ *
+ * ── COMO FICOU ───────────────────────────────────────────────────────────────
+ *
+ * Lê a barbearia do contexto da requisição, que `src/middleware.ts` abre uma vez
+ * por requisição — o mesmo contexto que grava `app.tenant_id` na conexão e liga
+ * o RLS. Os doze pontos de chamada continuam iguais e passaram a estar certos
+ * todos de uma vez.
+ *
+ * ⚠️ **Fora de requisição devolve `TENANT_UNICO`**, e isso é para scripts,
+ * seeds e testes, que legitimamente falam da barbearia única. Numa requisição
+ * isso não acontece: quando o host não resolve, as rotas e páginas públicas
+ * respondem 404 antes de renderizar qualquer coisa.
  */
 export function tenantAtual(): Tenant {
-  return TENANT_UNICO;
+  const doContexto = armazemTenant.getStore()?.tenant;
+  return (doContexto as Tenant | undefined) ?? TENANT_UNICO;
 }

@@ -93,7 +93,10 @@ export const db: typeof dbDono = new Proxy({} as typeof dbDono, {
  * que este passo existe para impedir. Fechar custa uma reconexão; devolver suja
  * custa o produto.
  */
-export async function comTenant<T>(tenantId: number, fn: () => Promise<T>): Promise<T> {
+export async function comTenant<T>(
+  tenant: { id: number; slug: string; status: string; domain: string | null },
+  fn: () => Promise<T>,
+): Promise<T> {
   const conexao = await sqlConn.reserve();
 
   // O Drizzle lê `options` do cliente para instalar os parsers dele, e a conexão
@@ -104,9 +107,9 @@ export async function comTenant<T>(tenantId: number, fn: () => Promise<T>): Prom
     await conexao`SET ROLE barbearia_app`;
     // `set_config(..., false)` = vale para a conexão, não para a transação:
     // as consultas da requisição não estão todas dentro de uma transação só.
-    await conexao`SELECT set_config('app.tenant_id', ${String(tenantId)}, false)`;
+    await conexao`SELECT set_config('app.tenant_id', ${String(tenant.id)}, false)`;
 
-    const contexto = { tenantId, db: drizzle(conexao, { schema }) };
+    const contexto = { tenant, db: drizzle(conexao, { schema }) };
     return await armazemTenant.run(contexto, fn);
   } finally {
     try {

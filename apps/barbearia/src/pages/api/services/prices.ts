@@ -12,6 +12,9 @@ import { tenantDoHost } from '../../../lib/tenant.js';
 // importa o catálogo institucional, não quem oferece cada serviço.
 export const GET: APIRoute = async ({ request }) => {
   const tenant = tenantDoHost(request);
+  // Endereço que não é de barbearia nenhuma. 404 de propósito: servir o site da
+  // barbearia errada é pior que não servir nada (`lib/tenant.ts`, passo 6).
+  if (!tenant) return json({ error: 'Barbearia não encontrada' }, 404);
   try {
     const rows = await db
       .select({ slug: services.slug, priceCents: services.priceCents })

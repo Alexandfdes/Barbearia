@@ -15,6 +15,19 @@ import Location from '../components/Location.astro';
 import FAQ from '../components/FAQ.astro';
 import Footer from '../components/Footer.astro';
 import WhatsAppBar from '../components/WhatsAppBar.astro';
+
+import { tenantDoHost } from '../lib/tenant.js';
+
+// Endereço que não é de barbearia nenhuma: 404 seco, sem renderizar.
+//
+// ⚠️ Sem esta guarda a página renderizaria com `tenantAtual()` caindo na
+// barbearia única — ou seja, um host desconhecido mostraria o site do PRIMEIRO
+// cliente. É o defeito que o passo 6 existe para não criar.
+if (!tenantDoHost(Astro.request)) {
+  return new Response('Barbearia não encontrada', { status: 404 });
+}
+
+
 ---
 
 <Layout>

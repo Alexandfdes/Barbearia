@@ -3,7 +3,8 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { readFile } from 'node:fs/promises';
 import { join, extname } from 'node:path';
-import { UPLOAD_ROOT, TIPOS_MIDIA, safeUploadName, type TipoMidia } from '../../../lib/uploads.js';
+import { pastaDeMidia, TIPOS_MIDIA, safeUploadName, type TipoMidia } from '../../../lib/uploads.js';
+import { tenantDoHost } from '../../../lib/tenant.js';
 
 const EXT_MIME: Record<string, string> = {
   '.jpg':  'image/jpeg',
@@ -23,11 +24,32 @@ const EXT_MIME: Record<string, string> = {
  * Cache eterno é seguro porque cada upload gera um nome novo: trocar o logo
  * muda o caminho, e o navegador busca o arquivo novo na hora.
  */
-export const GET: APIRoute = async ({ params }) => {
-  const partes = (params.path ?? '').split('/');
-  if (partes.length !== 2) return new Response('Not found', { status: 404 });
+export const GET: APIRoute = async ({ params, request }) => {
+  // ⚠️ Passo 6: a PASTA vem do endereço, nunca da URL.
+  //
+  // `urlDeMidia()` monta dois formatos: `/api/media/logo/x.webp` para a
+  // barbearia legada e `/api/media/<slug>/logo/x.webp` para as demais. Antes
+  // desta mudança a rota aceitava só o primeiro e montava o caminho com
+  // `UPLOAD_ROOT` cru — ou seja, **o logo, a capa e a galeria da segunda
+  // barbearia davam 404**, e o site dela nascia sem imagem nenhuma.
+  //
+  // Aceitar o slug da URL como fonte da pasta seria pior que o 404: qualquer um
+  // pediria a pasta de qualquer barbearia trocando uma palavra no endereço.
+  // Quem responde "de quem é esta requisição" continua sendo o host.
+  const tenant = tenantDoHost(request);
+  if (!tenant) return new Response('Not found', { status: 404 });
 
-  const [tipo, arquivoBruto] = partes;
+  const partes = (params.path ?? '').split('/');
+  if (partes.length !== 2 && partes.length !== 3) return new Response('Not found', { status: 404 });
+
+  // No formato com slug, ele precisa ser o da barbearia do endereço. Divergiu,
+  // é pedido para a pasta de outra — 404, sem explicar qual das duas coisas
+  // estava errada.
+  if (partes.length === 3 && partes[0] !== tenant.slug) {
+    return new Response('Not found', { status: 404 });
+  }
+
+  const [tipo, arquivoBruto] = partes.slice(-2);
   if (!TIPOS_MIDIA.includes(tipo as TipoMidia)) return new Response('Not found', { status: 404 });
 
   const arquivo = safeUploadName(arquivoBruto);
@@ -36,7 +58,7 @@ export const GET: APIRoute = async ({ params }) => {
   const type = EXT_MIME[extname(arquivo).toLowerCase()];
   if (!type) return new Response('Not found', { status: 404 });
 
-  const pasta = join(UPLOAD_ROOT, tipo);
+  const pasta = pastaDeMidia(tipo as TipoMidia, tenant);
 
   try {
     const buf = await readFile(join(pasta, arquivo));

@@ -32,6 +32,10 @@ let db: typeof import('../src/db/index.js')['db'];
 let dbDono: typeof import('../src/db/index.js')['dbDono'];
 let comTenant: typeof import('../src/db/index.js')['comTenant'];
 
+/** A barbearia como o middleware a entrega: o objeto inteiro, não só o id. */
+const BAYRON = { id: 1, slug: 'bayron', status: 'active', domain: null };
+const VINTAGE = { id: 2, slug: 'vintage', status: 'active', domain: null };
+
 /** Quantos barbeiros a conexão ENXERGA — a consulta não filtra nada. */
 async function barbeirosVisiveis(qual: typeof db): Promise<number> {
   const linhas = await qual.execute(sql`SELECT COUNT(*)::int AS n FROM barbers`);
@@ -73,8 +77,8 @@ describe.skipIf(!TEM_BANCO)('o banco separa as barbearias sozinho', () => {
   it('dentro do contexto, a consulta SEM filtro só alcança a própria barbearia', async () => {
     // Esta é a prova. A consulta está errada de propósito — é o erro que uma
     // rota nova escreveria com pressa — e mesmo assim não vaza.
-    const doBayron = await comTenant(1, () => barbeirosVisiveis(db));
-    const daVintage = await comTenant(2, () => barbeirosVisiveis(db));
+    const doBayron = await comTenant(BAYRON, () => barbeirosVisiveis(db));
+    const daVintage = await comTenant(VINTAGE, () => barbeirosVisiveis(db));
 
     expect(doBayron).toBe(2);
     expect(daVintage).toBe(1);
@@ -89,7 +93,7 @@ describe.skipIf(!TEM_BANCO)('o banco separa as barbearias sozinho', () => {
   it('GRAVAR na barbearia dos outros é recusado pelo banco', async () => {
     let recusa = '';
     try {
-      await comTenant(2, () => db.execute(sql`
+      await comTenant(VINTAGE, () => db.execute(sql`
         INSERT INTO barbers (tenant_id, name, slug, role, password_hash, active)
         VALUES (1, 'Infiltrado', 'infiltrado', 'admin', 'x', true)`));
     } catch (e) {
@@ -104,15 +108,15 @@ describe.skipIf(!TEM_BANCO)('o banco separa as barbearias sozinho', () => {
 
   it('um DELETE sem cláusula nenhuma não alcança a agenda da outra barbearia', async () => {
     // O pior comando possível, rodado pela barbearia errada.
-    await comTenant(2, () => db.execute(sql`DELETE FROM barbers`));
+    await comTenant(VINTAGE, () => db.execute(sql`DELETE FROM barbers`));
 
     // A Vintage apagou o dela; o Bayron continua inteiro.
     expect(await barbeirosVisiveis(dbDono)).toBe(2);
-    expect(await comTenant(1, () => barbeirosVisiveis(db))).toBe(2);
+    expect(await comTenant(BAYRON, () => barbeirosVisiveis(db))).toBe(2);
   });
 
   it('um UPDATE sem cláusula nenhuma não mexe no preço da outra barbearia', async () => {
-    await comTenant(2, () => db.execute(sql`UPDATE services SET price_cents = 1`));
+    await comTenant(VINTAGE, () => db.execute(sql`UPDATE services SET price_cents = 1`));
 
     const linhas = await dbDono.execute(sql`
       SELECT tenant_id, price_cents FROM services ORDER BY tenant_id`);
@@ -124,7 +128,7 @@ describe.skipIf(!TEM_BANCO)('o banco separa as barbearias sozinho', () => {
   it('a conexão volta limpa para o pool', async () => {
     // Se o papel ou o tenant sobrassem na conexão devolvida, a PRÓXIMA
     // requisição rodaria com o crachá da anterior — pior que não ter rede.
-    await comTenant(2, async () => { /* usa e devolve */ });
+    await comTenant(VINTAGE, async () => { /* usa e devolve */ });
 
     const quem = await dbDono.execute(sql`
       SELECT current_user AS papel, current_setting('app.tenant_id', true) AS tenant`);

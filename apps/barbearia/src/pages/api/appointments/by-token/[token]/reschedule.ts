@@ -24,6 +24,9 @@ function weekdayOf(dateStr: string): number {
 
 export const POST: APIRoute = async ({ params, request }) => {
   const tenant = tenantDoHost(request);
+  // Endereço que não é de barbearia nenhuma. 404 de propósito: servir o site da
+  // barbearia errada é pior que não servir nada (`lib/tenant.ts`, passo 6).
+  if (!tenant) return json({ error: 'Barbearia não encontrada' }, 404);
   const { token } = params;
   if (!token) return json({ error: 'Token inválido' }, 400);
 

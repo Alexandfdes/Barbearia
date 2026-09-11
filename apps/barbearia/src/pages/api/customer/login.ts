@@ -45,6 +45,9 @@ async function contarPorTelefone(phone: string, tenant: Tenant): Promise<{ total
 
 export const POST: APIRoute = async ({ request, clientAddress }) => {
   const tenant = tenantDoHost(request);
+  // Endereço que não é de barbearia nenhuma. 404 de propósito: servir o site da
+  // barbearia errada é pior que não servir nada (`lib/tenant.ts`, passo 6).
+  if (!tenant) return json({ error: 'Barbearia não encontrada' }, 404);
   // Rate limit por IP — protege contra brute-force de números/datas
   const ip = getClientIp(request, clientAddress);
   const rl = checkRateLimit(`customer-login:${ip}`);
