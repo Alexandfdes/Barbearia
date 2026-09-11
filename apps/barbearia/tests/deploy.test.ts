@@ -139,6 +139,20 @@ describe('a suíte roda na máquina de quem não tem banco', () => {
     }
   });
 
+  it('existe um jeito de rodar a suíte INTEIRA, e o banco dele passa na guarda', () => {
+    // `npm test` sem banco pula 84 casos. O caminho completo precisa existir e
+    // apontar para um banco cujo nome termine em _test — senão
+    // `tests/guardaBanco.ts` recusa rodar, com razão: a suíte faz DROP SCHEMA.
+    expect(pkg.scripts['test:db']).toMatch(/scripts\/testar\.mjs/);
+
+    const compose = readFileSync('docker-compose.test.yml', 'utf8');
+    expect(compose).toMatch(/POSTGRES_DB:\s*\S+_test\b/);
+
+    // Sem volume nomeado: banco de teste que sobrevive ao `down` é banco sujo,
+    // e teste que depende do estado de ontem falha na terça sem ter mudado nada.
+    expect(compose).not.toMatch(/^\s*volumes:/m);
+  });
+
   it('o boot de produção continua recusando subir sem DATABASE_URL', () => {
     // É o que torna seguro adiar o erro para o uso: quem garante que o servidor
     // não sobe sem banco é o CMD, que roda o migrador ANTES e encadeia com `&&`.
