@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-09-10.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-09-11.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -225,6 +225,77 @@ e o `package.json` e travam tudo isso. Verificado que falham com cada defeito de
 
 ⚠️ **O que este item deixou aberto:** ver §3.7 — o backup cobre o banco e **não cobre as
 fotos**.
+
+### 2.5 ✅ `[TÉCNICO]` A carga do Bayron não tinha ferramenta nem ensaio — FEITA em 11/09/2026
+
+A ordem obrigatória (`--ate=0000` → carga → resto) estava escrita em três documentos
+e o passo do meio era **só uma frase**. Não existia script que carregasse os dados: a
+operação de maior risco do projeto — e a única sem volta — era a que não tinha nem
+código nem ensaio.
+
+**`scripts/carregar-sqlite.mjs`.** Copia as 12 tabelas na ordem das chaves estrangeiras,
+numa transação só, **preservando os ids** (o link de gerenciar agendamento aponta para
+uma linha por id e já está no WhatsApp dos clientes — renumerar faria cada link antigo
+abrir o agendamento de outra pessoa), converte `active` de 0/1 para boolean e adianta as
+sequences. Sem esse último passo a barbearia migra bem e quebra no primeiro cliente que
+tenta marcar horário, porque o `INSERT` tenta o id 1.
+
+Usa `node:sqlite`, embutido no Node 22, em vez de trazer o `better-sqlite3` de volta:
+módulo nativo para compilar no Windows e na imagem, por uma ferramenta que roda uma vez
+na vida de cada barbearia.
+
+**Quatro recusas**, porque quem roda isto está com o sistema parado e o dono esperando:
+tabelas ausentes, destino não vazio (carga repetida duplica o histórico), `tenant_id` já
+existente (ordem trocada) e vazio na origem onde o destino exige valor — esta última
+lista tabela, coluna e quantidade **de uma vez**, em vez de deixar descobrir uma por
+tentativa.
+
+**O ensaio, com os 820 registros reais.** Auditoria antes: zero chave estrangeira órfã,
+`integrity_check` ok, nenhum NULL nas 93 colunas que o Postgres exige preenchidas, e
+todas as colunas do SQLite com destino no schema novo. Depois: 617 agendamentos, 88
+itens, 60 vínculos, 24 horários, 20 serviços e 3 barbeiros, contagem conferindo nas 12
+tabelas; a `0001` encontrou os dados e distribuiu o `tenant_id` (**zero** linha sem
+tenant); o próximo agendamento recebeu o id 618; o app subiu contra o banco carregado
+servindo o site e as três APIs; e o backup do banco já migrado restaurou com 13 de 13
+tabelas idênticas.
+
+`tests/carga-sqlite.test.ts` (8 casos) roda a carga de verdade contra um Postgres de
+verdade, com o SQLite montado na hora a partir do catálogo — coluna nova numa migration
+entra na fixture sozinha, em vez de envelhecer numa lista escrita à mão.
+
+⚠️ **O ensaio foi com a cópia local, não com o banco de produção.** É o mesmo schema e
+o mesmo volume de dados, mas o banco do VPS tem os agendamentos das últimas semanas e
+pode ter linha que a cópia não tem. A carga de verdade continua sendo uma operação de
+uma vez só — o que mudou é que agora ela tem ferramenta, recusas e um ensaio que passou.
+
+⚠️ **Dois achados de DADOS, que a carga não corrige** — ver §2.6.
+
+### 2.6 🔴 `[DECISÃO]` O telefone de contato da barbearia é um número falso
+
+Encontrado em 11/09/2026, durante o ensaio da carga, na cópia local do banco.
+
+`settings.whatsapp_number` é **`15551547238`**, exibido como `+1 (555) 154-7238`. É um
+número de área fictícia norte-americana — o `555` é o prefixo que Hollywood usa
+justamente para não existir.
+
+Duas consequências, se o banco de produção tiver o mesmo valor:
+
+1. **O botão de WhatsApp do site não leva a lugar nenhum.** Todo cliente que clica em
+   "fale conosco" abre uma conversa com um número inexistente. No site de uma barbearia,
+   esse botão é metade do funil.
+2. **O número sai publicado no `schema.org`** (`Layout.astro:73`, `"telephone"`), que é
+   o que o Google lê para montar o cartão do negócio na busca.
+
+Não é defeito de código: é o conteúdo do campo. Ou a produção tem o mesmo valor e está
+perdendo contato há meses, ou só a cópia local está assim — e aí a cópia local não serve
+como fonte fiel para ensaiar migração.
+
+**Conferir no banco de produção antes de qualquer outra coisa.** É o item mais barato de
+verificar e o mais caro de descobrir tarde.
+
+⚠️ Junto com ele: os **três barbeiros estão sem telefone** (`barbers.phone` vazio nos
+três), o que já estava registrado em §1.5 e o ensaio confirmou. No dia do segundo
+cliente eles perdem o acesso ao painel.
 
 ---
 
