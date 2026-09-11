@@ -27,5 +27,12 @@ export default defineConfig({
      * ao recompor as chaves estrangeiras.
      */
     fileParallelism: false,
+
+    /**
+     * Avisa quando a suíte roda sem banco e pula 84 casos. Ver o arquivo — a
+     * linha "84 skipped" do vitest se perde no meio do verde, e é justamente
+     * ela que diz que a parte de dado de cliente não foi conferida.
+     */
+    globalSetup: './tests/avisoBanco.ts',
   },
 });

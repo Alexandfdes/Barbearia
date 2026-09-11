@@ -17,6 +17,7 @@
     "db:generate": "node scripts/drizzle-kit-desativado.mjs",
     "db:push": "node scripts/drizzle-kit-desativado.mjs",
     "test": "vitest run",
+    "test:db": "node scripts/testar.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {
