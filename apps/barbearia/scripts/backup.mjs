@@ -5,7 +5,28 @@
  * Env: DATABASE_URL (obrigatória)
  *      BACKUP_DIR (default /data/backups)
  *      BACKUP_RETENTION_DAYS (default 30)
+ *      UPLOAD_ROOT (default /data/uploads — as fotos entram no backup)
  *      S3_* (opcional, upload off-site)
+ *
+ * ── As fotos entram no backup desde 11/09/2026 ──────────────────────────────
+ *
+ * `pg_dump` salva o banco e **nada do volume**. O logo, a foto de capa, o
+ * favicon, a galeria e as fotos de produto viviam só em `/data/uploads`, sem
+ * cópia em lugar nenhum (`PENDENCIAS-ABERTAS.md` §3.7).
+ *
+ * Com SQLite isso passava batido porque o `.db` ficava no mesmo `/data`: quem
+ * copiasse o volume levava tudo. Agora o banco está fora do volume e o volume
+ * estava fora do backup — então, se o volume morresse, o banco voltava e a
+ * barbearia perdia a identidade visual inteira. Restaurar significaria pedir
+ * as fotos de novo para um cliente pagante.
+ *
+ * Cada dia gera DOIS arquivos, independentes de propósito:
+ *
+ *     barbearia_<stamp>.sql.gz          o banco
+ *     barbearia_<stamp>-fotos.tar.gz    o conteúdo de UPLOAD_ROOT
+ *
+ * Separados porque restaurar um não deveria exigir o outro: banco corrompido
+ * com fotos intactas é o caso comum, e nele ninguém quer mexer nas fotos.
  *
  * ── O que mudou no porte para Postgres ──────────────────────────────────────
  * Era `sqlite.backup(dest)`: a API de backup online do SQLite, que copia o
@@ -28,7 +49,7 @@
  * Dockerfile. Se ele quebrar, o backup diário para **em silêncio**. É o que
  * `PENDENCIAS-ABERTAS.md` §3.3 chama de "backup que não existe".
  */
-import { createWriteStream, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createGzip } from 'node:zlib';
@@ -37,6 +58,22 @@ import { pipeline } from 'node:stream/promises';
 const BACKUP_DIR     = process.env.BACKUP_DIR ?? '/data/backups';
 const RETENTION_DAYS = parseInt(process.env.BACKUP_RETENTION_DAYS ?? '30', 10);
 const SUFIXO         = '.sql.gz';
+const SUFIXO_FOTOS   = '-fotos.tar.gz';
+
+/**
+ * Onde as fotos moram. **Tem que ser a mesma regra de `src/lib/uploads.ts`.**
+ *
+ * Este arquivo é `.mjs` e não consegue importar o `.ts`, então a expressão está
+ * repetida — e repetição de regra foi exatamente como o fuso horário se
+ * espalhou por 20 arquivos. O que segura as duas juntas é um caso em
+ * `tests/deploy.test.ts`, que lê os dois arquivos e falha se divergirem.
+ *
+ * Se a raiz aqui apontar para o lugar errado, o backup salva uma pasta vazia e
+ * diz que deu certo — o pior defeito possível num backup.
+ */
+const UPLOAD_ROOT =
+  process.env.UPLOAD_ROOT ??
+  (process.env.NODE_ENV === 'production' ? '/data/uploads' : './data/uploads');
 
 /** Idade (ms) do backup mais recente, ou Infinity se não houver nenhum. */
 export function newestBackupAgeMs() {
@@ -96,6 +133,51 @@ function pgDumpPara(dest, url) {
   });
 }
 
+/** Há alguma foto para salvar? Barbearia recém-criada ainda não tem. */
+function temFotos() {
+  try {
+    return existsSync(UPLOAD_ROOT) && readdirSync(UPLOAD_ROOT).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Empacota `UPLOAD_ROOT` inteiro em `dest`.
+ *
+ * Os caminhos vão RELATIVOS à raiz (`-C raiz .`), para que restaurar seja
+ * `tar -xzf arquivo -C /data/uploads` e funcione mesmo que o volume tenha sido
+ * montado em outro lugar. Caminho absoluto dentro do tar amarraria a
+ * restauração à máquina de origem.
+ *
+ * Mesma disciplina do `pg_dump`: os dois listeners entram antes de qualquer
+ * await, e arquivo parcial é apagado pelo chamador. Tar truncado é pior que
+ * tar nenhum, porque parece backup.
+ */
+function tarDasFotos(dest) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('tar', ['-czf', dest, '-C', UPLOAD_ROOT, '.'], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+
+    let erro = '';
+    proc.stderr.on('data', (d) => { erro += d.toString(); });
+
+    proc.on('error', (e) => {
+      reject(new Error(
+        e.code === 'ENOENT'
+          ? 'tar não encontrado na imagem. Sem ele as fotos ficam fora do backup.'
+          : e.message
+      ));
+    });
+
+    proc.on('close', (codigo) => {
+      if (codigo === 0) resolve();
+      else reject(new Error(`tar saiu com código ${codigo}: ${erro.trim() || '(sem mensagem)'}`));
+    });
+  });
+}
+
 /**
  * Cria um backup consistente e apaga os antigos. Retorna o caminho criado.
  * opts.skipIfFresherThanMs: não faz nada se já existe backup mais novo que isso
@@ -122,18 +204,41 @@ export async function runBackup(opts = {}) {
     throw erro;
   }
 
-  // Retenção: só mexe nos .sql.gz. Os .db de antes do porte ficam.
+  // ── As fotos ────────────────────────────────────────────────────────────────
+  //
+  // Falha aqui NÃO invalida o backup do banco: o dump já está no disco e é a
+  // parte insubstituível. Perder as fotos de um dia é ruim; jogar fora um dump
+  // bom porque o tar falhou seria pior. O erro fica registrado no retorno, para
+  // quem chama poder gritar.
+  let fotos = null;
+  let erroFotos = null;
+
+  if (temFotos()) {
+    const destFotos = join(BACKUP_DIR, `barbearia_${stamp}${SUFIXO_FOTOS}`);
+    try {
+      await tarDasFotos(destFotos);
+      fotos = destFotos;
+    } catch (erro) {
+      try { unlinkSync(destFotos); } catch { /* nunca chegou a existir */ }
+      erroFotos = erro.message;
+      console.error('✕ Backup das fotos falhou (o banco foi salvo):', erro.message);
+    }
+  }
+
+  // Retenção: os dois formatos do backup novo. Os .db de antes do porte ficam —
+  // são a única cópia daquele período e apagá-los seria destruir histórico.
   const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
   let removed = 0;
   for (const f of readdirSync(BACKUP_DIR)) {
-    if (!f.endsWith(SUFIXO)) continue;
+    if (!f.endsWith(SUFIXO) && !f.endsWith(SUFIXO_FOTOS)) continue;
     const p = join(BACKUP_DIR, f);
     if (statSync(p).mtimeMs < cutoff) { unlinkSync(p); removed++; }
   }
 
   const uploaded = await maybeUploadToS3(dest);
+  if (fotos) await maybeUploadToS3(fotos);
 
-  return { dest, removed, skipped: false, uploaded };
+  return { dest, fotos, erroFotos, removed, skipped: false, uploaded };
 }
 
 /**
@@ -172,8 +277,11 @@ async function maybeUploadToS3(filePath) {
 // Execução direta via CLI
 if (import.meta.url === `file://${process.argv[1]}`) {
   runBackup()
-    .then(({ dest, removed }) => {
+    .then(({ dest, fotos, erroFotos, removed }) => {
       console.log(`✓ Backup criado: ${dest}${removed ? ` (${removed} antigos removidos)` : ''}`);
+      if (fotos) console.log(`✓ Fotos: ${fotos}`);
+      else if (erroFotos) console.log(`✕ Fotos NÃO salvas: ${erroFotos}`);
+      else console.log(`  Fotos: nenhuma em ${UPLOAD_ROOT} — nada a salvar`);
     })
     .catch((err) => {
       console.error('✕ Backup falhou:', err.message);

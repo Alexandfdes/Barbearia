@@ -38,6 +38,29 @@ describe('a imagem tem o que o app precisa em produção', () => {
     expect(raiz.startsWith(volume + '/')).toBe(true);
   });
 
+  it('o backup e o app concordam sobre onde as fotos moram', () => {
+    // `scripts/backup.mjs` é .mjs e não importa o .ts, então a regra da raiz
+    // está escrita nos dois — que é exatamente como o fuso horário se espalhou
+    // por 20 arquivos. Aqui a repetição é tolerada e vigiada: se divergirem, o
+    // backup salva uma pasta vazia e diz que deu certo.
+    const regra = /process\.env\.UPLOAD_ROOT\s*\?\?\s*\(?\s*process\.env\.NODE_ENV === 'production' \? '([^']+)' : '([^']+)'/;
+
+    const doApp = readFileSync('src/lib/uploads.ts', 'utf8').match(regra);
+    const doBackup = readFileSync('scripts/backup.mjs', 'utf8').match(regra);
+
+    expect(doApp, 'src/lib/uploads.ts precisa resolver UPLOAD_ROOT com essa regra').not.toBeNull();
+    expect(doBackup, 'scripts/backup.mjs precisa resolver UPLOAD_ROOT com essa regra').not.toBeNull();
+    expect([doBackup![1], doBackup![2]]).toEqual([doApp![1], doApp![2]]);
+  });
+
+  it('o backup empacota as fotos — o banco sozinho não devolve a barbearia', () => {
+    // §3.7: pg_dump não toca no volume. Sem esta parte, volume morto =
+    // barbearia sem logo, sem capa e sem galeria, com o banco intacto.
+    const fonte = readFileSync('scripts/backup.mjs', 'utf8');
+    expect(fonte).toMatch(/UPLOAD_ROOT/);
+    expect(fonte).toMatch(/-fotos\.tar\.gz|SUFIXO_FOTOS/);
+  });
+
   it('o boot avisa se o pg_dump não estiver lá', () => {
     // Não basta instalar: se alguém trocar a imagem base, o aviso é o que
     // transforma "backup silenciosamente quebrado" em "erro na tela do deploy".
