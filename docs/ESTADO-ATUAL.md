@@ -331,15 +331,18 @@ seção lê o banco do próprio cliente, ou ela não é renderizada. Verificado
 servindo o site contra dois bancos diferentes, com os arquivos do Bayron
 preenchidos no repositório.
 
-⚠️ **O que sobrou dessa frente é o catálogo padrão** (`PENDENCIAS-ABERTAS.md`
-§4.5): uma barbearia nova hoje nasce **sem serviço nenhum** e a seção some até o
-dono cadastrar o primeiro. Funciona e é honesto, mas não é o mesmo que entregar
-um catálogo sugerido pronto para editar.
+✅ **O catálogo sugerido foi feito em 11/09/2026** (`PENDENCIAS-ABERTAS.md` §4.5):
+com a lista vazia, o painel oferece oito serviços comuns, já vinculados aos barbeiros
+com duração. Entram **sem preço e desligados** de propósito — preço sugerido que o
+dono não reparou vira o preço no site dele.
 
 ## 8. Histórico recente
 
 | Quando | O quê |
 |---|---|
+| 11/09 | Barbearia nova sai da tela em branco: catálogo de oito serviços sugeridos no painel, **sem preço de propósito** (`PENDENCIAS-ABERTAS.md` §4.5) |
+| 11/09 | Conferido que o campo de cor da marca no painel já existia e funciona — o documento afirmava que faltava (`PENDENCIAS-ABERTAS.md` §4.2) |
+| 11/09 | `npm run test:db`: Postgres descartável para a suíte inteira rodar na máquina de desenvolvimento, em vez de 84 casos pulados em silêncio |
 | 11/09 | Passo 6: o endereço passa a decidir a barbearia. Dois sites servidos pelo mesmo processo, sem vazar conteúdo um do outro; host desconhecido responde 404 (`PENDENCIAS-ABERTAS.md` §2.7 nasceu daí) |
 | 11/09 | RLS ligado (passo 5.1): o banco passa a recusar sozinho que uma barbearia alcance os dados de outra. Provado com uma rota escrita de propósito sem filtro, chamada por dois donos logados |
 | 11/09 | As fotos entram no backup: o `pg_dump` salvava o banco e nada do volume, então volume morto significava barbearia sem logo, capa nem galeria (`PENDENCIAS-ABERTAS.md` §3.7) |
