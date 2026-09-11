@@ -75,7 +75,7 @@ O plano tem sete passos, em `ARQUITETURA-MULTI-TENANT-V1.md` §9.
 | 4. Escopar as rotas | ✅ **54 de 54** — fechado em 09/09 com o login por telefone |
 | 5. Sessão decide a barbearia | ✅ **feito em 09/09** — ver §9.8 |
 | 5.1. Ligar RLS | ✅ **feito em 11/09** — provado com rota sem filtro via HTTP, ver §9.10 |
-| 6. Separar site do painel | não começado |
+| 6. Separar site do painel | ✅ **feito em 11/09** — o host resolve de verdade, ver §9.11. Não vai ao ar sem domínio |
 | 7. Login por telefone e exclusion constraint | ✅ login feito em 09/09; falta a exclusion constraint |
 
 ⚠️ **A terceira costura do passo 1 não existia.** Até 06/09/2026 este documento e o
@@ -340,6 +340,7 @@ um catálogo sugerido pronto para editar.
 
 | Quando | O quê |
 |---|---|
+| 11/09 | Passo 6: o endereço passa a decidir a barbearia. Dois sites servidos pelo mesmo processo, sem vazar conteúdo um do outro; host desconhecido responde 404 (`PENDENCIAS-ABERTAS.md` §2.7 nasceu daí) |
 | 11/09 | RLS ligado (passo 5.1): o banco passa a recusar sozinho que uma barbearia alcance os dados de outra. Provado com uma rota escrita de propósito sem filtro, chamada por dois donos logados |
 | 11/09 | As fotos entram no backup: o `pg_dump` salvava o banco e nada do volume, então volume morto significava barbearia sem logo, capa nem galeria (`PENDENCIAS-ABERTAS.md` §3.7) |
 | 11/09 | Carga do Bayron de SQLite para Postgres: o script que faltava, quatro recusas e o ensaio com os 820 registros reais — incluindo o app subindo contra o banco carregado e o backup dele restaurando inteiro (`PENDENCIAS-ABERTAS.md` §2.5) |
@@ -595,6 +596,62 @@ ela crescer.
 ⚠️ **O RLS não dispensa filtrar na rota.** Ele reduz a gravidade do esquecimento,
 não o conserta: uma rota sem filtro passa a devolver zero linhas, o que ainda é uma
 tela vazia para o dono. `tests/escopo-rotas.test.ts` continua valendo.
+
+### 9.11 ✅ O passo 6 — o endereço decide a barbearia (11/09/2026)
+
+Até aqui o produto tinha multi-tenant por dentro e **uma barbearia só por fora**:
+`tenantDoHost()` devolvia a barbearia número 1, fixa. A segunda podia existir no
+banco, com dados isolados e RLS ligado, e não tinha endereço.
+
+Verificado servindo os dois endereços contra o mesmo processo:
+
+```
+bayron.barbearianoar.com.br     200  "Barbearia Bayron"    51 KB, 7 seções
+vintage.barbearianoar.com.br    200  "Barbearia Vintage"   27 KB, 5 seções
+naoexiste.barbearianoar.com.br  404
+painel.barbearianoar.com.br     404 no site, painel funcionando normalmente
+```
+
+Zero menção a "Bayron", "Mossoró", "Jaen Menescal" ou "Produtos Boris" na página da
+Vintage. No painel, no mesmo endereço central, cada dono logado vê só a sua: 3
+barbeiros para o Bayron, 1 para a Vintage.
+
+**O defeito que quase passou, e era pior que o problema.** Ligar a resolução por
+host sozinha não bastava: **doze componentes e layouts chamam `await getSettings()`
+sem argumento**, e o padrão deles vinha de `tenantAtual()`, que devolvia 1 fixo. O
+endereço da Vintage abriria com o nome, o endereço, os horários, o Instagram e a
+marca do Bayron — HTTP 200, página bonita, barbearia errada. `tenantAtual()` passou
+a ler a barbearia do contexto da requisição (o mesmo do RLS), e os doze pontos de
+chamada ficaram certos de uma vez, sem mudar uma linha neles.
+
+**O segundo, que só apareceu conferindo rota por rota.** `/api/media` montava o
+caminho com `UPLOAD_ROOT` cru e exigia exatamente dois segmentos — mas
+`urlDeMidia()` gera `/api/media/<slug>/logo/x.webp` para quem não é a barbearia
+legada. Ou seja: **logo, capa, favicon e galeria da segunda barbearia davam 404**, e
+o site dela nasceria sem imagem nenhuma. A pasta agora vem do host; slug que não bate
+com ele é 404, porque aceitar o slug da URL deixaria qualquer um pedir a pasta de
+qualquer barbearia trocando uma palavra no endereço.
+
+**O resto.** Treze rotas de API ganharam guarda de 404 — o compilador apontou todas
+sozinho quando o retorno virou `Tenant | null`, que é quebrar na cara em vez de em
+silêncio. Sete páginas `.astro` foram conferidas à mão, porque o `tsc` não as lê.
+`/api/slots` não perguntava nada e, num host desconhecido, rodaria sem contexto (logo,
+sem RLS) com o `barberId` da query alcançando a agenda de qualquer cliente. E o
+`404.astro` lê `settings`: sem guarda, quem apontasse qualquer domínio para o servidor
+veria a marca do primeiro cliente.
+
+O middleware aquece o cache de tenants antes de resolver o host. `getSession()` já
+aquecia, mas só quando existe cookie — e visitante de site não tem cookie. Sem isso a
+primeira visita depois de cada boot cairia em 404: defeito que só aparece em produção,
+no primeiro acesso depois de cada deploy, e some quando alguém vai conferir.
+
+⚠️ **Está pronto e não vai ao ar.** A resolução por subdomínio precisa de um domínio
+que exista, e o nome ainda não foi escolhido (`PLANO-PRODUTIZACAO.md` §12). É o custo
+técnico daquela decisão, e ele fica visível aqui de propósito.
+
+⚠️ **Sobrou uma rota fora da guarda**, de propósito e registrada:
+`api/products/image/[name].ts` serve de uma pasta compartilhada por todas as
+barbearias (`PENDENCIAS-ABERTAS.md` §2.7).
 
 ⚠️ **Nada disso é o que trava a primeira venda.** Os três itens que decidem se o
 negócio fecha: política de suporte (`PENDENCIAS-ABERTAS.md` §1.4), medidor de

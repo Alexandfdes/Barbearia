@@ -334,6 +334,31 @@ verificar e o mais caro de descobrir tarde.
 três), o que já estava registrado em §1.5 e o ensaio confirmou. No dia do segundo
 cliente eles perdem o acesso ao painel.
 
+### 2.7 🟠 `[TÉCNICO]` As fotos de produto de todas as barbearias na mesma pasta
+
+Encontrado em 11/09/2026, conferindo rota por rota no passo 6.
+
+A mídia da marca (logo, capa, favicon, galeria) já é separada por barbearia:
+`pastaDeMidia()` monta `UPLOAD_ROOT/<slug>/<tipo>`. **As fotos de produto não.**
+`PRODUCT_UPLOAD_DIR` é `UPLOAD_ROOT/products`, uma pasta só, e os três lugares que
+mexem nela — `saveProductImage()`, a remoção em `api/admin/products/[id].ts` e
+`api/admin/combos/[id].ts`, e a rota `api/products/image/[name].ts` — usam essa pasta
+direto, sem tenant.
+
+**Não é vazamento hoje, e é por acidente:** o nome do arquivo é aleatório, e o que liga
+um produto à sua foto é a linha do banco, que já está escopada por tenant e sob RLS.
+Ninguém adivinha o nome do arquivo do vizinho.
+
+O que incomoda é a rota `api/products/image/[name].ts`: ela serve **qualquer nome** da
+pasta compartilhada, sem perguntar de quem é o endereço. É a única rota pública que ficou
+fora da guarda do passo 6, e está na lista de exceções de `tests/host-tenant.test.ts` com
+esta seção como motivo.
+
+Correção: `PRODUCT_UPLOAD_DIR` vira função de tenant, como `pastaDeMidia()`, e a rota
+passa a servir da pasta do host. ⚠️ **As fotos que já existem estão na pasta antiga** —
+mudar exige mover os arquivos do Bayron ou manter a queda para o caminho legado, do mesmo
+jeito que `pastaDeMidia()` faz.
+
 ---
 
 ## 3. Operação com vários clientes
