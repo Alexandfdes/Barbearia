@@ -74,7 +74,7 @@ O plano tem sete passos, em `ARQUITETURA-MULTI-TENANT-V1.md` §9.
 | 3.5. Rede de testes em Postgres | ✅ **aplicado em 06/09** — 124 testes |
 | 4. Escopar as rotas | ✅ **54 de 54** — fechado em 09/09 com o login por telefone |
 | 5. Sessão decide a barbearia | ✅ **feito em 09/09** — ver §9.8 |
-| 5.1. Ligar RLS | não começado |
+| 5.1. Ligar RLS | ✅ **feito em 11/09** — provado com rota sem filtro via HTTP, ver §9.10 |
 | 6. Separar site do painel | não começado |
 | 7. Login por telefone e exclusion constraint | ✅ login feito em 09/09; falta a exclusion constraint |
 
@@ -334,6 +334,7 @@ um catálogo sugerido pronto para editar.
 
 | Quando | O quê |
 |---|---|
+| 11/09 | RLS ligado (passo 5.1): o banco passa a recusar sozinho que uma barbearia alcance os dados de outra. Provado com uma rota escrita de propósito sem filtro, chamada por dois donos logados |
 | 11/09 | As fotos entram no backup: o `pg_dump` salvava o banco e nada do volume, então volume morto significava barbearia sem logo, capa nem galeria (`PENDENCIAS-ABERTAS.md` §3.7) |
 | 11/09 | Carga do Bayron de SQLite para Postgres: o script que faltava, quatro recusas e o ensaio com os 820 registros reais — incluindo o app subindo contra o banco carregado e o backup dele restaurando inteiro (`PENDENCIAS-ABERTAS.md` §2.5) |
 | 10/09 | Restos do porte para Postgres, achados e corrigidos antes do deploy: a pasta das fotos saía de `DATABASE_PATH` e virava relativa; `pg_dump` não existia na imagem, ou seja, backup nenhum; `db:seed` apontava para arquivo apagado e `db:push` continuava podendo alterar o schema sem migration (`PENDENCIAS-ABERTAS.md` §2.4) |
@@ -526,9 +527,7 @@ minutos e tem prazo: antes da segunda venda.
 "O porte estava incompleto" no §4 deste documento. Rodar as migrations de uma vez
 deixa as linhas carregadas sem `tenant_id`.
 
-**3. Ligar o RLS** (passo 5.1 da tabela do §4). Agora é seguro: as 54 rotas estão
-escopadas e a sessão resolve o tenant de verdade. Antes disso, o RLS devolveria
-zero linhas em silêncio.
+**3. ~~Ligar o RLS~~** (passo 5.1) — **feito em 11/09/2026**. Ver §9.10.
 
 **4. Separar site e painel** (passo 6). É quando `tenantDoHost()` deixa de
 devolver `TENANT_UNICO` e passa a usar o `resolverHost()` que já está pronto.
@@ -536,6 +535,60 @@ devolver `TENANT_UNICO` e passa a usar o `resolverHost()` que já está pronto.
 **5. A exclusion constraint** (passo 7), contra dois agendamentos no mesmo
 horário do mesmo barbeiro. Hoje isso é garantido por `pg_advisory_xact_lock` no
 código; a constraint move a garantia para o banco.
+
+### 9.10 ✅ O RLS — o banco recusa sozinho (11/09/2026)
+
+Até aqui, o que separava a barbearia A da B era **disciplina**: as 54 rotas foram
+escopadas uma a uma e `tests/escopo-rotas.test.ts` vigia isso. Funciona enquanto
+ninguém errar. Agora uma consulta que esqueça o `WHERE tenant_id` não devolve a
+linha errada — devolve **nenhuma**.
+
+**A prova, via HTTP de verdade.** Foi criada uma rota com
+`SELECT tenant_id, name FROM barbers`, sem filtro nenhum — a "rota 55 escrita com
+pressa" — e chamada com as sessões de dois donos. O do Bayron recebeu os 3
+barbeiros dele; o da Vintage recebeu 1. Antes, a mesma rota devolveria os 4 para
+os dois. A rota temporária não foi commitada; o equivalente vive em
+`tests/rls.test.ts` (9 casos).
+
+Também provado: `DELETE FROM barbers` **sem cláusula**, rodado pela Vintage, apaga
+só o dela; `UPDATE services SET price_cents = 1` não alcança o preço da outra; e
+`INSERT` com `tenant_id` alheio é recusado pelo banco.
+
+**Como o tenant chega lá.** `src/middleware.ts` resolve a barbearia (sessão do
+painel, senão o host) e embrulha a requisição em `comTenant()`, que reserva uma
+conexão, assume o papel `barbearia_app` e grava `app.tenant_id`. As 64 rotas
+continuam com `import { db }` e **não mudaram uma linha**: `db` virou proxy.
+Trocar por parâmetro seria 64 arquivos e 64 chances de esquecer um — e o esquecido
+não falharia, só deixaria de ser protegido, em silêncio.
+
+**Quatro decisões que vão parecer estranhas daqui a seis meses:**
+
+1. **Papel separado, não segunda credencial.** O dono das tabelas ignora RLS (é
+   assim que o Postgres funciona — senão ele não faria manutenção). Por isso
+   `barbearia_app` é `NOLOGIN` e assumido com `SET ROLE`. Uma credencial só no
+   `.env`, e migrations, carga e provisionamento continuam enxergando tudo.
+2. **`NULLIF` na política.** Depois de `RESET app.tenant_id` a variável não volta
+   a `NULL`: vira **string vazia**, e `''::int` não devolve `NULL`, **estoura**.
+   Sem o `NULLIF`, conexão reaproveitada do pool trocaria "não vê nada" por "erro
+   no meio da página".
+3. **A resposta é lida inteira dentro do contexto** (`arrayBuffer()`). O Astro
+   devolve a página como stream, e o que falta renderizar ainda consulta o banco.
+   Custa o primeiro byte chegar com a página pronta; na maior página daqui
+   (50 KB) não se vê. Conferido que binário não corrompe.
+4. **Limpeza que falha fecha a conexão** em vez de devolvê-la ao pool. Conexão
+   voltando ainda como `barbearia_app` com o tenant de outra barbearia serviria a
+   próxima requisição com o crachá errado.
+
+⚠️ **Dois furos, ambos de propósito e vigiados.** A tabela `tenants` fica fora das
+políticas, com `SELECT` apenas — é o roteamento, e protegê-la criaria um
+ovo-e-galinha em que ninguém entra; ela não tem dado de cliente. E o **login** usa
+`dbDono`, porque acha o barbeiro pelo telefone antes de saber de qual barbearia ele
+é. `tests/rls.test.ts` mantém a lista de quem pode usar `dbDono` fechada e falha se
+ela crescer.
+
+⚠️ **O RLS não dispensa filtrar na rota.** Ele reduz a gravidade do esquecimento,
+não o conserta: uma rota sem filtro passa a devolver zero linhas, o que ainda é uma
+tela vazia para o dono. `tests/escopo-rotas.test.ts` continua valendo.
 
 ⚠️ **Nada disso é o que trava a primeira venda.** Os três itens que decidem se o
 negócio fecha estão em `PENDENCIAS-ABERTAS.md`: política de suporte (§1.4),
