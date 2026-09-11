@@ -14,7 +14,7 @@
 //
 // Precisa de Postgres (o dump é de verdade). Sem DATABASE_URL a suíte é pulada.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -22,6 +22,17 @@ import { exigirBancoDeTeste } from './guardaBanco.js';
 
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
+
+/**
+ * `pg_dump` é um binário do cliente do Postgres, e `scripts/backup.mjs` é um
+ * wrapper dele. Ele existe na imagem de produção (o `Dockerfile` instala, e
+ * `tests/deploy.test.ts` vigia isso) e costuma NÃO existir na máquina de
+ * desenvolvimento de quem usa o Postgres só dentro de container.
+ *
+ * ⚠️ Pular é honesto; pular em silêncio não é. `tests/avisoBanco.ts` avisa na
+ * saída, do mesmo jeito que avisa quando falta banco.
+ */
+const TEM_PGDUMP = spawnSync('pg_dump', ['--version'], { stdio: 'ignore' }).status === 0;
 
 let raiz: string;
 let pastaBackup: string;
@@ -52,7 +63,7 @@ afterEach(() => {
   rmSync(raiz, { recursive: true, force: true });
 });
 
-describe.skipIf(!TEM_BANCO)('o backup das fotos', () => {
+describe.skipIf(!TEM_BANCO || !TEM_PGDUMP)('o backup das fotos', () => {
   it('gera o arquivo das fotos junto com o do banco', async () => {
     const r = await backupCom(pastaFotos);
 
