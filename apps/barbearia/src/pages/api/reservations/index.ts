@@ -21,6 +21,9 @@ const bodySchema = z.object({
 // Reserva pública de produto (cliente reserva pra retirar na barbearia).
 export const POST: APIRoute = async ({ request, clientAddress }) => {
   const tenant = tenantDoHost(request);
+  // Endereço que não é de barbearia nenhuma. 404 de propósito: servir o site da
+  // barbearia errada é pior que não servir nada (`lib/tenant.ts`, passo 6).
+  if (!tenant) return json({ error: 'Barbearia não encontrada' }, 404);
   const ip = getClientIp(request, clientAddress);
 
   const ipRl = checkRateLimit(`reservation-ip:${ip}`, { maxTries: 10 });

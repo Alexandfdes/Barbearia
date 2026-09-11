@@ -6,6 +6,7 @@ import { addDays } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { getAvailableSlots } from '../../lib/slots.js';
 import { TZ } from '../../lib/timezone.js';
+import { tenantDoHost } from '../../lib/tenant.js';
 
 
 const querySchema = z.object({
@@ -23,6 +24,11 @@ function json(body: unknown, status = 200) {
 }
 
 export const GET: APIRoute = async ({ request }) => {
+  // Endereço desconhecido não calcula horário de ninguém. Sem esta guarda a
+  // requisição rodaria sem contexto de barbearia — ou seja, sem o RLS — e o
+  // `barberId` da query passaria a alcançar a agenda de qualquer cliente.
+  if (!tenantDoHost(request)) return json({ error: 'Barbearia não encontrada' }, 404);
+
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
     barberId:             url.searchParams.get('barberId'),

@@ -3,6 +3,14 @@
 export const prerender = false;
 import Layout from '../layouts/Layout.astro';
 import { getSettings } from '../lib/settings';
+import { tenantDoHost } from '../lib/tenant.js';
+
+// ⚠️ A página de 404 lê `settings`, e `getSettings()` sem barbearia identificada
+// cai na barbearia única. Num endereço que não é de ninguém isso mostraria a
+// marca do PRIMEIRO cliente para quem apontar qualquer domínio para o servidor.
+if (!tenantDoHost(Astro.request)) {
+  return new Response('Barbearia não encontrada', { status: 404 });
+}
 
 const s = await getSettings();
 ---

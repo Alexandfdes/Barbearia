@@ -36,6 +36,9 @@ function foldLine(line: string): string {
 
 export const GET: APIRoute = async ({ params, request }) => {
   const tenant = tenantDoHost(request);
+  // Endereço que não é de barbearia nenhuma. 404 de propósito: servir o site da
+  // barbearia errada é pior que não servir nada (`lib/tenant.ts`, passo 6).
+  if (!tenant) return new Response('Not found', { status: 404 });
   const { token } = params;
   if (!token) return new Response(null, { status: 400 });
 
