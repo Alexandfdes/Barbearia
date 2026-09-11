@@ -106,6 +106,27 @@ const inactiveCount = svcList.length - activeCount;
       </div>
     )}
 
+    {isAdmin && svcList.length === 0 && (
+      <div class="bg-white border border-slate-200 rounded-md px-5 py-6 mb-4">
+        <h2 class="text-sm font-medium text-slate-900">Sua lista de serviços está vazia</h2>
+        <p class="text-sm text-slate-500 mt-1.5 leading-relaxed">
+          Enquanto não houver serviço cadastrado, <strong>o site não recebe agendamento</strong>
+          e a seção de serviços nem aparece. Comece pelo catálogo sugerido e ajuste: apague o
+          que você não faz, renomeie o resto.
+        </p>
+        <p class="text-sm text-slate-500 mt-2 leading-relaxed">
+          Eles entram <strong>desligados e sem preço</strong> — de propósito. Preço de corte
+          muda de bairro para bairro, e um valor sugerido que passa despercebido vira o preço
+          no seu site. Digite o seu e ligue o serviço.
+        </p>
+        <button id="btn-catalogo"
+          class="mt-4 inline-flex items-center gap-2 text-xs px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded transition-colors">
+          Usar catálogo sugerido
+        </button>
+        <p id="catalogo-erro" class="hidden mt-3 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2"></p>
+      </div>
+    )}
+
     <div class="space-y-2" id="services-list">
       {svcList.map(svc => (
         <div data-svc-id={String(svc.id)} class:list={[
@@ -224,6 +245,35 @@ const inactiveCount = svcList.length - activeCount;
 
   </main>
 </AdminLayout>
+
+<script>
+  // Catálogo sugerido (`PENDENCIAS-ABERTAS.md` §4.5). O botão só existe quando a
+  // lista está vazia — o endpoint recusa em lista não vazia de qualquer jeito,
+  // mas botão que só serve para levar erro não deveria aparecer.
+  const btnCatalogo = document.getElementById('btn-catalogo') as HTMLButtonElement | null;
+  const erroCatalogo = document.getElementById('catalogo-erro');
+
+  btnCatalogo?.addEventListener('click', async () => {
+    btnCatalogo.disabled = true;
+    btnCatalogo.textContent = 'Criando...';
+    erroCatalogo?.classList.add('hidden');
+
+    try {
+      const r = await fetch('/api/admin/services/catalogo-sugerido', { method: 'POST' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? 'Não deu para criar o catálogo.');
+      location.reload();
+    } catch (e) {
+      if (erroCatalogo) {
+        erroCatalogo.textContent = e instanceof Error ? e.message : String(e);
+        erroCatalogo.classList.remove('hidden');
+      }
+      btnCatalogo.disabled = false;
+      btnCatalogo.textContent = 'Usar catálogo sugerido';
+    }
+  });
+</script>
+
 
 <script>
   // ── Configuração do barbeiro (toggle "eu ofereço" + duração) ────────────────
