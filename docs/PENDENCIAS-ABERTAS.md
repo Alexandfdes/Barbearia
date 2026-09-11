@@ -528,20 +528,35 @@ cliente pague e já veja a plataforma na cor dele. Se ele pagar e cair num site 
 nome, o endereço e as avaliações de outra barbearia, a promessa quebra no primeiro
 minuto — e agora sabemos que é exatamente isso que as migrations fazem (§4.6).
 
-### 4.2 🟠 `[TÉCNICO]` Cor de destaque — núcleo pronto, pontas soltas
+### 4.2 🟡 `[TÉCNICO]` Cor de destaque — o dono já escolhe a dele
 
-**Resolvido em 01/09/2026:** `src/lib/accent.ts` deriva os três tokens de uma cor de
-marca com contraste garantido, `Layout.astro` injeta a sobrescrita, 13 testes cobrem
-o comportamento. Verificado no navegador. Ver `ARQUITETURA-PRODUTO-V1.md` D5.1 e D5.2.
+⚠️ **Correção de 11/09/2026: esta seção estava desatualizada.** Ela listava "campo de
+cor em `/admin/configuracoes`" e "decidir se o painel também vira a cor do cliente"
+como pendências. **As duas já estavam feitas**, e ninguém tinha atualizado aqui — quase
+custou reimplementar o que existe.
 
-**Falta:**
+**Feito em 01/09/2026:** `src/lib/accent.ts` deriva os três tokens de uma cor de marca
+com contraste garantido, `Layout.astro` injeta a sobrescrita, 13 testes cobrem o
+comportamento. Ver `ARQUITETURA-PRODUTO-V1.md` D5.1 e D5.2.
 
-- Campo de cor em `/admin/configuracoes` chamando `derivarAccent()` na gravação.
-- Extração de cores candidatas da logo no onboarding (sugerir, nunca aplicar sozinho).
-- **Decidir se o painel também vira a cor do cliente.** Recomendação registrada: não.
-  Se o painel pega a cor de cada cliente, ele deixa de parecer o seu produto — suas
-  capturas de tela, tutoriais e suporte ficam diferentes a cada cliente. O site é a
-  marca dele; o painel é a sua.
+**Conferido em 11/09/2026, servindo de verdade** — e não por leitura de código:
+
+| O quê | Resultado |
+|---|---|
+| Campo no painel | `/admin/configuracoes` tem seletor de cor, campo hex, botão "padrão" e prévia |
+| Gravação | `api/admin/settings.ts` aceita **só** `accentColor`; `hover` e `light` são derivados no servidor |
+| Um caso difícil de verdade | Vinho `#6b1f2a`, que reprova cru em site claro, virou `#6b1f2a` / `#4f171f` / `#dd8895` |
+| Contraste recalculado | 11,32:1 e 14,24:1 com branco; o claro dá 7,57:1 sobre fundo escuro; o hover **escurece**, como manda a regra do site da barbearia |
+| Chegou na tela | O `:root` do site do Bayron saiu com a cor nova; o da outra barbearia continuou no padrão |
+| O painel ficou neutro | Nenhuma sobrescrita de `:root` no `/admin` — a decisão registrada abaixo está implementada |
+
+**Decidido e implementado: o painel NÃO vira a cor do cliente.** Se o painel pega a cor
+de cada cliente, ele deixa de parecer o seu produto — suas capturas de tela, tutoriais e
+suporte ficam diferentes a cada cliente. O site é a marca dele; o painel é a sua.
+
+**Falta só uma ponta, e é melhoria, não bloqueio:** extrair cores candidatas da logo no
+onboarding (sugerir, nunca aplicar sozinho). Sem isso o dono digita o hex ou usa o
+seletor — o que já resolve.
 
 ### 4.3 🟠 `[TÉCNICO]` Painel administrativo com resumo de verdade
 
@@ -576,23 +591,51 @@ em `settings`. Ligar a galeria enviada pelo painel continua pendente.
 frase do topo 15 cada; foto de capa e cor da marca 10; Instagram, avaliações do Google e
 SEO 5 cada. Peso alto para o que gera pergunta, baixo para o que é cosmético.
 
-### 4.5 🟠 `[DECISÃO]` Catálogo de serviços padrão do template
+### 4.5 ✅ `[TÉCNICO]` Catálogo de serviços sugerido — FEITO em 11/09/2026
 
-Alguém precisa sentar e escrever serviço por serviço, com preço sugerido, o catálogo de
-uma barbearia brasileira típica. Não dá para reaproveitar os 20 serviços do Bayron: são
-os dele, com os preços dele. Mesmo vale para o FAQ padrão e para os textos
-institucionais de exemplo.
+**Era:** barbearia nova nascia com **zero serviço**. O site aguentava — a seção não é
+renderizada até existir o primeiro (§4.1) — mas o resultado era um site apresentável e
+**inútil ao mesmo tempo**: sem serviço não entra agendamento, e nada na tela dizia que
+faltava alguma coisa. A tela em branco é o pior lugar para deixar alguém que acabou de
+pagar.
 
-**Deixou de travar o provisionamento em 06/09/2026.** `scripts/provisionar.mts` cria a
-barbearia **sem serviço nenhum**, e o site aguenta: a seção de serviços não é renderizada
-até o dono cadastrar o primeiro (§4.1). O script avisa isso na saída.
+**Feito.** Quando a lista está vazia, `/admin/servicos` oferece oito serviços comuns de
+barbearia masculina. Um clique cria todos, já vinculados aos barbeiros ativos com
+duração — sem o vínculo o serviço existe e **não é agendável**, porque `api/services.ts`
+junta `services` com `barber_services`.
 
-⚠️ **Mas uma barbearia sem serviço não recebe agendamento.** O site fica apresentável e
-inútil ao mesmo tempo — pior do que parece, porque nada na tela indica que falta algo. É
-por isso que o medidor de completude (§4.4) e um catálogo sugerido continuam valendo: o
-que resolve não é o script, é o dono preencher no primeiro acesso.
+⚠️ **Eles entram sem preço, e essa é a decisão que vai parecer estranha depois.**
 
----
+Preço de corte muda de cidade, de bairro e de posicionamento. Um valor sugerido que o
+dono não reparou vira o preço no site dele — e ele descobre quando o cliente chegar no
+caixa com outra expectativa. **Preço errado no ar é pior que preço faltando.**
+
+Então os serviços entram **inativos e com preço zero**. Inativo não aparece no site nem
+no agendamento, então ninguém vê "R$ 0,00" em lugar nenhum — conferido servindo o site
+com os oito criados: `/api/services` devolveu `[]` e a página não tinha uma ocorrência
+de "0,00". E `api/admin/services/[id].ts` passou a **recusar ativar serviço com preço
+zero**: sem essa regra, um clique em "ativar" publicaria R$ 0,00 e a intenção do preço
+vazio viraria defeito.
+
+⚠️ **As durações são estimativa, não pesquisa.** Estão ali porque
+`barber_services.duration_minutes` é obrigatório e porque chutar 30 minutos para tudo
+produziria agenda errada. São editáveis na mesma tela. Não foi possível pesquisar preço
+nem duração de mercado (busca na web bloqueada no ambiente de trabalho), e preferiu-se
+não ter número a apresentar chute com cara de dado.
+
+**Por que um botão e não o provisionamento.** Plantar dado que o dono não pediu foi
+exatamente o §4.6 — as migrations enfiavam os dados do Bayron em todo banco novo,
+inclusive 5.0 com 227 avaliações. Aqui o dono aperta: o catálogo é sugestão que ele
+aceitou, não fato que apareceu. O endpoint recusa (409) se a barbearia já tiver qualquer
+serviço.
+
+`tests/catalogo-sugerido.test.ts` (9 casos) vigia menos "o catálogo é criado" e mais o
+que ele **não** pode fazer: não entra sozinho, não entra duas vezes, e não põe preço
+nenhum no ar. Verificado que falha ao remover cada uma das duas recusas.
+
+⚠️ **O que sobrou desta frente:** o FAQ padrão e os textos institucionais de exemplo,
+citados na versão antiga desta seção, continuam sem existir. Não bloqueiam: sem FAQ a
+seção não é renderizada (§4.1).
 
 ### 4.6 🔴 `[TÉCNICO]` As migrations plantam os dados do Bayron em todo banco novo
 
