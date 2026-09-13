@@ -159,8 +159,48 @@ function conferirPgDump() {
   console.log(`✓ backup: ${r.stdout.trim()}`);
 }
 
+/**
+ * Confere, no boot, que ESTE usuário consegue assumir `barbearia_app`.
+ *
+ * ⚠️ Derruba o boot de propósito — ao contrário do aviso do `pg_dump`.
+ *
+ * O app faz `SET ROLE barbearia_app` em TODA requisição (`src/db/index.ts`,
+ * `comTenant()`). Sem poder assumir o papel, o container sobe, o deploy fica
+ * verde e o site responde 500 em tudo. Barbearia fora do ar com deploy verde é
+ * pior que container que não sobe: no segundo caso você fica sabendo na hora.
+ *
+ * A migration `0004` já concede o papel — mas migration roda UMA vez. Se a
+ * credencial do `DATABASE_URL` for trocada depois, a `0004` não roda de novo e
+ * o usuário novo não é membro de nada. É esse caso que esta função pega.
+ */
+async function conferirPapelDoApp() {
+  const [{ current_user: usuario }] = await sql`SELECT current_user`;
+  try {
+    await sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE barbearia_app`;
+      await tx`SELECT 1`;
+    });
+  } catch (erro) {
+    console.error(
+      '\n' +
+      '  ┌──────────────────────────────────────────────────────────────┐\n' +
+      '  │  ✗  O APP NÃO CONSEGUE ASSUMIR O PAPEL barbearia_app         │\n' +
+      '  └──────────────────────────────────────────────────────────────┘\n' +
+      `  Usuário do DATABASE_URL: ${usuario}\n` +
+      `  Postgres disse: ${erro instanceof Error ? erro.message : String(erro)}\n\n` +
+      '  Toda requisição faz SET ROLE. Sem isso o site responde 500 em tudo,\n' +
+      '  com o deploy verde — por isso o boot para aqui.\n\n' +
+      '  Quem administra o Postgres resolve com:\n\n' +
+      `      GRANT barbearia_app TO ${usuario};\n`
+    );
+    throw new Error('barbearia_app não pode ser assumido por ' + usuario);
+  }
+  console.log(`✓ papel do app: ${usuario} pode assumir barbearia_app`);
+}
+
 try {
   await main();
+  await conferirPapelDoApp();
   conferirPgDump();
 } catch (erro) {
   console.error('\n✗ Migration falhou. O que ela mudaria foi desfeito.\n');

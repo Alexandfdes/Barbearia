@@ -152,7 +152,52 @@ Confirme, **antes do dia**:
 
 - [ ] existe um banco vazio só para o Bayron (ex.: `barbearia_bayron`), e um usuário dono dele;
 - [ ] o container do app enxerga esse Postgres pelo nome do serviço na rede do EasyPanel;
-- [ ] a `DATABASE_URL` montada com esses dados conecta.
+- [ ] a `DATABASE_URL` montada com esses dados conecta;
+- [ ] **esse usuário pode criar papel** (`CREATEROLE` ou superusuário) — ver abaixo.
+
+#### O item do `CREATEROLE`, e por que ele entrou aqui em 13/09/2026
+
+⚠️ **Este é o item que teria parado a migração no meio, com o site já fora do ar.**
+
+A migration `0003` cria o papel `barbearia_app`, e o app faz `SET ROLE barbearia_app` em
+**toda** requisição — é o que liga o row level security. Duas coisas precisam ser verdade,
+e nenhuma delas é automática:
+
+1. o usuário do `DATABASE_URL` precisa poder **criar** o papel (`CREATEROLE` ou superusuário);
+2. ele precisa poder **assumir** o papel, o que exige ser **membro** dele.
+
+Superusuário assume qualquer papel — e todo o desenvolvimento rodou conectado como
+`postgres`, então nada disso apareceu. Com um usuário comum, conferido contra
+PostgreSQL 16.13 em 13/09/2026:
+
+```
+CREATE ROLE barbearia_app NOLOGIN;   ->  CREATE ROLE          (passa)
+SET ROLE barbearia_app;              ->  ERROR: permission denied to set role
+```
+
+Criar o papel com `CREATEROLE` dá ADMIN OPTION, que permite **conceder** — não assumir. O
+resultado em produção seria migration verde, deploy verde e **500 em toda requisição**.
+
+**Corrigido no código:** a migration `0004_app_pode_assumir_o_papel.sql` faz o
+`GRANT barbearia_app TO <usuário do DATABASE_URL>` e, antes de commitar, prova o `SET ROLE`
+ali mesmo. E `scripts/startup.mjs` repete a prova a cada boot e **derruba o container** se
+falhar — porque migration roda uma vez, e trocar a credencial depois recriaria o problema
+em silêncio. Provado aplicando `0000` a `0004` com um usuário comum `CREATEROLE`: as cinco
+passam, o RLS separa as duas barbearias, e revogar o `GRANT` reproduz o erro acima.
+
+**Como conferir antes do dia**, conectado com a `DATABASE_URL` de produção:
+
+```sql
+SELECT current_user,
+       rolsuper      AS eh_superusuario,
+       rolcreaterole AS pode_criar_papel
+  FROM pg_roles WHERE rolname = current_user;
+```
+
+Se as duas colunas vierem `f`, **pare aqui**: peça a quem administra o Postgres um
+`ALTER ROLE <usuário> CREATEROLE;`, ou o `GRANT barbearia_app TO <usuário>;` depois de
+alguém com permissão criar o papel. Descobrir isso agora custa uma mensagem; descobrir no
+dia custa a janela inteira.
 
 ⚠️ Colocar cliente pagante no Postgres que é seu, pessoal, é o que
 `PENDENCIAS-ABERTAS.md` §3.1 chama de "todos caem juntos". Não bloqueia esta migração —

@@ -22,7 +22,7 @@ import { sep } from 'node:path';
 import { sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { exigirBancoDeTeste } from './guardaBanco.js';
-import { recriarSchema } from './migrations.js';
+import { recriarSchema, listarMigrations, migrationSql } from './migrations.js';
 
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
@@ -144,6 +144,59 @@ describe.skipIf(!TEM_BANCO)('o banco separa as barbearias sozinho', () => {
     // completa. Quem garante que uma REQUISIÇÃO nunca cai aqui é o middleware,
     // coberto pelo caso abaixo.
     expect(await barbeirosVisiveis(db)).toBe(2);
+  });
+});
+
+describe('o app consegue ASSUMIR o papel — sem isso nada funciona', () => {
+  // ⚠️ Defeito encontrado em 13/09/2026, antes da migração de produção.
+  //
+  // A `0003` cria `barbearia_app`. Criar não dá o direito de assumir: `SET ROLE`
+  // exige ser MEMBRO. Superusuário assume qualquer papel, e todo o
+  // desenvolvimento rodou como `postgres` — então o buraco ficou invisível.
+  //
+  // Reproduzido contra Postgres 16.13 com um usuário comum `CREATEROLE`:
+  // `CREATE ROLE` passa, e o `SET ROLE` seguinte devolve
+  // "permission denied to set role". Em produção isso seria 500 em TODA
+  // requisição, com a migration verde e o deploy verde.
+
+  it.skipIf(!TEM_BANCO)('o GRANT existe de verdade no banco, não só por ser superusuário', async () => {
+    // `pg_has_role()` NÃO serve aqui: para superusuário ele devolve true mesmo
+    // sem concessão nenhuma, e é justamente o superusuário que escondeu o
+    // defeito. `pg_auth_members` só tem linha se o GRANT tiver rodado.
+    const linhas = await conn`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_auth_members m
+          JOIN pg_roles papel  ON papel.oid  = m.roleid
+          JOIN pg_roles membro ON membro.oid = m.member
+        WHERE papel.rolname = 'barbearia_app'
+          AND membro.rolname = current_user
+      ) AS concedido`;
+    expect(linhas[0].concedido).toBe(true);
+  });
+
+  it.skipIf(!TEM_BANCO)('SET ROLE funciona nesta conexão', async () => {
+    const [{ current_user: antes }] = await conn`SELECT current_user`;
+    await conn`SET ROLE barbearia_app`;
+    const [{ current_user: durante }] = await conn`SELECT current_user`;
+    await conn`RESET ROLE`;
+    expect(durante).toBe('barbearia_app');
+    expect(antes).not.toBe('barbearia_app');
+  });
+
+  it('a migration que concede o papel continua existindo', () => {
+    // Esta é a guarda que roda mesmo sem banco. Apagar a linha do GRANT não
+    // quebraria nada rodando como superusuário — só em produção.
+    const nomes = listarMigrations();
+    const concessao = nomes.filter((n) => /GRANT barbearia_app TO/.test(migrationSql(n)));
+    expect(concessao.length).toBeGreaterThan(0);
+  });
+
+  it('o boot para se o papel não puder ser assumido', () => {
+    // Migration roda uma vez. Se a credencial do DATABASE_URL mudar depois, o
+    // usuário novo não é membro de nada — e só o boot pega isso.
+    const fonte = readFileSync('scripts/startup.mjs', 'utf8');
+    expect(fonte).toMatch(/SET LOCAL ROLE barbearia_app/);
+    expect(fonte).toMatch(/conferirPapelDoApp/);
   });
 });
 
