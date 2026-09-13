@@ -45,9 +45,26 @@ Nada aqui encosta em produção. **Se algum falhar, pare: o dia da migração n�
 
 ### 2.1 A imagem constrói e sobe
 
-⚠️ **Isto nunca foi feito.** O `Dockerfile` mudou (instala `postgresql16-client`, define
-`UPLOAD_ROOT`), e não existe Docker no ambiente onde o código foi escrito — então a
-imagem nova nunca foi construída em lugar nenhum.
+⚠️ **A imagem nunca foi construída.** O `Dockerfile` mudou (instala
+`postgresql16-client`, define `UPLOAD_ROOT`) e não existe Docker no ambiente onde o
+código foi escrito.
+
+**O que já foi ensaiado sem Docker, em 13/09/2026**, refazendo as etapas do `Dockerfile`
+à mão a partir do código exato desta máquina:
+
+| Etapa | Resultado |
+|---|---|
+| `npm ci` com o `package-lock` de hoje | 464 pacotes, sem erro — é a falha de build mais comum, e não acontece |
+| `COPY . .` respeitando o `.dockerignore` | `src/data` entra, `data/` da raiz fica de fora (o padrão `data/` é ancorado na raiz, não pega `src/data`) |
+| `npm run build` | ok |
+| Os cinco `COPY` da etapa 2 | `dist`, `drizzle`, `scripts`, `node_modules`, `package.json` — todos existem |
+| O `CMD` verbatim | migrations aplicadas, `✓ backup: pg_dump`, daemon agendado, servidor ouvindo |
+| O `CMD` com o banco fora do ar | `startup.mjs` sai com 1 e **o servidor não sobe** — é a garantia que permite a conexão ser preguiçosa |
+| `provisionar.mts` + site da barbearia nova | subdomínio responde 200, endereço desconhecido 404 |
+
+**O que só o Docker prova, e é por isso que este passo continua obrigatório:** se o
+`apk add --no-cache postgresql16-client` resolve na imagem `node:22-alpine` de hoje, e se
+o `sharp` roda em musl. São os dois pontos que sobraram.
 
 ```powershell
 cd C:\DEV\barbearia\apps\barbearia

@@ -56,6 +56,26 @@ function arg(nome: string): string | undefined {
  */
 function faltou(itens: string[]): never {
   console.error('ERRO: falta informar:\n  ' + itens.join('\n  '));
+
+  // ⚠️ O erro mais provável não é esquecer um campo — é escrever
+  // `--slug valor` em vez de `--slug=valor`.
+  //
+  // `arg()` só reconhece a forma com `=`, então a forma com espaço faz TODOS os
+  // campos aparecerem como faltando. Quem está provisionando o primeiro cliente,
+  // com ele esperando do outro lado, vai procurar erro de digitação num campo
+  // que digitou certo. Melhor dizer.
+  const comEspaco = process.argv
+    .slice(2)
+    .filter((a, i, todos) => /^--[a-z]+$/.test(a) && todos[i + 1] !== undefined && !todos[i + 1].startsWith('--'));
+
+  if (comEspaco.length > 0) {
+    console.error(
+      `\n⚠️  Parece que você usou espaço no lugar de '=':\n` +
+      comEspaco.map((a) => `      ${(a + ' valor').padEnd(22)}→   ${a}=valor`).join('\n') +
+      `\n\n   Só a forma com '=' é reconhecida.`
+    );
+  }
+
   console.error('\nVeja o cabeçalho deste arquivo para um exemplo completo.');
   process.exit(1);
 }
@@ -214,11 +234,13 @@ try {
   console.log(`  horário     seg–sex 09:00–19:00, sáb 09:00–18:00`);
   console.log(`\n  ⓘ  Se o painel já estiver no ar, ele leva até 30s para enxergar`);
   console.log(`     esta barbearia — é o cache de tenants (src/lib/tenant.ts).`);
-  console.log(`\n⚠️  A barbearia está SEM SERVIÇOS. Enquanto o dono não cadastrar o`);
-  console.log(`   primeiro em /admin/servicos, ninguém consegue agendar — a seção`);
-  console.log(`   de serviços do site nem aparece.`);
-  console.log(`\n   Peça a ele para, no primeiro acesso: trocar a senha, cadastrar os`);
-  console.log(`   serviços com preço, conferir o horário e subir a logo.\n`);
+  console.log(`\n⚠️  A barbearia está SEM SERVIÇOS. Enquanto não houver o primeiro,`);
+  console.log(`   ninguém consegue agendar — a seção de serviços do site nem aparece.`);
+  console.log(`\n   Em /admin/servicos, com a lista vazia, aparece o botão "usar catálogo`);
+  console.log(`   sugerido": oito serviços comuns, já ligados aos barbeiros. Eles entram`);
+  console.log(`   DESLIGADOS e sem preço de propósito — o dono põe o preço dele e liga.`);
+  console.log(`\n   Peça a ele para, no primeiro acesso: trocar a senha, montar o`);
+  console.log(`   catálogo com os preços, conferir o horário e subir a logo.\n`);
 } catch (erro) {
   console.error('\n✕ Não criou nada:', erro instanceof Error ? erro.message : erro);
   process.exitCode = 1;
