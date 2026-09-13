@@ -43,7 +43,7 @@ o Bayron continua sozinho, só que sobre a arquitetura nova.
 
 Nada aqui encosta em produção. **Se algum falhar, pare: o dia da migração não começou.**
 
-### 2.1 A imagem constrói e sobe
+### 2.1 ✅ A imagem constrói e sobe — FEITO em 13/09/2026
 
 ⚠️ **A imagem nunca foi construída.** O `Dockerfile` mudou (instala
 `postgresql16-client`, define `UPLOAD_ROOT`) e não existe Docker no ambiente onde o
@@ -79,6 +79,13 @@ docker run -d --name pg-teste --network rede-teste `
   -e POSTGRES_USER=barbearia -e POSTGRES_PASSWORD=barbearia -e POSTGRES_DB=barbearia `
   postgres:16-alpine
 
+# ⚠️ ESPERE o banco aceitar conexão antes de subir o app.
+# A primeira versão deste roteiro não tinha esta linha e falhou na primeira
+# colagem: o Postgres leva alguns segundos inicializando, e o app tentava
+# conectar antes. O erro parece defeito da imagem e não é.
+# Repita até dizer "accepting connections":
+docker exec pg-teste pg_isready -U barbearia
+
 docker run --rm --network rede-teste `
   -e DATABASE_URL="postgres://barbearia:barbearia@pg-teste:5432/barbearia" `
   -e SESSION_SECRET=$(python -c "import secrets;print(secrets.token_hex(32))") `
@@ -103,6 +110,22 @@ sobe, a barbearia atende, e **nenhum backup é feito** — em silêncio, até o 
 precisar restaurar.
 
 Limpeza: `docker rm -f pg-teste; docker network rm rede-teste`
+
+**Resultado de 13/09/2026 — passou.** As duas dúvidas que só o Docker respondia:
+
+| Pergunta | Resposta |
+|---|---|
+| `apk add --no-cache postgresql16-client` resolve na `node:22-alpine` de hoje? | **Sim**, em 3,1s |
+| O `sharp` carrega em musl? | **Sim** — `sharp ok 8.17.3` |
+
+E o boot saiu como o roteiro promete: as quatro migrations, `✓ 4 migration(s)
+aplicada(s)`, **`✓ backup: pg_dump (PostgreSQL) 16.15`**, o daemon agendado — e ele já
+gravou um backup de boot em `/data/backups/`, o que prova o caminho inteiro do backup
+dentro da imagem, não só a presença do binário.
+
+⚠️ **O que isto NÃO prova:** que o EasyPanel vai construir a mesma coisa. Ele usa o
+contexto de build do §2.4 e as variáveis do §3.1. A imagem é a mesma; o ambiente ao redor
+dela, não.
 
 ### 2.2 O endereço do Bayron resolve
 
