@@ -16,6 +16,7 @@
 | **`ESTADO-ATUAL.md`** | Onde o código está hoje, o que está pela metade, e a fila do que fazer (`ESTADO-ATUAL.md` §9) |
 | **`PENDENCIAS-ABERTAS.md`** | O que ainda **não** foi decidido, por prioridade |
 | **`COMO-FUNCIONA.md`** | O produto inteiro em português claro, sem termo técnico |
+| **`ROTEIRO-MIGRACAO-PRODUCAO.md`** | 🔴 **Ainda não executado.** A ordem, comando por comando, para pôr o Postgres no ar para o Bayron — com as conferências e o caminho de volta |
 
 ## Negócio
 
