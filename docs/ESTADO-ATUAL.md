@@ -315,9 +315,12 @@ Lista completa e priorizada em `PENDENCIAS-ABERTAS.md`. Os que travam mais:
 
 | | O quê | Onde |
 |---|---|---|
-| 🔴 | Como o barbeiro entra no painel com várias barbearias — **é decisão sua e trava o passo 5** | `PENDENCIAS-ABERTAS.md` §1.5 |
+| ✅ | ~~Como o barbeiro entra no painel com várias barbearias~~ — decidido em 09/09 e **implementado**: o login é por **telefone**, único no mundo, e é ele que grava o tenant na sessão (`api/auth/login.ts`). Falta só cadastrar o telefone dos três barbeiros do Bayron antes do segundo cliente | `PENDENCIAS-ABERTAS.md` §1.5 |
 | 🔴 | **O telefone de contato no banco é um número falso** (+1 555), conhecido desde 27/08 e ainda não conferido em produção. O botão de WhatsApp do site não leva a lugar nenhum | `PENDENCIAS-ABERTAS.md` §2.6 |
-| 🔴 | As migrations plantam os dados do Bayron em todo banco SQLite novo | `PENDENCIAS-ABERTAS.md` §4.6 |
+| ✅ | ~~As migrations plantam os dados do Bayron em todo banco novo~~ — **sem objeto desde 13/09**: as migrations de SQLite saíram do repositório e as de Postgres não inserem dado de barbearia nenhum | `PENDENCIAS-ABERTAS.md` §4.6 |
+| 🟠 | **`shortName === "Bayron"` decide o que aparece no site** em oito componentes — comparação de texto contra um campo que o próprio cliente edita no painel. Separado do `PENDENCIAS-ABERTAS.md` §4.6 em 13/09 | `PENDENCIAS-ABERTAS.md` §4.7 |
+| 🟠 | **Não existe uma linha de código sobre cobrança.** `tenants.status` existe e o host recusa quem não é `active`, mas nada muda esse status — nem tela, nem comando, nem webhook — e quem cai em `suspended` vê 404, não "conta suspensa" | `PENDENCIAS-ABERTAS.md` §3.5 |
+| 🟠 | **Fuso por barbearia**: `TZ_BARBEARIA` vale para o processo inteiro, e o passo 6 já põe várias barbearias no mesmo processo. Trava vender fora do fuso de Fortaleza | `PENDENCIAS-ABERTAS.md` §2.1 |
 | ✅ | ~~Timezone escrito em 20 arquivos como constante~~ — centralizado em 10/09 em `src/lib/timezone.ts`, com teste-guarda. **Sobrou o fuso por barbearia**, que só morde no passo 6 | `PENDENCIAS-ABERTAS.md` §2.1 |
 | ✅ | ~~O backup salva o banco e não salva as fotos~~ — resolvido em 11/09, com restauração conferida por `diff -r` | `PENDENCIAS-ABERTAS.md` §3.7 |
 | ⏸️ | Política de suporte — **adiada em 11/09** por decisão do dono (`PLANO-PRODUTIZACAO.md` §12). Gatilho: antes de combinar escopo com o primeiro cliente | `PENDENCIAS-ABERTAS.md` §1.4 |
@@ -340,6 +343,7 @@ dono não reparou vira o preço no site dele.
 
 | Quando | O quê |
 |---|---|
+| 13/09 | Inventário do que falta no código, conferido no repositório e não no documento. Três seções estavam desatualizadas: `PENDENCIAS-ABERTAS.md` §4.3 (painel) e `PENDENCIAS-ABERTAS.md` §4.6 (migrations) já estavam feitas, e o teste de restauração de `PENDENCIAS-ABERTAS.md` §3.3 já tinha sido feito duas vezes. Corrigidas, e o `shortName === "Bayron"` virou `PENDENCIAS-ABERTAS.md` §4.7 |
 | 11/09 | Barbearia nova sai da tela em branco: catálogo de oito serviços sugeridos no painel, **sem preço de propósito** (`PENDENCIAS-ABERTAS.md` §4.5) |
 | 11/09 | Conferido que o campo de cor da marca no painel já existia e funciona — o documento afirmava que faltava (`PENDENCIAS-ABERTAS.md` §4.2) |
 | 11/09 | `npm run test:db`: Postgres descartável para a suíte inteira rodar na máquina de desenvolvimento, em vez de 84 casos pulados em silêncio |

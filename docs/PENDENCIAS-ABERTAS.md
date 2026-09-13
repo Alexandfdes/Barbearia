@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-09-11.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-09-13.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -376,12 +376,22 @@ A arquitetura garante "uma imagem, N instâncias", mas não define **como** subi
 versão nova em dez containers, nem o que fazer quando a migração falha em um deles e
 passa nos outros. Clicar dez vezes no EasyPanel não é processo.
 
-### 3.3 🟠 `[TÉCNICO]` Backup por cliente e teste de restauração
+### 3.3 🟠 `[TÉCNICO]` Backup por cliente — o teste de restauração já foi feito
 
-O backup diário com upload off-site já funciona por instância. Com N clientes faltam:
-estrutura de pastas no bucket, credenciais (bucket único ou um por cliente), e
-**um teste de restauração de verdade** — feito uma vez, antes do primeiro cliente pago.
-Backup nunca restaurado é backup que não existe.
+O backup diário com upload off-site já funciona por instância.
+
+⚠️ **Correção de 13/09/2026:** este item pedia "um teste de restauração de verdade, feito
+uma vez, antes do primeiro cliente pago". **Ele foi feito — duas vezes — e a seção não
+tinha sido atualizada.** Em 06/09/2026 contra Postgres 16 (backup de um banco com dados,
+restauração num banco vazio: voltaram as linhas, as 36 constraints de tenant sobreviveram,
+as sequences continuaram de onde estavam) e de novo em 11/09/2026 contra o banco já
+carregado com os 820 registros reais do Bayron. As fotos entraram no backup em 11/09 e a
+restauração delas é conferida por comparação de árvore (§3.7). Registro em
+`ESTADO-ATUAL.md` §4.
+
+**O que continua faltando, e só aparece com N clientes:** estrutura de pastas no bucket e
+credenciais — bucket único ou um por cliente. Com banco único multi-tenant, o backup deixou
+de ser por instância e virou um só, o que torna a decisão mais simples e a falha mais cara.
 
 ### 3.4 🟠 `[TÉCNICO]` Monitoramento
 
@@ -506,8 +516,10 @@ próprio catálogo**. `astro check` acusa (`Property 'shortName' does not exist 
 'Promise<Settings>'`), mas o projeto tem 277 erros de base e um erro a mais não aparece.
 Lição em `ARQUITETURA-MULTI-TENANT-V1.md` §12.
 
-**Falta desta seção:** nada no código dos componentes. Mas ver §4.6 — as migrations
-plantam os dados do Bayron em qualquer banco novo, o que desarma tudo isso.
+**Falta desta seção:** nada no código dos componentes. A ressalva que estava aqui — de
+que as migrations plantavam os dados do Bayron em qualquer banco novo e desarmavam tudo
+isto — caiu em 13/09/2026 com o §4.6. O que sobrou é o discriminador do §4.7: o portão
+continua sendo `shortName === "Bayron"`, texto que o próprio cliente edita.
 
 ---
 
@@ -526,7 +538,8 @@ de outro negócio". Ao escrever componente novo, a pergunta não é "e se estive
 ⚠️ **Ficou mais urgente com o provisionamento automático.** A promessa nova é que o
 cliente pague e já veja a plataforma na cor dele. Se ele pagar e cair num site com o
 nome, o endereço e as avaliações de outra barbearia, a promessa quebra no primeiro
-minuto — e agora sabemos que é exatamente isso que as migrations fazem (§4.6).
+minuto — e era exatamente isso que as migrations de SQLite faziam, até saírem do
+repositório (§4.6).
 
 ### 4.2 🟡 `[TÉCNICO]` Cor de destaque — o dono já escolhe a dele
 
@@ -558,10 +571,25 @@ suporte ficam diferentes a cada cliente. O site é a marca dele; o painel é a s
 onboarding (sugerir, nunca aplicar sozinho). Sem isso o dono digita o hex ou usa o
 seletor — o que já resolve.
 
-### 4.3 🟠 `[TÉCNICO]` Painel administrativo com resumo de verdade
+### 4.3 ✅ `[TÉCNICO]` Painel administrativo com resumo de verdade — CONFERIDO em 13/09/2026
 
-A moldura no estilo Trinks já foi feita, mas o painel ainda mostra pouco. Falta: agenda
-de hoje, faturamento da semana e do mês, próximos agendamentos e faltas.
+⚠️ **Correção de 13/09/2026: esta seção estava desatualizada.** Ela dizia que "o painel
+ainda mostra pouco" e listava quatro pendências — agenda de hoje, faturamento da semana e
+do mês, próximos agendamentos e faltas. **As quatro já estavam implementadas.** É a
+segunda seção com esse defeito em três dias (a primeira foi o §4.2, em 11/09), e o risco é
+o mesmo: planejar em cima de um mapa que mente, e reimplementar o que existe.
+
+Conferido em `src/pages/admin/index.astro` (559 linhas), lendo a página inteira:
+
+| O que o item pedia | Onde está |
+|---|---|
+| Agenda de hoje | Contagem do dia, receita prevista e botão "Ver agenda de hoje" para `/admin/dia/<data>`. A lista completa é a página do dia, de propósito — o painel é resumo, não substituto da agenda |
+| Faturamento da semana e do mês | Dois cards (`revenueWeek`, `revenueMonth`) e um gráfico de barras da receita por dia da semana corrente |
+| Próximos agendamentos | Lista das próximas 48 h, só `confirmed`, ordenada por horário, no máximo 8 |
+| Faltas | Bloco de alertas com **atrasados** (passou da hora e continua `confirmed`) e **faltas dos últimos 7 dias, com o valor perdido somado** |
+
+Tudo escopado por barbearia (`eq(appointments.tenantId, tenant.id)`) e por papel: barbeiro
+comum vê só os próprios, admin vê todos. O medidor de completude do §4.4 vive na mesma tela.
 
 ### 4.4 ✅ `[TÉCNICO]` Medidor de completude no painel — FEITO em 10/09/2026
 
@@ -637,57 +665,69 @@ nenhum no ar. Verificado que falha ao remover cada uma das duas recusas.
 citados na versão antiga desta seção, continuam sem existir. Não bloqueiam: sem FAQ a
 seção não é renderizada (§4.1).
 
-### 4.6 🔴 `[TÉCNICO]` As migrations plantam os dados do Bayron em todo banco novo
+### 4.6 ✅ `[TÉCNICO]` As migrations plantavam os dados do Bayron em todo banco novo — RESOLVIDO, conferido em 13/09/2026
 
-**Descoberto em 06/09/2026, ao testar o §4.1 contra um banco criado do zero.** As
-migrations não criam só tabelas: elas **inserem os dados do Bayron**.
+⚠️ **Correção de 13/09/2026: esta seção estava desatualizada, e era a pior do documento
+para estar.** Ficou marcada 🔴 e no topo da ordem sugerida do §6 durante dias depois de o
+problema ter deixado de existir — mandando refazer trabalho que já estava feito.
 
-| Migration | O que insere |
+**O que era.** Descoberto em 06/09/2026, ao testar o §4.1 contra um banco criado do zero:
+as migrations de SQLite não criavam só tabelas, elas **inseriam os dados do Bayron**.
+
+| Migration | O que inseria |
 |---|---|
 | `0006_products.sql` | Três produtos Boris (`Óleo Mentolado`, `Balm Classic`, `Tônico`), ativos, com preço e foto |
 | `0007_combos.sql` | O "Combo Boris" |
 | `0009_settings.sql` | A linha `settings` inteira do Bayron: nome, `short_name='Bayron'`, endereço **R. Jaen Menescal, 174**, Instagram `@barbearia_bayron`, horários, SEO, `products_section_title='Produtos Boris'` e **avaliação 5.0 com 227 avaliações** |
 
-**Por que isso é pior que o §4.1.** Todo o trabalho do §4.1 se apoia em
-`shortName === "Bayron"`. A migration `0009` grava exatamente `'Bayron'` nesse campo. Ou
-seja: **uma barbearia nova nasce sendo "Bayron" para o código** e abre todos os portões —
-depoimentos, FAQ, galeria, catálogo e combos do Bayron aparecem no site dela até o
-onboarding sobrescrever o `settings`. Produtos e combos o onboarding **não** apaga.
+O item mais grave era a avaliação: `google_rating='5.0'` e `google_review_count=227` saíam
+publicados, com `schema.org/AggregateRating` no HTML, para uma barbearia que nunca recebeu
+uma avaliação. Não é "conteúdo errado" — é propaganda enganosa assinada pelo seu produto, e
+o Google indexa.
 
-⚠️ **O item mais grave é a avaliação.** `google_rating='5.0'` e `google_review_count=227`
-saem publicados, com `schema.org/AggregateRating` no HTML, para uma barbearia que nunca
-recebeu uma avaliação. Isso não é "conteúdo errado": é propaganda enganosa assinada pelo
-seu produto, e o Google indexa.
+**Por que acabou.** Duas coisas, nesta ordem:
 
-**Parcialmente resolvido em 06/09/2026.** O porte para Postgres foi aplicado, e no mundo
-Postgres o problema não existe: `0000_init_postgres.sql` só cria tabelas, os
-`TEMPLATE_DEFAULTS` de `lib/settings.ts` são neutros, e a `0001` passou a só criar o
-tenant `bayron` quando encontra dados para backfillar. Banco novo nasce com **zero**
-tenants, settings, produtos e serviços — conferido, e coberto pelo teste *"banco novo NÃO
-nasce com o tenant do Bayron"*.
+1. O porte para Postgres (06/09) trouxe migrations novas. `0000_init_postgres.sql` só cria
+   tabelas, os `TEMPLATE_DEFAULTS` de `lib/settings.ts` são neutros, e a `0001` só cria o
+   tenant `bayron` quando encontra dados para backfillar.
+2. As migrations de SQLite **saíram do repositório**. Conferido em 13/09/2026:
+   `apps/barbearia/drizzle/` tem quatro arquivos — `0000_init_postgres.sql`,
+   `0001_tenants.sql`, `0002_barber_phone.sql` e `0003_rls.sql` — e o **único** `INSERT
+   INTO` que restou em todos eles é o backfill condicional do tenant na `0001`, que só
+   dispara se já existirem barbeiros, settings ou agendamentos.
 
-⚠️ **O que continua valendo:** as migrations **de SQLite** ainda têm os INSERT, e qualquer
-instância que ainda rode SQLite nasce com os dados do Bayron. Enquanto a produção não
-estiver migrada, a correção abaixo continua de pé.
+Não há mais caminho no código que crie um banco SQLite, então não há mais banco novo que
+possa nascer sendo "Bayron". A correção proposta na versão antiga desta seção — tirar os
+`INSERT` da `0006`, `0007` e `0009` — ficou sem objeto: os arquivos não existem.
 
-**Correção proposta** (não aplicada — decisão do dono):
+Coberto pelo teste *"banco novo NÃO nasce com o tenant do Bayron"*.
 
-1. Tirar os `INSERT` de `0006`, `0007` e `0009` das migrations.
-2. `0009` passa a inserir uma linha `settings` **neutra**: nome vazio ou "Sua Barbearia",
-   `google_rating` e `google_review_count` **nulos/zero**, `products_section_title='Produtos'`.
-3. Os dados do Bayron viram um script de seed que só roda na instância dele.
+⚠️ **Duas pontas soltas que estavam penduradas aqui, e não são esta seção:**
 
-**Risco de mexer em migration já aplicada: nenhum, verificado.** O migrator do Drizzle
-decide o que rodar por **timestamp**, não por hash
-(`drizzle-orm/sqlite-core/dialect.js`: `Number(lastDbMigration[2]) < migration.folderMillis`);
-o hash é gravado e nunca comparado. O banco do Bayron já rodou essas migrations e não vai
-rodá-las de novo — os dados dele ficam. Só banco novo sente a mudança, que é o objetivo.
+- O discriminador `shortName === "Bayron"` continua no código. Virou o §4.7 abaixo.
+- `migracao-postgres/` e `migracao-tenants/`, na raiz do monorepo, estão **versionadas** e
+  guardam cópias das migrations — a `0001` de lá **diverge** da que está em `drizzle/` —
+  mais dois patches de 388 KB e 196 KB. Eram entregas de passo. Hoje são a armadilha de
+  alguém aplicar a cópia errada. Apagar, ou mover para `docs/historico/`.
 
-**Segunda decisão, junto com essa:** `shortName === "Bayron"` é um discriminador ruim.
-É comparação de texto contra um campo que o próprio dono edita no painel. Quando o passo 4
-estiver aplicado, o certo é `tenant.slug === 'bayron'` — identidade que o cliente não
-edita. Hoje há **seis** comparações espalhadas pelos componentes; o mínimo é concentrá-las
-em uma função só, para trocar em um lugar.
+### 4.7 🟠 `[TÉCNICO]` `shortName === "Bayron"` decide o que aparece no site
+
+Separado do §4.6 em 13/09/2026, quando aquele item fechou e este não.
+
+Oito componentes comparam o nome curto da barbearia com o texto `"Bayron"` para decidir o
+que renderizar: `Header.astro`, `Footer.astro`, `Hero.astro`, `FAQ.astro`, `Gallery.astro`,
+`Products.astro`, `Services.astro` e `Testimonials.astro`. Atrás da comparação está conteúdo
+do Bayron cravado no repositório — o logo empacotado em `assets/`, a foto do topo, os
+depoimentos, o FAQ, a galeria e o catálogo agrupado por categoria.
+
+**O problema é a natureza do campo.** `short_name` é editável pelo dono, em
+`/admin/configuracoes`. É comparação de texto contra dado que o próprio cliente controla:
+quem digitar "Bayron" ali herda depoimentos, FAQ, galeria e catálogo de outra barbearia. A
+probabilidade é baixa; a consequência é conteúdo de terceiro no site de quem está pagando.
+
+**Correção:** trocar por `tenant.slug === 'bayron'` — identidade que o cliente não edita e
+que o contexto do passo 6 já entrega em toda requisição — e **concentrar as oito comparações
+numa função só**, para a próxima troca ser um arquivo em vez de oito.
 
 ---
 
@@ -700,17 +740,19 @@ em uma função só, para trocar em um lugar.
   projeto inteiro, agora com margem mais apertada para errar. Só 5 conversas respondem.
 - **Quantas instâncias cabem na VPS?** Ela já foi comprada e a premissa é que as 10
   cabem. `docker stats` com 5 containers confirma ou desmente numa tarde.
-- **Restauração de backup** (§3.3), uma vez, antes do primeiro cliente pago — e agora
-  também **incluir as fotos no backup** (§3.7), que hoje ficam de fora.
+- ✅ **Restauração de backup** (§3.3) — feita em 06/09 e repetida em 11/09 contra o banco
+  com os dados reais do Bayron. As fotos entraram no backup em 11/09 (§3.7), com a
+  restauração conferida por comparação de árvore.
 
 ---
 
 ## 6. Ordem sugerida
 
-0. **Limpar o seed das migrations** (`PENDENCIAS-ABERTAS.md` §4.6). Subiu para o topo em
-   06/09/2026: enquanto isso não for feito, todo banco novo nasce com o nome, o endereço,
-   os produtos e **as 227 avaliações** do Bayron — e o §4.1 inteiro fica desarmado, porque
-   ele decide pelo `short_name` que a migration grava como `'Bayron'`.
+0. ~~**Limpar o seed das migrations** (`PENDENCIAS-ABERTAS.md` §4.6)~~ — **sem objeto desde
+   13/09/2026.** As migrations de SQLite que plantavam o nome, o endereço, os produtos e as
+   227 avaliações do Bayron não existem mais no repositório; ver
+   `PENDENCIAS-ABERTAS.md` §4.6. Sobrou o discriminador `shortName === "Bayron"`, que virou
+   `PENDENCIAS-ABERTAS.md` §4.7.
 1. ~~**Decidir o login do painel** (§1.5)~~ — decidido e implementado em 09/09.
    Falta cadastrar o telefone dos barbeiros do Bayron antes do segundo cliente.
 2. ~~**As duas minas** (§2.1, §2.2)~~ — o fuso (§2.1) foi centralizado em 10/09 e
