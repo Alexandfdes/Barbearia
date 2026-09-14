@@ -111,7 +111,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     const [{ n }] = await dbDono.select({ n: sql<number>`count(*)::int` }).from(tenants);
     if (n > 1) {
       return json({
-        error: 'Entre com o seu telefone. O acesso por usuário não vale mais com várias barbearias.',
+        error: 'Entre com o seu WhatsApp. O acesso por usuário não vale mais com várias barbearias.',
       }, 400);
     }
     barbeiro = await first(
@@ -126,7 +126,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   // Mensagem única de propósito: distinguir "telefone não existe" de "senha
   // errada" entrega uma lista de telefones cadastrados a quem estiver testando.
   if (!isValid || !barbeiro) {
-    return json({ error: 'Telefone ou senha inválidos' }, 401);
+    return json({ error: 'WhatsApp ou senha inválidos' }, 401);
   }
 
   // A barbearia precisa estar ativa. Sessão viva de barbearia suspensa é como um

@@ -138,6 +138,29 @@ no portal dele.
 Funciona, mas põe no dono a tarefa de lembrar um identificador que ele nunca escolheu, e
 some com a vantagem de o painel ser um endereço só.
 
+⚠️ **Reaberto e reconfirmado em 14/09/2026.** A proposta voltou na forma "o barbeiro
+digita o nome da barbearia e a senha". Recusada de novo, por três motivos que o registro
+de 09/09 não tinha escrito:
+
+1. **Nome de barbearia não diz quem é a pessoa.** Cada barbeiro tem login e papel
+   próprios, e o painel filtra por isso — barbeiro comum vê a agenda dele, admin vê
+   todas. Uma senha por barbearia apaga o filtro, apaga saber quem cancelou o quê, e
+   obriga a trocar a senha de todos quando um barbeiro sai.
+2. **Nome não é único no mundo.** "Barbearia do Zé" existe em toda cidade. Com o nome
+   como chave, o segundo cliente homônimo não entra — ou tem o próprio nome recusado.
+3. **O nome é editável no painel.** `business_name` e `short_name` o dono muda quando
+   quiser; quem renomeia a barbearia se tranca do lado de fora. Telefone não muda por
+   acidente.
+
+**O que a proposta acertou, e virou mudança:** ninguém pensa "meu login é um telefone".
+A tela passou a pedir **"Seu WhatsApp"** — o mesmo campo, a mesma chave, a palavra que o
+barbeiro usa. As mensagens de erro acompanharam.
+
+⚠️ **Recusado junto: mostrar o nome da barbearia enquanto ele digita o número.** O
+servidor teria que responder "de quem é este telefone" a quem ainda não provou ser
+ninguém — um oráculo para varrer números e descobrir quem é dono de qual barbearia. O
+nome aparece no painel, um passo depois, sem custo nenhum.
+
 ⚠️ **O que sobrou:** cadastrar o telefone dos barbeiros que já existem. Enquanto
 não fizerem isso, eles entram pelo caminho antigo (slug), que só vale enquanto
 houver **uma barbearia só**. No dia do segundo cliente, quem estiver sem telefone
