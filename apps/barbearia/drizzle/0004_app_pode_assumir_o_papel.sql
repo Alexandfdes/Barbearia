@@ -57,8 +57,24 @@ DO $$
 BEGIN
   SET LOCAL ROLE barbearia_app;
   PERFORM 1;
+  RESET ROLE;
 EXCEPTION WHEN OTHERS THEN
   RAISE EXCEPTION 'SET ROLE barbearia_app falhou mesmo depois do GRANT: % (%)', SQLERRM, SQLSTATE;
 END $$;
+
+-- ⚠️ O RESET NÃO É ZELO — sem ele a migration derruba a própria migração.
+--
+-- `SET LOCAL ROLE` dentro de um bloco `DO` vale até o FIM DA TRANSAÇÃO, não até o
+-- fim do bloco. E quem controla a transação aqui é `scripts/startup.mjs`: ele
+-- tira o BEGIN/COMMIT do arquivo e grava `schema_migrations` na MESMA
+-- transação. Sem o reset, esse INSERT roda como `barbearia_app` — que a 0003
+-- revoga dessa tabela de propósito — e a migração morre com
+-- "permission denied for table schema_migrations".
+--
+-- Reproduzido em 13/09/2026 rodando o passo 4.4 do roteiro de verdade. No
+-- `psql` o defeito NÃO aparece (cada arquivo tem o próprio COMMIT), e na suíte
+-- de testes também não (ela aplica o arquivo inteiro e não grava migration).
+-- Só aparecia no caminho real, no meio da janela, com o site fora do ar.
+RESET ROLE;
 
 COMMIT;
