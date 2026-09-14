@@ -24,8 +24,25 @@ if (session) return Astro.redirect('/admin');
 
       <form id="login-form" class="bg-white border border-slate-200 rounded-md p-6 space-y-4">
         <div>
+          <!--
+            "Seu WhatsApp" e não "Telefone", decidido em 14/09/2026.
+
+            A chave de login é o telefone desde 09/09 (`PENDENCIAS-ABERTAS.md` §1.5), e
+            está certa: é única no mundo e não muda por acidente, ao contrário do nome
+            da barbearia, que o próprio dono edita no painel.
+
+            O que estava errado era a palavra. Ninguém pensa "meu login é um telefone" —
+            mas todo barbeiro sabe de cor o número do WhatsApp dele, porque atende por
+            ele o dia inteiro. É o mesmo campo; muda de "identificador que preciso
+            lembrar" para "o número que eu já uso".
+
+            ⚠️ O que NÃO se faz aqui: mostrar o nome da barbearia enquanto ele digita.
+            Isso exigiria o servidor responder "de quem é este número" a quem ainda não
+            provou ser ninguém — um oráculo para varrer telefones e descobrir quem é dono
+            de qual barbearia. O nome aparece no painel, um passo depois, de graça.
+          -->
           <label for="identificador" class="block text-xs text-slate-500 uppercase tracking-widest mb-2">
-            Telefone
+            Seu WhatsApp
           </label>
           <input
             id="identificador"
@@ -36,6 +53,9 @@ if (session) return Astro.redirect('/admin');
             autofocus
             class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-teal/50 transition-colors"
           />
+          <p class="mt-1.5 text-[11px] text-slate-400">
+            O mesmo número que você passou quando a barbearia entrou no ar.
+          </p>
         </div>
 
         <div>
