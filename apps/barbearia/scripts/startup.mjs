@@ -159,6 +159,9 @@ function conferirPgDump() {
   console.log(`✓ backup: ${r.stdout.trim()}`);
 }
 
+/** Falha de boot que JÁ se explicou sozinha — o `catch` final não repete nada. */
+class ErroDeBoot extends Error {}
+
 /**
  * Confere, no boot, que ESTE usuário consegue assumir `barbearia_app`.
  *
@@ -174,6 +177,16 @@ function conferirPgDump() {
  * o usuário novo não é membro de nada. É esse caso que esta função pega.
  */
 async function conferirPapelDoApp() {
+  // ⚠️ Rodada parcial não tem como passar nesta conferência, e ela é passo do
+  // roteiro de migração: `--ate=0000` cria só as tabelas, e `barbearia_app` só
+  // nasce na 0003. Sem esta saída, o passo 4.2 de
+  // `docs/ROTEIRO-MIGRACAO-PRODUCAO.md` morreria com "role does not exist" —
+  // no meio da janela, com o site já fora do ar.
+  if (ate) {
+    console.log('(parcial: a conferência do papel do app fica para a rodada completa)');
+    return;
+  }
+
   const [{ current_user: usuario }] = await sql`SELECT current_user`;
   try {
     await sql.begin(async (tx) => {
@@ -193,7 +206,7 @@ async function conferirPapelDoApp() {
       '  Quem administra o Postgres resolve com:\n\n' +
       `      GRANT barbearia_app TO ${usuario};\n`
     );
-    throw new Error('barbearia_app não pode ser assumido por ' + usuario);
+    throw new ErroDeBoot('barbearia_app não pode ser assumido por ' + usuario);
   }
   console.log(`✓ papel do app: ${usuario} pode assumir barbearia_app`);
 }
@@ -203,8 +216,12 @@ try {
   await conferirPapelDoApp();
   conferirPgDump();
 } catch (erro) {
-  console.error('\n✗ Migration falhou. O que ela mudaria foi desfeito.\n');
-  console.error(erro);
+  // Erro de boot já imprimiu o próprio diagnóstico. Dizer "migration falhou"
+  // em cima dele mandaria procurar defeito no lugar errado.
+  if (!(erro instanceof ErroDeBoot)) {
+    console.error('\n✗ Migration falhou. O que ela mudaria foi desfeito.\n');
+    console.error(erro);
+  }
   process.exitCode = 1;
 } finally {
   await sql.end({ timeout: 5 });

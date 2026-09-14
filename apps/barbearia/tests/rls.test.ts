@@ -159,28 +159,36 @@ describe('o app consegue ASSUMIR o papel — sem isso nada funciona', () => {
   // "permission denied to set role". Em produção isso seria 500 em TODA
   // requisição, com a migration verde e o deploy verde.
 
+  // ⚠️ `conn` NÃO serve aqui: o `beforeAll` a fecha depois de montar o schema.
+  // Daqui para baixo quem fala com o banco é o pool do próprio app.
+
   it.skipIf(!TEM_BANCO)('o GRANT existe de verdade no banco, não só por ser superusuário', async () => {
-    // `pg_has_role()` NÃO serve aqui: para superusuário ele devolve true mesmo
-    // sem concessão nenhuma, e é justamente o superusuário que escondeu o
-    // defeito. `pg_auth_members` só tem linha se o GRANT tiver rodado.
-    const linhas = await conn`
+    // `pg_has_role()` NÃO serve: para superusuário ele devolve true mesmo sem
+    // concessão nenhuma, e é justamente o superusuário que escondeu o defeito.
+    // `pg_auth_members` só tem linha se o GRANT da 0004 tiver rodado.
+    const linhas = await dbDono.execute(sql`
       SELECT EXISTS (
         SELECT 1 FROM pg_auth_members m
           JOIN pg_roles papel  ON papel.oid  = m.roleid
           JOIN pg_roles membro ON membro.oid = m.member
         WHERE papel.rolname = 'barbearia_app'
           AND membro.rolname = current_user
-      ) AS concedido`;
-    expect(linhas[0].concedido).toBe(true);
+      ) AS concedido`);
+    expect((linhas as unknown as { concedido: boolean }[])[0].concedido).toBe(true);
   });
 
-  it.skipIf(!TEM_BANCO)('SET ROLE funciona nesta conexão', async () => {
-    const [{ current_user: antes }] = await conn`SELECT current_user`;
-    await conn`SET ROLE barbearia_app`;
-    const [{ current_user: durante }] = await conn`SELECT current_user`;
-    await conn`RESET ROLE`;
-    expect(durante).toBe('barbearia_app');
-    expect(antes).not.toBe('barbearia_app');
+  it.skipIf(!TEM_BANCO)('dentro da requisição o app É o papel restrito, não o dono', async () => {
+    // Os casos acima provam a CONSEQUÊNCIA (a linha da outra barbearia some).
+    // Este prova a CAUSA, e é o que quebraria primeiro sem a 0004: se o
+    // `SET ROLE` falhasse, `comTenant` estouraria antes de chegar aqui.
+    const dentro = await comTenant(BAYRON, async () => {
+      const r = await db.execute(sql`SELECT current_user AS quem`);
+      return (r as unknown as { quem: string }[])[0].quem;
+    });
+    const fora = await dbDono.execute(sql`SELECT current_user AS quem`);
+
+    expect(dentro).toBe('barbearia_app');
+    expect((fora as unknown as { quem: string }[])[0].quem).not.toBe('barbearia_app');
   });
 
   it('a migration que concede o papel continua existindo', () => {
