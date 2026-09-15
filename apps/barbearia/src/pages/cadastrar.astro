@@ -1,0 +1,211 @@
+---
+export const prerender = false;
+
+/**
+ * A tela de cadastro. Ver `api/cadastrar.ts` para o porquê de ela nascer
+ * fechada — e de morar aqui, e não no site de vendas.
+ *
+ * ⚠️ Os preços são perguntados AQUI, e essa é a decisão que mudou em 14/09/2026.
+ *
+ * O `PENDENCIAS-ABERTAS.md` §4.5 decidiu que serviço sugerido entra sem preço:
+ * "preço errado no ar é pior que preço faltando". A regra continua inteira — o
+ * que mudou foi o momento da pergunta. Antes o dono terminava o provisionamento
+ * com zero serviço e descobria depois, no painel, que precisava montar o
+ * catálogo. Agora ele preenche aqui e sai com o site funcionando.
+ *
+ * O que ele deixar em branco entra DESLIGADO. Nenhum "R$ 0,00" vai para o ar.
+ */
+import { CATALOGO_SUGERIDO } from '../lib/catalogoSugerido.js';
+
+if (process.env.CADASTRO_ABERTO !== '1') {
+  return new Response('Not found', { status: 404 });
+}
+---
+
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Criar a sua barbearia — Barbearia no Ar</title>
+  <style is:global>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f8fafc; color: #0f172a;
+           font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .env { max-width: 640px; margin: 0 auto; padding: 32px 16px 64px; }
+    h1 { font-size: 26px; margin: 0 0 4px; font-weight: 600; }
+    .sub { color: #64748b; margin: 0 0 28px; }
+    fieldset { border: 1px solid #e2e8f0; background: #fff; border-radius: 8px;
+               padding: 18px; margin: 0 0 16px; }
+    legend { font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+             color: #64748b; padding: 0 6px; }
+    label { display: block; font-size: 12px; color: #475569; margin: 12px 0 4px; }
+    input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px;
+            font-size: 15px; background: #fff; color: #0f172a; }
+    input:focus { outline: 2px solid #0f766e33; border-color: #0f766e; }
+    .dica { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+    .linha { display: grid; grid-template-columns: 1fr 108px 92px; gap: 8px; align-items: end; }
+    .linha label { margin-top: 10px; }
+    @media (max-width: 520px) { .linha { grid-template-columns: 1fr 1fr; } .linha .nome { grid-column: 1 / -1; } }
+    button { width: 100%; padding: 14px; border: 0; border-radius: 6px; background: #0f766e;
+             color: #fff; font-weight: 700; font-size: 14px; letter-spacing: .08em;
+             text-transform: uppercase; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: progress; }
+    .erro { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+            padding: 10px 12px; border-radius: 6px; margin-bottom: 14px; font-size: 14px; }
+    .ok { background: #f0fdfa; border: 1px solid #99f6e4; color: #115e59;
+          padding: 16px; border-radius: 8px; }
+    code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main class="env">
+    <h1>Criar a sua barbearia</h1>
+    <p class="sub">Leva dois minutos. No fim o site já está no ar com os seus serviços.</p>
+
+    <div id="erro" class="erro" hidden></div>
+
+    <form id="form">
+      <fieldset>
+        <legend>A barbearia</legend>
+        <label for="nome">Nome da barbearia</label>
+        <input id="nome" required maxlength="120" placeholder="Barbearia do Zé" />
+
+        <label for="slug">Endereço do site</label>
+        <input id="slug" required maxlength="63" placeholder="barbearia-do-ze" />
+        <p class="dica">Vai ficar <code id="previa">barbearia-do-ze</code>. Só minúsculas, números e hífen.</p>
+
+        <label for="endereco">Rua e número</label>
+        <input id="endereco" required maxlength="200" placeholder="R. das Flores, 42" />
+
+        <label for="cidade">Cidade</label>
+        <input id="cidade" required maxlength="120" placeholder="Mossoró/RN" />
+      </fieldset>
+
+      <fieldset>
+        <legend>Você</legend>
+        <label for="dono">Seu nome</label>
+        <input id="dono" required maxlength="120" placeholder="José da Silva" />
+
+        <label for="telefone">Seu WhatsApp</label>
+        <input id="telefone" type="tel" inputmode="tel" required placeholder="(84) 99999-0000" />
+        <p class="dica">É com ele que você entra no painel, e é o que aparece no site para o cliente chamar.</p>
+
+        <label for="senha">Senha do painel</label>
+        <input id="senha" type="password" required minlength="8" autocomplete="new-password" />
+        <p class="dica">Mínimo de 8 caracteres.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Seus serviços e preços</legend>
+        <p class="dica" style="margin:0 0 4px">
+          Preencha o preço dos que você faz. O que ficar em branco não vai para o ar —
+          você liga depois no painel. Pode editar tudo quando quiser.
+        </p>
+        <div id="servicos">
+          {CATALOGO_SUGERIDO.map((s, i) => (
+            <div class="linha">
+              <div class="nome">
+                <label for={`sv-nome-${i}`}>Serviço</label>
+                <input id={`sv-nome-${i}`} value={s.nome} maxlength="80" />
+              </div>
+              <div>
+                <label for={`sv-preco-${i}`}>Preço R$</label>
+                <input id={`sv-preco-${i}`} inputmode="decimal" placeholder="—" />
+              </div>
+              <div>
+                <label for={`sv-min-${i}`}>Minutos</label>
+                <input id={`sv-min-${i}`} inputmode="numeric" value={String(s.minutos)} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </fieldset>
+
+      <button id="enviar" type="submit">Criar a minha barbearia</button>
+    </form>
+
+    <div id="pronto" class="ok" hidden></div>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const form = $('form'), erro = $('erro'), botao = $('enviar');
+
+    /** Sugere o endereço a partir do nome, até a pessoa mexer no campo. */
+    let slugTocado = false;
+    const aSlug = (v) => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 63);
+    $('slug').addEventListener('input', () => { slugTocado = true; $('previa').textContent = $('slug').value; });
+    $('nome').addEventListener('input', () => {
+      if (slugTocado) return;
+      $('slug').value = aSlug($('nome').value);
+      $('previa').textContent = $('slug').value || 'seuendereco';
+    });
+
+    /** "45", "45,50" e "R$ 45,50" viram centavos. Vazio vira 0 (= desligado). */
+    function centavos(bruto) {
+      const limpo = String(bruto || '').replace(/[^\d,.]/g, '').replace(',', '.');
+      if (!limpo) return 0;
+      const n = Number(limpo);
+      return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : NaN;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      erro.hidden = true;
+
+      const servicos = [];
+      let i = 0;
+      while ($(`sv-nome-${i}`)) {
+        const nome = $(`sv-nome-${i}`).value.trim();
+        const preco = centavos($(`sv-preco-${i}`).value);
+        const minutos = parseInt($(`sv-min-${i}`).value, 10);
+        if (nome) {
+          if (Number.isNaN(preco)) {
+            erro.textContent = `Preço inválido em "${nome}".`; erro.hidden = false; return;
+          }
+          servicos.push({ nome, precoCentavos: preco, minutos: Number.isFinite(minutos) ? minutos : 30 });
+        }
+        i++;
+      }
+
+      botao.disabled = true;
+      botao.textContent = 'Criando...';
+      try {
+        const r = await fetch('/api/cadastrar', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            slug: $('slug').value.trim(), nome: $('nome').value.trim(),
+            dono: $('dono').value.trim(), telefone: $('telefone').value.trim(),
+            endereco: $('endereco').value.trim(), cidade: $('cidade').value.trim(),
+            senha: $('senha').value, servicos,
+          }),
+        });
+        const dados = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          erro.textContent = dados.error || 'Não consegui criar agora. Tente de novo.';
+          erro.hidden = false;
+          return;
+        }
+        form.hidden = true;
+        const pronto = $('pronto');
+        pronto.innerHTML =
+          '<p style="margin:0 0 10px"><strong>Pronto. A sua barbearia existe.</strong></p>' +
+          `<p style="margin:0 0 10px">Entre no painel com o WhatsApp <code>${dados.telefoneLogin}</code> e a senha que você acabou de escolher.</p>` +
+          (dados.avisos?.length ? `<p style="margin:0 0 10px">⚠️ ${dados.avisos[0]}</p>` : '') +
+          '<p style="margin:0"><a href="/admin/login">Ir para o painel</a></p>';
+        pronto.hidden = false;
+      } catch {
+        erro.textContent = 'Não consegui falar com o servidor.';
+        erro.hidden = false;
+      } finally {
+        botao.disabled = false;
+        botao.textContent = 'Criar a minha barbearia';
+      }
+    });
+  </script>
+</body>
+</html>

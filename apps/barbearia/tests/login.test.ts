@@ -116,7 +116,12 @@ describe.skipIf(!TEM_BANCO)('login do painel por telefone', () => {
   it('com DUAS barbearias, o slug para de valer e a rota recusa em vez de chutar', async () => {
     const r = await entrar('bayron', SENHA);
     expect(r.status).toBe(400);
-    expect(r.body.error).toMatch(/telefone/i);
+    // ⚠️ "whatsapp" e não "telefone" desde 14/09/2026: a chave continua sendo o
+    // telefone, mas a TELA passou a chamá-lo de WhatsApp, e a recusa tem que
+    // mandar a pessoa para o mesmo campo que ela está vendo. Mandar procurar
+    // "telefone" numa tela que diz "Seu WhatsApp" é o tipo de incoerência que
+    // faz o barbeiro ligar para o suporte.
+    expect(r.body.error).toMatch(/whatsapp/i);
   });
 
   it('com UMA barbearia só, o slug ainda vale (a transição)', async () => {
