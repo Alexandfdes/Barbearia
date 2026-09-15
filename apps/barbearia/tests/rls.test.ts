@@ -217,17 +217,23 @@ describe('a rede não tem furo por descuido', () => {
     expect(fonte).toMatch(/arrayBuffer\(\)/);
   });
 
-  it('`dbDono` só é usado onde olhar todas as barbearias é o trabalho', () => {
+  it('a conexão do DONO só é usada onde olhar todas as barbearias é o trabalho', () => {
     // Cada arquivo novo nesta lista é um furo na rede. A lista fecha de
     // propósito: crescer exige passar por aqui e justificar.
+    //
+    // ⚠️ `sqlConn` entrou na busca em 14/09/2026. Antes a guarda só olhava
+    // `dbDono`, e `sqlConn` — que é a MESMA conexão de dono, crua — passava por
+    // baixo dela sem ninguém notar. Guarda que cobre um dos dois nomes da mesma
+    // coisa é guarda que dá a impressão de existir.
     const PERMITIDOS = [
       'src/db/index.ts',                  // quem define os dois
       'src/pages/api/auth/login.ts',      // acha o barbeiro antes de saber a barbearia
+      'src/pages/api/cadastrar.ts',       // cria a barbearia: ela ainda não existe para ter contexto
     ];
 
     const arquivos = [...globSync('src/**/*.ts'), ...globSync('src/**/*.astro')]
       .map((c) => c.split(sep).join('/'))
-      .filter((c) => /\bdbDono\b/.test(readFileSync(c, 'utf8')))
+      .filter((c) => /\b(dbDono|sqlConn)\b/.test(readFileSync(c, 'utf8')))
       .sort();
 
     expect(arquivos).toEqual(PERMITIDOS.sort());

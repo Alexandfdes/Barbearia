@@ -110,6 +110,10 @@ describe('nenhuma página pública serve barbearia sem perguntar de quem é o en
       'idem',
     'src/pages/api/products/image/[name].ts':
       'as fotos de produto ainda moram numa pasta só, compartilhada — PENDENCIAS-ABERTAS.md §2.7',
+    'src/pages/api/cadastrar.ts':
+      'cria a barbearia: roda ANTES de existir host para perguntar. Nasce fechada por CADASTRO_ABERTO',
+    'src/pages/cadastrar.astro':
+      'a tela do cadastro; mesma razão da rota acima',
   };
 
   it('toda rota e página pública chama `tenantDoHost`', () => {
