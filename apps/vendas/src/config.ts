@@ -45,6 +45,26 @@ export const CONCORRENTES = [
 /** Link para um site real já entregue. Vazio esconde a seção. Ver README sobre direitos de imagem. */
 export const EXEMPLO_URL = '';
 
+/**
+ * Onde mora a tela de criar barbearia — e por que ela não mora aqui.
+ *
+ * O cadastro grava no banco: tenant, configuração, dono com senha e horários.
+ * Este app não tem banco (nem `postgres`, nem schema, nem bcrypt), então a tela
+ * vive no app da barbearia e esta página só aponta para lá. Duplicar a criação
+ * de barbearia em dois apps é como as duas versões divergem — foi o que
+ * `PENDENCIAS-ABERTAS.md` §4.6 e §4.2 registram, das duas vezes que aconteceu.
+ *
+ * ⚠️ O botão só aparece com `CADASTRO_ABERTO=1` — a MESMA variável que destrava
+ * a rota do outro lado. Ligar só aqui dá um botão que cai em 404; ligar só lá dá
+ * uma porta funcionando que ninguém acha. São dois processos, então são dois
+ * lugares para ligar, e é de propósito: nenhum dos dois abre sozinho.
+ */
+export const CADASTRO_ABERTO = process.env.CADASTRO_ABERTO === '1';
+
+/** O endereço da tela de cadastro. Em desenvolvimento aponta para o outro servidor. */
+export const URL_CADASTRO =
+  process.env.URL_CADASTRO ?? 'http://localhost:4321/cadastrar';
+
 export function whatsappUrl(mensagem: string): string {
   return `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(mensagem)}`;
 }

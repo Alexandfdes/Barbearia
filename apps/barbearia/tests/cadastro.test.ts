@@ -182,6 +182,70 @@ describe('os serviços que o dono digita no cadastro', () => {
   });
 });
 
+describe('a semana que o dono preenche', () => {
+  it.skipIf(!TEM_BANCO)('só os dias abertos viram vaga — e o texto do site acompanha', async () => {
+    const r = await provisionarBarbearia(conn, {
+      ...BASE,
+      horarios: [
+        { weekday: 0, fechado: true },
+        { weekday: 1, abre: '12:00', fecha: '20:00' },
+        { weekday: 2, abre: '12:00', fecha: '20:00' },
+        { weekday: 3, abre: '12:00', fecha: '20:00' },
+        { weekday: 4, abre: '12:00', fecha: '20:00' },
+        { weekday: 5, abre: '12:00', fecha: '20:00' },
+        { weekday: 6, abre: '08:00', fecha: '14:00' },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    // ⚠️ Dia fechado é a AUSÊNCIA de linha. Linha com horário vazio geraria
+    // vaga em dia de folga — o cliente marcaria e chegaria na porta fechada.
+    const linhas = await conn`
+      SELECT weekday, start_time FROM working_hours WHERE tenant_id = ${r.tenantId} ORDER BY weekday`;
+    expect(linhas.map((l) => Number(l.weekday))).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(String(linhas[0].start_time).slice(0, 5)).toBe('12:00');
+
+    const [cfg] = await conn`SELECT business_hours FROM settings WHERE tenant_id = ${r.tenantId}`;
+    const vitrine = JSON.parse(cfg.business_hours);
+    // Dias seguidos com o mesmo horário viram uma linha só.
+    expect(vitrine).toEqual([
+      { label: 'Segunda — Sexta', hours: '12:00 — 20:00', closed: false },
+      { label: 'Sábado',          hours: '08:00 — 14:00', closed: false },
+      { label: 'Domingo',         hours: 'Fechado',       closed: true },
+    ]);
+  });
+
+  it.skipIf(!TEM_BANCO)('RECUSA a semana inteira fechada e horário invertido', async () => {
+    const tudoFechado = await provisionarBarbearia(conn, {
+      ...BASE,
+      horarios: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, fechado: true })),
+    });
+    expect(tudoFechado.ok).toBe(false);
+    if (!tudoFechado.ok) expect(tudoFechado.campo).toBe('horarios');
+
+    const invertido = await provisionarBarbearia(conn, {
+      ...BASE,
+      horarios: [{ weekday: 1, abre: '19:00', fecha: '09:00' }],
+    });
+    expect(invertido.ok).toBe(false);
+  });
+
+  it.skipIf(!TEM_BANCO)('o Instagram entra nas duas formas que o site usa', async () => {
+    for (const digitado of ['@vintage', 'vintage', 'https://instagram.com/vintage', 'instagram.com/vintage/']) {
+      await conn`TRUNCATE working_hours, barber_services, services, settings, barbers, tenants RESTART IDENTITY CASCADE`;
+      const r = await provisionarBarbearia(conn, { ...BASE, instagram: digitado, sobre: '  Corte clássico.  ' });
+      expect(r.ok, digitado).toBe(true);
+      if (!r.ok) continue;
+      const [cfg] = await conn`
+        SELECT instagram_handle, instagram_url, about_text FROM settings WHERE tenant_id = ${r.tenantId}`;
+      expect(cfg.instagram_handle, digitado).toBe('@vintage');
+      expect(cfg.instagram_url, digitado).toBe('https://instagram.com/vintage');
+      expect(cfg.about_text).toBe('Corte clássico.');
+    }
+  });
+});
+
 describe('a porta nasce fechada', () => {
   it('sem CADASTRO_ABERTO a rota responde 404, não 403', async () => {
     // 403 anunciaria que a rota existe. 404 é o que uma rota inexistente diria.
@@ -196,6 +260,47 @@ describe('a porta nasce fechada', () => {
       expect(r.status).toBe(404);
     } finally {
       if (anterior !== undefined) process.env.CADASTRO_ABERTO = anterior;
+    }
+  });
+});
+
+describe('a rota, de ponta a ponta', () => {
+  it.skipIf(!TEM_BANCO)('cria pela web e APAGA a sessão que estivesse aberta', async () => {
+    // ⚠️ O caso que este teste existe para travar foi encontrado usando o
+    // produto, não lendo o código: criar a segunda barbearia no mesmo navegador
+    // e cair no painel da PRIMEIRA. `admin/login.astro` manda para `/admin`
+    // quando já há sessão, e `/admin` lê a barbearia da SESSÃO, não do
+    // endereço. Sem limpar o cookie aqui, o dono novo entra na casa do vizinho.
+    const anterior = process.env.CADASTRO_ABERTO;
+    process.env.CADASTRO_ABERTO = '1';
+    try {
+      const mod = await import('../src/pages/api/cadastrar.js');
+      const r = await mod.POST({
+        request: new Request('http://x/api/cadastrar', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', cookie: '__bayron_session=qualquercoisa' },
+          body: JSON.stringify({
+            ...BASE, slug: 'salao-jovem', telefone: '84 96658-951'.replace(/\D/g, '') + '1',
+            servicos: [{ nome: 'Corte', precoCentavos: 3500, minutos: 30 }],
+          }),
+        }),
+        clientAddress: '9.9.9.9',
+      } as never);
+
+      expect(r.status).toBe(201);
+      expect(r.headers.get('set-cookie') ?? '').toMatch(/__bayron_session=;/);
+      expect(r.headers.get('set-cookie') ?? '').toMatch(/Max-Age=0/);
+
+      const corpo = await r.json();
+      expect(corpo.slug).toBe('salao-jovem');
+      expect(corpo.servicosAtivos).toBe(1);
+      expect(corpo.avisos).toEqual([]);
+
+      const [t] = await conn`SELECT id FROM tenants WHERE slug = 'salao-jovem'`;
+      expect(t).toBeTruthy();
+    } finally {
+      if (anterior === undefined) delete process.env.CADASTRO_ABERTO;
+      else process.env.CADASTRO_ABERTO = anterior;
     }
   });
 });

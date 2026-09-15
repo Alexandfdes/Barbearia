@@ -58,6 +58,29 @@ export interface DadosDaBarbearia {
    * "R$ 0,00" publicado, que é o que aquela decisão existe para impedir.
    */
   servicos?: ServicoDoCadastro[];
+  /** `@fulano` ou a URL inteira; guardamos as duas formas. */
+  instagram?: string;
+  /** Como o dono descreve a barbearia. Vai para `about_text`. */
+  sobre?: string;
+  /**
+   * A semana dele. Ausente = comercial padrão.
+   *
+   * ⚠️ Alimenta DUAS coisas que o schema mantém separadas de propósito:
+   * `working_hours`, que gera as vagas do agendamento, e `settings.business_hours`,
+   * que é o texto que aparece no site. Antes desta versão as duas eram cravadas
+   * aqui, iguais para todo mundo — e a barbearia que abre ao meio-dia nascia
+   * anunciando 09:00 e oferecendo vaga às 09:00.
+   */
+  horarios?: HorarioDoCadastro[];
+}
+
+export interface HorarioDoCadastro {
+  /** 0 domingo … 6 sábado, como `Date.getDay()`. */
+  weekday: number;
+  /** "09:00". Ignorado quando `fechado`. */
+  abre?: string;
+  fecha?: string;
+  fechado?: boolean;
 }
 
 export interface ServicoDoCadastro {
@@ -86,7 +109,7 @@ export interface BarbeariaCriada {
 export interface RecusaDeProvisionamento {
   ok: false;
   /** Qual campo recusou, para a tela poder apontar o erro no lugar certo. */
-  campo: 'slug' | 'nome' | 'dono' | 'telefone' | 'telefone-dono' | 'endereco' | 'cidade' | 'senha' | 'cor' | 'servicos';
+  campo: 'slug' | 'nome' | 'dono' | 'telefone' | 'telefone-dono' | 'endereco' | 'cidade' | 'senha' | 'cor' | 'servicos' | 'horarios';
   erro: string;
   /** `true` quando o problema é colisão com algo que já existe (HTTP 409). */
   conflito?: boolean;
@@ -118,16 +141,44 @@ export function slugificar(str: string): string {
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
-/** Horário comercial inicial: padrão neutro, não conteúdo de outra barbearia. */
-const HORARIO_INICIAL = [
-  ...[1, 2, 3, 4, 5].map((d) => ({ weekday: d, startTime: '09:00', endTime: '19:00' })),
-  { weekday: 6, startTime: '09:00', endTime: '18:00' },
+/** Horário comercial padrão, para quem não preencher. Neutro, não de outra barbearia. */
+const HORARIO_PADRAO: HorarioDoCadastro[] = [
+  { weekday: 0, fechado: true },
+  ...[1, 2, 3, 4, 5].map((weekday) => ({ weekday, abre: '09:00', fecha: '19:00' })),
+  { weekday: 6, abre: '09:00', fecha: '18:00' },
 ];
-const HORARIO_TEXTO = JSON.stringify([
-  { label: 'Segunda — Sexta', hours: '09:00 — 19:00', closed: false },
-  { label: 'Sábado', hours: '09:00 — 18:00', closed: false },
-  { label: 'Domingo', hours: 'Fechado', closed: true },
-]);
+
+const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/**
+ * O texto que aparece no site, a partir da semana que o dono preencheu.
+ *
+ * Agrupa dias seguidos com o mesmo horário: sete linhas idênticas numa lista de
+ * "onde estamos" é ruído, e "Segunda — Sexta" é como qualquer barbearia escreve.
+ */
+export function horarioDeVitrine(semana: HorarioDoCadastro[]): string {
+  const porDia = new Map(semana.map((h) => [h.weekday, h]));
+  const blocos: { label: string; hours: string; closed: boolean }[] = [];
+
+  let i = 0;
+  const ordem = [1, 2, 3, 4, 5, 6, 0];   // a semana do comércio começa na segunda
+  while (i < ordem.length) {
+    const atual = porDia.get(ordem[i]);
+    const texto = !atual || atual.fechado ? null : `${atual.abre} — ${atual.fecha}`;
+    let j = i;
+    while (j + 1 < ordem.length) {
+      const prox = porDia.get(ordem[j + 1]);
+      const proxTexto = !prox || prox.fechado ? null : `${prox.abre} — ${prox.fecha}`;
+      if (proxTexto !== texto) break;
+      j++;
+    }
+    const label = i === j ? DIAS[ordem[i]] : `${DIAS[ordem[i]]} — ${DIAS[ordem[j]]}`;
+    blocos.push({ label, hours: texto ?? 'Fechado', closed: texto === null });
+    i = j + 1;
+  }
+  return JSON.stringify(blocos);
+}
 
 export async function provisionarBarbearia(
   sql: postgres.Sql,
@@ -216,6 +267,30 @@ export async function provisionarBarbearia(
     nomesVistos.add(chave);
   }
 
+  const semana = (dados.horarios?.length ? dados.horarios : HORARIO_PADRAO)
+    .filter((h) => Number.isInteger(h.weekday) && h.weekday >= 0 && h.weekday <= 6);
+  for (const h of semana) {
+    if (h.fechado) continue;
+    if (!HORA.test(h.abre ?? '') || !HORA.test(h.fecha ?? '')) {
+      return { ok: false, campo: 'horarios', erro: `Horário inválido em ${DIAS[h.weekday]} (use 09:00).` };
+    }
+    if ((h.abre as string) >= (h.fecha as string)) {
+      return { ok: false, campo: 'horarios', erro: `Em ${DIAS[h.weekday]}, a abertura tem que vir antes do fechamento.` };
+    }
+  }
+  if (!semana.some((h) => !h.fechado)) {
+    return { ok: false, campo: 'horarios', erro: 'Marque pelo menos um dia aberto — sem nenhum, ninguém consegue agendar.' };
+  }
+
+  // `@fulano`, `instagram.com/fulano` e a URL inteira chegam aqui. Guardamos as
+  // duas formas porque o site usa o arroba no texto e a URL no link.
+  const arroba = (dados.instagram ?? '').trim()
+    .replace(/^(https?:\/\/)?(www\.)?instagram\.com\//i, '')
+    .replace(/^@/, '').replace(/\/.*$/, '').trim();
+  const instagramHandle = arroba ? `@${arroba}` : null;
+  const instagramUrl = arroba ? `https://instagram.com/${arroba}` : null;
+  const sobre = (dados.sobre ?? '').trim() || null;
+
   const accent = dados.cor ? derivarAccent(dados.cor) : ACCENT_PADRAO;
   const hash = bcrypt.hashSync(senha, BCRYPT_COST);
 
@@ -239,11 +314,13 @@ export async function provisionarBarbearia(
       INSERT INTO settings (
         tenant_id, business_name, short_name, whatsapp_number, whatsapp_display,
         address_street, address_city, business_hours,
+        instagram_handle, instagram_url, about_text,
         accent_color, accent_hover, accent_light,
         seo_title, products_section_title
       ) VALUES (
         ${tenant.id}, ${nome}, ${curto}, ${telefoneDigitos}, ${dados.telefone},
-        ${endereco}, ${cidade}, ${HORARIO_TEXTO},
+        ${endereco}, ${cidade}, ${horarioDeVitrine(semana)},
+        ${instagramHandle}, ${instagramUrl}, ${sobre},
         ${accent.color}, ${accent.hover}, ${accent.light},
         ${nome}, 'Produtos'
       )
@@ -257,10 +334,14 @@ export async function provisionarBarbearia(
       RETURNING id
     `;
 
-    for (const h of HORARIO_INICIAL) {
+    // ⚠️ Só os dias ABERTOS viram linha. Dia fechado é a AUSÊNCIA de linha —
+    // `getAvailableSlots` monta as vagas a partir daqui, e um registro com
+    // horário vazio geraria vaga em dia de folga.
+    for (const h of semana) {
+      if (h.fechado) continue;
       await tx`
         INSERT INTO working_hours (tenant_id, barber_id, weekday, start_time, end_time)
-        VALUES (${tenant.id}, ${barbeiro.id}, ${h.weekday}, ${h.startTime}, ${h.endTime})
+        VALUES (${tenant.id}, ${barbeiro.id}, ${h.weekday}, ${h.abre}, ${h.fecha})
       `;
     }
 

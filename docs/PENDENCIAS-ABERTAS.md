@@ -382,6 +382,177 @@ passa a servir da pasta do host. ⚠️ **As fotos que já existem estão na pas
 mudar exige mover os arquivos do Bayron ou manter a queda para o caminho legado, do mesmo
 jeito que `pastaDeMidia()` faz.
 
+### 2.8 🔴 `[TÉCNICO]` O backup entrega o banco inteiro — e a trava protege todo mundo menos quem existe
+
+Encontrado na auditoria de 15/09/2026.
+
+`api/admin/backup.ts:92` recusa a rota para quem não é `TENANT_UNICO`:
+
+```ts
+if (tenant.id !== TENANT_UNICO.id) return json({ ... }, 501);
+```
+
+`TENANT_UNICO.id` é **1**, e 1 é a barbearia de backfill — o Bayron, o único cliente em
+produção. **Quem não cai no 501 é justamente ele.** O que passa chama `pg_dump` com a
+credencial de dono das tabelas, que **ignora o RLS**, sem `--table` e sem `WHERE`.
+
+⚠️ No dia em que a segunda barbearia entrar, o dono do Bayron clica em "baixar backup" e
+recebe nome, telefone e data de nascimento dos clientes de **todas** as barbearias, mais o
+hash de senha dos donos delas.
+
+O comentário no próprio arquivo chama isso de "a pior falha de isolamento possível no
+produto" e descreve a guarda como se ela fechasse o caso. Ela fecha o caso que não acontece.
+
+**Correção imediata:** 501 para todos enquanto o banco for compartilhado. **Depois:**
+exportar só as linhas do tenant, sem `pg_dump`.
+
+### 2.9 🔴 `[TÉCNICO]` A mídia da marca grava sem saber de qual barbearia é
+
+`lib/uploads.ts:139` — `salvarMidiaMarca(file, tipo)` **não recebe tenant**. Grava em
+`join(UPLOAD_ROOT, tipo)` (`:149`) e devolve `/api/media/${tipo}/...` (`:169`), o formato
+legado sem slug. A leitura usa `pastaDeMidia(tipo, tenant)`, que para `tenant.id !== 1` é
+`UPLOAD_ROOT/<slug>/<tipo>`.
+
+**As duas metades do mesmo caminho discordam.** Consequências:
+
+- Logo, capa, og e favicon de **toda barbearia nova dão 404 no site dela**. O site nasce sem
+  imagem e o dono não tem como consertar pelo painel.
+- Os arquivos ficam na pasta da barbearia 1 — a fronteira de armazenamento entre clientes
+  não existe. Conteúdo público, então o dano é baixo; a ausência de fronteira não.
+
+### 2.10 🔴 `[TÉCNICO]` A última hora do expediente é sempre recusada
+
+`lib/bookAppointment.ts:156`:
+
+```ts
+const dateStr = startsAt.toISOString().slice(0, 10);   // data em UTC, não local
+```
+
+`startsAt` é instante UTC, então `toISOString()` devolve a data **em UTC**. Reproduzido:
+
+| Cidade | Cliente escolhe | Código lê o dia |
+|---|---|---|
+| Fortaleza/Mossoró (UTC-3) | terça, 21:00 | quarta — errado |
+| Manaus (UTC-4) | terça, 20:00 | quarta — errado |
+| Rio Branco (UTC-5) | terça, 19:00 | quarta — errado |
+
+Com o dia errado ele busca o expediente do dia errado e monta a janela no dia errado; o
+horário fica sempre antes da abertura.
+
+⚠️ **O `/api/slots` OFERECE esse horário** — ele faz a conversão certa com `fromZonedTime`.
+Só a criação erra. O cliente escolhe o último horário do dia, preenche tudo, clica em
+confirmar e recebe **"Horário fora do expediente"**, sem log. Ele conclui que o site quebrou.
+
+Os dois caminhos de **reagendamento** fazem certo (`formatInTimeZone`), o que mostra que
+é descuido e não decisão. **Uma linha conserta.**
+
+### 2.11 🔴 `[TÉCNICO]` Três lugares somam três horas à mão, dentro do navegador
+
+`admin/bloqueios.astro:208`, `admin/dia/[date].astro:1371` e `:2004`:
+
+```js
+new Date(Date.UTC(y, mo - 1, d, h + 3, min)).toISOString();
+```
+
+Fortaleza cravada no código que roda no celular do dono. Em Manaus, bloquear o almoço das
+**12:00–13:00** grava **11:00–12:00** local.
+
+⚠️ O horário das 12:00 continua sendo vendido no site. **O cliente agenda, chega, e o
+barbeiro está almoçando** — o pior modo de falha de uma agenda, porque ninguém percebe até
+alguém estar parado na porta. O terceiro lugar (mover agendamento) desloca o horário em uma
+hora e a API **aceita em silêncio**, porque o horário deslocado também é expediente válido.
+
+⚠️ **`tests/timezone-unico.test.ts` não pega isto.** Ele procura a string `'America/...'`;
+aritmética `h + 3` passa livre. A guarda existente dá falsa sensação de que o fuso foi
+centralizado — ela cobre a constante, não a conta.
+
+### 2.12 🔴 `[TÉCNICO]` XSS armazenado: o nome da barbearia entra cru num `<script>`
+
+`layouts/Layout.astro:66`, `components/FAQ.astro:38`, `components/Testimonials.astro:48`:
+
+```astro
+<script type="application/ld+json" set:html={JSON.stringify({ "name": s.businessName, ... })} />
+```
+
+`JSON.stringify` **não escapa** `<` nem `/` — conferido rodando. Um `businessName` contendo
+`</script><script>...</script>` fecha o bloco e executa. O schema de escrita
+(`api/admin/settings.ts`) limita só o tamanho, não os caracteres.
+
+Roda no navegador de **todo cliente que abrir a página**, num endereço com o seu domínio.
+Com `CADASTRO_ABERTO=1` (§4.8), qualquer um de fora planta isso.
+
+### 2.13 🟠 `[TÉCNICO]` Dois buracos de permissão dentro da mesma barbearia
+
+**A busca não confere papel.** `api/admin/appointments/search.ts:59` tem só
+`if (!session)`. Todas as outras rotas de agendamento fazem
+`if (session.role !== 'admin' && appt.barberId !== session.barberId) return 403`. E ela
+devolve o `manage_token` de cada agendamento (`:84`).
+
+Um barbeiro comum digita duas letras em `/admin/buscar` e recebe nome, telefone e o link
+`/a/<token>` dos clientes dos colegas — e com esse link cancela horário alheio, com o
+registro gravado como `cancelledBy: 'customer'`, **como se o próprio cliente tivesse
+desmarcado**.
+
+**A sessão nunca reconsulta o barbeiro.** `lib/session.ts:52` revalida o *tenant*, mas o
+`role` e o `active` viajam lacrados no cookie com TTL de **30 dias**. Desmarcar "ativo" de
+um demitido, ou rebaixar um admin, **não faz efeito**. Trocar a senha também não derruba
+sessão nenhuma.
+
+### 2.14 🟠 `[TÉCNICO]` Duas transações sem `await`: a tela diz "pronto" antes de gravar
+
+`api/admin/appointments/[id]/complete.ts:63` e `api/admin/reservations/[id].ts:45` chamam
+`db.transaction(...)` **sem `await`** e respondem 200 em seguida.
+
+É pior que promessa solta comum: o `src/middleware.ts` lê o corpo da resposta e, no
+`finally` de `comTenant`, roda `RESET ROLE` e devolve a conexão ao pool — **a mesma conexão
+em que a transação ainda está aberta**.
+
+O barbeiro aperta **Concluir** com os extras da comanda, vê sucesso, e o atendimento
+continua confirmado — ou fica concluído sem os extras. Na reserva: produto marcado como
+retirado e **não faturado**. As outras rotas do mesmo diretório usam `await`; são só estas
+duas.
+
+### 2.15 🟠 `[TÉCNICO]` Editar o nome de um serviço apaga os centavos do preço
+
+`admin/servicos.astro:45`, `:226`, `:378`:
+
+```ts
+priceNum: Math.floor(r.priceCents / 100),                    // 3990 -> 39
+<input type="number" step="1" value={svc.priceNum} />
+priceCents: parseInt(priceEl.value, 10) * 100                // 39 -> 3900
+```
+
+Serviço de **R$ 39,90** aparece como `39`. O dono entra para corrigir só o nome, salva, e o
+preço vira **R$ 39,00** — sem aviso. E é impossível cadastrar centavos por essa tela.
+
+Os produtos fazem certo (`api/admin/products/index.ts:53-57`, com `parseFloat` e
+`Math.round`), o que mostra que aqui foi descuido.
+
+### 2.16 🟠 `[TÉCNICO]` O desconto do combo vale em qualquer dia da semana
+
+`api/appointments/index.ts:71` resolve o combo validando `id`, `active` e `tenantId` — e
+**não valida o bitmask `weekdays`**, que é justamente o que define em que dias o combo
+existe (`schema.ts:179`).
+
+O dono cria "Combo de segunda, 20% OFF". Qualquer pessoa que abra `/agendar?combo=3` numa
+sexta recebe os 20%, sobre o serviço **e** sobre o produto. O link circula no WhatsApp e o
+desconto de segunda vira permanente. No relatório, aparece como receita legítima.
+
+### 2.17 🟠 `[TÉCNICO]` O guarda de escopo por tenant é cego para metade das rotas
+
+`tests/escopo-rotas.test.ts:56` detecta consulta com o padrão `SELECT ` — **com espaço**.
+Rota cujo SQL quebra a linha depois do `SELECT` não casa, `tocaBanco` dá `false` e ela fica
+invisível. Conferido: `api/admin/appointments/search.ts` e `.../calendar.ts` são invisíveis
+ao teste.
+
+E o glob varre só `src/pages/**` — nunca `src/lib/`, onde estão `slots.ts` e `reagendar.ts`,
+ambos sem uma única menção a tenant.
+
+⚠️ **Não é vazamento hoje** — o middleware embrulha tudo em `comTenant()` e o RLS filtra. Mas
+a camada de aplicação sumiu nesses pontos e o guarda-corpo não avisa: **o produto tem uma
+parede onde os documentos afirmam ter duas**, e a afirmação de "54 de 54 rotas escopadas"
+mede menos do que diz.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -752,6 +923,112 @@ probabilidade é baixa; a consequência é conteúdo de terceiro no site de quem
 que o contexto do passo 6 já entrega em toda requisição — e **concentrar as oito comparações
 numa função só**, para a próxima troca ser um arquivo em vez de oito.
 
+### 4.8 🔴 `[DECISÃO]` Dois caminhos para a barbearia nascer, e eles se contradizem
+
+Encontrado em 15/09/2026, listando as rotas do monorepo — depois de o segundo já estar
+construído.
+
+| | Onde | O que faz |
+|---|---|---|
+| `/onboarding` | site de vendas | O dono manda nome, WhatsApp, endereço, serviços com preço, horários e **até 30 fotos**. Grava com protocolo num SQLite próprio. **Você** revisa em `/envios` e monta o site |
+| `/cadastrar` | app da barbearia | O dono preenche quase os mesmos campos e a barbearia **nasce no ar na hora**, com os serviços e os preços dele |
+
+**São dois produtos, não duas telas.** O primeiro é o que a landing vende, com todas as
+letras, na tabela comparativa contra Trinks, AppBarber e Booksy:
+
+> **Quem monta a sua página** — *eles:* você, sozinho, preenchendo formulário ·
+> *aqui:* ✓ **Eu monto inteira, do zero**
+
+E mais abaixo: *"Se você não preencher: não vai para o ar até estar bom."* O
+autoatendimento põe o produto na coluna da esquerda — a do concorrente.
+
+⚠️ **A contradição ainda não está no ar**, e é de propósito: `/cadastrar` só existe com
+`CADASTRO_ABERTO=1`, e sem a variável a rota responde **404** — não 403, que anunciaria
+que ela existe. O botão na landing obedece à mesma variável.
+
+**O que trava o autoatendimento hoje, se a decisão for por ele:**
+
+1. **Não existe cobrança** (§3.5). Cadastro aberto sem cobrar é barbearia fantasma
+   ocupando endereço no domínio do produto, para sempre.
+2. **Não existe contrato nem LGPD** (§1.2, adiado por decisão do dono). Desconhecido
+   gravando dado de cliente dele no seu banco, sem termo aceito.
+3. **Slug é endereço no seu domínio.** O primeiro estranho que pegar `bayron` fica com
+   ele, e o que ele publicar é seu problema perante o Google.
+
+**Decisão necessária: qual dos dois sobrevive.** Enquanto os dois existirem, os dois
+precisam ser mantidos — e a landing precisa escolher uma história.
+
+### 4.9 🔴 `[TÉCNICO]` A tela de agendar é branca quando não há serviço
+
+Visto em 15/09/2026, servindo o site de uma barbearia recém-criada.
+
+`/agendar` renderiza "Escolha o serviço — Passo 1 de 4" e **nada embaixo**. A árvore da
+página tem três elementos: um `main`, um título e o contador. Sem lista, sem aviso, sem
+saída.
+
+**Não é caso raro.** O próprio provisionador diz que barbearia nova nasce sem serviço —
+então **todo cliente novo tem, desde o primeiro minuto, um site com um botão grande
+"RESERVAR HORÁRIO" que leva a uma tela em branco.**
+
+O §4.1 cuidou das seções do site (*ou tem conteúdo, ou não é renderizada*) e deixou o
+wizard de fora. A correção é um estado vazio que diga o que está acontecendo e ofereça o
+WhatsApp da barbearia.
+
+O `/cadastrar` reduz a janela — quem preenche preço no cadastro já nasce agendando — mas
+não fecha: quem deixar tudo em branco cai aqui.
+
+### 4.10 🔴 `[TÉCNICO]` A página "Como fica" do site de vendas não tem nenhuma imagem
+
+`/demo`, no site de vendas, é o destino do link do menu **e** do botão secundário do topo
+("Ver como fica"). O que o visitante lê, quatro vezes:
+
+> 01 O site — *Coloque a imagem em `public/demo/site.png`*
+> 02 O agendamento — *Coloque a imagem em `public/demo/agendamento.png`*
+> 03 Sua agenda do dia — *Coloque a imagem em `public/demo/agenda.png`*
+> 04 Seu faturamento — *Coloque a imagem em `public/demo/relatorio.png`*
+
+A página existe para mostrar como o produto fica, e mostra um recado para o
+desenvolvedor. **Um dono de barbearia que clicar ali fecha a aba.**
+
+As quatro imagens são print do sistema funcionando: site, wizard de agendar, agenda do
+dia e relatório. Precisa de uma barbearia com serviços, agendamentos e faturamento —
+senão são quatro telas vazias, o que é pior que o placeholder.
+
+### 4.11 🟠 `[TÉCNICO]` A avaliação publica "0,0" e as estrelas são enfeite
+
+Dois defeitos na mesma seção, vistos servindo o site em 15/09/2026.
+
+**Publica nota zero.** Com `google_rating` vazio, a seção renderiza **"0,0 — Baseado em 0
+avaliações"** com cinco estrelas douradas acesas, e emite `AggregateRating` no HTML com
+`ratingValue: 0`. É a regra do §4.1.1 — *nenhuma seção meia-boca* — sendo quebrada pela
+seção cujo próprio comentário no código a cita.
+
+**As cinco estrelas não olham a nota.** `Testimonials.astro`: `Array.from({ length: 5 })`,
+todas pintadas de `text-yellow-400`. Uma barbearia com 3,8 mostraria cinco estrelas
+cheias. No Bayron (5.0) parece certo por coincidência.
+
+Hoje nenhum dos dois está no ar, porque a seção inteira depende do `shortName === "Bayron"`
+(§4.7). Os dois acordam no dia em que a seção for generalizada.
+
+### 4.12 🟠 `[TÉCNICO]` O hover do botão padrão reprova no contraste
+
+Medido em 15/09/2026:
+
+| Token | Com branco |
+|---|---|
+| `--color-teal` `#0f766e` | 5,24:1 ✓ |
+| `--color-teal-hover` `#0d9488` | **3,59:1** ✗ |
+
+O `teal-hover` padrão é **mais claro** que o `teal`, e o texto branco em cima cai abaixo
+do piso de 4,5:1. O botão fica legível parado e **piora quando o mouse passa por cima**.
+
+Contradiz a regra da skill de paleta — *no site da barbearia o hover **escurece*** — que o
+`derivarAccent()` obedece (vinho `#6b1f2a` → hover `#4f171f`). Quem não obedece é o **par
+padrão**, usado por toda barbearia que ainda não escolheu cor — incluindo o Bayron.
+
+Correção: um `--color-teal-hover` mais escuro que `#0f766e`. Muda a cor de todos os botões
+do painel e do site padrão, então é decisão do dono.
+
 ---
 
 ## 5. Verificações pendentes
@@ -770,6 +1047,27 @@ numa função só**, para a próxima troca ser um arquivo em vez de oito.
 ---
 
 ## 6. Ordem sugerida
+
+⚠️ **Reordenada em 15/09/2026, depois da auditoria completa.** A lista numerada abaixo é
+anterior a ela e continua válida para o que sobrou; estas quatro ondas vêm antes.
+
+**Onda 0 — antes de qualquer deploy (meia hora).**
+Uma linha em `bookAppointment.ts:156` (§2.10), `await` nas duas transações (§2.14), e 501 no
+backup para todos (§2.8). São três mudanças minúsculas que evitam três desastres diferentes.
+
+**Onda 1 — antes do segundo cliente.**
+Mídia por tenant (§2.9), papel na busca e revalidação da sessão (§2.13), escapar o JSON-LD
+(§2.12), consertar o guarda de escopo (§2.17). É tudo o que só não dói porque hoje existe uma
+barbearia só.
+
+**Onda 2 — antes do primeiro cliente fora do UTC-3.**
+Os três `+ 3` do navegador (§2.11), o teste de fuso passando a pegar aritmética de offset, e a
+coluna `timezone` por barbearia (§2.1).
+
+**Onda 3 — antes de cobrar.**
+Decidir qual cadastro sobrevive (§4.8), contrato e política de dados (§1.2), cobrança e
+suspensão (§3.5 e §1.3) — nessa ordem.
+
 
 0. ~~**Limpar o seed das migrations** (`PENDENCIAS-ABERTAS.md` §4.6)~~ — **sem objeto desde
    13/09/2026.** As migrations de SQLite que plantavam o nome, o endereço, os produtos e as
