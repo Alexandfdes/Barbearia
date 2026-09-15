@@ -29,34 +29,93 @@ if (process.env.CADASTRO_ABERTO !== '1') {
   <meta name="robots" content="noindex" />
   <title>Criar a sua barbearia — Barbearia no Ar</title>
   <style is:global>
-    :root { color-scheme: light; }
+    /*
+     * Escura, e com a paleta do SITE DE VENDAS — não a da barbearia.
+     *
+     * ⚠️ As regras de botão dos dois aplicativos são INVERTIDAS, e copiar a de
+     * um para o outro produz botão ilegível (`.claude/skills/barbearia-paleta`).
+     * Esta tela mora no app da barbearia mas é a porta do funil do produto: quem
+     * chega aqui veio da landing e vê a marca do Barbearia no Ar, não a da
+     * barbearia dele — que nem existe ainda.
+     *
+     * Daí o botão ser verde CLARO com texto GRAFITE, e clarear no hover.
+     * Texto branco sobre #16a34a dá 3,30:1 e é proibido; o grafite #111827 dá
+     * 5,38:1, e o hover #22c55e sobe para 7,79:1.
+     *
+     * Os valores são cópia dos tokens de `apps/vendas/src/styles`. Não dá para
+     * importar: são dois aplicativos e dois builds de Tailwind.
+     */
+    :root {
+      color-scheme: dark;
+      --ground: #12161f;
+      --card: #1b2330;
+      --line: #2b3750;
+      --line-forte: #3c4a63;
+      --ink: #f5efe6;
+      --ink-suave: #c3ccd9;
+      --ink-fraco: #a8b3c2;
+      --brand: #16a34a;
+      --brand-hover: #22c55e;
+      --brand-claro: #4ade80;
+      --on-brand: #111827;
+    }
     * { box-sizing: border-box; }
-    body { margin: 0; background: #f8fafc; color: #0f172a;
+    body { margin: 0; background: var(--ground); color: var(--ink);
            font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
     .env { max-width: 640px; margin: 0 auto; padding: 32px 16px 64px; }
-    h1 { font-size: 26px; margin: 0 0 4px; font-weight: 600; }
-    .sub { color: #64748b; margin: 0 0 28px; }
-    fieldset { border: 1px solid #e2e8f0; background: #fff; border-radius: 8px;
+    h1 { font-size: 26px; margin: 0 0 4px; font-weight: 600; color: var(--ink); }
+    .sub { color: var(--ink-fraco); margin: 0 0 28px; }
+    fieldset { border: 1px solid var(--line); background: var(--card); border-radius: 8px;
                padding: 18px; margin: 0 0 16px; }
     legend { font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
-             color: #64748b; padding: 0 6px; }
-    label { display: block; font-size: 12px; color: #475569; margin: 12px 0 4px; }
-    input { width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px;
-            font-size: 15px; background: #fff; color: #0f172a; }
-    input:focus { outline: 2px solid #0f766e33; border-color: #0f766e; }
-    .dica { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+             color: var(--ink-fraco); padding: 0 6px; }
+    label { display: block; font-size: 12px; color: var(--ink-suave); margin: 12px 0 4px; }
+    input, textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--line-forte); border-radius: 6px;
+      font-size: 15px; background: var(--ground); color: var(--ink); font-family: inherit;
+    }
+    textarea { resize: vertical; }
+    input::placeholder, textarea::placeholder { color: #7b8798; }
+    input:focus, textarea:focus { outline: 2px solid var(--brand-claro); outline-offset: 1px;
+                                  border-color: var(--brand-claro); }
+    input:disabled { opacity: .45; }
+    .dica { font-size: 11px; color: var(--ink-fraco); margin-top: 4px; }
     .linha { display: grid; grid-template-columns: 1fr 108px 92px; gap: 8px; align-items: end; }
     .linha label { margin-top: 10px; }
     @media (max-width: 520px) { .linha { grid-template-columns: 1fr 1fr; } .linha .nome { grid-column: 1 / -1; } }
-    button { width: 100%; padding: 14px; border: 0; border-radius: 6px; background: #0f766e;
-             color: #fff; font-weight: 700; font-size: 14px; letter-spacing: .08em;
-             text-transform: uppercase; cursor: pointer; }
+    /* ⚠️ Preenchimento CLARO com texto grafite. O oposto do app da barbearia. */
+    button { width: 100%; padding: 14px; border: 0; border-radius: 6px;
+             background: var(--brand); color: var(--on-brand); font-weight: 700; font-size: 14px;
+             letter-spacing: .08em; text-transform: uppercase; cursor: pointer;
+             transition: background-color .15s; }
+    button:hover { background: var(--brand-hover); }
     button:disabled { opacity: .6; cursor: progress; }
-    .erro { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+    .secundario { width: auto; margin-top: 10px; padding: 8px 14px; background: transparent;
+                  border: 1px solid var(--line-forte); color: var(--ink-suave); font-weight: 600;
+                  text-transform: none; letter-spacing: 0; font-size: 13px; }
+    .secundario:hover { background: var(--card); border-color: var(--brand-claro); color: var(--ink); }
+    .erro { background: #2a1414; border: 1px solid #7f1d1d; color: #fca5a5;
             padding: 10px 12px; border-radius: 6px; margin-bottom: 14px; font-size: 14px; }
-    .ok { background: #f0fdfa; border: 1px solid #99f6e4; color: #115e59;
+    .ok { background: var(--card); border: 1px solid var(--brand); color: var(--ink);
           padding: 16px; border-radius: 8px; }
-    code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+    .ok a { color: var(--brand-claro); }
+    code { background: var(--ground); border: 1px solid var(--line);
+           padding: 1px 5px; border-radius: 4px; font-size: 13px; color: var(--brand-claro); }
+    textarea:focus { outline: 2px solid var(--brand-claro); }
+    /* 112px e não 84: o seletor de hora do Chrome desenha um relógio dentro do
+       campo, e em 84px ele come o último dígito — "09:0(relógio)". */
+    .dia { display: grid; grid-template-columns: 22px 1fr 112px 20px 112px; gap: 8px;
+           align-items: center; padding: 6px 0; }
+    @media (max-width: 420px) {
+      .dia { grid-template-columns: 22px 1fr; row-gap: 4px; }
+      .dia input[type=time] { grid-column: 2; }
+      .dia .ate { display: none; }
+    }
+    .dia input[type=time] { padding: 7px 8px; }
+    .dia .nome { font-size: 14px; color: var(--ink-suave); }
+    .dia.fechado .nome, .dia.fechado .ate { color: #5c6a7e; }
+    .dia input[type=checkbox] { width: auto; accent-color: var(--brand); }
+    .ate { text-align: center; color: var(--ink-fraco); font-size: 12px; }
   </style>
 </head>
 <body>
@@ -98,6 +157,27 @@ if (process.env.CADASTRO_ABERTO !== '1') {
       </fieldset>
 
       <fieldset>
+        <legend>Sua marca</legend>
+        <label for="instagram">Instagram</label>
+        <input id="instagram" maxlength="120" placeholder="@suabarbearia" />
+        <p class="dica">Opcional. Vira o link do site — pode colar a URL inteira.</p>
+
+        <label for="sobre">Como você descreveria a sua barbearia?</label>
+        <textarea id="sobre" rows="3" maxlength="1000"
+          placeholder="Escreva do seu jeito, sem se preocupar com português."></textarea>
+        <p class="dica">Opcional. É o texto que o cliente lê antes de marcar.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Horário de funcionamento</legend>
+        <p class="dica" style="margin:0 0 6px">
+          ⚠️ Não é só texto do site: é daqui que saem os horários que o cliente
+          consegue escolher. Dia desmarcado não gera vaga nenhuma.
+        </p>
+        <div id="horarios"></div>
+      </fieldset>
+
+      <fieldset>
         <legend>Seus serviços e preços</legend>
         <p class="dica" style="margin:0 0 4px">
           Preencha o preço dos que você faz. O que ficar em branco não vai para o ar —
@@ -121,6 +201,7 @@ if (process.env.CADASTRO_ABERTO !== '1') {
             </div>
           ))}
         </div>
+        <button type="button" id="mais-servico" class="secundario">+ outro serviço</button>
       </fieldset>
 
       <button id="enviar" type="submit">Criar a minha barbearia</button>
@@ -142,6 +223,50 @@ if (process.env.CADASTRO_ABERTO !== '1') {
       if (slugTocado) return;
       $('slug').value = aSlug($('nome').value);
       $('previa').textContent = $('slug').value || 'seuendereco';
+    });
+
+    /* ── A semana ────────────────────────────────────────────────────────────
+       Domingo já vem desmarcado porque é a folga da esmagadora maioria das
+       barbearias — mas é uma marca, não uma regra: basta clicar. */
+    const DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+    const ORDEM = [1, 2, 3, 4, 5, 6, 0];
+    const PADRAO = { 1:['09:00','19:00'], 2:['09:00','19:00'], 3:['09:00','19:00'],
+                     4:['09:00','19:00'], 5:['09:00','19:00'], 6:['09:00','18:00'] };
+
+    $('horarios').innerHTML = ORDEM.map((d) => {
+      const p = PADRAO[d];
+      return `<div class="dia${p ? '' : ' fechado'}" data-dia="${d}">
+        <input type="checkbox" id="hr-on-${d}" ${p ? 'checked' : ''} aria-label="Abre ${DIAS[d]}" />
+        <label class="nome" for="hr-on-${d}" style="margin:0">${DIAS[d]}</label>
+        <input type="time" id="hr-de-${d}" value="${p ? p[0] : '09:00'}" ${p ? '' : 'disabled'} />
+        <span class="ate">às</span>
+        <input type="time" id="hr-ate-${d}" value="${p ? p[1] : '18:00'}" ${p ? '' : 'disabled'} />
+      </div>`;
+    }).join('');
+
+    $('horarios').addEventListener('change', (ev) => {
+      const alvo = ev.target;
+      if (alvo.type !== 'checkbox') return;
+      const d = alvo.closest('.dia').dataset.dia;
+      const aberto = alvo.checked;
+      alvo.closest('.dia').classList.toggle('fechado', !aberto);
+      $(`hr-de-${d}`).disabled = !aberto;
+      $(`hr-ate-${d}`).disabled = !aberto;
+    });
+
+    /* ── Serviço extra ───────────────────────────────────────────────────── */
+    let proximoServico = document.querySelectorAll('#servicos .linha').length;
+    $('mais-servico').addEventListener('click', () => {
+      const i = proximoServico++;
+      const div = document.createElement('div');
+      div.className = 'linha';
+      div.innerHTML =
+        `<div class="nome"><label for="sv-nome-${i}">Serviço</label>` +
+        `<input id="sv-nome-${i}" maxlength="80" placeholder="Nome do serviço" /></div>` +
+        `<div><label for="sv-preco-${i}">Preço R$</label><input id="sv-preco-${i}" inputmode="decimal" placeholder="—" /></div>` +
+        `<div><label for="sv-min-${i}">Minutos</label><input id="sv-min-${i}" inputmode="numeric" value="30" /></div>`;
+      $('servicos').appendChild(div);
+      $(`sv-nome-${i}`).focus();
     });
 
     /** "45", "45,50" e "R$ 45,50" viram centavos. Vazio vira 0 (= desligado). */
@@ -182,6 +307,11 @@ if (process.env.CADASTRO_ABERTO !== '1') {
             dono: $('dono').value.trim(), telefone: $('telefone').value.trim(),
             endereco: $('endereco').value.trim(), cidade: $('cidade').value.trim(),
             senha: $('senha').value, servicos,
+            instagram: $('instagram').value.trim() || undefined,
+            sobre: $('sobre').value.trim() || undefined,
+            horarios: ORDEM.map((d) => $(`hr-on-${d}`).checked
+              ? { weekday: d, abre: $(`hr-de-${d}`).value, fecha: $(`hr-ate-${d}`).value }
+              : { weekday: d, fechado: true }),
           }),
         });
         const dados = await r.json().catch(() => ({}));

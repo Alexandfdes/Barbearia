@@ -343,6 +343,8 @@ dono não reparou vira o preço no site dele.
 
 | Quando | O quê |
 |---|---|
+| 15/09 | **Auditoria completa do projeto**: 172 arquivos, 25.662 linhas. 17 defeitos confirmados com arquivo e linha, cada um reproduzido no código (`PENDENCIAS-ABERTAS.md` §2.8 a `PENDENCIAS-ABERTAS.md` §2.17, e `PENDENCIAS-ABERTAS.md` §4.8 a `PENDENCIAS-ABERTAS.md` §4.12). Três vazam entre barbearias no dia do segundo cliente; quatro quebram fora do fuso de Fortaleza. A ordem de execução virou quatro ondas no §6 |
+| 15/09 | Cadastro de barbearia pela web (`PENDENCIAS-ABERTAS.md` §4.8), fechado por `CADASTRO_ABERTO`. A regra de criar barbearia virou função compartilhada com o script. **E o dia rendeu cinco defeitos achados USANDO o produto**, nenhum deles pego pela suíte: o nome de outra barbearia no painel (cache frio no resolvedor), a sessão vazando entre cadastros, o "Ver meu site" apontando para `/`, o `/agendar` em branco e o `/demo` sem imagem |
 | 13/09 | Inventário do que falta no código, conferido no repositório e não no documento. Três seções estavam desatualizadas: `PENDENCIAS-ABERTAS.md` §4.3 (painel) e `PENDENCIAS-ABERTAS.md` §4.6 (migrations) já estavam feitas, e o teste de restauração de `PENDENCIAS-ABERTAS.md` §3.3 já tinha sido feito duas vezes. Corrigidas, e o `shortName === "Bayron"` virou `PENDENCIAS-ABERTAS.md` §4.7 |
 | 11/09 | Barbearia nova sai da tela em branco: catálogo de oito serviços sugeridos no painel, **sem preço de propósito** (`PENDENCIAS-ABERTAS.md` §4.5) |
 | 11/09 | Conferido que o campo de cor da marca no painel já existia e funciona — o documento afirmava que faltava (`PENDENCIAS-ABERTAS.md` §4.2) |

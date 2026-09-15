@@ -41,6 +41,7 @@ import { json } from '../../lib/api.js';
 import { checkRateLimit } from '../../lib/rateLimit.js';
 import { getClientIp } from '../../lib/clientIp.js';
 import { carregarTenants, invalidarTenants } from '../../lib/tenant.js';
+import { clearSessionCookie } from '../../lib/session.js';
 
 export const CADASTRO_ABERTO = () => process.env.CADASTRO_ABERTO === '1';
 
@@ -48,6 +49,13 @@ const servicoSchema = z.object({
   nome:          z.string().min(1).max(80),
   precoCentavos: z.number().int().min(0).max(1_000_000),
   minutos:       z.number().int().min(5).max(480),
+});
+
+const horarioSchema = z.object({
+  weekday: z.number().int().min(0).max(6),
+  abre:    z.string().max(5).optional(),
+  fecha:   z.string().max(5).optional(),
+  fechado: z.boolean().optional(),
 });
 
 const bodySchema = z.object({
@@ -60,6 +68,9 @@ const bodySchema = z.object({
   senha:    z.string().min(8).max(200),
   cor:      z.string().max(9).optional(),
   servicos: z.array(servicoSchema).max(30).optional(),
+  horarios: z.array(horarioSchema).max(7).optional(),
+  instagram: z.string().max(120).optional(),
+  sobre:     z.string().max(1000).optional(),
 });
 
 export const POST: APIRoute = async ({ request, clientAddress }) => {
@@ -96,7 +107,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   invalidarTenants();
   await carregarTenants(true);
 
-  return json({
+  const corpo = {
     ok: true,
     slug: r.slug,
     telefoneLogin: r.telefoneLogin,
@@ -105,7 +116,30 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     avisos: r.servicosAtivos === 0
       ? ['Nenhum serviço com preço: ninguém consegue agendar até você preencher um em /admin/servicos.']
       : [],
-  }, 201);
+  };
+
+  /**
+   * ⚠️ Apaga a sessão que estivesse aberta. Encontrado em 15/09/2026, criando a
+   * segunda barbearia no mesmo navegador.
+   *
+   * Quem acabou de cadastrar uma barbearia NÃO está logado nela — por
+   * definição, ela nasceu agora. Mas se houvesse uma sessão anterior no
+   * aparelho, o "Ir para o painel" levava ao painel da barbearia ERRADA:
+   * `admin/login.astro` redireciona para `/admin` quando já existe sessão, e
+   * `/admin` lê a barbearia da SESSÃO, não do endereço.
+   *
+   * O resultado era o dono novo caindo dentro do painel de outra barbearia,
+   * com a agenda e o faturamento dela na tela. Não é vazamento de dado — a
+   * sessão era dele mesmo, de outro cadastro —, mas num computador de balcão
+   * compartilhado passa a ser.
+   */
+  return new Response(JSON.stringify(corpo), {
+    status: 201,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'set-cookie': clearSessionCookie(),
+    },
+  });
 };
 
 /** A lista que a tela mostra com os preços em branco. Uma fonte só. */

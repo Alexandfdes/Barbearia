@@ -1,8 +1,12 @@
 ---
 import '../styles/global.css';
 import { getSettings } from '../lib/settings';
+import { tenantAtual, urlDoSite } from '../lib/tenant.js';
 
 const s = await getSettings();
+// Vazio quando não há domínio próprio nem DOMINIO_BASE: aí o link some,
+// em vez de levar o dono para uma página de "barbearia não encontrada".
+const enderecoDoSite = urlDoSite(tenantAtual());
 
 interface Props {
   title?:     string;
@@ -116,8 +120,9 @@ const grupos: { titulo: string; itens: { href: string; label: string; ativo: boo
             </svg>
           </button>
           <h1 class="text-sm font-semibold text-slate-800 truncate">{title}</h1>
-          <a href="/" target="_blank" rel="noopener"
-            class="ml-auto text-xs text-slate-500 hover:text-teal transition-colors whitespace-nowrap">
+          <a href={enderecoDoSite} target="_blank" rel="noopener"
+            class:list={['ml-auto text-xs text-slate-500 hover:text-teal transition-colors whitespace-nowrap',
+                         !enderecoDoSite && 'hidden']}>
             Ver meu site ↗
           </a>
         </header>

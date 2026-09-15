@@ -57,17 +57,30 @@ export const onRequest = defineMiddleware(async (contexto, next) => {
  * endereço. Sem sessão, decide o host — é o site público da barbearia.
  */
 async function tenantDaRequisicao(request: Request): Promise<Tenant | null> {
+  // ⚠️ O AQUECIMENTO VEM PRIMEIRO, E A ORDEM É O CONSERTO DE UM DEFEITO REAL.
+  //
+  // Antes de 15/09/2026 esta linha ficava DEPOIS da leitura da sessão. O efeito
+  // aparecia assim: barbearia criada agora, dono entra no painel dela, e o topo
+  // da tela mostra o nome de OUTRA barbearia.
+  //
+  // O caminho era este. `tenantDaSessaoOuNulo()` lê o cache; com o tenant novo
+  // ainda fora dele, devolvia `null`. Caía para o host — que no painel central
+  // não é de barbearia nenhuma — e devolvia `null` de novo. Sem tenant, a
+  // requisição corria SEM contexto, e cada `getSettings()` caía no
+  // `TENANT_UNICO` de `tenantAtual()`: a barbearia de id 1.
+  //
+  // O mais traiçoeiro é que metade da tela acertava: o que lê `session` direto
+  // (o nome do barbeiro) vinha certo, e só o que passa pelo contexto vinha
+  // errado. Meia tela certa não parece defeito de roteamento — parece dado
+  // errado no banco, e manda procurar no lugar errado.
+  //
+  // Aquecer antes também é o que permite `tenantDoHost()` ser SÍNCRONA nas 15
+  // rotas e páginas públicas que a chamam.
+  await carregarTenants();
+
   const sessao = await getSession(request);
   const daSessao = sessao ? tenantDaSessaoOuNulo(sessao) : null;
   if (daSessao) return daSessao;
 
-  // ⚠️ Aquecer o cache aqui é o que permite `tenantDoHost()` ser SÍNCRONA nas
-  // 15 rotas e páginas públicas que a chamam.
-  //
-  // `getSession()` já aquece — mas só quando existe cookie, e visitante do site
-  // não tem cookie nenhum. Sem esta linha, a primeira visita depois de cada
-  // boot cairia em 404 com o cache frio: um defeito que só aparece em produção,
-  // no primeiro acesso depois de cada deploy, e some quando alguém vai conferir.
-  await carregarTenants();
   return tenantDoHost(request);
 }

@@ -112,6 +112,60 @@ sobre isso.
 Com os dois no mesmo lugar, deixou de ser aviso e virou conserto: o site de
 vendas agora fixa `--port 4322` no próprio `package.json`. Os dois sobem juntos.
 
+⚠️ **Correção de 15/09/2026: fixar uma porta só não bastou.** O site de vendas estava
+fixo em 4322 e o app da barbearia não estava fixo em nada — pegava a primeira porta
+livre a partir da 4321. Com um servidor velho pendurado, ele pulava para 4322, depois
+4323, **e avisava numa linha do log que ninguém lê**:
+
+```
+[vite] Port 4321 is in use, trying another one...
+```
+
+O estrago: horas perseguindo fantasma, com uma aplicação respondendo no endereço da
+outra e cada afirmação sobre "qual app está em qual porta" saindo errada.
+
+Agora as duas são fixas **e recusam subir** se a porta estiver ocupada:
+
+| Porta | Aplicação |
+|---|---|
+| **4321** | `apps/barbearia` — site das barbearias **e** painel |
+| **4322** | `apps/vendas` — landing do produto |
+
+```
+astro dev --port 4321 --strictPort
+astro dev --port 4322 --strictPort
+```
+
+**Servidor que troca de porta em silêncio é pior que servidor que não sobe.** No segundo
+caso você descobre em um segundo; no primeiro, depois de meia hora de confusão.
+
+⚠️ E a 4321 deixou de ser só conveniência: `DOMINIO_BASE=localhost:4321` é o que faz o
+link "Ver meu site" do painel funcionar em desenvolvimento (ver §5.1). Se a porta escorrega,
+o link quebra.
+
+## 5.1 Ver o multi-tenant funcionando em `localhost`
+
+Os navegadores resolvem **qualquer** `*.localhost` para 127.0.0.1, sem mexer no arquivo
+`hosts`. Isso permite exercitar o caminho de produção inteiro na máquina de
+desenvolvimento:
+
+```powershell
+$env:DOMINIO_BASE = "localhost:4321"
+npm run dev
+```
+
+```
+http://barbeariasalaojovem.localhost:4321
+http://barbearia-vintage.localhost:4321
+```
+
+Duas barbearias, dois endereços, **um processo só**. `resolverHost()` pega o primeiro
+rótulo exatamente como faria com `barbeariasalaojovem.barbearianoar.com.br`, e sem
+precisar preencher a coluna `domain` à mão.
+
+⚠️ `urlDoSite()` usa `http` para `localhost` e `127.0.0.1`, e `https` para o resto — o
+servidor de desenvolvimento não tem TLS.
+
 ## 6. ⚠️ A armadilha que a mudança criou
 
 O `.gitignore` protegia o banco e os uploads com padrões **ancorados na raiz**:
@@ -143,3 +197,28 @@ momento.
 Nenhum desses documentos foi alterado além do `CLAUDE.md`: o passo 6 ainda não
 foi implementado, e documento que descreve sistema inexistente é exatamente o
 problema que se quer evitar.
+
+## 8. Separar `apps/barbearia` em site e painel — o gatilho
+
+O §7 registra a ideia. Falta o **quando**, e em 15/09/2026 apareceu a primeira evidência
+a favor dela.
+
+**O argumento.** Hoje um processo só precisa responder "de quem é esta requisição" de
+**duas formas**: pela sessão (painel) e pelo endereço (site). O resolvedor tem que
+escolher uma ordem, e a ordem errada produz defeito silencioso.
+
+Foi o que aconteceu: o dono de uma barbearia recém-criada abriu o painel dele e leu no
+topo da tela o nome de **outra** barbearia. Separados, a pergunta ambígua deixaria de
+existir — o painel só olharia sessão, o site só olharia host.
+
+**Por que NÃO foi feito agora.** Separar duplica layout, componentes, camada de dados e
+deploy, e exige extrair um `packages/core`. É custo alto para consertar um defeito que
+saiu com três linhas no `src/middleware.ts` e ficou travado por teste.
+
+⚠️ **O gatilho, então, é este: um SEGUNDO defeito da mesma família** — qualquer coisa em
+que sessão e endereço briguem pela mesma requisição. Um defeito é acidente; dois é a
+arquitetura avisando.
+
+O candidato mais provável já está mapeado, e ainda não foi decidido: o resolvedor faz a
+**sessão ganhar do host em toda requisição**, inclusive nas páginas públicas. Com um dono
+logado, abrir o endereço de outra barbearia renderiza o site dele na URL dela.

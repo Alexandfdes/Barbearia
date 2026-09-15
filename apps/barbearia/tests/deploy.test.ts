@@ -144,6 +144,29 @@ describe('a suíte roda na máquina de quem não tem banco', () => {
     // apontar para um banco cujo nome termine em _test — senão
     // `tests/guardaBanco.ts` recusa rodar, com razão: a suíte faz DROP SCHEMA.
     expect(pkg.scripts['test:db']).toMatch(/scripts\/testar\.mjs/);
+  });
+
+  it('a raiz do monorepo delega TODO comando que se roda da raiz', () => {
+    // ⚠️ Terceira vez que este buraco morde. `test:db` faltava em 11/09,
+    // `test:watch` apareceu junto, e `db:migrate` faltava em 14/09 — descoberto
+    // com o banco de desenvolvimento vazio e o servidor já no ar.
+    //
+    // O desenvolvimento acontece em `C:\DEV\barbearia`, a raiz. Script que só
+    // existe dentro de `apps/barbearia` é script que não existe: o npm responde
+    // "Missing script" e quem está com pressa acha que o comando mudou.
+    const raiz = JSON.parse(readFileSync('../../package.json', 'utf8'));
+    const PRECISAM_ESTAR_NA_RAIZ = [
+      'dev', 'build', 'test', 'test:db', 'test:watch',
+      'db:migrate', 'db:provisionar', 'db:seed-bayron',
+    ];
+    const faltando = PRECISAM_ESTAR_NA_RAIZ.filter((c) => !raiz.scripts?.[c]);
+    expect(faltando).toEqual([]);
+
+    // Delegar sem o `--` no fim engole os argumentos: `npm run db:provisionar --
+    // --slug=x` chegaria no script sem o `--slug`.
+    const comArgumentos = ['test:db', 'test:watch', 'db:migrate', 'db:provisionar', 'db:seed-bayron'];
+    const semTraco = comArgumentos.filter((c) => !/--\s*"?$/.test(raiz.scripts[c]));
+    expect(semTraco).toEqual([]);
 
     const compose = readFileSync('docker-compose.test.yml', 'utf8');
     expect(compose).toMatch(/POSTGRES_DB:\s*\S+_test\b/);

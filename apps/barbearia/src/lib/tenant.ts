@@ -204,7 +204,77 @@ export function resolverHost(host: string | null): Tenant | null {
  * isso não acontece: quando o host não resolve, as rotas e páginas públicas
  * respondem 404 antes de renderizar qualquer coisa.
  */
+/**
+ * O endereço PÚBLICO da barbearia — o site dela, não o painel.
+ *
+ * ⚠️ Existe porque `AdminLayout.astro` linkava "Ver meu site" para `/`.
+ *
+ * Isso estava certo quando cada barbearia tinha a própria instância e o painel
+ * morava em `barbearia.com/admin`: a raiz era o site dela. Com o painel central
+ * (`painel.barbearianoar.com.br`), `/` é a raiz do PAINEL, que não é barbearia
+ * nenhuma — e o dono clicava no link para ver o site dele e recebia
+ * "Barbearia não encontrada".
+ *
+ * A ordem aqui é a mesma de `resolverHost()`, e tem que continuar sendo: domínio
+ * próprio primeiro, subdomínio depois. Se as duas divergirem, o link leva a um
+ * endereço que o resolvedor não reconhece.
+ *
+ * `DOMINIO_BASE` fica em variável de ambiente porque o domínio do produto ainda
+ * não foi registrado (`PENDENCIAS-ABERTAS.md` §0) e porque em desenvolvimento o
+ * endereço é outro.
+ */
+export function urlDoSite(tenant: Tenant): string {
+  if (tenant.domain) return `${protocoloDe(tenant.domain)}://${tenant.domain}`;
+
+  const base = process.env.DOMINIO_BASE?.trim();
+  if (base) return `${protocoloDe(base)}://${tenant.slug}.${base}`;
+
+  // Sem domínio base configurado não dá para inventar um endereço. Devolver `/`
+  // seria repetir o defeito; devolver vazio deixa a tela esconder o link.
+  return '';
+}
+
+/**
+ * `http` para desenvolvimento, `https` para o resto.
+ *
+ * ⚠️ `DOMINIO_BASE=localhost:4321` é a forma de ver o multi-tenant funcionando na
+ * máquina de desenvolvimento, e ela depende de um detalhe pouco conhecido: os
+ * navegadores resolvem **qualquer** `*.localhost` para 127.0.0.1 sem precisar
+ * mexer no arquivo `hosts`. Então `barbeariasalaojovem.localhost:4321` chega no
+ * servidor local, e `resolverHost()` pega o primeiro rótulo — exatamente o
+ * mesmo caminho de produção, sem atalho e sem a coluna `domain` preenchida à
+ * mão.
+ *
+ * Cravar `https` quebraria isso: o servidor de desenvolvimento não tem TLS.
+ */
+function protocoloDe(host: string): 'http' | 'https' {
+  return /^(localhost|127\.0\.0\.1|\[::1\])(:|$)/i.test(host) ? 'http' : 'https';
+}
+
 export function tenantAtual(): Tenant {
   const doContexto = armazemTenant.getStore()?.tenant;
-  return (doContexto as Tenant | undefined) ?? TENANT_UNICO;
+  if (doContexto) return doContexto as Tenant;
+
+  // ⚠️ O FALLBACK É LEGÍTIMO FORA DE REQUISIÇÃO, E PERIGOSO DENTRO DELA.
+  //
+  // Scripts, seeds e testes chamam isto sem contexto nenhum, e para eles cair
+  // na barbearia 1 é o que se quer. DENTRO de uma requisição significa outra
+  // coisa: "mostre a marca da barbearia de id 1 para quem pediu outra".
+  //
+  // Foi assim que, em 15/09/2026, o dono do Salão Jovem abriu o painel dele e
+  // leu "Vintage" no topo. O fallback não errou sozinho — ele **escondeu** um
+  // defeito de roteamento no middleware, devolvendo algo plausível em vez de
+  // falhar. Silêncio que produz dado plausível é o pior modo de falhar que
+  // existe: ninguém vai investigar uma tela que parece funcionar.
+  //
+  // O aviso não derruba nada — derrubar um script de manutenção seria pior.
+  // Mas agora existe uma linha no log apontando para cá.
+  if (process.env.NODE_ENV !== 'test') {
+    console.warn(
+      '[tenant] tenantAtual() sem contexto de requisição: caindo em ' +
+      `"${TENANT_UNICO.slug}" (id ${TENANT_UNICO.id}). Se isto saiu durante uma ` +
+      'requisição, ALGUÉM ESTÁ VENDO A BARBEARIA ERRADA — confira src/middleware.ts.'
+    );
+  }
+  return TENANT_UNICO;
 }
