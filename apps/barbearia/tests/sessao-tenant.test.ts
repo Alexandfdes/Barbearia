@@ -32,6 +32,19 @@ beforeAll(async () => {
               ('bayron','Barbearia Bayron','active'),
               ('cortes-do-ze','Cortes do Zé','active'),
               ('devendo','Barbearia Devendo','suspended')`;
+
+  // ⚠️ OS BARBEIROS PRECISAM EXISTIR. Desde 22/09/2026 `getSession()` reconsulta
+  // a tabela `barbers` a cada requisição — antes disso, papel e situação viajavam
+  // lacrados no cookie por até 30 dias, e demitir alguém não tirava o acesso.
+  // Cookie que aponta para barbeiro inexistente agora é recusado, então um
+  // fixture só de tenants faria estes casos falharem por motivo errado.
+  await sql`INSERT INTO barbers (id, tenant_id, name, slug, role, password_hash, active) VALUES
+              (1, 1, 'Dono do Bayron', 'dono-bayron', 'admin',  'x', true),
+              (2, 2, 'Dono do Zé',    'dono-ze',     'admin',  'x', true),
+              (3, 1, 'Demitido',       'demitido',    'barber', 'x', false),
+              (4, 2, 'Do Zé',         'do-ze',       'barber', 'x', true)`;
+  await sql`SELECT setval('barbers_id_seq', (SELECT MAX(id) FROM barbers))`;
+
   lib = await import('../src/lib/tenant.ts');
   sessao = await import('../src/lib/session.ts');
   await lib.carregarTenants(true);
@@ -71,7 +84,9 @@ describe.skipIf(!TEM_BANCO)('a sessão decide a barbearia', () => {
   });
 
   it('suspender uma barbearia corta o acesso depois de invalidar o cache', async () => {
-    const cookie = await sessao.makeSessionCookie({ barberId: 1, role: 'admin', tenantId: 2 });
+    // barbeiro 2 é o dono da barbearia 2 — desde a reconsulta do barbeiro, o par
+    // (barberId, tenantId) do cookie tem que bater com a linha em `barbers`.
+    const cookie = await sessao.makeSessionCookie({ barberId: 2, role: 'admin', tenantId: 2 });
     const valor = cookie.split(';')[0];
     expect(await sessao.getSession(await comSessao(valor))).not.toBeNull();
 
@@ -84,6 +99,53 @@ describe.skipIf(!TEM_BANCO)('a sessão decide a barbearia', () => {
     await sql`UPDATE tenants SET status = 'active' WHERE id = 2`;
     lib.invalidarTenants();
     await lib.carregarTenants();
+  });
+
+  // ⚠️ ESTES QUATRO FALHAM COM A VERSÃO ANTERIOR DE `getSession()`.
+  //
+  // Ela validava a barbearia a cada requisição e o barbeiro nunca: papel e
+  // situação ficavam lacrados no cookie por até 30 dias. "Tirar o acesso" que não
+  // tira o acesso é pior que não existir — o dono acredita que resolveu.
+  it('demitir o barbeiro corta o acesso na requisição seguinte', async () => {
+    const cookie = await sessao.makeSessionCookie({ barberId: 1, role: 'admin', tenantId: 1 });
+    const valor = cookie.split(';')[0];
+    expect(await sessao.getSession(await comSessao(valor))).not.toBeNull();
+
+    await sql`UPDATE barbers SET active = false WHERE id = 1`;
+    try {
+      expect(await sessao.getSession(await comSessao(valor))).toBeNull();
+    } finally {
+      await sql`UPDATE barbers SET active = true WHERE id = 1`;
+    }
+  });
+
+  it('rebaixar de admin para barbeiro tem efeito sem derrubar a sessão', async () => {
+    const cookie = await sessao.makeSessionCookie({ barberId: 1, role: 'admin', tenantId: 1 });
+    const valor = cookie.split(';')[0];
+    expect((await sessao.getSession(await comSessao(valor)))?.role).toBe('admin');
+
+    await sql`UPDATE barbers SET role = 'barber' WHERE id = 1`;
+    try {
+      // O cookie continua dizendo 'admin'. O banco vence.
+      expect((await sessao.getSession(await comSessao(valor)))?.role).toBe('barber');
+    } finally {
+      await sql`UPDATE barbers SET role = 'admin' WHERE id = 1`;
+    }
+  });
+
+  it('barbeiro já desligado não entra nem com cookie válido', async () => {
+    const cookie = await sessao.makeSessionCookie({ barberId: 3, role: 'barber', tenantId: 1 });
+    const valor = cookie.split(';')[0];
+    expect(await sessao.getSession(await comSessao(valor))).toBeNull();
+  });
+
+  it('cookie com barbeiro de uma barbearia e tenant de outra é recusado', async () => {
+    // Este caminho roda ANTES de `comTenant`, na conexão de dono, que enxerga
+    // todas as barbearias — sem o filtro por `tenant_id` na consulta, o par
+    // trocado passaria.
+    const cookie = await sessao.makeSessionCookie({ barberId: 4, role: 'barber', tenantId: 1 });
+    const valor = cookie.split(';')[0];
+    expect(await sessao.getSession(await comSessao(valor))).toBeNull();
   });
 
   it('resolverHost acha pelo subdomínio e recusa o que não existe', () => {

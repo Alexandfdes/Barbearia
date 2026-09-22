@@ -101,6 +101,7 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   try {
     const r = await reagendarAtomicamente({
+      tenantId:      tenant.id,
       appointmentId: appt.id,
       barberId:      appt.barberId,
       newStartIso,

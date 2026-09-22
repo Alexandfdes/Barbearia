@@ -29,7 +29,8 @@ const TABELAS = [
  * Ver `migracao-tenants/LEIA-ME.md` para a ordem sugerida.
  */
 const PENDENTES = new Set<string>([
-  // ✅ VAZIA desde 09/09/2026 — as 54 rotas e páginas estão escopadas.
+  // ✅ VAZIA desde 09/09/2026, e desde 22/09/2026 com o glob e o regex
+  // consertados: 63 arquivos tocam o banco, 63 filtram por tenant.
   //
   // A última era `auth/login.ts`, e não era falta de trabalho: ela buscava o
   // barbeiro por `slug`, que a migration 0001 tornou único só POR barbearia.
@@ -44,16 +45,34 @@ const PENDENTES = new Set<string>([
 interface Rota { nome: string; escopada: boolean; tocaBanco: boolean; usaTenantFixo: boolean; doPainel: boolean }
 
 /**
- * ⚠️ As rotas de API NÃO são a superfície toda. Doze páginas `.astro` consultam
- * o banco direto no frontmatter — o painel inteiro. A contagem de "49 rotas" dos
- * documentos subestima a exposição; o número real é 41 rotas + 12 páginas.
+ * ⚠️ AS ROTAS DE API NÃO SÃO A SUPERFÍCIE TODA, e este glob já foi curto demais
+ * duas vezes.
+ *
+ * Doze páginas `.astro` consultam o banco direto no frontmatter — o painel
+ * inteiro. E a auditoria de 15/09/2026 achou a segunda omissão: `src/lib/` nunca
+ * era varrido, e é onde moram `slots.ts` e `reagendar.ts`, os dois sem uma única
+ * menção a tenant. As duas consultavam tabela com `tenant_id` sem filtrar, e o
+ * relatório de "54 de 54 rotas escopadas" nunca as contou.
+ *
+ * A lição não é sobre este glob: é que **guarda que varre um recorte mede o
+ * recorte, não o sistema** — e ele não fica vermelho quando o recorte encolhe.
  */
-const rotas: Rota[] = [...globSync('src/pages/api/**/*.ts'), ...globSync('src/pages/**/*.astro')]
+const rotas: Rota[] = [
+  ...globSync('src/pages/api/**/*.ts'),
+  ...globSync('src/pages/**/*.astro'),
+  ...globSync('src/lib/**/*.ts'),
+  ...globSync('src/db/**/*.ts'),
+]
   .sort()
   .map((caminho) => {
     const s = readFileSync(caminho, 'utf8');
     const tocaTabela = TABELAS.some((t) => new RegExp(`\\b${t}\\b`).test(s));
-    const consulta = /\.(select|insert|update|delete)\(|SELECT |INSERT INTO|UPDATE |DELETE FROM/.test(s);
+    // ⚠️ `\s`, NÃO UM ESPAÇO LITERAL. A versão anterior era `/SELECT /`, e por
+    // isso toda consulta que quebra a linha logo depois do `SELECT` — o estilo
+    // de metade das consultas cruas deste projeto — dava `tocaBanco: false` e
+    // ficava invisível. Foi assim que `appointments/search.ts` e
+    // `appointments/calendar.ts` passaram despercebidas até 15/09/2026.
+    const consulta = /\.(select|insert|update|delete)\(|\bSELECT\s|\bINSERT\s+INTO\b|\bUPDATE\s|\bDELETE\s+FROM\b/.test(s);
     // ⚠️ `globSync` devolve o separador do sistema: `/` no Linux, `\` no Windows.
     // Sem normalizar, no Windows nenhum `replace` abaixo casa — os nomes saem
     // como `src\pages\api\auth\login.ts`, não batem com `PENDENTES`, e a
@@ -61,7 +80,11 @@ const rotas: Rota[] = [...globSync('src/pages/api/**/*.ts'), ...globSync('src/pa
     // em Linux: teste que só roda num dos dois não é guarda-corpo.
     const norm = caminho.split(sep).join('/');
     return {
-      nome: norm.replace('src/pages/api/', '').replace('src/pages/', 'PÁGINA:'),
+      nome: norm
+        .replace('src/pages/api/', '')
+        .replace('src/pages/', 'PÁGINA:')
+        .replace('src/lib/', 'LIB:')
+        .replace('src/db/', 'LIB:db/'),
       tocaBanco: tocaTabela && consulta,
       escopada: /tenant\.id|tenantId/.test(s),
       // ⚠️ De ONDE veio o tenant importa tanto quanto se ele foi usado.
@@ -122,8 +145,11 @@ describe('escopo por tenant nas rotas de API', () => {
     // Vermelho por crescer é vermelho que ensina a ignorar vermelho.
     //
     // O piso abaixo continua existindo para o caso de o glob deixar de achar os
-    // arquivos: sem ele, "0 de 0" passaria como sucesso.
-    expect(total).toBeGreaterThanOrEqual(54);
+    // arquivos: sem ele, "0 de 0" passaria como sucesso. Subiu de 54 para 63 em
+    // 22/09/2026, quando o glob passou a varrer `src/lib/` e o regex parou de
+    // exigir espaço depois do `SELECT` — o número antigo era o do recorte, não
+    // o do sistema.
+    expect(total).toBeGreaterThanOrEqual(63);
     expect({ escopadas, total }).toEqual({ escopadas: total, total });
   });
 });

@@ -38,7 +38,7 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ error: 'Nenhum arquivo enviado' }, 400);
   }
 
-  const r = await salvarMidiaMarca(arquivo, tipo);
+  const r = await salvarMidiaMarca(arquivo, tipo, tenant);
   if ('error' in r) return json({ error: r.error }, 400);
 
   try {

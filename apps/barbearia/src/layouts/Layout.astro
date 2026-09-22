@@ -3,6 +3,7 @@ import '../styles/global.css';
 import { SITE_URL } from '../config';
 import { getSettings } from '../lib/settings';
 import { cssDoAccent } from '../lib/accent.js';
+import { jsonLdSeguro } from '../lib/jsonLd.js';
 
 interface Props {
   title?: string;
@@ -63,7 +64,7 @@ const estiloAccent = cssDoAccent({
     <link rel="canonical" href={canonical} />
     <link rel="icon" href={favicon} />
     <title>{title}</title>
-    <script type="application/ld+json" set:html={JSON.stringify({
+    <script type="application/ld+json" set:html={jsonLdSeguro({
       "@context": "https://schema.org",
       "@type": "HairSalon",
       "@id": `${SITE_URL}/#business`,

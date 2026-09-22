@@ -4,6 +4,7 @@ import { eq, and, or, isNull, gte, lt, gt, ne } from 'drizzle-orm';
 import { fromZonedTime } from 'date-fns-tz';
 import { computeAvailableSlots } from './slotsCore.js';
 import { TZ } from './timezone.js';
+import { tenantAtual, type Tenant } from './tenant.js';
 
 
 /** Combina "YYYY-MM-DD" + "HH:MM" no fuso de Fortaleza e devolve Date UTC */
@@ -24,12 +25,20 @@ function weekdayOf(dateStr: string): number {
  * @param serviceId            ID do serviço
  * @param dateStr              Data "YYYY-MM-DD" (fuso de Fortaleza)
  * @param excludeAppointmentId Ignora esse appointment no cálculo (reagendamento)
+ * @param tenant               De quem é a agenda. Vem do resolvedor, nunca da query.
+ *
+ * ⚠️ AS CINCO CONSULTAS DESTE ARQUIVO FILTRAM POR TENANT, e isso não é redundante
+ * com o RLS. `barberId` e `serviceId` chegam pela query string de uma rota
+ * pública: sem filtro na aplicação, a única parede entre `?barberId=<id de outra
+ * barbearia>` e a agenda dela é o RLS. A regra da casa é duas paredes — consulta
+ * sem filtro tem que estar errada nos dois níveis (skill `barbearia-multi-tenant`).
  */
 export async function getAvailableSlots(
   barberId: number,
   serviceId: number,
   dateStr: string,
-  excludeAppointmentId?: number
+  excludeAppointmentId?: number,
+  tenant: Tenant = tenantAtual()
 ): Promise<Date[]> {
   const bsRows = await db
     .select({ durationMinutes: barberServices.durationMinutes })
@@ -38,7 +47,8 @@ export async function getAvailableSlots(
       and(
         eq(barberServices.barberId, barberId),
         eq(barberServices.serviceId, serviceId),
-        eq(barberServices.active, true)
+        eq(barberServices.active, true),
+        eq(barberServices.tenantId, tenant.id)
       )
     );
 
@@ -52,7 +62,8 @@ export async function getAvailableSlots(
     .where(
       and(
         eq(workingHours.barberId, barberId),
-        eq(workingHours.weekday, dow)
+        eq(workingHours.weekday, dow),
+        eq(workingHours.tenantId, tenant.id)
       )
     );
 
@@ -62,13 +73,14 @@ export async function getAvailableSlots(
   // Calcula slots por janela e junta tudo ordenado.
   const allSlots: Date[] = [];
   for (const wh of whRows) {
-    allSlots.push(...(await slotsForWindow(barberId, dateStr, wh.startTime, wh.endTime, duration, excludeAppointmentId)));
+    allSlots.push(...(await slotsForWindow(tenant, barberId, dateStr, wh.startTime, wh.endTime, duration, excludeAppointmentId)));
   }
   return [...new Map(allSlots.map(s => [s.getTime(), s])).values()]
     .sort((a, b) => a.getTime() - b.getTime());
 }
 
 async function slotsForWindow(
+  tenant: Tenant,
   barberId: number,
   dateStr: string,
   startTime: string,
@@ -83,6 +95,7 @@ async function slotsForWindow(
 
   const apptWhere = excludeAppointmentId
     ? and(
+        eq(appointments.tenantId, tenant.id),
         eq(appointments.barberId, barberId),
         gte(appointments.startsAt, openIso),
         lt(appointments.startsAt, closeIso),
@@ -93,6 +106,7 @@ async function slotsForWindow(
         ne(appointments.id, excludeAppointmentId)
       )
     : and(
+        eq(appointments.tenantId, tenant.id),
         eq(appointments.barberId, barberId),
         gte(appointments.startsAt, openIso),
         lt(appointments.startsAt, closeIso),
@@ -113,6 +127,7 @@ async function slotsForWindow(
     .from(timeOff)
     .where(
       and(
+        eq(timeOff.tenantId, tenant.id),
         or(eq(timeOff.barberId, barberId), isNull(timeOff.barberId)),
         lt(timeOff.startsAt, closeIso),
         gt(timeOff.endsAt, openIso)

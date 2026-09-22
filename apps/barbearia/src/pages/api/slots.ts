@@ -27,7 +27,8 @@ export const GET: APIRoute = async ({ request }) => {
   // Endereço desconhecido não calcula horário de ninguém. Sem esta guarda a
   // requisição rodaria sem contexto de barbearia — ou seja, sem o RLS — e o
   // `barberId` da query passaria a alcançar a agenda de qualquer cliente.
-  if (!tenantDoHost(request)) return json({ error: 'Barbearia não encontrada' }, 404);
+  const tenant = tenantDoHost(request);
+  if (!tenant) return json({ error: 'Barbearia não encontrada' }, 404);
 
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
@@ -51,7 +52,7 @@ export const GET: APIRoute = async ({ request }) => {
   if (date > maxDateStr) return json({ error: 'Data além do limite de 30 dias' }, 400);
 
   try {
-    const slots = await getAvailableSlots(barberId, serviceId, date, excludeAppointmentId);
+    const slots = await getAvailableSlots(barberId, serviceId, date, excludeAppointmentId, tenant);
 
     return json({
       date,

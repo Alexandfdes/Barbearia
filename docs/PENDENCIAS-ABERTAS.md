@@ -421,7 +421,21 @@ exportar só as linhas do tenant, sem `pg_dump`.
 
 </details>
 
-### 2.9 🔴 `[TÉCNICO]` A mídia da marca grava sem saber de qual barbearia é
+### 2.9 ✅ `[TÉCNICO]` A mídia da marca gravava sem saber de qual barbearia era — RESOLVIDO em 22/09/2026
+
+**O que mudou:** `salvarMidiaMarca()` passou a receber o tenant e a montar o caminho com
+`pastaDeMidia()` e o endereço com `urlDeMidia()` — as mesmas funções que a leitura já usava.
+A rota de upload passa o tenant que ela já tinha resolvido.
+
+**A regra que fica:** um caminho de arquivo tem **uma** função que o monta, usada pela
+escrita e pela leitura. Havendo duas, elas divergem — é questão de quando, não de se.
+
+⚠️ **Continua aberto o §2.7** (foto de produto), que é a mesma classe de defeito no mesmo
+arquivo. Não entrou junto de propósito: a leitura de imagem de produto não passa por
+`/api/media/`, então mexer na escrita sem entender o outro caminho quebraria as imagens que
+já existem.
+
+<details><summary>O defeito, como estava</summary>
 
 `lib/uploads.ts:139` — `salvarMidiaMarca(file, tipo)` **não recebe tenant**. Grava em
 `join(UPLOAD_ROOT, tipo)` (`:149`) e devolve `/api/media/${tipo}/...` (`:169`), o formato
@@ -434,6 +448,8 @@ legado sem slug. A leitura usa `pastaDeMidia(tipo, tenant)`, que para `tenant.id
   imagem e o dono não tem como consertar pelo painel.
 - Os arquivos ficam na pasta da barbearia 1 — a fronteira de armazenamento entre clientes
   não existe. Conteúdo público, então o dano é baixo; a ausência de fronteira não.
+
+</details>
 
 ### 2.10 ✅ `[TÉCNICO]` A última hora do expediente era sempre recusada — RESOLVIDO em 22/09/2026
 
@@ -497,7 +513,23 @@ hora e a API **aceita em silêncio**, porque o horário deslocado também é exp
 aritmética `h + 3` passa livre. A guarda existente dá falsa sensação de que o fuso foi
 centralizado — ela cobre a constante, não a conta.
 
-### 2.12 🔴 `[TÉCNICO]` XSS armazenado: o nome da barbearia entra cru num `<script>`
+### 2.12 ✅ `[TÉCNICO]` XSS armazenado pelo nome da barbearia — RESOLVIDO em 22/09/2026
+
+**O que mudou:** os três lugares passaram a usar `jsonLdSeguro()` (`src/lib/jsonLd.ts`), que
+escapa `<` como `\u003c` — escape válido de JSON, então quem lê recebe o texto original de
+volta e o navegador nunca vê a sequência que fecharia a tag.
+
+**Escapar na saída, e não proibir caractere na entrada**, de propósito: lista de proibidos
+resolve o campo conhecido e deixa inseguro o próximo campo que alguém adicionar. E nome de
+barbearia com `&` ou `<3` é legítimo.
+
+Guarda em `tests/json-ld.test.ts`: reprova `set:html={JSON.stringify(...)}` em qualquer
+`.astro` **dos dois aplicativos**, e confere que o escape volta idêntico no `JSON.parse`.
+
+✅ Conferido de passagem: o `set:html` do CSS da cor de destaque (`Layout.astro:102`) está
+seguro — `cssDoAccent()` passa cada valor por `isHex()` e cai num padrão quando não é.
+
+<details><summary>O defeito, como estava</summary>
 
 `layouts/Layout.astro:66`, `components/FAQ.astro:38`, `components/Testimonials.astro:48`:
 
@@ -512,7 +544,31 @@ centralizado — ela cobre a constante, não a conta.
 Roda no navegador de **todo cliente que abrir a página**, num endereço com o seu domínio.
 Com `CADASTRO_ABERTO=1` (§4.8), qualquer um de fora planta isso.
 
-### 2.13 🟠 `[TÉCNICO]` Dois buracos de permissão dentro da mesma barbearia
+</details>
+
+### 2.13 ✅ `[TÉCNICO]` Dois buracos de permissão dentro da mesma barbearia — RESOLVIDOS em 22/09/2026
+
+**A busca:** barbeiro comum passou a achar só os próprios agendamentos — a mesma regra de
+`calendar.ts`, de propósito, porque as duas telas mostram a mesma agenda por caminhos
+diferentes. O `manage_token` continua na resposta: ele é o link que o atendente manda para o
+cliente, e agora só vem junto de agendamento que o barbeiro pode ver.
+
+**A sessão:** `getSession()` passou a reconsultar a linha do barbeiro a cada requisição, e o
+`role` do banco vence o do cookie. Demitir corta o acesso na requisição seguinte; rebaixar
+tem efeito sem derrubar a sessão. É uma consulta por chave primária — preferida a um cache
+com TTL, porque o atraso de um cache aqui é exatamente o que estava sendo consertado.
+
+A consulta filtra por `tenant_id` além do `id`: este caminho roda **antes** de `comTenant`,
+na conexão de dono, que enxerga todas as barbearias — sem o filtro, um cookie com
+`barberId` de uma barbearia e `tenantId` de outra passaria.
+
+Quatro casos novos em `tests/sessao-tenant.test.ts`, todos vermelhos com a versão anterior.
+
+⚠️ **Trocar a senha ainda não derruba sessão.** A reconsulta cobre demissão e rebaixamento,
+não revogação por senha — para isso falta um carimbo de versão da sessão gravado no
+barbeiro e conferido aqui.
+
+<details><summary>Os defeitos, como estavam</summary>
 
 **A busca não confere papel.** `api/admin/appointments/search.ts:59` tem só
 `if (!session)`. Todas as outras rotas de agendamento fazem
@@ -528,6 +584,8 @@ desmarcado**.
 `role` e o `active` viajam lacrados no cookie com TTL de **30 dias**. Desmarcar "ativo" de
 um demitido, ou rebaixar um admin, **não faz efeito**. Trocar a senha também não derruba
 sessão nenhuma.
+
+</details>
 
 ### 2.14 ✅ `[TÉCNICO]` Duas transações sem `await` — RESOLVIDO em 22/09/2026
 
@@ -580,7 +638,23 @@ O dono cria "Combo de segunda, 20% OFF". Qualquer pessoa que abra `/agendar?comb
 sexta recebe os 20%, sobre o serviço **e** sobre o produto. O link circula no WhatsApp e o
 desconto de segunda vira permanente. No relatório, aparece como receita legítima.
 
-### 2.17 🟠 `[TÉCNICO]` O guarda de escopo por tenant é cego para metade das rotas
+### 2.17 ✅ `[TÉCNICO]` O guarda de escopo por tenant era cego para metade das rotas — RESOLVIDO em 22/09/2026
+
+**O guarda:** `\bSELECT\s` no lugar de `SELECT ` (e o mesmo para INSERT/UPDATE/DELETE), e o
+glob passou a varrer `src/lib/**` e `src/db/**` além de `src/pages/**`.
+
+**E as quatro que ele não via foram escopadas de verdade**, que é o trabalho que o guarda
+escondia: `appointments/search.ts`, `appointments/calendar.ts`, `lib/slots.ts` (cinco
+consultas) e `lib/reagendar.ts` (três, incluindo os dois UPDATE).
+
+O número passou de "54 de 54" para **64 de 64**, e o piso do teste subiu junto. O 54 nunca
+foi falso — era o do recorte, não o do sistema.
+
+**A lição registrada no próprio teste:** guarda que varre um recorte mede o recorte, e **não
+fica vermelho quando o recorte encolhe**. Todo guarda por texto precisa de um caso de
+controle — um arquivo que ele tem que pegar.
+
+<details><summary>O defeito, como estava</summary>
 
 `tests/escopo-rotas.test.ts:56` detecta consulta com o padrão `SELECT ` — **com espaço**.
 Rota cujo SQL quebra a linha depois do `SELECT` não casa, `tocaBanco` dá `false` e ela fica
@@ -594,6 +668,8 @@ ambos sem uma única menção a tenant.
 a camada de aplicação sumiu nesses pontos e o guarda-corpo não avisa: **o produto tem uma
 parede onde os documentos afirmam ter duas**, e a afirmação de "54 de 54 rotas escopadas"
 mede menos do que diz.
+
+</details>
 
 ---
 
@@ -1099,10 +1175,11 @@ pela contagem de tenants (§2.8). Três mudanças minúsculas, três desastres d
 três guardas novas, porque a lição das três é a mesma: nenhuma delas aparecia em revisão de
 código nem na suíte.
 
-**Onda 1 — antes do segundo cliente.**
+**Onda 1 — antes do segundo cliente. ✅ FEITA em 22/09/2026.**
 Mídia por tenant (§2.9), papel na busca e revalidação da sessão (§2.13), escapar o JSON-LD
-(§2.12), consertar o guarda de escopo (§2.17). É tudo o que só não dói porque hoje existe uma
-barbearia só.
+(§2.12), consertar o guarda de escopo (§2.17) — e, junto com o último, escopar as quatro
+rotas que ele não enxergava. Sobra do bloco: o §2.7 (foto de produto, mesma classe do §2.9
+mas com outro caminho de leitura) e a revogação de sessão por troca de senha.
 
 **Onda 2 — antes do primeiro cliente fora do UTC-3.**
 Os três `+ 3` do navegador (§2.11), o teste de fuso passando a pegar aritmética de offset, e a
