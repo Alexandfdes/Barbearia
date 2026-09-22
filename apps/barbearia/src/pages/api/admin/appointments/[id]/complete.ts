@@ -60,7 +60,10 @@ export const POST: APIRoute = async ({ request, params }) => {
     items.push({ serviceId: svc.id, name: svc.name, priceCents: ex.priceCents });
   }
 
-  db.transaction(async (tx) => {
+  // ⚠️ O `await` NÃO É DECORAÇÃO. Sem ele a rota responde ok:true antes de a
+  // transação terminar: se ela falhar, o erro vira rejeição não tratada e a tela
+  // do barbeiro já disse "pronto" sobre algo que não foi gravado.
+  await db.transaction(async (tx) => {
     await tx.update(appointments)
       .set({
         status:           'completed',
