@@ -42,7 +42,10 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   }
 
   // fulfill — atômico: marca retirada + registra a venda no faturamento.
-  db.transaction(async (tx) => {
+  // ⚠️ O `await` NÃO É DECORAÇÃO. Sem ele a rota responde ok:true antes de a
+  // transação terminar: se ela falhar, o erro vira rejeição não tratada e a tela
+  // do barbeiro já disse "pronto" sobre algo que não foi gravado.
+  await db.transaction(async (tx) => {
     await tx.update(reservations)
       .set({ status: 'fulfilled', handledById: session.barberId, handledAt: now })
       .where(and(eq(reservations.id, id), eq(reservations.tenantId, tenant.id)));

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { addMinutes } from 'date-fns';
-import { fromZonedTime } from 'date-fns-tz';
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { and, eq, sql } from 'drizzle-orm';
 import { db, first } from '../db/index.js';
 import { barbers, barberServices, products, services, workingHours } from '../db/schema.js';
@@ -153,7 +153,20 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
   }
 
   const endsAt  = addMinutes(startsAt, durationMinutes);
-  const dateStr = startsAt.toISOString().slice(0, 10);
+
+  // ⚠️ A DATA VEM DO FUSO DA BARBEARIA, NUNCA DE UTC. ISTO JÁ FOI UM DEFEITO REAL.
+  //
+  // `startsAt` é um instante. `toISOString()` devolve a data em UTC, que a partir
+  // das 21h em Fortaleza (20h em Manaus, 19h no Acre) JÁ É O DIA SEGUINTE.
+  // Com a data errada, `dow` vira o dia da semana errado, o expediente buscado é
+  // o do dia errado e a janela abaixo é montada no dia errado — o horário escolhido
+  // fica sempre antes da abertura e o cliente recebe "Horário fora do expediente"
+  // na última hora do dia, sem log e sem explicação.
+  //
+  // `/api/slots` oferece o horário porque faz a conversão certa; só a criação
+  // errava. Os dois caminhos de reagendamento recebem `dateStr` pronto e por isso
+  // nunca tiveram o problema.
+  const dateStr = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
   const dow     = weekdayOf(dateStr);
 
   const whRows = await db

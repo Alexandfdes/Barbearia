@@ -25,6 +25,8 @@ const WEEKDAY = new Date(Date.UTC(2030, 2, 15, 12)).getUTCDay(); // dia da seman
 const OTHER_DATE = '2030-03-16';                             // dia seguinte (sem expediente)
 const SPLIT_DATE = '2030-03-18';                             // dia com DOIS turnos
 const SPLIT_WEEKDAY = new Date(Date.UTC(2030, 2, 18, 12)).getUTCDay();
+const LATE_DATE = '2030-03-19';                              // dia com expediente NOTURNO
+const LATE_WEEKDAY = new Date(Date.UTC(2030, 2, 19, 12)).getUTCDay();
 
 /**
  * Acha o SQL da migration. O `0000_init_postgres.sql` vive em
@@ -80,6 +82,10 @@ beforeAll(async () => {
                 VALUES (${tid}, 1, ${SPLIT_WEEKDAY}, '09:00', '12:00')`;
   await sqlConn`INSERT INTO working_hours (tenant_id, barber_id, weekday, start_time, end_time)
                 VALUES (${tid}, 1, ${SPLIT_WEEKDAY}, '14:00', '18:00')`;
+  // LATE_WEEKDAY fecha às 22h — barbearia que atende à noite existe, e é nessa
+  // faixa que a data lida em UTC já virou o dia seguinte.
+  await sqlConn`INSERT INTO working_hours (tenant_id, barber_id, weekday, start_time, end_time)
+                VALUES (${tid}, 1, ${LATE_WEEKDAY}, '18:00', '22:00')`;
 
   // As sequências continuam em 1 depois dos inserts com id explícito.
   await sqlConn`SELECT setval('barbers_id_seq',  (SELECT MAX(id) FROM barbers))`;
@@ -167,6 +173,30 @@ describe.skipIf(!TEM_BANCO)('bookAppointment (integração com Postgres)', () =>
 
   it('dia com dois turnos: rejeita slot no intervalo entre turnos (400)', async () => {
     const r = await bookAppointment({ ...base, startsAt: at('12:30', SPLIT_DATE) });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.httpStatus).toBe(400);
+  });
+
+  // ⚠️ ESTE TESTE FALHA COM A VERSÃO ANTERIOR DO CÓDIGO, e é por isso que existe.
+  //
+  // `bookAppointment` lia a data com `startsAt.toISOString()`, que é UTC. Às 21h
+  // em Fortaleza o instante já é 00h do dia seguinte em UTC, então o código
+  // buscava o expediente do DIA ERRADO e devolvia 400 num horário que o
+  // `/api/slots` tinha acabado de oferecer. O cliente preenchia tudo e levava
+  // "Horário fora do expediente" sem explicação.
+  //
+  // Em Manaus (UTC-4) isso começa às 20h; no Acre (UTC-5), às 19h.
+  it('aceita a última hora do dia — a data vem do fuso da barbearia, não de UTC', async () => {
+    const inicio = at('21:00', LATE_DATE);
+    // Prova do que está em jogo: em UTC este instante já é o dia seguinte.
+    expect(inicio.toISOString().slice(0, 10)).not.toBe(LATE_DATE);
+
+    const r = await bookAppointment({ ...base, startsAt: inicio });
+    expect(r.ok, r.ok ? '' : `recusou com ${r.httpStatus}: ${r.error}`).toBe(true);
+  });
+
+  it('continua recusando depois do fechamento do expediente noturno (400)', async () => {
+    const r = await bookAppointment({ ...base, startsAt: at('22:30', LATE_DATE) });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.httpStatus).toBe(400);
   });

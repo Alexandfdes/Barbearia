@@ -7,7 +7,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { json } from '../../../lib/api.js';
 import { getSession } from '../../../lib/session.js';
-import { tenantDaSessao, TENANT_UNICO } from '../../../lib/tenant.js';
+import { formatInTimeZone } from 'date-fns-tz';
+import { sql } from 'drizzle-orm';
+import { db, first } from '../../../db/index.js';
+import { tenantDaSessao } from '../../../lib/tenant.js';
+import { TZ } from '../../../lib/timezone.js';
 
 /**
  * GET /api/admin/backup — baixa um backup consistente do banco, gerado na hora.
@@ -79,19 +83,34 @@ export const GET: APIRoute = async ({ request }) => {
   if (!session) return json({ error: 'Não autenticado' }, 401);
   if (session.role !== 'admin') return json({ error: 'Apenas admin' }, 403);
 
-  // ⚠️ Trava deliberada. Um `pg_dump` traz o banco INTEIRO. Enquanto houver uma
-  // barbearia por banco isso é o backup dela; no dia em que o mesmo Postgres
-  // servir várias, este mesmo download entregaria os dados de todas para o
-  // admin de uma só — a pior falha de isolamento possível no produto.
-  //
-  // Quando o passo 3 do `ARQUITETURA-MULTI-TENANT-V1.md` §9 introduzir a tabela
-  // `tenants`, `tenantDaSessao` deixa de devolver TENANT_UNICO e esta rota passa
-  // a responder 501 sozinha, em vez de vazar em silêncio. A versão multi-tenant
-  // precisa exportar só as linhas do tenant, não usar `pg_dump`.
   const tenant = tenantDaSessao(session);
-  if (tenant.id !== TENANT_UNICO.id) {
+
+  // ⚠️ TRAVA DELIBERADA, E A CONDIÇÃO JÁ ESTEVE ERRADA AQUI.
+  //
+  // `pg_dump` traz o banco INTEIRO: sem `--table`, sem `WHERE`, e com a
+  // credencial de dono das tabelas, que ignora o RLS. Ele só é o backup DESTA
+  // barbearia enquanto ela for a única linha de `tenants`.
+  //
+  // A versão anterior comparava `tenant.id !== TENANT_UNICO.id`, acreditando que
+  // isso passaria a barrar sozinho quando a tabela `tenants` existisse. É o
+  // contrário: `TENANT_UNICO.id` é 1, e 1 é o tenant de backfill — o único
+  // cliente em produção. A trava barrava todas as barbearias MENOS a que existe.
+  //
+  // A condição certa não é sobre QUEM pede: é sobre o que o arquivo contém.
+  // Uma linha em `tenants` ⇒ o dump é só desta barbearia. Duas ⇒ entregaria
+  // nome, telefone e data de nascimento dos clientes de todas, mais o hash de
+  // senha dos donos delas. Consultamos o banco, e não o cache de tenants, porque
+  // um cache velho em outro processo diria "uma" depois da segunda já existir.
+  //
+  // A versão multi-tenant precisa exportar só as linhas do tenant (COPY com
+  // WHERE), não `pg_dump` — `PENDENCIAS-ABERTAS.md` §2.8.
+  const contagem = await first(db.execute<{ n: string }>(sql`SELECT COUNT(*) AS n FROM tenants`));
+  const quantas = Number(contagem?.n ?? 0);
+  if (quantas !== 1) {
+    console.warn(`[api/admin/backup] recusado: ${quantas} barbearias no banco (tenant ${tenant.slug})`);
     return json({
-      error: 'Backup por download ainda não existe no modo multi-barbearia. Use o backup do servidor.',
+      error: 'O download de backup não funciona com mais de uma barbearia no mesmo banco, '
+           + 'porque o arquivo sairia com os dados de todas. Use o backup do servidor.',
     }, 501);
   }
 
@@ -103,7 +122,9 @@ export const GET: APIRoute = async ({ request }) => {
   try {
     await rodarPgDump(url, dest);
     const buf = readFileSync(dest);
-    const stamp = new Date().toISOString().slice(0, 10);
+    // Data no fuso da barbearia, não em UTC: backup tirado às 22h em Fortaleza
+    // sairia com a data de amanhã no nome do arquivo.
+    const stamp = formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
     return new Response(buf, {
       status: 200,
       headers: {
