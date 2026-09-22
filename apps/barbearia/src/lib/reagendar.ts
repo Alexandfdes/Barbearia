@@ -17,6 +17,15 @@ export type ResultadoReagendamento =
   | { ok: false; httpStatus: number; motivo: 'conflito_agendamento' | 'conflito_bloqueio' | 'status_mudou' };
 
 interface Pedido {
+  /**
+   * De quem é o agendamento. Vem do resolvedor da rota, nunca do corpo.
+   *
+   * ⚠️ As três consultas abaixo filtram por ele, e não é redundante com o RLS.
+   * `appointmentId` chega pela URL nos dois caminhos que chamam esta função —
+   * sem o filtro na aplicação, o UPDATE tem uma parede só entre um id de outra
+   * barbearia e a agenda dela.
+   */
+  tenantId:      number;
   appointmentId: number;
   barberId:      number;
   newStartIso:   string;
@@ -39,7 +48,8 @@ export async function reagendarAtomicamente(p: Pedido): Promise<ResultadoReagend
 
     const conflitoAppt = num((await first(tx.execute<{ c: string }>(sql`
       SELECT COUNT(*) AS c FROM appointments
-      WHERE barber_id = ${p.barberId}
+      WHERE tenant_id = ${p.tenantId}
+        AND barber_id = ${p.barberId}
         AND status IN ('confirmed','completed')
         AND id != ${p.appointmentId}
         AND starts_at < ${p.newEndIso}
@@ -51,7 +61,8 @@ export async function reagendarAtomicamente(p: Pedido): Promise<ResultadoReagend
 
     const conflitoOff = num((await first(tx.execute<{ c: string }>(sql`
       SELECT COUNT(*) AS c FROM time_off
-      WHERE (barber_id = ${p.barberId} OR barber_id IS NULL)
+      WHERE tenant_id = ${p.tenantId}
+        AND (barber_id = ${p.barberId} OR barber_id IS NULL)
         AND starts_at < ${p.newEndIso}
         AND ends_at   > ${p.newStartIso}
     `)))?.c);
@@ -69,7 +80,8 @@ export async function reagendarAtomicamente(p: Pedido): Promise<ResultadoReagend
       ? await tx.execute<{ id: number }>(sql`
           UPDATE appointments
              SET starts_at = ${p.newStartIso}, ends_at = ${p.newEndIso}
-           WHERE id = ${p.appointmentId} AND status = 'confirmed'
+           WHERE id = ${p.appointmentId} AND tenant_id = ${p.tenantId}
+             AND status = 'confirmed'
           RETURNING id
         `)
       : await tx.execute<{ id: number }>(sql`
@@ -77,7 +89,8 @@ export async function reagendarAtomicamente(p: Pedido): Promise<ResultadoReagend
              SET starts_at = ${p.newStartIso}, ends_at = ${p.newEndIso},
                  last_modified_by_id = ${p.editorId},
                  last_modified_at = ${new Date().toISOString()}
-           WHERE id = ${p.appointmentId} AND status = 'confirmed'
+           WHERE id = ${p.appointmentId} AND tenant_id = ${p.tenantId}
+             AND status = 'confirmed'
           RETURNING id
         `);
 

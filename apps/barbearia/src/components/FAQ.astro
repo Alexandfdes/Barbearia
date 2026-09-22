@@ -3,6 +3,7 @@ import { getSettings } from '../lib/settings';
 
 const s = await getSettings();
 import faqs from '../data/faq.json';
+import { jsonLdSeguro } from '../lib/jsonLd.js';
 
 const ldJson = {
   "@context": "https://schema.org",
@@ -35,7 +36,7 @@ const mostrar = BAYRON && faqs.length > 0;
 ---
 
 {mostrar && (
-<script type="application/ld+json" set:html={JSON.stringify(ldJson)} />
+<script type="application/ld+json" set:html={jsonLdSeguro(ldJson)} />
 
 <section id="faq" class="py-12 md:py-20">
   <div class="max-w-3xl mx-auto px-4">

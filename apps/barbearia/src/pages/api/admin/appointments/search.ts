@@ -4,6 +4,7 @@ import type { APIRoute } from 'astro';
 import { formatInTimeZone } from 'date-fns-tz';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
+import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { sql } from 'drizzle-orm';
 import { db } from '../../../../db/index.js';
 import { TZ } from '../../../../lib/timezone.js';
@@ -15,7 +16,7 @@ import { TZ } from '../../../../lib/timezone.js';
 // ⚠️ ILIKE, não LIKE: no SQLite o LIKE já era case-insensitive para ASCII, no
 // Postgres não é. Trocar por LIKE aqui faria a busca por nome parar de achar
 // "joão" quando o barbeiro digita "João" — sem erro nenhum, só resultado vazio.
-function buscar(phonePattern: string, namePattern: string) {
+function buscar(tenantId: number, barberId: number | null, phonePattern: string, namePattern: string) {
   return db.execute<RawRow>(sql`
     SELECT
       a.id              AS id,
@@ -31,10 +32,14 @@ function buscar(phonePattern: string, namePattern: string) {
       b.name            AS barber_name,
       s.name            AS service_name
     FROM appointments a
-    INNER JOIN barbers  b ON b.id = a.barber_id
-    INNER JOIN services s ON s.id = a.service_id
-    WHERE (${phonePattern} <> '' AND a.customer_phone ILIKE ${phonePattern})
-       OR (${namePattern}  <> '' AND a.customer_name  ILIKE ${namePattern})
+    INNER JOIN barbers  b ON b.id = a.barber_id AND b.tenant_id = a.tenant_id
+    INNER JOIN services s ON s.id = a.service_id AND s.tenant_id = a.tenant_id
+    WHERE a.tenant_id = ${tenantId}
+      AND (${barberId}::int IS NULL OR a.barber_id = ${barberId}::int)
+      AND (
+           (${phonePattern} <> '' AND a.customer_phone ILIKE ${phonePattern})
+        OR (${namePattern}  <> '' AND a.customer_name  ILIKE ${namePattern})
+      )
     ORDER BY a.starts_at DESC
     LIMIT 50
   `);
@@ -58,6 +63,18 @@ type RawRow = {
 export const GET: APIRoute = async ({ request, url }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
+  const tenant = tenantDaSessao(session);
+
+  // ⚠️ BARBEIRO COMUM SÓ ACHA OS PRÓPRIOS. Esta era a Única rota de agendamento
+  // sem conferência de papel — todas as outras começam com
+  // `if (session.role !== 'admin' && …)`. E ela devolve o `manage_token` de cada
+  // resultado, que é o link de cancelamento: com duas letras, um barbeiro
+  // recebia nome, telefone e o link para desmarcar o cliente do colega, e o
+  // cancelamento ficaria gravado como se o próprio cliente tivesse desmarcado.
+  //
+  // A regra é a mesma de `calendar.ts`, de propósito: as duas telas mostram a
+  // mesma agenda por caminhos diferentes.
+  const barberFilter = session.role === 'admin' ? null : session.barberId;
 
   // Aceita ?q= (telefone OU nome). Mantém ?phone= por compatibilidade.
   const raw        = (url.searchParams.get('q') ?? url.searchParams.get('phone') ?? '').trim();
@@ -72,7 +89,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     return json({ results: [], info: 'Digite ao menos 4 dígitos do telefone ou 2 letras do nome' });
   }
 
-  const rows = await buscar(phonePattern, namePattern);
+  const rows = await buscar(tenant.id, barberFilter, phonePattern, namePattern);
 
   const results = rows.map(r => ({
     id:              r.id,

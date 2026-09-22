@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
-import { TENANT_UNICO, type Tenant } from './tenant.js';
+import { TENANT_UNICO, tenantAtual, type Tenant } from './tenant.js';
 
 /**
  * Onde a mídia enviada pelo dono da barbearia mora no disco.
@@ -139,6 +139,7 @@ export interface MidiaSalva {
 export async function salvarMidiaMarca(
   file: File,
   tipo: TipoMidia,
+  tenant: Tenant = tenantAtual(),
 ): Promise<MidiaSalva | { error: string }> {
   const ext = MIME_MARCA[file.type];
   if (!ext) return { error: 'A imagem deve ser JPG, PNG, WEBP ou AVIF' };
@@ -146,7 +147,23 @@ export async function salvarMidiaMarca(
 
   const buf = Buffer.from(await file.arrayBuffer());
   const stem = `${Date.now()}-${randomBytes(6).toString('hex')}`;
-  const pasta = join(UPLOAD_ROOT, tipo);
+
+  // ⚠️ A PASTA SAI DE `pastaDeMidia()`, E O ENDEREÇO DE `urlDeMidia()`.
+  //
+  // Esta função montava o caminho à mão — `join(UPLOAD_ROOT, tipo)`, o formato
+  // legado, sem slug — enquanto a leitura em `/api/media/[...path].ts` usava
+  // `pastaDeMidia(tipo, tenant)`, que para toda barbearia que não é a de id 1
+  // é `UPLOAD_ROOT/<slug>/<tipo>`.
+  //
+  // As duas metades do mesmo caminho discordavam: **logo, capa, og e favicon de
+  // toda barbearia nova davam 404 no site dela** — nascia sem imagem, e o dono
+  // não tinha como consertar pelo painel, porque o upload "funcionava". E os
+  // arquivos iam parar dentro da pasta da barbearia 1.
+  //
+  // A regra que fica: **um caminho de arquivo tem UMA função que o monta**, usada
+  // pela escrita e pela leitura. Havendo duas, elas divergem — é questão de
+  // quando, não de se.
+  const pasta = pastaDeMidia(tipo, tenant);
   await mkdir(pasta, { recursive: true });
 
   await writeFile(join(pasta, `${stem}${ext}`), buf);
@@ -166,7 +183,7 @@ export async function salvarMidiaMarca(
     }
   }
 
-  return { path: `/api/media/${tipo}/${stem}${ext}`, larguras };
+  return { path: urlDeMidia(tipo, `${stem}${ext}`, tenant), larguras };
 }
 
 /**

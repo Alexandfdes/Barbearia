@@ -102,6 +102,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     // `editorId: null` — quem reagenda aqui é o cliente pelo link, não um
     // barbeiro logado; `last_modified_by_id` referencia barbers e ficaria órfão.
     const r = await reagendarAtomicamente({
+      tenantId:      tenant.id,
       appointmentId: appt.id,
       barberId:      appt.barberId,
       newStartIso,
