@@ -382,9 +382,22 @@ passa a servir da pasta do host. ⚠️ **As fotos que já existem estão na pas
 mudar exige mover os arquivos do Bayron ou manter a queda para o caminho legado, do mesmo
 jeito que `pastaDeMidia()` faz.
 
-### 2.8 🔴 `[TÉCNICO]` O backup entrega o banco inteiro — e a trava protege todo mundo menos quem existe
+### 2.8 ✅ `[TÉCNICO]` O backup entregava o banco inteiro — RESOLVIDO em 22/09/2026
 
-Encontrado na auditoria de 15/09/2026.
+Encontrado na auditoria de 15/09/2026, consertado na onda 0.
+
+**O que mudou:** a trava deixou de perguntar QUEM pede e passou a perguntar o que o arquivo
+contém — `SELECT COUNT(*) FROM tenants`, e 501 quando não é exatamente uma. A condição é
+consultada no banco, e não no cache de tenants, porque um cache velho em outro processo
+diria "uma" depois de a segunda já existir. O nome do arquivo também passou a usar a data no
+fuso da barbearia. Guarda em `tests/backup-rota.test.ts`, que verifica o 501 usando o cookie
+da **barbearia 1** — exatamente a que a trava antiga deixava passar.
+
+⚠️ **A parte grande continua aberta:** enquanto o download existir, ele é `pg_dump` do banco
+todo. A versão multi-tenant precisa exportar só as linhas do tenant (COPY com WHERE). Até
+lá, o dono perde o botão no dia em que a segunda barbearia nascer — de propósito.
+
+<details><summary>O defeito, como estava</summary>
 
 `api/admin/backup.ts:92` recusa a rota para quem não é `TENANT_UNICO`:
 
@@ -406,6 +419,8 @@ produto" e descreve a guarda como se ela fechasse o caso. Ela fecha o caso que n
 **Correção imediata:** 501 para todos enquanto o banco for compartilhado. **Depois:**
 exportar só as linhas do tenant, sem `pg_dump`.
 
+</details>
+
 ### 2.9 🔴 `[TÉCNICO]` A mídia da marca grava sem saber de qual barbearia é
 
 `lib/uploads.ts:139` — `salvarMidiaMarca(file, tipo)` **não recebe tenant**. Grava em
@@ -420,7 +435,21 @@ legado sem slug. A leitura usa `pastaDeMidia(tipo, tenant)`, que para `tenant.id
 - Os arquivos ficam na pasta da barbearia 1 — a fronteira de armazenamento entre clientes
   não existe. Conteúdo público, então o dano é baixo; a ausência de fronteira não.
 
-### 2.10 🔴 `[TÉCNICO]` A última hora do expediente é sempre recusada
+### 2.10 ✅ `[TÉCNICO]` A última hora do expediente era sempre recusada — RESOLVIDO em 22/09/2026
+
+**O que mudou:** `const dateStr = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd')`. Uma linha,
+como estava previsto.
+
+Duas guardas, porque a suspeita de que isto volte é alta: `tests/bookAppointment.test.ts`
+ganhou um expediente noturno (18:00–22:00) e agenda às 21:00 — o caso falha com o código
+anterior; e `tests/data-do-fuso.test.ts` reprova qualquer ocorrência nova de
+`toISOString().slice(0, 10)` fora de uma lista de dois usos conferidos.
+
+⚠️ A lista existe porque o padrão nem sempre está errado: sobre um instante, está; sobre um
+`Date.UTC(y, m, d, 12)` montado a partir de data já local, é aritmética de calendário e está
+certo. Expressão regular nenhuma separa os dois — por isso a decisão é de quem lê.
+
+<details><summary>O defeito, como estava</summary>
 
 `lib/bookAppointment.ts:156`:
 
@@ -445,6 +474,8 @@ confirmar e recebe **"Horário fora do expediente"**, sem log. Ele conclui que o
 
 Os dois caminhos de **reagendamento** fazem certo (`formatInTimeZone`), o que mostra que
 é descuido e não decisão. **Uma linha conserta.**
+
+</details>
 
 ### 2.11 🔴 `[TÉCNICO]` Três lugares somam três horas à mão, dentro do navegador
 
@@ -498,7 +529,16 @@ desmarcado**.
 um demitido, ou rebaixar um admin, **não faz efeito**. Trocar a senha também não derruba
 sessão nenhuma.
 
-### 2.14 🟠 `[TÉCNICO]` Duas transações sem `await`: a tela diz "pronto" antes de gravar
+### 2.14 ✅ `[TÉCNICO]` Duas transações sem `await` — RESOLVIDO em 22/09/2026
+
+**O que mudou:** `await` nas duas. A variante que devolve a promessa (`return db.transaction`,
+em `lib/reagendar.ts`) foi conferida e está certa — quem chama espera.
+
+Guarda em `tests/transacoes-awaited.test.ts`: lê o código-fonte e reprova qualquer
+`.transaction(` que não seja `await`ada nem devolvida. Não precisa de banco, então roda no
+`npm test` de qualquer máquina — que é onde um guarda-corpo tem que rodar.
+
+<details><summary>O defeito, como estava</summary>
 
 `api/admin/appointments/[id]/complete.ts:63` e `api/admin/reservations/[id].ts:45` chamam
 `db.transaction(...)` **sem `await`** e respondem 200 em seguida.
@@ -511,6 +551,8 @@ O barbeiro aperta **Concluir** com os extras da comanda, vê sucesso, e o atendi
 continua confirmado — ou fica concluído sem os extras. Na reserva: produto marcado como
 retirado e **não faturado**. As outras rotas do mesmo diretório usam `await`; são só estas
 duas.
+
+</details>
 
 ### 2.15 🟠 `[TÉCNICO]` Editar o nome de um serviço apaga os centavos do preço
 
@@ -1051,9 +1093,11 @@ do painel e do site padrão, então é decisão do dono.
 ⚠️ **Reordenada em 15/09/2026, depois da auditoria completa.** A lista numerada abaixo é
 anterior a ela e continua válida para o que sobrou; estas quatro ondas vêm antes.
 
-**Onda 0 — antes de qualquer deploy (meia hora).**
-Uma linha em `bookAppointment.ts:156` (§2.10), `await` nas duas transações (§2.14), e 501 no
-backup para todos (§2.8). São três mudanças minúsculas que evitam três desastres diferentes.
+**Onda 0 — antes de qualquer deploy. ✅ FEITA em 22/09/2026.**
+A data no fuso da barbearia (§2.10), `await` nas duas transações (§2.14) e a trava do backup
+pela contagem de tenants (§2.8). Três mudanças minúsculas, três desastres diferentes — e
+três guardas novas, porque a lição das três é a mesma: nenhuma delas aparecia em revisão de
+código nem na suíte.
 
 **Onda 1 — antes do segundo cliente.**
 Mídia por tenant (§2.9), papel na busca e revalidação da sessão (§2.13), escapar o JSON-LD
