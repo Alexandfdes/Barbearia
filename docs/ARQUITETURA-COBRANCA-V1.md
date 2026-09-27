@@ -24,6 +24,11 @@
 > Economia unitária e preços: `PRECIFICACAO.md`. Modelo de instância: `ARQUITETURA-PRODUTO-V1.md`.
 > Decisão comercial: `PLANO-PRODUTIZACAO.md`.
 >
+> ⚠️ **27/09/2026: os dois aplicativos do §2 foram postos em questão** em
+> `JORNADA-DO-BARBEIRO.md` §3.2 — com um app só, das três razões sobra a segunda. Até você
+> decidir, vale o §2. Os estados do §5.2 têm substitutos propostos em
+> `JORNADA-DO-BARBEIRO.md` §3.1: `pending` → `trial` → `active`.
+>
 > Todas as afirmações sobre o código atual foram verificadas arquivo por arquivo
 > em 28/08/2026. Referências no formato `arquivo:linha` são literais.
 

@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-09-25.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-09-27.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -27,6 +27,7 @@
 | **24/09** | **Autoatendimento, com 7 dias grátis.** O dono se cadastra sozinho, recebe o painel na hora e escolhe entre três layouts de site. Substitui a montagem assistida (§4.8). Adiantou para o primeiro cadastro o prazo do contrato (§1.2), do domínio e da política de suporte (§1.4) | `PLANO-PRODUTIZACAO.md` §13 |
 | **24/09** | **Cartão no cadastro**, cobrado só depois dos 7 dias. **Três layouts** de site, com **as cores escolhidas pelo dono** (§1.3, §4.13) | `PLANO-PRODUTIZACAO.md` §13 |
 | **24/09** | **Fotos no painel, logo depois do cadastro** — galeria do site (o carrossel, a partir de 3 fotos) e foto de produto por barbearia; não no formulário do cadastro. Feito em 25/09 (§2.7) | `PLANO-PRODUTIZACAO.md` §13 |
+| **27/09** | **Layout e cores escolhidos no cadastro, antes do cartão** — o site já nasce com a cara que o dono escolheu. Rejeitado: escolher no painel, depois de entrar (§4.13) | `PLANO-PRODUTIZACAO.md` §13 e `JORNADA-DO-BARBEIRO.md` §2.4 |
 
 **Ainda pendente dentro dos itens acima:** registrar `barbearianoar.com.br` (estava
 livre em 30/08/2026, **não registrado**) e, se quiser segurar para SEO,
@@ -1389,6 +1390,13 @@ layouts**, e **as cores são dele**. Hoje o site tem **um** layout, a paleta "Da
 Industrial" de `src/styles/global.css`, e o que muda de uma barbearia para outra é a cor de
 destaque (§4.2, `lib/accent.ts`), o conteúdo e as fotos.
 
+**Onde a escolha acontece — decidido em 27/09/2026:** no cadastro, antes do cartão, no
+bloco "Sua marca" que o `/cadastrar` já tem. O site já nasce com o layout e a cor
+escolhidos. Rejeitado: escolher no painel, depois de entrar — o cadastro ficaria mais
+curto, mas o site nasceria no padrão e dependeria de o dono lembrar de trocar.
+Recomendado junto: pedir a frase do topo no mesmo bloco. Detalhe, com o efeito no
+medidor de completude, em `JORNADA-DO-BARBEIRO.md` §2.4.
+
 **"Estilo" quer dizer estrutura** — ordem e forma das seções, topo com ou sem foto. Foi a
 opção maior das duas que estavam na mesa: são três layouts para manter, testar e passar
 no contraste, para sempre. Rejeitada: estilo como paleta sobre a mesma estrutura, porque
@@ -1455,6 +1463,26 @@ e processar o mesmo pagamento duas vezes pode reativar uma barbearia suspensa.
 existe —, mas quem sabe a data de fim do teste é o banco da barbearia, e quem sabe se
 pagou é o outro aplicativo. A costura entre os dois é o primeiro desenho a fazer.
 
+**Conferido na documentação da Asaas em 27/09/2026 — não testado em sandbox**
+(`JORNADA-DO-BARBEIRO.md` §2.5):
+
+- O **Checkout**, a página de pagamento hospedada pela Asaas, aceita cartão com cobrança
+  recorrente e a primeira cobrança numa data futura — os 7 dias.
+- ⚠️ **A tokenização não resolve** o cartão fora do servidor, ao contrário do que o item
+  acima supunha: é uma chamada à API com os dados do cartão, autenticada pela chave da
+  conta, que não pode ir para o navegador. Sobra o Checkout.
+- **Três perguntas que a documentação não responde**, para o sandbox responder antes de
+  qualquer tela: que evento chega no dia do cadastro, se nada é cobrado nele; se o cartão
+  é validado no cadastro; e quais dados a página pede ao titular.
+
+**A costura, proposta em 27/09/2026 e pendente de você** (`JORNADA-DO-BARBEIRO.md` §3.1
+e `JORNADA-DO-BARBEIRO.md` §3.2): a barbearia nasce `pending` antes do cartão, o webhook a
+passa para `trial` com a data de fim, e uma limpeza devolve o endereço das pendentes com
+mais de 24 horas. E a pergunta de onde mora o código da cobrança — o aplicativo separado
+do `ARQUITETURA-COBRANCA-V1.md` §2 ou um módulo isolado no app da barbearia; a
+recomendação é o módulo, registrando a reversão. Junto com o teste, o painel precisa da
+contagem dos dias e do botão de cancelar.
+
 ### 4.15 🔴 `[TÉCNICO]` A landing e o `/onboarding` contam a história antiga
 
 **A landing.** Não é uma frase: é a tese da página. Conferido em 24/09/2026 em
@@ -1481,6 +1509,18 @@ rascunho pode ser meu.
 Antes de apagar, conferir se o SQLite dele tem envio de verdade: quem mandou dados e
 fotos por ali está esperando resposta.
 
+**Achado em 27/09/2026, desenhando a jornada** (`JORNADA-DO-BARBEIRO.md` §2.1 e
+`JORNADA-DO-BARBEIRO.md` §2.7):
+
+- **O cartão de preço também conta outra história:** *"avisando 30 dias"*
+  (`index.astro:250`), contra 7 dias grátis e cancelar pelo painel; *"Endereço próprio"*
+  (`index.astro:252`), que se lê como domínio dele; e o plano *"Anual, à vista"*
+  (`index.astro:262`), que o teste com cartão não comporta sem decisão. Recomendação:
+  tirar o anual da primeira versão e oferecê-lo no painel depois do 8º dia.
+- **O `/acessar`** (`apps/vendas/src/pages/acessar.astro:31`) pede o endereço do site e
+  diz que o painel mora nele — o modelo de um painel por barbearia. Com o painel central,
+  vira redirecionamento (`ARQUITETURA-MULTI-TENANT-V1.md` §8).
+
 ### 4.16 🔴 `[TÉCNICO]` Endereço escolhido e publicado sem revisão
 
 No autoatendimento, qualquer um escolhe o endereço e o que escreve, e vai ao ar na hora
@@ -1502,6 +1542,34 @@ rótulo de DNS válido (`lib/provisionarBarbearia.ts:210`) e se já existe
   status `suspended` já some com o site —, mas acioná-lo hoje é abrir o `psql`.
 - O primeiro a pegar o nome de uma barbearia de verdade, que ainda nem é cliente, fica
   com ele. Não tem conserto técnico barato; tem que caber no termo de uso (§1.2).
+
+### 4.17 🟠 `[DECISÃO]` Recuperação de senha — e o e-mail que o cadastro não pede
+
+Encontrado em 27/09/2026, desenhando a jornada do barbeiro (`JORNADA-DO-BARBEIRO.md` §2.2).
+
+**Não existe "esqueci minha senha".** Quem troca a senha de um dono hoje é você, rodando
+`scripts/set-admin-password.mjs` — o próprio script se apresenta como o caminho de suporte.
+E o cadastro não pede e-mail (`apps/barbearia/src/pages/api/cadastrar.ts:61-74`): não há
+para onde mandar link de troca, recibo ou aviso de cobrança.
+
+No autoatendimento, a senha criada às pressas no cadastro é a que ele esquece, e cada
+esquecimento vira um chamado — com o suporte tendo que caber em meia hora por cliente
+(§1.4).
+
+⚠️ **Até existir, a regra manual:** só troque a senha se o pedido vier **do próprio número
+de login**. Qualquer um pode mandar WhatsApp dizendo ser dono de uma barbearia; o número
+de login é a única prova que você tem. E trocar a senha **não derruba a sessão aberta** —
+a revogação ficou de sobra da onda 1 (§6).
+
+**Falta decidir o canal:**
+
+- **Código pelo WhatsApp** — é o login dele, e ele lê. Exige o serviço de envio que o
+  aviso antes de cobrar também exige (§1.3).
+- **Link por e-mail** — mais barato de construir, e ele pode nunca abrir. Põe um campo a
+  mais no cadastro.
+
+Recomendação: um canal só para as duas coisas, recuperação e aviso de cobrança — um para
+construir e manter, não dois.
 
 ---
 
@@ -1552,11 +1620,18 @@ No autoatendimento a porta abre sem ninguém olhando, então nada aqui é opcion
 
 *Decisões suas, que o código não substitui:* o termo aceito no cadastro, com a cláusula
 da cobrança do cartão (§1.2); o que acontece quando o cartão recusa (§1.3); a política de
-suporte escrita na tela (§1.4); o domínio (§0); e quantas cores o dono escolhe, e se o
-fundo é dele ou do layout (§4.13).
+suporte escrita na tela (§1.4); o domínio (§0); quantas cores o dono escolhe, e se o
+fundo é dele ou do layout (§4.13); e o canal da recuperação de senha (§4.17). Propostas
+em 27/09, também suas: o cartão antes de a barbearia existir, e onde mora o código da
+cobrança (§4.14).
 
-*Código, nesta ordem:*
+*Código, nesta ordem* — detalhada pelo caminho do barbeiro em
+`JORNADA-DO-BARBEIRO.md` §5:
 
+0. **Acrescentado em 27/09/2026:** a conta na Asaas e a prova no sandbox, antes de
+   qualquer código da onda. É o único ponto que pode desmentir o desenho do cartão
+   (`JORNADA-DO-BARBEIRO.md` §2.5). E abrir a conta não depende de código: se exigir CNPJ,
+   é prazo que corre por fora (`ARQUITETURA-COBRANCA-V1.md` §11) — melhor começar já.
 1. Os dois que já mordem hoje e tinham ficado fora de todas as ondas de 15/09: os
    centavos do preço (§2.15) e o combo em qualquer dia (§2.16). Junto, os três de 25/09
    que são uma linha cada: a semana do painel (§2.22), o login só com JSON (§2.23) e o
@@ -1564,11 +1639,15 @@ fundo é dele ou do layout (§4.13).
 2. O que todo cadastro encontra no primeiro minuto: a tela de agendar vazia (§4.9) e o
    passo inútil do barbeiro único (§2.2).
 3. Endereços reservados e um jeito de tirar do ar (§4.16).
-4. Os três layouts, com as cores do dono (§4.13).
+4. Os três layouts, com as cores do dono (§4.13) — escolhidos no cadastro, antes do
+   cartão (decisão de 27/09).
 5. O teste de 7 dias, a cobrança e a página de suspensão (§4.14 e §3.5) — dependem do
-   §1.3 e da conta na Asaas.
-6. A landing e a aposentadoria do `/onboarding` (§4.15) — por último de propósito: ela
-   descreve o produto pronto.
+   §1.3 e da conta na Asaas. Com eles, no painel, a contagem dos dias e o botão de
+   cancelar.
+   - **5b.** A recuperação de senha (§4.17) e o aviso antes de cobrar (§1.3), que usam o
+     mesmo canal.
+6. A landing, o `/acessar` e a aposentadoria do `/onboarding` (§4.15) — por último de
+   propósito: ela descreve o produto pronto.
 7. A página "Como fica" (§4.10) — as imagens têm que mostrar os três layouts, então vem
    depois deles.
 
