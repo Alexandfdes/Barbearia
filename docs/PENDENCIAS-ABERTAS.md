@@ -108,6 +108,12 @@ não pagou?** Nome, telefone e data de nascimento de clientes de terceiro, guard
 contrato vigente. Guardar para sempre é exposição; apagar cedo demais perde quem só
 esqueceu de pagar.
 
+⚠️ **27/09/2026 — o rodapé fingia que os textos existiam.** O site de toda barbearia mostrava
+"Termos de Uso" e "Políticas de Privacidade" apontando para `#`, num site que coleta nome e
+telefone. Os dois links saíram (`PENDENCIAS-ABERTAS.md` §2.28) e voltam quando os textos
+existirem, cada um com endereço próprio. Link que não leva a lugar nenhum é pior que link
+nenhum: parece que a política existe.
+
 ### 1.3 🔴 `[DECISÃO]` O que acontece quando não paga
 
 O gateway está escolhido, mas a política não. Hoje **não existe nada que suspenda uma
@@ -569,12 +575,12 @@ Os dois caminhos de **reagendamento** fazem certo (`formatInTimeZone`), o que mo
 
 </details>
 
-### 2.11 🔴 `[TÉCNICO]` Três lugares somam três horas à mão, dentro do navegador
+### 2.11 🔴 `[TÉCNICO]` Três horas somadas à mão — a agenda do dia saiu em 27/09/2026, falta o bloqueio
 
-`admin/bloqueios.astro:211`, `admin/dia/[date].astro:1385` e `:2018` (linhas conferidas em 25/09/2026):
+**O que sobra:** `admin/bloqueios.astro:211` (conferido em 27/09/2026):
 
 ```js
-new Date(Date.UTC(y, mo - 1, d, h + 3, min)).toISOString();
+return new Date(Date.UTC(y, mo - 1, d, h + 3, min)).toISOString();
 ```
 
 Fortaleza cravada no código que roda no celular do dono. Em Manaus, bloquear o almoço das
@@ -582,12 +588,32 @@ Fortaleza cravada no código que roda no celular do dono. Em Manaus, bloquear o 
 
 ⚠️ O horário das 12:00 continua sendo vendido no site. **O cliente agenda, chega, e o
 barbeiro está almoçando** — o pior modo de falha de uma agenda, porque ninguém percebe até
-alguém estar parado na porta. O terceiro lugar (mover agendamento) desloca o horário em uma
-hora e a API **aceita em silêncio**, porque o horário deslocado também é expediente válido.
+alguém estar parado na porta.
 
-⚠️ **`tests/timezone-unico.test.ts` não pega isto.** Ele procura a string `'America/...'`;
-aritmética `h + 3` passa livre. A guarda existente dá falsa sensação de que o fuso foi
-centralizado — ela cobre a constante, não a conta.
+**Não é trocar uma linha.** O script dessa tela usa `define:vars`, e o Astro entrega script
+assim do jeito que está, sem empacotar: `import` não funciona dentro dele, e o
+`lib/timezone.ts` não chega lá. O conserto é a conversão ir para o servidor — que já recebe a
+data e a hora — ou o script sair do `define:vars`.
+
+⚠️ **O mesmo erro fora do navegador**, achado em 27/09/2026: `lib/occupancy.ts:63` assume
+`-180` quando ninguém informa o fuso, e nenhum dos dois chamadores informa
+(`admin/dia/[date].astro:352` e `admin/relatorios.astro:251`). Fora do UTC−3, a ocupação sai
+deslocada: a faixa ociosa que a agenda sugere para promoção (`admin/dia/[date].astro:353`) e a
+ocupação do mês no relatório.
+
+⚠️ **`tests/timezone-unico.test.ts` não pega nenhum dos dois.** Ele procura a string
+`'America/...'`; a conta `h + 3` e o número `-180` passam livres. A guarda existente dá falsa
+sensação de que o fuso foi centralizado — ela cobre a constante, não a conta.
+
+**O que saiu em 27/09/2026:** os dois da agenda do dia — `admin/dia/[date].astro:1385` e
+`:2018`, na época — e um quarto lugar que não estava nesta lista: o rótulo da grade de mover,
+que desfazia a conta com `(h - 3 + 24) % 24` (`:2481`, na época). A conversão passou a ser
+`fromZonedTime` com o fuso da barbearia (`admin/dia/[date].astro:1420-1421`), usada pela grade
+de mover (`:2041`), pelo encaixe (`:2163`) e pela criação manual (`:2610-2611`); o rótulo, por
+`formatInTimeZone` (`:2504`). Fora do UTC−3, o de mover era o pior: deslocava o horário em uma
+hora e a API aceitava em silêncio, porque o horário deslocado também era expediente válido.
+Guarda nova: `tests/grade-de-horarios.test.ts:85` reprova `h + 3` e `h - 3 + 24` — **naquele
+arquivo só**.
 
 ### 2.12 ✅ `[TÉCNICO]` XSS armazenado pelo nome da barbearia — RESOLVIDO em 22/09/2026
 
@@ -693,7 +719,35 @@ duas.
 
 </details>
 
-### 2.15 🟠 `[TÉCNICO]` Editar o nome de um serviço apaga os centavos do preço
+### 2.15 ✅ `[TÉCNICO]` Editar o nome de um serviço apaga os centavos do preço — RESOLVIDO em 27/09/2026
+
+**O que mudou:** preço passou a ter uma função só para aparecer e uma só para ser lido do
+campo, as duas em `lib/dinheiro.ts`.
+
+- `reais(centavos)` (`lib/dinheiro.ts:16`) mostra **R$ 39,90** quando há centavos e **R$ 40**
+  quando não há, como o site sempre mostrou. Passam por ela o site
+  (`components/Services.astro`), o agendamento (`agendar.astro`), a confirmação
+  (`a/[token].astro:70-72`), a área do cliente (`cliente/index.astro:103`) e o painel — início,
+  reservas, agenda do dia, relatórios e a lista de agendamentos
+  (`api/admin/appointments/index.ts:81`).
+- `centavosDoCampo(valor)` (`lib/dinheiro.ts:33`) aceita *"39,90"*, *"39.90"* e *"40"*; o que
+  não é número vira `NaN`, e quem chama decide a mensagem. A tela de serviços mostra `39.90` no
+  campo (`admin/servicos.astro:52`), com passo de centavo no de criar e no de editar (`:98`,
+  `:232`), e salvar e criar passam por ela (`:386`, `:429`).
+
+Guarda: `tests/dinheiro.test.ts` — os casos das duas funções e uma varredura que reprova, em
+todo `.astro` e `.ts` do app, os quatro jeitos de arredondar que existiam (`toFixed(0)`,
+`Math.round(c / 100)`, `maximumFractionDigits: 0` e `parseInt(…) * 100`), com um caso de
+controle provando que os quatro pegam as linhas antigas. Fica de fora `lib/combo.ts`, que
+calcula o desconto em centavos — é conta, não exibição.
+
+**Visto ao vivo em 27/09/2026**, na máquina do dono: o "Corte + barba" de R$ 39,90 aparecia
+**R$ 40** no site, no agendamento, na confirmação e na agenda do dia — o arredondamento não era
+só do site, como esta seção dizia. Depois do conserto, conferido com o build de produção num
+navegador: R$ 39,90 nas quatro telas, renomear o serviço manteve os 3990 centavos, e um serviço
+novo de 29,90 gravou 2990.
+
+<details><summary>O defeito, como estava</summary>
 
 `admin/servicos.astro:50`, `:231`, `:383` (linhas conferidas em 25/09/2026):
 
@@ -712,6 +766,8 @@ Os produtos fazem certo (`api/admin/products/index.ts:53-57`, com `parseFloat` e
 **E o site arredonda por conta própria** (conferido em 25/09/2026):
 `components/Services.astro:32` mostra `R$ ${Math.round(c / 100)}` — o serviço de R$ 39,90
 aparece como **R$ 40**. O site anuncia um preço que não é o cobrado.
+
+</details>
 
 ### 2.16 🟠 `[TÉCNICO]` O desconto do combo vale em qualquer dia da semana
 
@@ -880,6 +936,143 @@ escreve **"Combo Boris"** — o nome do combo do Bayron — no resumo de toda ba
 tiver combo. Nome de produto com `<` ou `&` quebra o resumo; com HTML, executa no site da
 própria barbearia (quem cadastra o produto é o dono dela). Correção: escapar e usar o nome
 do combo que a tela já carrega.
+
+### 2.25 ✅ `[TÉCNICO]` O WhatsApp de toda barbearia nova chamava um número do Vietnã — RESOLVIDO em 27/09/2026
+
+**Achado ao vivo** em 27/09/2026, no primeiro teste de ponta a ponta na máquina do dono: o
+botão do site abriu *"Conversar com +84 99 665 89 51"*.
+
+O `/cadastrar` gravava o número da loja com 10 ou 11 dígitos, **sem o 55**, e o `waUrl()`
+(`lib/settings.ts`) punha o número cru no `wa.me/` — sem o código do país, o wa.me lê o DDD
+como país, e 84 é o Vietnã. Toda barbearia criada pelo cadastro nascia assim, e todo botão de
+WhatsApp do site usava esse número: o rodapé, a localização, a barra flutuante, a página do
+agendamento (`a/[token].astro`) e o link que a API devolve
+(`api/appointments/by-token/[token].ts`). O `schema.org` publicava `+84996658951` para o
+Google. **E o teste travava o defeito:** `tests/cadastro.test.ts` esperava `'84999990000'`. O
+próprio painel pede o número com o 55 (`admin/configuracoes.astro:51`, *"Ex: 5584999051196"*)
+— o cadastro não seguia a regra do painel.
+
+**O que mudou, dos dois lados:**
+
+- **Gravar:** o cadastro grava o número da loja com o 55 (`lib/provisionarBarbearia.ts:303`,
+  `:330`). O telefone de login continua sem ele — é outra regra (`PENDENCIAS-ABERTAS.md` §1.5).
+- **Ler:** `numeroDaLojaInternacional()` (`lib/settings.ts:221`) completa o 55 de quem está
+  gravado sem ele, e é por ela que passam o `waUrl()` (`lib/settings.ts:200-205`) e o
+  `schema.org` (`layouts/Layout.astro:85`). **Isso conserta as barbearias que já existem, sem
+  migration de dado.** Número que não passa na regra brasileira fica como está — o botão não
+  some.
+- **Mostrar:** o telefone escrito no rodapé sai formatado, *"(84) 99665-8951"*, por
+  `formatarTelefone()` (`lib/phone.ts:30`) — antes saía como digitado, *"84996658951"*.
+
+⚠️ **Barbearia criada antes de 27/09 continua com o telefone do rodapé como foi digitado**,
+até o dono editar o campo em Configurações: a formatação acontece no cadastro, não na
+leitura. Os botões já saem certos.
+
+Guarda: `tests/whatsapp-da-loja.test.ts` (12 casos, com controle de que o bloco do
+`schema.org` existe) e `tests/cadastro.test.ts`, que passou a esperar `'5584999990000'` e
+`'(84) 99999-0000'`. Não confundir com o `PENDENCIAS-ABERTAS.md` §2.6, que é o **conteúdo** do
+campo no banco do Bayron.
+
+### 2.26 ✅ `[TÉCNICO]` O nome, o endereço e a foto do Bayron em toda barbearia — RESOLVIDO em 27/09/2026
+
+**Achado ao vivo** no mesmo teste: numa barbearia chamada "Barbearia Teste", o lembrete da
+agenda saiu *"Olá joao, aqui da Barbearia Bayron — lembrando do seu horário dia 28/09 às
+09:00"*, com a prévia na tela, pronta para mandar. O teste mostrou também o slogan fixo no
+rodapé; procurando a mesma família no código, apareceram mais cinco lugares. Nenhum estava no
+`PENDENCIAS-ABERTAS.md` §4.7 — lá estão as comparações com `"Bayron"`; aqui o nome e o
+endereço estavam **escritos**, sem comparação nenhuma:
+
+| Onde | O que saía em toda barbearia | Agora |
+|---|---|---|
+| Lembrete do WhatsApp na agenda do dia | *"aqui da Barbearia Bayron"* (`lib/whatsapp.ts:60`, na época) | assinado com o nome da barbearia da agenda (`lib/whatsapp.ts:57-65`, chamado em `admin/dia/[date].astro:1616`) |
+| Endereço canônico, `og:url`, e o `@id` e o `url` do `schema.org` | `https://bayron.alexandrefdev.tech`, a constante `SITE_URL` de `config.ts` | o endereço da barbearia servida (`lib/tenant.ts:249-253`): domínio próprio, subdomínio do produto ou, em desenvolvimento, o da requisição. Usado em `layouts/Layout.astro:27-28` e `components/Testimonials.astro:16` |
+| Prévia do link (`og:image`) | a foto do Bayron (`/og.jpg`), no link de quem não subiu imagem | a imagem de compartilhamento da barbearia, senão a capa dela; sem nenhuma das duas, sem imagem. O `/og.jpg` só no site do Bayron (`layouts/Layout.astro:37-40`) |
+| Convite de calendário | link e identificador em `bayron.alexandrefdev.tech`, arquivo `bayron-….ics` | o endereço da barbearia (`api/appointments/by-token/[token]/ics.ts:69-70`), arquivo `agendamento-….ics` (`api/appointments/by-token/[token]/ics.ts:76`) |
+| `/portal`, `/cliente/entrar` e `/cliente` | *"Barbearia Bayron"* no título da aba, na descrição e no topo | o nome da barbearia (`portal.astro:21`, `cliente/entrar.astro:27`, `cliente/index.astro:26`) |
+| Relatório impresso | *"Barbearia Bayron — Relatório"*, com a logo dele | o nome e a logo da barbearia; a logo empacotada, só no Bayron (`admin/relatorios.astro:28-30`, `admin/relatorios.astro:335-337`) |
+| Rodapé do site | o slogan *"Respeito e precisão em cada detalhe."* | só no site do Bayron (`components/Footer.astro:196-198`) |
+
+⚠️ **O custo aceito:** para o Bayron continuar com a foto de prévia e a logo do relatório,
+entraram duas comparações novas com `"Bayron"` — `layouts/Layout.astro:37` e
+`admin/relatorios.astro:30`. É o padrão que o `PENDENCIAS-ABERTAS.md` §4.7 quer eliminar, e
+ele passou de oito para dez lugares. Quando o §4.7 for feito, estas duas entram na mesma
+função.
+
+Guarda: `tests/endereco-do-site.test.ts` — o endereço de cada caso (domínio próprio,
+subdomínio, desenvolvimento, sem barbearia) e varreduras que reprovam importar uma constante de
+endereço, o domínio do Bayron escrito em qualquer arquivo, *"Barbearia Bayron"* no código de
+qualquer tela e o `/og.jpg` fora da comparação, com controle de que a varredura encontra os
+arquivos. E `tests/whatsapp.test.ts`: as mensagens assinam com o nome que recebem, sem nome não
+inventam um, e a agenda passa o dela.
+
+### 2.27 ✅ `[TÉCNICO]` A agenda do dia vivia num expediente fixo de 08:00 às 19:00 — RESOLVIDO em 27/09/2026
+
+**Achado ao vivo** no mesmo teste: a barbearia abre às 09:00, a grade de "Mover horário"
+ofereceu 08:00, e a API recusou — *"Horário fora do expediente do barbeiro"*
+(`api/admin/appointments/[id]/reschedule.ts:96`). O dono escolhe um horário que a própria tela
+ofereceu e recebe erro. A grade era fixa: `START_HOUR = 8` e *"entre 08:00 e 19:00"*
+(`admin/dia/[date].astro:18` e `:2008-2009`, na época). O contrário também valia: barbearia
+que fecha às 21:00 não conseguia mover para depois das 19:00 pelo painel. E o cabeçalho
+*"08:00 → 19:00"* da agenda vinha da mesma constante.
+
+**O que mudou:** `lib/gradeDeHorarios.ts` monta a grade a partir do expediente **do barbeiro**
+no dia da semana escolhido — de 15 em 15 minutos, dentro de cada janela, com o atendimento
+inteiro cabendo antes do fechamento e o almoço de fora no turno partido. A página lê o
+expediente da barbearia (`admin/dia/[date].astro:398-406`) e a grade sai dele (`:2032`); dia
+sem expediente diz *"O barbeiro não trabalha neste dia."* (`:2034`). O cabeçalho e o "Dia
+livre" mostram o expediente real, ou *"Sem expediente neste dia"* (`:614`, `:626-628`). E a
+conversão do horário escolhido deixou de somar três horas à mão
+(`PENDENCIAS-ABERTAS.md` §2.11).
+
+**E um quarto efeito da mesma constante**, achado escrevendo este registro: **bloqueio fora de
+08:00–19:00 sumia da agenda do dia.** A lista descartava o bloqueio sem altura na linha do
+tempo fixa — linha do tempo que nem existe mais na tela. Visto rodando: o bloqueio das 19:30 às
+20:30 era gravado e não aparecia na lista. Num dia sem agendamento, a tela ainda diria
+*"Nenhum agendamento para este dia · Dia livre"* com a noite bloqueada — isso lido no código,
+não visto. Agora a lista mostra todo bloqueio que toca o dia
+(`admin/dia/[date].astro:268-269`).
+
+Conferido depois, com o build de produção num navegador: grade de 09:00 a 18:00 num
+expediente de 09:00 às 19:00, para um serviço de 60 minutos; mover para 09:15 gravou 12:15
+UTC; e o bloqueio das 19:30 aparece.
+
+⚠️ **O que não mudou:** a grade não conhece os outros agendamentos nem os bloqueios — nunca
+conheceu. Horário ocupado aparece como livre, e o servidor recusa ao confirmar. O próximo
+passo natural é a grade sair do mesmo cálculo de vagas do site.
+
+⚠️ **Mesma família, não consertado:** o gráfico por hora do relatório conta só os atendimentos
+que começam entre 09:00 e 19:59 (`admin/relatorios.astro:17-18`, `:124`) — o das 08:00 ou o
+das 20:00 some do gráfico, sem aviso. E a constante continua no topo da agenda
+(`admin/dia/[date].astro:21-23`), alimentando cálculos que a tela não usa mais: a linha do
+"agora" e as linhas de hora da linha do tempo antiga.
+
+Guarda: `tests/grade-de-horarios.test.ts` — a grade começa na abertura, termina a tempo,
+alcança a noite, respeita o turno partido e o dia de folga; e a página usa o expediente, não
+volta a cravar 08:00 → 19:00 nem a descartar o bloqueio pela linha do tempo (`:78`).
+
+### 2.28 ✅ `[TÉCNICO]` Três textos que diziam o que não é — RESOLVIDO em 27/09/2026
+
+Achados no mesmo teste. Nenhum quebra nada; os três fazem o dono ou o cliente acreditar numa
+coisa falsa.
+
+1. **Configurações dizia que a frase do topo era ignorada.** *"Frase de efeito — Guardada para
+   uso futuro — o topo do site ainda não lê daqui"* e *"Texto abaixo do título — Idem"*
+   (`admin/configuracoes.astro:39-40`, na época). Mas o topo usa os dois — a frase
+   **substitui** o título grande e o texto vira o subtítulo (`components/Hero.astro:27-28`) —,
+   e o medidor do próprio painel diz o contrário: *"É a primeira coisa que o cliente lê"*
+   (`lib/completude.ts:129`). Quem acredita no aviso deixa o topo genérico. Agora: *"Frase do
+   topo"* e *"Texto abaixo da frase"*, com o aviso verdadeiro
+   (`admin/configuracoes.astro:43-44`) — o mesmo nome que o medidor cobra. E o exemplo do nome
+   curto deixou de ser *"Bayron"* (`admin/configuracoes.astro:38`).
+2. **O rodapé tinha "Termos de Uso" e "Políticas de Privacidade" apontando para `#`**, num
+   site que coleta nome e telefone. Saíram até os textos existirem
+   (`PENDENCIAS-ABERTAS.md` §1.2); o comentário no lugar diz por quê
+   (`components/Footer.astro:189-192`).
+3. **"1 agendamento considerados"** na agenda do dia — agora concorda
+   (`admin/dia/[date].astro:575`, `:1528`).
+
+Guarda: `tests/textos-do-painel.test.ts`, com controle de que o topo do site lê os dois campos
+— sem ele, o caso do aviso passaria mesmo se o topo parasse de ler.
 
 ---
 
@@ -1256,6 +1449,12 @@ a comparação decide agora só o avatar do cartão do Instagram (o logo empacot
 barbearia não subiu o dela); as fotos vêm da tabela `gallery_images` de cada barbearia
 (migration 0005). Continuam oito componentes com a comparação.
 
+⚠️ **Atualizado em 27/09/2026: agora são dez lugares.** O conserto do
+`PENDENCIAS-ABERTAS.md` §2.26 tirou o nome e o endereço do Bayron de toda barbearia; para o
+Bayron continuar com a foto de prévia e a logo do relatório impresso, entraram duas
+comparações novas: `layouts/Layout.astro:37` e `admin/relatorios.astro:30`. Custo aceito de
+propósito — as duas entram na mesma função quando este item for feito.
+
 ### 4.8 ✅ `[DECISÃO]` Dois caminhos para a barbearia nascer — DECIDIDO em 24/09/2026
 
 **Autoatendimento, com 7 dias grátis e cartão no cadastro.** O dono se cadastra sozinho,
@@ -1615,6 +1814,13 @@ requisição (§2.19) e a agenda do dia sem resposta (§2.20). Os dois derrubari
 migração, e nenhum aparecia na suíte. Junto, o guarda de escopo por consulta (§2.18) e a
 foto de celular (§2.21). Abertos no mesmo dia, para as ondas abaixo: §2.22, §2.23 e §2.24.
 
+**Achados de 27/09/2026, no primeiro teste de ponta a ponta na máquina do dono, ✅ já
+consertados:** o WhatsApp de toda barbearia nova (§2.25), o nome e o endereço do Bayron
+(§2.26), a agenda do dia presa em 08:00–19:00 (§2.27) e três textos falsos (§2.28). Com eles
+saíram os centavos (§2.15, do item 1 da onda 2) e os dois `+ 3` da agenda do dia (§2.11).
+Registrados no mesmo dia e não consertados: o `+ 3` do bloqueio e o `-180` da ocupação
+(§2.11), e o gráfico por hora do relatório (§2.27).
+
 **Onda 2 — antes de abrir o cadastro público.**
 No autoatendimento a porta abre sem ninguém olhando, então nada aqui é opcional.
 
@@ -1632,8 +1838,8 @@ cobrança (§4.14).
    qualquer código da onda. É o único ponto que pode desmentir o desenho do cartão
    (`JORNADA-DO-BARBEIRO.md` §2.5). E abrir a conta não depende de código: se exigir CNPJ,
    é prazo que corre por fora (`ARQUITETURA-COBRANCA-V1.md` §11) — melhor começar já.
-1. Os dois que já mordem hoje e tinham ficado fora de todas as ondas de 15/09: os
-   centavos do preço (§2.15) e o combo em qualquer dia (§2.16). Junto, os três de 25/09
+1. Os dois que já mordem hoje e tinham ficado fora de todas as ondas de 15/09:
+   ~~os centavos do preço (§2.15)~~ — ✅ feito em 27/09 — e o combo em qualquer dia (§2.16). Junto, os três de 25/09
    que são uma linha cada: a semana do painel (§2.22), o login só com JSON (§2.23) e o
    resumo do combo (§2.24).
 2. O que todo cadastro encontra no primeiro minuto: a tela de agendar vazia (§4.9) e o
@@ -1652,8 +1858,9 @@ cobrança (§4.14).
    depois deles.
 
 **Onda 3 — antes do primeiro cliente fora do UTC-3.** *(Era a onda 2 em 15/09.)*
-Os três `+ 3` do navegador (§2.11), o teste de fuso passando a pegar aritmética de offset, e a
-coluna `timezone` por barbearia (§2.1).
+O `+ 3` que sobrou no navegador e o `-180` da ocupação (§2.11) — os dois da agenda do dia
+saíram em 27/09 —, o teste de fuso passando a pegar aritmética de offset, e a coluna
+`timezone` por barbearia (§2.1).
 
 
 0. ~~**Limpar o seed das migrations** (`PENDENCIAS-ABERTAS.md` §4.6)~~ — **sem objeto desde
