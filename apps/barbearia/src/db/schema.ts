@@ -205,6 +205,21 @@ export const reservations = pgTable('reservations', {
   index('reservations_status_idx').on(table.status),
 ]);
 
+// Galeria do site — o carrossel "Portfólio". Fotos que o dono sobe pelo painel.
+// `path` é o endereço público do original (`urlDeMidia('galeria', ...)`), e
+// `widths` as larguras de WebP que existem ao lado dele: o srcset só lista o que
+// existe. Ver `src/lib/galeria.ts` e a migration 0005.
+export const galleryImages = pgTable('gallery_images', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
+  path: text('path').notNull(),
+  widths: integer('widths').array().notNull().default(sql`'{}'::integer[]`),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
+}, (table) => [
+  index('gallery_images_tenant_sort_idx').on(table.tenantId, table.sortOrder),
+]);
+
 // Configuração da barbearia — LINHA ÚNICA, sempre id = 1.
 // Colunas tipadas em vez de chave-valor: ver ARQUITETURA-PRODUTO-V1 D2. O custo
 // aceito é uma migration por configuração nova.

@@ -1,9 +1,10 @@
 ---
 import { TOPSALAO_URL } from '../config';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '../db/index';
 import { services as servicesTable } from '../db/schema';
 import { getSettings } from '../lib/settings';
+import { tenantAtual } from '../lib/tenant';
 
 const cfg = await getSettings();
 
@@ -24,7 +25,8 @@ const BAYRON = cfg.shortName === "Bayron";
 const doBanco = BAYRON ? [] : await db
   .select({ name: servicesTable.name, slug: servicesTable.slug, priceCents: servicesTable.priceCents })
   .from(servicesTable)
-  .where(eq(servicesTable.active, true))
+  // Filtro por barbearia na aplicação, além do RLS — ver a nota em Products.astro.
+  .where(and(eq(servicesTable.active, true), eq(servicesTable.tenantId, tenantAtual().id)))
   .orderBy(servicesTable.name);
 
 const reais = (c: number) => `R$ ${Math.round(c / 100)}`;

@@ -67,12 +67,12 @@ export const POST: APIRoute = async ({ request }) => {
   let image: string | null = null;
   const file = form.get('image');
   if (file && file instanceof File && file.size > 0) {
-    const res = await saveProductImage(file);
+    const res = await saveProductImage(file, tenant);
     if ('error' in res) return json({ error: res.error }, 400);
     image = res.path;
   }
 
-  const sorts = await db.select({ s: combos.sortOrder }).from(combos);
+  const sorts = await db.select({ s: combos.sortOrder }).from(combos).where(eq(combos.tenantId, tenant.id));
   const nextSort = (sorts.length ? Math.max(...sorts.map(r => r.s)) : 0) + 1;
 
   const result = await db.insert(combos).values({ tenantId: tenant.id,

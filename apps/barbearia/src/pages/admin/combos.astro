@@ -25,6 +25,7 @@ const list = (await db.select({
   .from(combos)
   .leftJoin(services, eq(services.id, combos.serviceId))
   .leftJoin(products, eq(products.id, combos.productId))
+  .where(eq(combos.tenantId, tenant.id))
   .orderBy(combos.sortOrder, combos.id));
 
 const serviceOpts = (await db.select({ id: services.id, name: services.name }).from(services).where(and(eq(services.active, true), eq(services.tenantId, tenant.id))).orderBy(services.name));

@@ -251,6 +251,24 @@ function protocoloDe(host: string): 'http' | 'https' {
   return /^(localhost|127\.0\.0\.1|\[::1\])(:|$)/i.test(host) ? 'http' : 'https';
 }
 
+/**
+ * O tenant que o middleware resolveu para ESTA requisição — sessão primeiro,
+ * endereço depois —, ou `null` quando ele não achou nenhum.
+ *
+ * ⚠️ Diferente de `tenantAtual()`, NUNCA cai num padrão. Para quem serve arquivo,
+ * é a diferença entre responder 404 e entregar a mídia da barbearia 1 num
+ * endereço que não é de ninguém.
+ *
+ * Existe por causa do painel. As rotas de arquivo olhavam só o endereço
+ * (`tenantDoHost`), e o painel mora num endereço central, que não é de barbearia
+ * nenhuma: a prévia da logo e da capa dava 404 em produção, para todo mundo. No
+ * desenvolvimento isso não aparecia, porque a barbearia 1 tem o domínio
+ * `localhost` — e o painel também roda em `localhost`.
+ */
+export function tenantResolvido(): Tenant | null {
+  return (armazemTenant.getStore()?.tenant as Tenant | undefined) ?? null;
+}
+
 export function tenantAtual(): Tenant {
   const doContexto = armazemTenant.getStore()?.tenant;
   if (doContexto) return doContexto as Tenant;

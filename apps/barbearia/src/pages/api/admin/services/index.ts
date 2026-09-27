@@ -27,6 +27,13 @@ export const GET: APIRoute = async ({ request, url }) => {
 
   const includeInactive = url.searchParams.get('all') === 'true' && session.role === 'admin';
 
+  // Inativos só para o dono que pediu. Só os desta barbearia, sempre — fora do
+  // ramo, para nenhum esquecê-lo.
+  const filtroServicos = and(
+    eq(services.tenantId, tenant.id),
+    includeInactive ? undefined : eq(services.active, true),
+  );
+
   const baseQuery = db
     .select({
       id:         services.id,
@@ -41,11 +48,10 @@ export const GET: APIRoute = async ({ request, url }) => {
     .leftJoin(
       barberServices,
       and(eq(barberServices.serviceId, services.id), eq(barberServices.barberId, session.barberId))
-    );
+    )
+    .where(filtroServicos);
 
-  const rows = includeInactive
-    ? await baseQuery.orderBy(services.name)
-    : await baseQuery.where(and(eq(services.active, true), eq(services.tenantId, tenant.id))).orderBy(services.name);
+  const rows = await baseQuery.orderBy(services.name);
 
   return json(rows);
 };

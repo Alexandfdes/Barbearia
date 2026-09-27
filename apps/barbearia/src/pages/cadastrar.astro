@@ -324,9 +324,9 @@ if (process.env.CADASTRO_ABERTO !== '1') {
         const pronto = $('pronto');
         pronto.innerHTML =
           '<p style="margin:0 0 10px"><strong>Pronto. A sua barbearia existe.</strong></p>' +
-          `<p style="margin:0 0 10px">Entre no painel com o WhatsApp <code>${dados.telefoneLogin}</code> e a senha que você acabou de escolher.</p>` +
+          `<p style="margin:0 0 10px">Você já está dentro do painel. Da próxima vez, entre com o WhatsApp <code>${dados.telefoneLogin}</code> e a senha que acabou de escolher.</p>` +
           (dados.avisos?.length ? `<p style="margin:0 0 10px">⚠️ ${dados.avisos[0]}</p>` : '') +
-          '<p style="margin:0"><a href="/admin/login">Ir para o painel</a></p>';
+          '<p style="margin:0"><a href="/admin">Abrir o meu painel</a></p>';
         pronto.hidden = false;
       } catch {
         erro.textContent = 'Não consegui falar com o servidor.';

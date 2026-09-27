@@ -130,7 +130,7 @@ const allBarbers = session.role === 'admin'
 // Map id→nome de TODOS os barbeiros (ativos + inativos), pra mostrar quem modificou
 // mesmo que tenha sido um barbeiro hoje desativado
 const barberNameById = new Map<number, string>(
-  (await db.select({ id: barbers.id, name: barbers.name }).from(barbers)).map(b => [b.id, b.name])
+  (await db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(eq(barbers.tenantId, tenant.id))).map(b => [b.id, b.name])
 );
 
 // Bloqueios (time_off) que tocam o dia. Filtra por barbeiro respeitando a regra:
@@ -394,6 +394,9 @@ const clientData = {
   totalHours:        TOTAL_HOURS,
   salesCents,
   products:          productListForSale,
+  // O fuso vai para o navegador por aqui, e não por `define:vars` — ver o
+  // comentário no <script> lá embaixo.
+  tz:                TZ,
 };
 ---
 
@@ -1167,15 +1170,26 @@ const clientData = {
 
 </AdminLayout>
 
-<script define:vars={{ TZ }}>
-  // ⚠️ `TZ` vem do servidor por `define:vars` — este bloco roda no NAVEGADOR e
-  // não enxerga variável de ambiente. Cravar o fuso aqui faria a tela do painel
-  // discordar do que o servidor gravou no banco (`lib/timezone.ts`).
+<script>
+  // ⚠️ ESTE BLOCO JÁ FOI `<script define:vars={{ TZ }}>` — E A AGENDA INTEIRA PAROU.
+  //
+  // `define:vars` transforma o script em `is:inline`: o Astro deixa de processá-lo
+  // e o navegador recebe o texto cru. Este bloco tem `import` e é TypeScript
+  // (`as HTMLElement`, `!`, parâmetros tipados) — cru, nenhuma das duas coisas é
+  // JavaScript válido. O navegador recusava o bloco INTEIRO ("Cannot use import
+  // statement outside a module"): calendário, botões de WhatsApp, comanda, venda,
+  // concluir atendimento — nada respondia. Achado em 25/09/2026 abrindo a tela
+  // no navegador; nenhum teste abria. `tests/scripts-inline.test.ts` agora vigia.
+  //
+  // O fuso continua vindo do servidor — o navegador não enxerga variável de
+  // ambiente, e cravar aqui faria a tela discordar do banco (`lib/timezone.ts`) —,
+  // só que pelo mesmo caminho do resto dos dados: `clientData.tz`.
   import { waPhone, waLink, buildWaMessages } from '../../../lib/whatsapp';
 
   const container = document.getElementById('admin-data-container')!;
   const clientData = JSON.parse(container.dataset.client!);
   const { date, role, sessionBarberId, filterBarberId, allBarbers } = clientData;
+  const TZ: string = clientData.tz;
 
   // ─── Calendário custom ──────────────────────────────────────────────────────
   (function setupCalendar() {

@@ -24,6 +24,14 @@ export const GET: APIRoute = async ({ request }) => {
   if (!session) return json({ error: 'Não autenticado' }, 401);
   const tenant = tenantDaSessao(session);
 
+  // Só os desta barbearia, sempre. Dentro dela, o dono vê os de todo mundo e o
+  // barbeiro vê os dele e os da casa (barber_id NULL). O filtro da barbearia fica
+  // FORA do ramo por papel de propósito: não tem como um ramo esquecê-lo.
+  const filtroBloqueios = and(
+    eq(timeOff.tenantId, tenant.id),
+    session.role === 'admin' ? undefined : or(eq(timeOff.barberId, session.barberId), isNull(timeOff.barberId)),
+  );
+
   const baseQuery = db
     .select({
       id:        timeOff.id,
@@ -35,13 +43,10 @@ export const GET: APIRoute = async ({ request }) => {
       createdAt: timeOff.createdAt,
     })
     .from(timeOff)
-    .leftJoin(barbers, eq(barbers.id, timeOff.barberId));
+    .leftJoin(barbers, eq(barbers.id, timeOff.barberId))
+    .where(filtroBloqueios);
 
-  const rows = session.role === 'admin'
-    ? await baseQuery.orderBy(timeOff.startsAt)
-    : await baseQuery
-        .where(and(or(eq(timeOff.barberId, session.barberId), isNull(timeOff.barberId)), eq(timeOff.tenantId, tenant.id)))
-        .orderBy(timeOff.startsAt);
+  const rows = await baseQuery.orderBy(timeOff.startsAt);
 
   const now = new Date();
   return json(rows.map(r => ({

@@ -6,14 +6,18 @@
 // ⚠️ A CONTAGEM é feita aqui, no servidor, só para decidir se a seção existe.
 // A maioria das barbearias não vende nada, e o cabeçalho sozinho com uma grade
 // vazia é a "seção meia-boca" que o `PENDENCIAS-ABERTAS.md` §4.1 proíbe.
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '../db/index';
 import { products } from '../db/schema';
 import { getSettings } from '../lib/settings';
+import { tenantAtual } from '../lib/tenant';
 
 const s = await getSettings();
+// ⚠️ O filtro por barbearia é a parede da aplicação; o RLS é a segunda. Esta
+// consulta ficou sem ele até 24/09/2026 porque o guarda de escopo não varria
+// `src/components/` — ver `tests/escopo-rotas.test.ts`.
 const temProduto = (await db.select({ id: products.id }).from(products)
-  .where(eq(products.active, true))).length > 0;
+  .where(and(eq(products.active, true), eq(products.tenantId, tenantAtual().id)))).length > 0;
 
 const BAYRON = s.shortName === "Bayron";
 ---

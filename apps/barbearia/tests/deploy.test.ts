@@ -47,10 +47,22 @@ describe('a imagem tem o que o app precisa em produção', () => {
 
     const doApp = readFileSync('src/lib/uploads.ts', 'utf8').match(regra);
     const doBackup = readFileSync('scripts/backup.mjs', 'utf8').match(regra);
+    // O importador da galeria do Bayron (25/09/2026) grava no mesmo volume.
+    const doImportador = readFileSync('scripts/importar-galeria-bayron.mjs', 'utf8').match(regra);
 
     expect(doApp, 'src/lib/uploads.ts precisa resolver UPLOAD_ROOT com essa regra').not.toBeNull();
     expect(doBackup, 'scripts/backup.mjs precisa resolver UPLOAD_ROOT com essa regra').not.toBeNull();
+    expect(doImportador, 'scripts/importar-galeria-bayron.mjs precisa resolver UPLOAD_ROOT com essa regra').not.toBeNull();
     expect([doBackup![1], doBackup![2]]).toEqual([doApp![1], doApp![2]]);
+    expect([doImportador![1], doImportador![2]]).toEqual([doApp![1], doApp![2]]);
+  });
+
+  it('a imagem leva as fotos do carrossel do Bayron para o importador achar', () => {
+    // Sem esta cópia, `node scripts/importar-galeria-bayron.mjs` no container
+    // não acha as fotos (o `src/` não entra na imagem) e o site do Bayron fica
+    // sem galeria depois da migração.
+    expect(dockerfile).toMatch(/COPY --from=build \/app\/src\/assets\/fotos-videos\/carrosel\*\.jpg \.\/seed\/galeria-bayron\//);
+    expect(readFileSync('scripts/importar-galeria-bayron.mjs', 'utf8')).toMatch(/'seed\/galeria-bayron'/);
   });
 
   it('o backup empacota as fotos — o banco sozinho não devolve a barbearia', () => {
@@ -157,14 +169,14 @@ describe('a suíte roda na máquina de quem não tem banco', () => {
     const raiz = JSON.parse(readFileSync('../../package.json', 'utf8'));
     const PRECISAM_ESTAR_NA_RAIZ = [
       'dev', 'build', 'test', 'test:db', 'test:watch',
-      'db:migrate', 'db:provisionar', 'db:seed-bayron',
+      'db:migrate', 'db:provisionar', 'db:seed-bayron', 'db:galeria-bayron',
     ];
     const faltando = PRECISAM_ESTAR_NA_RAIZ.filter((c) => !raiz.scripts?.[c]);
     expect(faltando).toEqual([]);
 
     // Delegar sem o `--` no fim engole os argumentos: `npm run db:provisionar --
     // --slug=x` chegaria no script sem o `--slug`.
-    const comArgumentos = ['test:db', 'test:watch', 'db:migrate', 'db:provisionar', 'db:seed-bayron'];
+    const comArgumentos = ['test:db', 'test:watch', 'db:migrate', 'db:provisionar', 'db:seed-bayron', 'db:galeria-bayron'];
     const semTraco = comArgumentos.filter((c) => !/--\s*"?$/.test(raiz.scripts[c]));
     expect(semTraco).toEqual([]);
 
