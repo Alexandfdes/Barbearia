@@ -4,7 +4,7 @@ import type { APIRoute } from 'astro';
 import { readFile } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { pastaDeMidia, TIPOS_MIDIA, safeUploadName, type TipoMidia } from '../../../lib/uploads.js';
-import { tenantDoHost } from '../../../lib/tenant.js';
+import { tenantResolvido } from '../../../lib/tenant.js';
 
 const EXT_MIME: Record<string, string> = {
   '.jpg':  'image/jpeg',
@@ -25,7 +25,13 @@ const EXT_MIME: Record<string, string> = {
  * muda o caminho, e o navegador busca o arquivo novo na hora.
  */
 export const GET: APIRoute = async ({ params, request }) => {
-  // ⚠️ Passo 6: a PASTA vem do endereço, nunca da URL.
+  // ⚠️ Passo 6: a PASTA vem do tenant resolvido, nunca da URL.
+  //
+  // Até 24/09/2026 era `tenantDoHost(request)` — só o endereço. O painel mora num
+  // endereço central, que não é de barbearia nenhuma, e a prévia da logo e da
+  // capa dava 404 em produção, para todo mundo. `tenantResolvido()` é o que o
+  // middleware decidiu: a sessão no painel, o endereço no site. Continua sem
+  // padrão nenhum: sem barbearia, 404.
   //
   // `urlDeMidia()` monta dois formatos: `/api/media/logo/x.webp` para a
   // barbearia legada e `/api/media/<slug>/logo/x.webp` para as demais. Antes
@@ -36,7 +42,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   // Aceitar o slug da URL como fonte da pasta seria pior que o 404: qualquer um
   // pediria a pasta de qualquer barbearia trocando uma palavra no endereço.
   // Quem responde "de quem é esta requisição" continua sendo o host.
-  const tenant = tenantDoHost(request);
+  const tenant = tenantResolvido();
   if (!tenant) return new Response('Not found', { status: 404 });
 
   const partes = (params.path ?? '').split('/');

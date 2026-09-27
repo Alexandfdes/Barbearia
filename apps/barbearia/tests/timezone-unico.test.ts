@@ -46,9 +46,13 @@ describe('o fuso horário tem uma fonte só', () => {
       const semUtc = s.replace(/AT TIME ZONE 'UTC'/g, '');
       const usaFuso = /timeZone:|AT TIME ZONE|formatInTimeZone|fromZonedTime|toZonedTime/.test(semUtc);
       if (!usaFuso) return false;
-      // Aceita o import de qualquer profundidade (`./timezone.js` dentro de lib/)
-      // e o `define:vars={{ TZ }}`, que é o servidor passando o valor ao navegador.
-      return !/from '[^']*timezone(\.js)?'|define:vars=\{\{\s*TZ\s*\}\}/.test(s);
+      // Aceita o import de qualquer profundidade (`./timezone.js` dentro de lib/).
+      //
+      // ⚠️ Até 25/09/2026 aceitava também `define:vars={{ TZ }}` — e foi esse o
+      // caminho que quebrou a agenda do dia: `define:vars` deixa o script inline,
+      // sem `import` e sem TypeScript. O fuso chega ao navegador pelos dados da
+      // página (`clientData.tz`). Ver `tests/scripts-inline.test.ts`.
+      return !/from '[^']*timezone(\.js)?'/.test(s);
     });
     expect(semImportar).toEqual([]);
   });

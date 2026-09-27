@@ -20,7 +20,7 @@ const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: b
   .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
-const rows = (await db.select().from(reservations));
+const rows = (await db.select().from(reservations).where(eq(reservations.tenantId, tenant.id)));
 const rank: Record<string, number> = { pending: 0, fulfilled: 1, cancelled: 2 };
 rows.sort((a, b) => (rank[a.status] - rank[b.status]) || b.createdAt.localeCompare(a.createdAt));
 

@@ -208,6 +208,53 @@ describe('o app consegue ASSUMIR o papel — sem isso nada funciona', () => {
   });
 });
 
+describe.skipIf(!TEM_BANCO)('toda tabela de barbearia tem a rede — inclusive as que vierem depois', () => {
+  // ⚠️ Os casos acima provam que a política FUNCIONA, olhando `barbers` e
+  // `services`. Não provam que ela EXISTE nas outras. A 0003 liga o RLS numa
+  // lista escrita à mão; tabela nova com `tenant_id` que não passasse por uma
+  // linha igual ficaria sem rede — e nada ficaria vermelho, porque toda consulta
+  // que já filtra devolve o mesmo com e sem política.
+  //
+  // Escrito em 25/09/2026, junto com a `gallery_images` (0005): a primeira
+  // tabela com `tenant_id` depois da 0003.
+  interface Linha { tabela: string; rls: boolean; politicas: number }
+
+  async function tabelasComTenant(): Promise<Linha[]> {
+    const r = await dbDono.execute(sql`
+      SELECT c.table_name AS tabela,
+             cl.relrowsecurity AS rls,
+             (SELECT COUNT(*)::int FROM pg_policies p
+               WHERE p.schemaname = 'public' AND p.tablename = c.table_name
+                 AND p.policyname = 'tenant_isolado') AS politicas
+      FROM information_schema.columns c
+      JOIN pg_class cl ON cl.relname = c.table_name
+                      AND cl.relnamespace = 'public'::regnamespace
+      WHERE c.table_schema = 'public' AND c.column_name = 'tenant_id'
+      ORDER BY 1`);
+    return r as unknown as Linha[];
+  }
+
+  it('RLS ligado e a política tenant_isolado em cada uma', async () => {
+    const linhas = await tabelasComTenant();
+    expect(linhas.length).toBeGreaterThanOrEqual(13); // as 12 da 0003 + gallery_images
+    const semRede = linhas.filter((l) => !l.rls || l.politicas !== 1).map((l) => l.tabela);
+    expect(semRede).toEqual([]);
+  });
+
+  it('a política é a MESMA em todas — nenhuma nasceu frouxa', async () => {
+    // Uma política `USING (true)` com o nome certo passaria no caso acima.
+    const r = await dbDono.execute(sql`
+      SELECT DISTINCT qual, with_check, roles::text AS papeis, cmd
+      FROM pg_policies WHERE schemaname = 'public' AND policyname = 'tenant_isolado'`);
+    const formas = r as unknown as { qual: string; with_check: string; papeis: string; cmd: string }[];
+    expect(formas).toHaveLength(1);
+    expect(formas[0].qual).toMatch(/app\.tenant_id/);
+    expect(formas[0].with_check).toMatch(/app\.tenant_id/);
+    expect(formas[0].papeis).toBe('{barbearia_app}');
+    expect(formas[0].cmd).toBe('ALL');
+  });
+});
+
 describe('a rede não tem furo por descuido', () => {
   it('o middleware embrulha toda requisição que tem tenant', () => {
     const fonte = readFileSync('src/middleware.ts', 'utf8');

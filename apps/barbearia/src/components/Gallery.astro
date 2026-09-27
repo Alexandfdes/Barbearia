@@ -1,49 +1,42 @@
 ---
 import { Image } from "astro:assets";
 import { getSettings } from '../lib/settings';
+import { tenantAtual } from '../lib/tenant';
+import { srcsetDe } from '../lib/uploads';
+import { fotosDaGaleria, faixaDoCarrossel, MINIMO_PARA_APARECER } from '../lib/galeria';
+import avatarBayron from '../assets/Logo-Bayron3-256.png';
 
 const s = await getSettings();
-import type { ImageMetadata } from "astro";
-import avatar from '../assets/Logo-Bayron3-256.png';
-
-const rawModules = import.meta.glob<{ default: ImageMetadata }>(
-  '../assets/fotos-videos/carrosel*.jpg',
-  { eager: true }
-);
-
-const photos = Object.entries(rawModules)
-  .sort(([a], [b]) => {
-    const na = parseInt(a.match(/carrosel(\d+)/)?.[1] ?? '0');
-    const nb = parseInt(b.match(/carrosel(\d+)/)?.[1] ?? '0');
-    return na - nb;
-  })
-  .map(([_, mod], i) => ({
-    src: mod.default,
-    alt: `Corte ${s.businessName} ${i + 1}`
-  }));
-
-const HANDLE = s.instagramHandle;
-// Glifo do Instagram, reusado no cabeçalho de perfil e no overlay dos cards.
-const IG_GLYPH = "M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z";
 
 /**
- * ⚠️ Esta seção só aparece na instância do Bayron.
+ * O carrossel "Portfólio" — as fotos que a barbearia sobe em `/admin/galeria`.
  *
- * O conteúdo dela está cravado no repositório e é **dele**: as fotos de corte dele, carregadas do repositório em tempo de build. Numa
- * barbearia nova isso não seria "seção vazia" — seria a barbearia mostrando
- * conteúdo de outra como se fosse o próprio.
+ * ⚠️ Até 25/09/2026 as fotos eram uma pasta do repositório lida em tempo de build,
+ * e a seção só aparecia no site do Bayron: eram dele, e mostrá-las em outra
+ * barbearia seria exibir o trabalho de terceiros como próprio. Agora cada uma
+ * mostra as suas (migration 0005). As 20 do Bayron entram no banco pelo
+ * `scripts/importar-galeria-bayron.mjs` — sem rodá-lo, o site dele fica sem a
+ * seção (`ROTEIRO-MIGRACAO-PRODUCAO.md`).
  *
- * Regra do `PENDENCIAS-ABERTAS.md` §4.1: nenhuma seção meia-boca — ou tem
- * conteúdo do cliente, ou não é renderizada.
- *
- * Para generalizar, falta ligar a galeria enviada pelo painel: o tipo `galeria` já existe em
- * `TIPOS_MIDIA` e gera as variantes, mas nada lê essas imagens.
+ * Regra do `PENDENCIAS-ABERTAS.md` §4.1: nenhuma seção meia-boca. Abaixo de
+ * `MINIMO_PARA_APARECER` fotos ela não é renderizada.
  */
-const BAYRON = s.shortName === "Bayron";
+const fotos = await fotosDaGaleria(tenantAtual());
+const aparece = fotos.length >= MINIMO_PARA_APARECER;
+const faixa = faixaDoCarrossel(fotos);
 
+const HANDLE = s.instagramHandle;
+// Sem Instagram cadastrado, a foto não vira link para lugar nenhum e o cartão
+// "Seguir" some — em vez de um botão que leva a uma página em branco.
+const INSTAGRAM = s.instagramUrl && s.instagramUrl.trim() !== '' ? s.instagramUrl : null;
+// O logo em `assets/` é do Bayron e vai junto no build (mesma regra do Header):
+// outra barbearia sem logo mostra a inicial do nome, nunca a marca de terceiros.
+const BAYRON = s.shortName === "Bayron";
+// Glifo do Instagram, reusado no cabeçalho de perfil e no overlay dos cards.
+const IG_GLYPH = "M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z";
 ---
 
-{BAYRON && (
+{aparece && (
 <section id="galeria" class="py-12 md:py-20 overflow-hidden bg-dark-alt">
   <div class="max-w-6xl mx-auto px-4">
     <!-- Header -->
@@ -55,40 +48,55 @@ const BAYRON = s.shortName === "Bayron";
     </div>
   </div>
 
-  <!-- Horizontal carousel - full bleed -->
+  <!-- Horizontal carousel - full bleed. A faixa vai duas vezes: é o que deixa o
+       fim de uma volta emendar no começo da próxima. -->
   <div class="relative mb-16">
     <div
       id="gallery-carousel"
-      data-count={photos.length}
+      data-count={faixa.length}
       class="flex gap-4 overflow-x-auto px-4 md:px-8 pb-4 no-scrollbar"
     >
-      {[...photos, ...photos].map((photo) => (
-        <div class="flex-none w-[280px] md:w-[320px] group">
-          <a
-            href={s.instagramUrl}
-            target="_blank"
-            rel="noopener"
-            aria-label="Ver no Instagram"
-            class="relative block overflow-hidden rounded-md aspect-3/4"
-          >
-            <Image
-              src={photo.src}
-              alt={photo.alt}
-              loading="lazy"
-              widths={[280, 320, 560, 640]}
-              sizes="(max-width: 768px) 280px, 320px"
-              class="w-full h-full object-cover md:transition-transform md:duration-700 md:group-hover:scale-105"
-            />
-            <!-- Hover overlay -->
-            <div class="absolute inset-0 bg-gradient-to-t from-dark/70 via-dark/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-5">
-              <span class="inline-flex items-center gap-2 text-sm text-white font-medium">
-                <svg class="w-4 h-4 text-teal-light" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={IG_GLYPH} /></svg>
-                Ver no Instagram
-              </span>
-            </div>
-          </a>
-        </div>
-      ))}
+      {[false, true].flatMap((segundaVolta) => faixa.map(({ foto, repetida }, i) => {
+        const copia = segundaVolta || repetida;
+        const imagem = (
+          <img
+            src={foto.path}
+            srcset={srcsetDe(foto.path, foto.widths) || undefined}
+            sizes="(max-width: 768px) 280px, 320px"
+            alt={copia ? '' : `Portfólio ${s.businessName}, foto ${i + 1}`}
+            loading="lazy"
+            decoding="async"
+            width="320"
+            height="427"
+            class="w-full h-full object-cover md:transition-transform md:duration-700 md:group-hover:scale-105"
+          />
+        );
+        return (
+          <div class="flex-none w-[280px] md:w-[320px] group" aria-hidden={copia ? 'true' : undefined}>
+            {INSTAGRAM ? (
+              <a
+                href={INSTAGRAM}
+                target="_blank"
+                rel="noopener"
+                aria-label={copia ? undefined : 'Ver no Instagram'}
+                tabindex={copia ? -1 : undefined}
+                class="relative block overflow-hidden rounded-md aspect-3/4"
+              >
+                {imagem}
+                <!-- Hover overlay -->
+                <div class="absolute inset-0 bg-gradient-to-t from-dark/70 via-dark/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-5">
+                  <span class="inline-flex items-center gap-2 text-sm text-white font-medium">
+                    <svg class="w-4 h-4 text-teal-light" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={IG_GLYPH} /></svg>
+                    Ver no Instagram
+                  </span>
+                </div>
+              </a>
+            ) : (
+              <div class="relative block overflow-hidden rounded-md aspect-3/4">{imagem}</div>
+            )}
+          </div>
+        );
+      }))}
     </div>
 
     <!-- Scroll hint gradient edges -->
@@ -117,23 +125,30 @@ const BAYRON = s.shortName === "Bayron";
   </div>
 
   <!-- Card "Seguir no Instagram" — abaixo do carrossel -->
+  {INSTAGRAM && (
   <div class="max-w-md mx-auto px-4">
     <div class="flex flex-col sm:flex-row sm:items-center gap-4 bg-dark-card border border-white/10 rounded-2xl p-4 hover:border-teal/30 transition-colors">
       <div class="flex items-center gap-3 min-w-0 flex-1">
-        <a href={s.instagramUrl} target="_blank" rel="noopener" aria-label="Abrir o perfil no Instagram" class="flex-none">
+        <a href={INSTAGRAM} target="_blank" rel="noopener" aria-label="Abrir o perfil no Instagram" class="flex-none">
           <span class="block rounded-full p-[2px]" style="background:conic-gradient(from 215deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5,#feda75)">
             <span class="block rounded-full p-[2px] bg-dark-card">
-              <Image src={avatar} alt={s.businessName} width={96} height={96} class="w-12 h-12 rounded-full object-cover" />
+              {s.logoPath ? (
+                <img src={s.logoPath} srcset={srcsetDe(s.logoPath, [96, 256]) || undefined} sizes="48px" alt={s.businessName} width="48" height="48" class="w-12 h-12 rounded-full object-cover" />
+              ) : BAYRON ? (
+                <Image src={avatarBayron} alt={s.businessName} width={96} height={96} class="w-12 h-12 rounded-full object-cover" />
+              ) : (
+                <span class="w-12 h-12 rounded-full bg-teal/20 text-teal-light font-semibold text-lg flex items-center justify-center" aria-hidden="true">{s.shortName.slice(0, 1).toUpperCase()}</span>
+              )}
             </span>
           </span>
         </a>
         <div class="min-w-0">
           <p class="text-white font-semibold leading-tight truncate">{HANDLE}</p>
-          <p class="text-gray-light text-sm truncate">Barbearia masculina · {s.addressCity}</p>
+          <p class="text-gray-light text-sm truncate">Barbearia · {s.addressCity}</p>
         </div>
       </div>
       <a
-        href={s.instagramUrl}
+        href={INSTAGRAM}
         target="_blank"
         rel="noopener"
         class="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-2 bg-teal hover:bg-teal-hover text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
@@ -143,7 +158,9 @@ const BAYRON = s.shortName === "Bayron";
       </a>
     </div>
   </div>
+  )}
 </section>
+)}
 
 <style>
   .no-scrollbar::-webkit-scrollbar {
@@ -159,6 +176,10 @@ const BAYRON = s.shortName === "Bayron";
   document.addEventListener("DOMContentLoaded", () => {
     const carousel = document.getElementById("gallery-carousel");
     if (!carousel) return;
+
+    // Quem pediu ao sistema menos movimento não ganha carrossel andando sozinho.
+    // As setas e o arrastar continuam funcionando.
+    const semMovimento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const originalCount = parseInt(carousel.getAttribute("data-count") || "20", 10);
     let paused = false;
@@ -247,7 +268,6 @@ const BAYRON = s.shortName === "Bayron";
       setTimeout(() => { paused = false; }, 700);
     });
 
-    requestAnimationFrame(scroll);
+    if (!semMovimento) requestAnimationFrame(scroll);
   });
 </script>
-)}

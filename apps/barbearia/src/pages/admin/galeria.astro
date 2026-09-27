@@ -1,0 +1,222 @@
+---
+export const prerender = false;
+
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getSession } from '../../lib/session.js';
+import { db } from '../../db/index.js';
+import { barbers } from '../../db/schema.js';
+import { and, eq } from 'drizzle-orm';
+import { tenantDaSessao, urlDoSite } from '../../lib/tenant.js';
+import { fotosDaGaleria, MAXIMO_DE_FOTOS, MINIMO_PARA_APARECER } from '../../lib/galeria.js';
+import { srcsetDe } from '../../lib/uploads.js';
+
+const session = await getSession(Astro.request);
+if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
+
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+if (!barberRow) return Astro.redirect('/admin/login');
+
+// A galeria é a vitrine da loja, como a logo e a capa — restrita ao dono.
+if (session.role !== 'admin') return Astro.redirect('/admin');
+
+const fotos = await fotosDaGaleria(tenant);
+const faltam = Math.max(0, MINIMO_PARA_APARECER - fotos.length);
+const cheia = fotos.length >= MAXIMO_DE_FOTOS;
+const site = urlDoSite(tenant);
+---
+
+<AdminLayout title="Galeria" barberName={barberRow.name} role={session.role}>
+  <main class="max-w-3xl mx-auto px-4 py-6 space-y-5 pb-24">
+
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h1 class="text-lg font-medium text-slate-900">Galeria do site</h1>
+        <p class="text-sm text-slate-500 mt-1">As fotos aparecem no carrossel da página inicial, nesta ordem.</p>
+      </div>
+      <label
+        for="g-arquivos"
+        class:list={[
+          'shrink-0 flex items-center gap-2 text-white font-bold uppercase tracking-widest text-xs px-4 py-2.5 rounded transition-colors',
+          cheia ? 'bg-slate-300 cursor-not-allowed' : 'bg-teal hover:bg-teal-hover cursor-pointer',
+        ]}
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        Enviar fotos
+      </label>
+      <input id="g-arquivos" type="file" multiple accept="image/jpeg,image/png,image/webp,image/avif" class="sr-only" disabled={cheia} />
+    </div>
+
+    {faltam > 0 ? (
+      <div class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+        <p class="text-sm font-medium text-amber-900">
+          {faltam === MINIMO_PARA_APARECER
+            ? `Envie pelo menos ${MINIMO_PARA_APARECER} fotos para a galeria aparecer no site.`
+            : faltam === 1 ? 'Falta 1 foto para a galeria aparecer no site.' : `Faltam ${faltam} fotos para a galeria aparecer no site.`}
+        </p>
+        <p class="text-xs text-amber-800 mt-1">Com menos de {MINIMO_PARA_APARECER} a seção fica escondida: um carrossel com uma foto só parece site abandonado.</p>
+      </div>
+    ) : (
+      <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center justify-between gap-3">
+        <p class="text-sm text-emerald-900">A galeria está no site com {fotos.length} {fotos.length === 1 ? 'foto' : 'fotos'}.</p>
+        {site && <a href={`${site}/#galeria`} target="_blank" rel="noopener" class="shrink-0 text-xs font-medium text-emerald-800 underline underline-offset-2">Ver no site</a>}
+      </div>
+    )}
+
+    <!-- Envio em andamento e erros por foto -->
+    <div id="g-progresso" class="hidden rounded-lg border border-slate-200 bg-white px-4 py-3 space-y-2" aria-live="polite">
+      <p id="g-status" class="text-sm text-slate-700"></p>
+      <ul id="g-erros" class="text-xs text-red-700 space-y-1"></ul>
+      <button id="g-pronto" type="button" class="hidden text-xs font-medium text-teal underline underline-offset-2">Ver a galeria atualizada</button>
+    </div>
+
+    <div class="flex items-center justify-between text-xs text-slate-500">
+      <span class="tabular-nums">{fotos.length} de {MAXIMO_DE_FOTOS} fotos</span>
+      {cheia && <span class="text-amber-700">Galeria cheia — remova uma para enviar outra.</span>}
+    </div>
+
+    {fotos.length === 0 ? (
+      <div class="bg-white border border-dashed border-slate-300 rounded-lg py-12 px-6 text-center">
+        <p class="text-sm text-slate-600">Nenhuma foto ainda.</p>
+        <p class="text-xs text-slate-400 mt-1">Fotos dos seus cortes, do ambiente, da equipe trabalhando. Dá para escolher várias de uma vez.</p>
+      </div>
+    ) : (
+      <ol id="g-grade" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {fotos.map((f, i) => (
+          <li data-id={String(f.id)} class="bg-white border border-slate-200 rounded-lg overflow-hidden">
+            <div class="relative aspect-3/4 bg-slate-100">
+              <img
+                src={f.path}
+                srcset={srcsetDe(f.path, f.widths) || undefined}
+                sizes="(max-width: 640px) 50vw, 200px"
+                alt={`Foto ${i + 1} da galeria`}
+                loading="lazy"
+                class="w-full h-full object-cover"
+              />
+              <span data-posicao class="absolute top-1.5 left-1.5 text-[10px] font-semibold tabular-nums bg-black/60 text-white rounded px-1.5 py-0.5">{i + 1}</span>
+            </div>
+            <div class="flex items-center gap-1 p-1.5">
+              <button type="button" data-mover="-1" aria-label="Mover para antes" disabled={i === 0}
+                class="flex-1 text-sm py-1 rounded border border-slate-200 text-slate-600 hover:border-teal/40 hover:text-teal disabled:opacity-30 disabled:hover:border-slate-200 disabled:hover:text-slate-600 transition-colors">‹</button>
+              <button type="button" data-mover="1" aria-label="Mover para depois" disabled={i === fotos.length - 1}
+                class="flex-1 text-sm py-1 rounded border border-slate-200 text-slate-600 hover:border-teal/40 hover:text-teal disabled:opacity-30 disabled:hover:border-slate-200 disabled:hover:text-slate-600 transition-colors">›</button>
+              <button type="button" data-remover aria-label={`Remover a foto ${i + 1}`}
+                class="text-[11px] px-2 py-1 rounded border border-red-500/20 hover:bg-red-500/10 text-red-600/80 transition-colors">Remover</button>
+            </div>
+          </li>
+        ))}
+      </ol>
+    )}
+
+    <div class="text-xs text-slate-500 space-y-1 pt-2">
+      <p><span class="font-medium text-slate-600">Fotos em pé ficam melhores:</span> o carrossel mostra cada uma no formato 3 × 4, e foto deitada perde as laterais.</p>
+      <p>JPG, PNG, WEBP ou AVIF, até 12 MB cada. Se alguma der erro de formato (HEIC), no iPhone a opção Ajustes › Câmera › Formatos › Mais Compatível faz a câmera salvar em JPG.</p>
+    </div>
+
+  </main>
+</AdminLayout>
+
+<script>
+  const input     = document.getElementById('g-arquivos') as HTMLInputElement;
+  const progresso = document.getElementById('g-progresso') as HTMLElement;
+  const status    = document.getElementById('g-status') as HTMLElement;
+  const erros     = document.getElementById('g-erros') as HTMLElement;
+  const pronto    = document.getElementById('g-pronto') as HTMLButtonElement;
+  const grade     = document.getElementById('g-grade');
+
+  // ── Envio: uma foto por vez ────────────────────────────────────────────────
+  // Cada foto tem o próprio erro ("essa é HEIC") e o progresso é de verdade.
+  input?.addEventListener('change', async () => {
+    const arquivos = [...(input.files ?? [])];
+    if (arquivos.length === 0) return;
+
+    input.disabled = true;
+    progresso.classList.remove('hidden');
+    erros.innerHTML = '';
+    pronto.classList.add('hidden');
+    let enviadas = 0;
+
+    for (const [i, arquivo] of arquivos.entries()) {
+      status.textContent = `Enviando ${i + 1} de ${arquivos.length}…`;
+      const fd = new FormData();
+      fd.set('arquivo', arquivo);
+      try {
+        const res = await fetch('/api/admin/galeria', { method: 'POST', body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) { enviadas++; continue; }
+        const li = document.createElement('li');
+        li.textContent = `${arquivo.name}: ${data.error ?? 'não foi possível enviar'}`;
+        erros.appendChild(li);
+        // Galeria cheia: as próximas dariam o mesmo erro.
+        if (res.status === 409) break;
+      } catch {
+        const li = document.createElement('li');
+        li.textContent = `${arquivo.name}: sem conexão — tente de novo.`;
+        erros.appendChild(li);
+      }
+    }
+
+    input.value = '';
+    input.disabled = false;
+    if (erros.children.length === 0) { location.reload(); return; }
+
+    status.textContent = enviadas === 0
+      ? 'Nenhuma foto foi enviada.'
+      : `${enviadas} de ${arquivos.length} ${enviadas === 1 ? 'foto enviada' : 'fotos enviadas'}. As outras não entraram:`;
+    if (enviadas > 0) pronto.classList.remove('hidden');
+  });
+
+  pronto?.addEventListener('click', () => location.reload());
+
+  // ── Ordem ──────────────────────────────────────────────────────────────────
+  function renumerar() {
+    if (!grade) return;
+    const itens = [...grade.querySelectorAll<HTMLElement>('[data-id]')];
+    itens.forEach((el, i) => {
+      const pos = el.querySelector('[data-posicao]');
+      if (pos) pos.textContent = String(i + 1);
+      (el.querySelector('[data-mover="-1"]') as HTMLButtonElement).disabled = i === 0;
+      (el.querySelector('[data-mover="1"]') as HTMLButtonElement).disabled = i === itens.length - 1;
+    });
+  }
+
+  grade?.querySelectorAll<HTMLButtonElement>('[data-mover]').forEach((botao) => {
+    botao.addEventListener('click', async () => {
+      const item = botao.closest<HTMLElement>('[data-id]');
+      if (!item || !grade) return;
+      const antes = botao.dataset.mover === '-1';
+      const vizinho = antes ? item.previousElementSibling : item.nextElementSibling;
+      if (!vizinho) return;
+      if (antes) grade.insertBefore(item, vizinho);
+      else grade.insertBefore(vizinho, item);
+      renumerar();
+      botao.focus();
+
+      const ordem = [...grade.querySelectorAll<HTMLElement>('[data-id]')].map((el) => Number(el.dataset.id));
+      const res = await fetch('/api/admin/galeria/ordem', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ordem }),
+      }).catch(() => null);
+      if (!res || !res.ok) {
+        // A tela mostraria uma ordem que o site não tem. Volta para a verdade.
+        location.reload();
+      }
+    });
+  });
+
+  // ── Remover ────────────────────────────────────────────────────────────────
+  grade?.querySelectorAll<HTMLButtonElement>('[data-remover]').forEach((botao) => {
+    botao.addEventListener('click', async () => {
+      const item = botao.closest<HTMLElement>('[data-id]');
+      if (!item) return;
+      if (!confirm('Remover esta foto da galeria? O arquivo é apagado e não dá para desfazer.')) return;
+      botao.disabled = true;
+      const res = await fetch(`/api/admin/galeria/${item.dataset.id}`, { method: 'DELETE' }).catch(() => null);
+      if (res && res.ok) { location.reload(); return; }
+      botao.disabled = false;
+      alert('Não consegui remover a foto. Recarregue a página e tente de novo.');
+    });
+  });
+</script>

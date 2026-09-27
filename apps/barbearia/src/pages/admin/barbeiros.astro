@@ -20,6 +20,7 @@ if (!barberRow) return Astro.redirect('/admin/login');
 const list = (await db
   .select({ id: barbers.id, name: barbers.name, slug: barbers.slug, role: barbers.role, active: barbers.active })
   .from(barbers)
+  .where(eq(barbers.tenantId, tenant.id))
   .orderBy(barbers.name)
   );
 

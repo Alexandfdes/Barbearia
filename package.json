@@ -23,6 +23,7 @@
     "db:migrate": "npm run db:migrate --prefix apps/barbearia --",
     "db:provisionar": "npm run db:provisionar --prefix apps/barbearia --",
     "db:seed-bayron": "npm run db:seed-bayron --prefix apps/barbearia --",
+    "db:galeria-bayron": "npm run db:galeria-bayron --prefix apps/barbearia --",
     "test:db": "npm run test:db --prefix apps/barbearia --",
     "test:watch": "npm run test:watch --prefix apps/barbearia --",
     "check": "npm run astro --prefix apps/barbearia -- check",

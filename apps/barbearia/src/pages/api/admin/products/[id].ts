@@ -1,25 +1,13 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { unlink } from 'node:fs/promises';
-import { join } from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import { db, first } from '../../../../db/index.js';
 import { products } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
-import { saveProductImage, PRODUCT_UPLOAD_DIR, safeUploadName } from '../../../../lib/uploads.js';
+import { saveProductImage, apagarFotoProduto } from '../../../../lib/uploads.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
-
-const IMG_PREFIX = '/api/products/image/';
-
-// Apaga o arquivo de uma imagem que foi upload (ignora imagens estáticas de /products).
-async function removeUploadedImage(image: string | null): Promise<void> {
-  if (!image || !image.startsWith(IMG_PREFIX)) return;
-  const name = safeUploadName(image.slice(IMG_PREFIX.length));
-  if (!name) return;
-  try { await unlink(join(PRODUCT_UPLOAD_DIR, name)); } catch { /* já não existe */ }
-}
 
 // PATCH — edita campos do produto (multipart/form-data). slug é estável (não muda).
 export const PATCH: APIRoute = async ({ request, params }) => {
@@ -62,7 +50,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   const file = form.get('image');
   let oldImageToRemove: string | null = null;
   if (file && file instanceof File && file.size > 0) {
-    const res = await saveProductImage(file);
+    const res = await saveProductImage(file, tenant);
     if ('error' in res) return json({ error: res.error }, 400);
     updates.image = res.path;
     oldImageToRemove = current.image;
@@ -71,7 +59,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   if (Object.keys(updates).length === 0) return json({ error: 'Nada para atualizar' }, 400);
 
   await db.update(products).set(updates).where(and(eq(products.id, id), eq(products.tenantId, tenant.id)));
-  if (oldImageToRemove) await removeUploadedImage(oldImageToRemove);
+  if (oldImageToRemove) await apagarFotoProduto(oldImageToRemove, tenant);
 
   return json({ ok: true });
 };
@@ -91,7 +79,7 @@ export const DELETE: APIRoute = async ({ request, params }) => {
   if (!current) return json({ error: 'Produto não encontrado' }, 404);
 
   await db.delete(products).where(and(eq(products.id, id), eq(products.tenantId, tenant.id)));
-  await removeUploadedImage(current.image);
+  await apagarFotoProduto(current.image, tenant);
 
   return json({ ok: true });
 };

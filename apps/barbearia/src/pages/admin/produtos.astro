@@ -19,7 +19,7 @@ if (!barberRow) return Astro.redirect('/admin/login');
 // Gerenciar o catálogo afeta o site público — restrito ao admin.
 if (session.role !== 'admin') return Astro.redirect('/admin');
 
-const list = (await db.select().from(products).orderBy(products.sortOrder, products.id));
+const list = (await db.select().from(products).where(eq(products.tenantId, tenant.id)).orderBy(products.sortOrder, products.id));
 const brl = (c: number) => 'R$ ' + (c / 100).toFixed(2).replace('.', ',');
 const reais = (c: number) => (c / 100).toFixed(2);
 ---
@@ -29,7 +29,7 @@ const reais = (c: number) => (c / 100).toFixed(2);
 
     <div class="flex items-center justify-between gap-3">
       <div>
-        <h1 class="text-lg font-medium text-slate-900">Produtos Boris</h1>
+        <h1 class="text-lg font-medium text-slate-900">Produtos</h1>
         <p class="text-sm text-slate-500 mt-1">O que você cadastrar aqui aparece no site, no combo e na venda.</p>
       </div>
       <button id="btn-add" class="shrink-0 flex items-center gap-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest text-xs px-4 py-2.5 rounded transition-colors">
@@ -101,7 +101,7 @@ const reais = (c: number) => (c / 100).toFixed(2);
             <img id="f-preview" class="hidden w-14 h-14 rounded-md object-cover border border-slate-200" />
             <input id="f-image" type="file" accept="image/jpeg,image/png,image/webp" class="flex-1 text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-teal/20 file:text-teal file:text-xs file:cursor-pointer" />
           </div>
-          <p class="text-[10px] text-slate-400 mt-1">JPG, PNG ou WEBP, até 5 MB.</p>
+          <p class="text-[10px] text-slate-400 mt-1">JPG, PNG ou WEBP, até 12 MB.</p>
         </div>
         <label class="flex items-center gap-2 text-sm text-slate-700">
           <input id="f-active" type="checkbox" checked class="accent-teal" /> Ativo (aparece no site)

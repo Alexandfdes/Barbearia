@@ -19,7 +19,14 @@ const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: b
   .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
-// Load time-off entries
+// Só os desta barbearia, sempre. Dentro dela, o dono vê os de todo mundo e o
+// barbeiro vê os dele e os da casa (barber_id NULL). O filtro da barbearia fica
+// FORA do ramo por papel de propósito: não tem como um ramo esquecê-lo.
+const filtroBloqueios = and(
+  eq(timeOff.tenantId, tenant.id),
+  session.role === 'admin' ? undefined : or(eq(timeOff.barberId, session.barberId), isNull(timeOff.barberId)),
+);
+
 const baseQuery = db
   .select({
     id:        timeOff.id,
@@ -30,14 +37,10 @@ const baseQuery = db
     reason:    timeOff.reason,
   })
   .from(timeOff)
-  .leftJoin(barbers, eq(barbers.id, timeOff.barberId));
+  .leftJoin(barbers, eq(barbers.id, timeOff.barberId))
+  .where(filtroBloqueios);
 
-const rawRows = session.role === 'admin'
-  ? (await baseQuery.orderBy(timeOff.startsAt))
-  : (await baseQuery
-      .where(and(or(eq(timeOff.barberId, session.barberId), isNull(timeOff.barberId)), eq(timeOff.tenantId, tenant.id)))
-      .orderBy(timeOff.startsAt)
-      );
+const rawRows = await baseQuery.orderBy(timeOff.startsAt);
 
 const now = new Date();
 const entries = rawRows.map(r => ({

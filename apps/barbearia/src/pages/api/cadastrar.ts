@@ -41,7 +41,7 @@ import { json } from '../../lib/api.js';
 import { checkRateLimit } from '../../lib/rateLimit.js';
 import { getClientIp } from '../../lib/clientIp.js';
 import { carregarTenants, invalidarTenants } from '../../lib/tenant.js';
-import { clearSessionCookie } from '../../lib/session.js';
+import { makeSessionCookie } from '../../lib/session.js';
 
 export const CADASTRO_ABERTO = () => process.env.CADASTRO_ABERTO === '1';
 
@@ -85,6 +85,16 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     return json({ error: `Muitas tentativas. Tente em ${rl.retryAfterSecs}s` }, 429);
   }
 
+  // ⚠️ Só JSON. Esta rota ABRE SESSÃO (ver o fim do arquivo), e o
+  // `checkOrigin` do Astro está desligado (`astro.config.mjs`). Um formulário de
+  // outro site consegue mandar `text/plain` com corpo em formato de JSON — e
+  // `request.json()` leria assim mesmo: a página maliciosa criaria uma barbearia
+  // e deixaria o visitante logado nela ("login CSRF"). `application/json` vindo
+  // de outro site exige pré-voo de CORS, que este servidor não autoriza.
+  if (!(request.headers.get('content-type') ?? '').toLowerCase().startsWith('application/json')) {
+    return json({ error: 'Envie os dados como JSON.' }, 415);
+  }
+
   let body: unknown;
   try { body = await request.json(); }
   catch { return json({ error: 'JSON inválido' }, 400); }
@@ -119,25 +129,25 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   };
 
   /**
-   * ⚠️ Apaga a sessão que estivesse aberta. Encontrado em 15/09/2026, criando a
-   * segunda barbearia no mesmo navegador.
+   * O dono sai do cadastro JÁ DENTRO do painel da barbearia que acabou de criar
+   * — decisão de 24/09/2026: "o barbeiro cadastra as informações e já recebe o
+   * painel". A sessão nova SUBSTITUI qualquer outra que houvesse no aparelho:
+   * mesmo cookie, valor novo.
    *
-   * Quem acabou de cadastrar uma barbearia NÃO está logado nela — por
-   * definição, ela nasceu agora. Mas se houvesse uma sessão anterior no
-   * aparelho, o "Ir para o painel" levava ao painel da barbearia ERRADA:
-   * `admin/login.astro` redireciona para `/admin` quando já existe sessão, e
-   * `/admin` lê a barbearia da SESSÃO, não do endereço.
-   *
-   * O resultado era o dono novo caindo dentro do painel de outra barbearia,
-   * com a agenda e o faturamento dela na tela. Não é vazamento de dado — a
-   * sessão era dele mesmo, de outro cadastro —, mas num computador de balcão
-   * compartilhado passa a ser.
+   * ⚠️ Histórico: até 25/09/2026 esta rota APAGAVA a sessão aberta, e o dono
+   * entrava pelo login. O motivo continua valendo e é o que este cookie resolve
+   * de outro jeito: encontrado em 15/09/2026, criando a segunda barbearia no
+   * mesmo navegador, o "Ir para o painel" levava ao painel da barbearia ERRADA —
+   * `admin/login.astro` manda para `/admin` quando já há sessão, e `/admin` lê a
+   * barbearia da SESSÃO. Com a sessão do dono novo no lugar da antiga, não sobra
+   * sessão de outra barbearia para ele cair dentro.
    */
+  const sessao = await makeSessionCookie({ barberId: r.barbeiroId, role: 'admin', tenantId: r.tenantId });
   return new Response(JSON.stringify(corpo), {
     status: 201,
     headers: {
       'content-type': 'application/json; charset=utf-8',
-      'set-cookie': clearSessionCookie(),
+      'set-cookie': sessao,
     },
   });
 };

@@ -22,6 +22,7 @@
  *      porcentagem: só a lista.
  *   2. `pendencias` + `percentual` — o que falta para ficar APRESENTÁVEL.
  */
+import { MINIMO_PARA_APARECER } from './galeria.js';
 
 /** O estado da barbearia, do jeito que o medidor precisa ver. */
 export interface EstadoDaBarbearia {
@@ -44,6 +45,8 @@ export interface EstadoDaBarbearia {
   servicosAtivos: number;
   /** Barbeiros ativos QUE TÊM expediente cadastrado. */
   barbeirosComAgenda: number;
+  /** Fotos na galeria do site (`gallery_images`). */
+  fotosNaGaleria: number;
 }
 
 export interface Item {
@@ -130,6 +133,12 @@ function pendenciasDe(e: EstadoDaBarbearia): { faltando: Item[]; total: number }
       titulo: 'Suba uma foto de capa',
       porque: 'Opcional: sem foto o topo usa uma versão só com texto, que também fica boa.',
       href: '/admin/configuracoes' },
+
+    // A pergunta que evita: "como eu coloco as fotos dos meus cortes no site?".
+    { id: 'galeria', peso: 10, ok: e.fotosNaGaleria >= MINIMO_PARA_APARECER,
+      titulo: 'Suba fotos dos seus cortes',
+      porque: `A partir de ${MINIMO_PARA_APARECER} fotos a galeria aparece no site — cliente novo escolhe pelo trabalho que vê.`,
+      href: '/admin/galeria' },
 
     { id: 'cor', peso: 10, ok: !vazio(e.accentColor) && e.accentColor !== ACCENT_PADRAO,
       titulo: 'Escolha a cor da sua marca',

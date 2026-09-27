@@ -6,7 +6,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getSession } from '../../lib/session.js';
 import { db, first } from '../../db/index.js';
 import { barbers, settings } from '../../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { parseBusinessHours } from '../../lib/settings.js';
 
 const session = await getSession(Astro.request);
@@ -14,11 +14,11 @@ if (!session) return Astro.redirect('/admin/login');
 // A marca da loja é do dono. Barbeiro comum vai para a tela dele.
 if (session.role !== 'admin') return Astro.redirect('/admin/servicos');
 
+const tenant = tenantDaSessao(session);
 const barberRow = (await db.select({ id: barbers.id, name: barbers.name })
-  .from(barbers).where(eq(barbers.id, session.barberId)))[0];
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
-const tenant = tenantDaSessao(session);
 const cfg = (await first(db.select().from(settings).where(eq(settings.tenantId, tenant.id))));
 const horarios = parseBusinessHours(cfg?.businessHours);
 

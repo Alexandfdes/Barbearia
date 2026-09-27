@@ -135,6 +135,80 @@ export const db: typeof dbDono = new Proxy({} as typeof dbDono, {
 });
 
 /**
+ * Ensina a conexão reservada a abrir transação — ela não sabe sozinha.
+ *
+ * ⚠️ O DEFEITO QUE ISTO CONSERTA, ACHADO EM 25/09/2026.
+ *
+ * `sqlConn.reserve()` do postgres.js devolve um objeto com `unsafe`, `array`,
+ * `json`, `file` e pouco mais: **não tem `begin()`**. E a transação do Drizzle
+ * (`db.transaction`) é, por dentro, `client.begin(...)`. Então toda transação dentro de uma
+ * requisição com barbearia estourava "this.client.begin is not a function" —
+ * inclusive **o agendamento pelo site**, que é uma transação. Com a suíte verde:
+ * os testes chamavam as rotas fora de `comTenant`, no pool, que tem `begin()`.
+ * Ver `tests/transacao-na-requisicao.test.ts`.
+ *
+ * A transação roda NA PRÓPRIA conexão reservada, e isso é o que importa: é nela
+ * que estão o `SET ROLE barbearia_app` e o `app.tenant_id`. Abrir a transação em
+ * outra conexão do pool seria rodar como dono, sem RLS.
+ *
+ * Uma transação por vez: duas em paralelo na mesma conexão se intercalariam, e o
+ * COMMIT de uma confirmaria metade da outra. Recusar com o motivo é melhor do que
+ * corromper em silêncio. Transação dentro de transação (`tx.transaction`) vira
+ * SAVEPOINT, como no postgres.js de verdade.
+ */
+export function ensinarTransacao(conexao: ReturnType<typeof postgres>): void {
+  type Corpo = (cliente: unknown) => Promise<unknown>;
+  let aberta = false;
+  let pontos = 0;
+
+  const corpoDe = (a: unknown, b: unknown): Corpo => (typeof a === 'function' ? a : b) as Corpo;
+
+  async function begin(a: unknown, b?: unknown): Promise<unknown> {
+    const corpo = corpoDe(a, b);
+    // Mesma higiene do postgres.js: as opções viram parte do comando.
+    const opcoes = typeof a === 'string' ? a.replace(/[^a-z ]/gi, '') : '';
+    if (aberta) {
+      throw new Error(
+        'Esta requisição já tem uma transação aberta, e a conexão reservada faz uma transação por vez. ' +
+        'Use o `tx` da transação que já existe em vez de abrir outra em paralelo.',
+      );
+    }
+    aberta = true;
+    try {
+      await conexao.unsafe(`BEGIN ${opcoes}`.trim());
+      try {
+        const resultado = await corpo(conexao);
+        await conexao.unsafe('COMMIT');
+        return resultado;
+      } catch (erro) {
+        // Sem o ROLLBACK a conexão ficaria "em transação abortada" e toda
+        // consulta seguinte, desta requisição ou da próxima, levaria erro.
+        await conexao.unsafe('ROLLBACK').catch(() => {});
+        throw erro;
+      }
+    } finally {
+      aberta = false;
+    }
+  }
+
+  async function savepoint(a: unknown, b?: unknown): Promise<unknown> {
+    const corpo = corpoDe(a, b);
+    const nome = `ponto_${++pontos}`;
+    await conexao.unsafe(`SAVEPOINT ${nome}`);
+    try {
+      const resultado = await corpo(conexao);
+      await conexao.unsafe(`RELEASE SAVEPOINT ${nome}`);
+      return resultado;
+    } catch (erro) {
+      await conexao.unsafe(`ROLLBACK TO SAVEPOINT ${nome}`).catch(() => {});
+      throw erro;
+    }
+  }
+
+  Object.assign(conexao, { begin, savepoint });
+}
+
+/**
  * Roda `fn` com a barbearia gravada na conexão — é isto que liga o RLS.
  *
  * Reserva uma conexão do pool só para esta requisição, assume o papel
@@ -156,6 +230,7 @@ export async function comTenant<T>(
   // O Drizzle lê `options` do cliente para instalar os parsers dele, e a conexão
   // reservada não expõe as do pool. Sem esta linha ele estoura em `parsers`.
   (conexao as unknown as { options: unknown }).options = sqlConn.options;
+  ensinarTransacao(conexao);
 
   try {
     await conexao`SET ROLE barbearia_app`;

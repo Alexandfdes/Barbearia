@@ -17,6 +17,7 @@ const RECEM_CRIADA: EstadoDaBarbearia = {
   horariosPublicados: 3,                // o provisionar grava o comercial
   servicosAtivos: 0,                    // ⚠️ o dono ainda não cadastrou
   barbeirosComAgenda: 1,                // o dono, criado pelo provisionar
+  fotosNaGaleria: 0,                    // nasce sem galeria
 };
 
 const COMPLETA: EstadoDaBarbearia = {
@@ -28,6 +29,7 @@ const COMPLETA: EstadoDaBarbearia = {
   seoTitle: 'Barbearia X', seoDescription: 'A melhor de Mossoró',
   accentColor: '#7c3aed',
   horariosPublicados: 3, servicosAtivos: 5, barbeirosComAgenda: 2,
+  fotosNaGaleria: 8,
 };
 
 describe('o que impede de FUNCIONAR', () => {
@@ -105,6 +107,16 @@ describe('o que falta para ficar APRESENTÁVEL', () => {
       expect(item.href).toMatch(/^\/admin\//);
       expect(item.porque.length).toBeGreaterThan(20);
     }
+  });
+
+  it('galeria com menos de 3 fotos ainda é pendência — o site não mostra a seção', () => {
+    // O limiar é o mesmo que decide se a seção aparece (`lib/galeria.ts`). Se os
+    // dois divergissem, o medidor diria "feito" com o site sem galeria.
+    const duas = calcularCompletude({ ...COMPLETA, fotosNaGaleria: 2 });
+    expect(duas.pendencias.map((p) => p.id)).toContain('galeria');
+    expect(duas.pendencias.find((p) => p.id === 'galeria')?.href).toBe('/admin/galeria');
+    const tres = calcularCompletude({ ...COMPLETA, fotosNaGaleria: 3 });
+    expect(tres.pendencias.map((p) => p.id)).not.toContain('galeria');
   });
 
   it('nenhum texto expõe nome de coluna do banco', () => {

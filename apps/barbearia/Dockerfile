@@ -32,6 +32,12 @@ COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 
+# As 20 fotos do carrossel do Bayron, para `scripts/importar-galeria-bayron.mjs`
+# levar para a galeria do banco (migration 0005). O `src/` não entra na imagem, e
+# sem isto o script não teria de onde ler — passo do ROTEIRO-MIGRACAO-PRODUCAO.
+# Depois de importadas em produção, esta linha e as fotos do repositório podem sair.
+COPY --from=build /app/src/assets/fotos-videos/carrosel*.jpg ./seed/galeria-bayron/
+
 # Volume persistente: uploads (/data/uploads) e os backups (/data/backups).
 # O banco não mora mais aqui — é Postgres, num serviço separado.
 VOLUME ["/data"]

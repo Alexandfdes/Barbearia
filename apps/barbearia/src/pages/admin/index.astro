@@ -9,6 +9,7 @@ import { barbers, appointments, services, settings, workingHours } from '../../d
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { tenantDaSessao } from '../../lib/tenant.js';
 import { calcularCompletude } from '../../lib/completude.js';
+import { quantasFotos } from '../../lib/galeria.js';
 import { parseBusinessHours } from '../../lib/settings.js';
 import { TZ } from '../../lib/timezone.js';
 
@@ -278,6 +279,7 @@ const completude = cfg ? calcularCompletude({
     .from(barbers)
     .innerJoin(workingHours, eq(workingHours.barberId, barbers.id))
     .where(and(eq(barbers.tenantId, tenant.id), eq(barbers.active, true)))))?.n ?? 0),
+  fotosNaGaleria: await quantasFotos(tenant),
 }) : null;
 
 ---

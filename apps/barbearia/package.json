@@ -13,6 +13,7 @@
     "db:migrate": "node --env-file-if-exists=.env scripts/startup.mjs",
     "db:provisionar": "tsx scripts/provisionar.mts",
     "db:seed-bayron": "node --env-file-if-exists=.env scripts/seed-bayron.mjs",
+    "db:galeria-bayron": "node --env-file-if-exists=.env scripts/importar-galeria-bayron.mjs",
     "db:studio": "drizzle-kit studio",
     "db:generate": "node scripts/drizzle-kit-desativado.mjs",
     "db:push": "node scripts/drizzle-kit-desativado.mjs",

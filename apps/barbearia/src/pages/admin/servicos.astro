@@ -20,6 +20,12 @@ const isAdmin = session.role === 'admin';
 
 // Serviços do catálogo + a configuração deste barbeiro (toggle + duração).
 // Admin vê também os inativos (para reativar); barbeiro vê só os ativos.
+// Nos dois casos, só os desta barbearia — fora do ramo, para nenhum esquecê-lo.
+const filtroServicos = and(
+  eq(services.tenantId, tenant.id),
+  isAdmin ? undefined : eq(services.active, true),
+);
+
 const baseSelect = db
   .select({
     id:           services.id,
@@ -33,11 +39,10 @@ const baseSelect = db
   .leftJoin(barberServices, and(
     eq(barberServices.serviceId, services.id),
     eq(barberServices.barberId,  session.barberId),
-  ));
+  ))
+  .where(filtroServicos);
 
-const rows = isAdmin
-  ? (await baseSelect.orderBy(services.name))
-  : (await baseSelect.where(and(eq(services.active, true), eq(services.tenantId, tenant.id))).orderBy(services.name));
+const rows = await baseSelect.orderBy(services.name);
 
 const svcList = rows.map(r => ({
   id:           r.id,

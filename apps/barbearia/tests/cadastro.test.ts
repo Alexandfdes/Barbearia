@@ -17,6 +17,9 @@ import { exigirBancoDeTeste } from './guardaBanco.js';
 import { recriarSchema } from './migrations.js';
 import { provisionarBarbearia, curtoPadrao, soDigitos } from '../src/lib/provisionarBarbearia.js';
 
+// A rota abre a sessão do dono novo: sem segredo não há cookie para selar.
+process.env.SESSION_SECRET ??= 'segredo-de-teste-com-mais-de-32-caracteres-ok';
+
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
 
@@ -247,13 +250,33 @@ describe('a semana que o dono preenche', () => {
 });
 
 describe('a porta nasce fechada', () => {
+  // ⚠️ O IMPORT MORA NO GANCHO, NÃO NO CASO — E ISSO CONSERTA UM VERMELHO REAL.
+  //
+  // Em 24/09/2026 este caso estourou o limite de 5 s num `npm test` sem banco,
+  // no Windows. O 404 é a primeira linha do handler — instantâneo. O tempo todo
+  // era o `await import()` da rota, que ficava dentro do `it` e por isso era
+  // cobrado do orçamento do caso. A rota puxa zod, iron-session, o catálogo e o
+  // resto do cadastro.
+  //
+  // Medido no Linux: ~700 ms com o import no caso; 5 ms com ele aqui no gancho.
+  // No Windows passou de 5 s. Por que antes passava lá, não sei — não é
+  // aquecimento por outro arquivo ter carregado a rota antes: isso foi testado
+  // e não muda nada.
+  //
+  // É a classe que o `vitest.config.ts` já registra para o paralelismo: caso que
+  // passa ou falha conforme a máquina. O gancho tem orçamento próprio, e o caso
+  // volta a medir só o que diz medir.
+  let POST: typeof import('../src/pages/api/cadastrar.js').POST;
+  beforeAll(async () => {
+    ({ POST } = await import('../src/pages/api/cadastrar.js'));
+  }, 30_000);
+
   it('sem CADASTRO_ABERTO a rota responde 404, não 403', async () => {
     // 403 anunciaria que a rota existe. 404 é o que uma rota inexistente diria.
     const anterior = process.env.CADASTRO_ABERTO;
     delete process.env.CADASTRO_ABERTO;
     try {
-      const mod = await import('../src/pages/api/cadastrar.js');
-      const r = await mod.POST({
+      const r = await POST({
         request: new Request('http://x/api/cadastrar', { method: 'POST', body: '{}' }),
         clientAddress: '1.2.3.4',
       } as never);
@@ -265,12 +288,14 @@ describe('a porta nasce fechada', () => {
 });
 
 describe('a rota, de ponta a ponta', () => {
-  it.skipIf(!TEM_BANCO)('cria pela web e APAGA a sessão que estivesse aberta', async () => {
+  it.skipIf(!TEM_BANCO)('cria pela web e deixa o dono logado NA BARBEARIA NOVA — nunca na que estivesse aberta', async () => {
     // ⚠️ O caso que este teste existe para travar foi encontrado usando o
     // produto, não lendo o código: criar a segunda barbearia no mesmo navegador
     // e cair no painel da PRIMEIRA. `admin/login.astro` manda para `/admin`
     // quando já há sessão, e `/admin` lê a barbearia da SESSÃO, não do
-    // endereço. Sem limpar o cookie aqui, o dono novo entra na casa do vizinho.
+    // endereço. Até 25/09/2026 a rota apagava o cookie; desde então ela o
+    // SUBSTITUI pela sessão do dono novo (decisão de 24/09: cadastrou, já
+    // recebe o painel). O que não pode é sobrar a sessão antiga.
     const anterior = process.env.CADASTRO_ABERTO;
     process.env.CADASTRO_ABERTO = '1';
     try {
@@ -288,8 +313,9 @@ describe('a rota, de ponta a ponta', () => {
       } as never);
 
       expect(r.status).toBe(201);
-      expect(r.headers.get('set-cookie') ?? '').toMatch(/__bayron_session=;/);
-      expect(r.headers.get('set-cookie') ?? '').toMatch(/Max-Age=0/);
+      const setCookie = r.headers.get('set-cookie') ?? '';
+      expect(setCookie).toMatch(/^__bayron_session=[^;]{20,};/);
+      expect(setCookie).not.toMatch(/Max-Age=0/);
 
       const corpo = await r.json();
       expect(corpo.slug).toBe('salao-jovem');
@@ -298,6 +324,37 @@ describe('a rota, de ponta a ponta', () => {
 
       const [t] = await conn`SELECT id FROM tenants WHERE slug = 'salao-jovem'`;
       expect(t).toBeTruthy();
+
+      // A sessão que voltou é a do DONO NOVO, na barbearia nova, como admin.
+      const [dono] = await conn`SELECT id FROM barbers WHERE tenant_id = ${t.id} AND role = 'admin'`;
+      const { getSession } = await import('../src/lib/session.js');
+      const s = await getSession(new Request('http://x/admin', { headers: { cookie: setCookie.split(';')[0] } }));
+      expect(s).toMatchObject({ barberId: Number(dono.id), tenantId: Number(t.id), role: 'admin' });
+    } finally {
+      if (anterior === undefined) delete process.env.CADASTRO_ABERTO;
+      else process.env.CADASTRO_ABERTO = anterior;
+    }
+  });
+});
+
+describe('a rota só aceita JSON — ela abre sessão', () => {
+  it('formulário de outro site (text/plain com cara de JSON) é recusado antes de tudo', async () => {
+    // Login CSRF: sem esta porta, uma página qualquer criaria uma barbearia e
+    // deixaria o visitante logado nela. Ver o comentário em `api/cadastrar.ts`.
+    const anterior = process.env.CADASTRO_ABERTO;
+    process.env.CADASTRO_ABERTO = '1';
+    try {
+      const mod = await import('../src/pages/api/cadastrar.js');
+      const r = await mod.POST({
+        request: new Request('http://x/api/cadastrar', {
+          method: 'POST',
+          headers: { 'content-type': 'text/plain' },
+          body: JSON.stringify({ ...BASE, slug: 'csrf-teste' }),
+        }),
+        clientAddress: '7.7.7.7',
+      } as never);
+      expect(r.status).toBe(415);
+      expect(r.headers.get('set-cookie')).toBeNull();
     } finally {
       if (anterior === undefined) delete process.env.CADASTRO_ABERTO;
       else process.env.CADASTRO_ABERTO = anterior;

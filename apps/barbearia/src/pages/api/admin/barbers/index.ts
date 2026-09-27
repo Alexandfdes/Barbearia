@@ -6,7 +6,7 @@ import { hash } from 'bcryptjs';
 import { and, eq } from 'drizzle-orm';
 import { db, first } from '../../../../db/index.js';
 import { barbers, barberServices, services, workingHours } from '../../../../db/schema.js';
-import { json } from '../../../../lib/api.js';
+import { json, violouUnico } from '../../../../lib/api.js';
 import { normalizePhone } from '../../../../lib/phone.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
@@ -76,14 +76,17 @@ export const POST: APIRoute = async ({ request }) => {
   const phone = normalizePhone(parsed.data.phone);
   if (!phone) return json({ error: 'Telefone inválido: informe DDD + número.' }, 400);
 
-  // ⚠️ Único NO MUNDO, não nesta barbearia: é a unicidade global que faz o login
-  // do painel central saber de qual barbearia é quem está entrando. Por isso a
-  // consulta NÃO filtra por tenant — de propósito, ao contrário de todo o resto
-  // deste arquivo.
-  const comEsseTelefone = await db.select({ id: barbers.id }).from(barbers).where(eq(barbers.phone, phone));
-  if (comEsseTelefone.length > 0) {
-    return json({ error: 'Este telefone já está cadastrado para outro barbeiro.' }, 409);
-  }
+  // ⚠️ O telefone é único NO MUNDO, não nesta barbearia: é o que faz o login do
+  // painel central saber de quem é quem está entrando (índice `barbers_phone_uq`,
+  // migration 0002). Quem confere é o índice, no `catch` do INSERT lá embaixo.
+  //
+  // Até 25/09/2026 havia aqui uma consulta que dizia conferir isso "sem filtrar
+  // por tenant, de propósito". Só que ela roda dentro da requisição, sob o RLS, e
+  // enxergava apenas os barbeiros DESTA barbearia. Telefone já usado em outra
+  // passava por ela, caía no índice, e o `catch` genérico devolvia "Erro ao criar
+  // barbeiro" (500) — o dono ficava sem saber o motivo. Uma consulta que olhasse
+  // todas as barbearias precisaria da conexão de dono, e dono dentro de rota do
+  // painel é justamente o que o guarda de `tests/rls.test.ts` proíbe.
 
   // Slug é o identificador de login: precisa ser único. Sem sufixo automático —
   // se colidir, o admin escolhe outro (senão geraria um login esquisito).
@@ -127,7 +130,11 @@ export const POST: APIRoute = async ({ request }) => {
       }
       return id;
     });
-  } catch {
+  } catch (err) {
+    if (violouUnico(err, 'barbers_phone_uq')) {
+      return json({ error: 'Este telefone já está cadastrado para outro barbeiro.' }, 409);
+    }
+    console.error('[api/admin/barbers]', err);
     return json({ error: 'Erro ao criar barbeiro' }, 500);
   }
 

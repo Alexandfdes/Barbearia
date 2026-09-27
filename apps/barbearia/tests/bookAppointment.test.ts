@@ -201,6 +201,25 @@ describe.skipIf(!TEM_BANCO)('bookAppointment (integração com Postgres)', () =>
     if (!r.ok) expect(r.httpStatus).toBe(400);
   });
 
+  it('agenda do jeito que roda em produção: dentro de comTenant, com o papel restrito', async () => {
+    // ⚠️ Até 25/09/2026 isto estourava "this.client.begin is not a function": a
+    // conexão reservada por `comTenant` não sabia abrir transação, e o
+    // agendamento é uma. Todos os casos acima chamam `bookAppointment` FORA da
+    // requisição, no pool do dono — por isso a suíte ficava verde. Ver
+    // `tests/transacao-na-requisicao.test.ts`.
+    const { comTenant } = await import('../src/db/index');
+    const [{ id: tid }] = await sqlConn`SELECT id FROM tenants WHERE slug = 'bayron'`;
+    const tenant = { id: Number(tid), slug: 'bayron', status: 'active', domain: null };
+
+    // 13:00 está livre: os casos acima ocupam 10h, 11h, 14h e 16h.
+    const r = await comTenant(tenant, () => bookAppointment({ ...base, startsAt: at('13:00') }));
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const [linha] = await sqlConn`SELECT tenant_id FROM appointments WHERE id = ${r.id}`;
+      expect(Number(linha.tenant_id)).toBe(Number(tid));
+    }
+  });
+
   it('todo agendamento nasce com tenant_id', async () => {
     const rows = await sqlConn`SELECT count(*)::int AS n FROM appointments WHERE tenant_id IS NULL`;
     expect(rows[0].n).toBe(0);
