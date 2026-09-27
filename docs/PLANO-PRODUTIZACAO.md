@@ -394,7 +394,9 @@ no modelo assistido.
 1. O dono da barbearia se cadastra sozinho: dados, serviços com preço, horário.
 2. Recebe o painel na hora, já com as informações dele.
 3. Escolhe entre **três layouts de site**. **As cores são dele**: ele diz quais são as da
-   barbearia, e o sistema garante que o texto continue legível.
+   barbearia, e o sistema garante que o texto continue legível. **A escolha acontece no
+   cadastro, antes do cartão**, e o site já nasce com ela — decidido em 27/09/2026;
+   rejeitado escolher no painel, depois de entrar (`JORNADA-DO-BARBEIRO.md` §2.4).
 4. **Cadastra o cartão para entrar**, e tem **7 dias grátis** antes da primeira cobrança,
    com o site no ar desde o primeiro minuto.
 

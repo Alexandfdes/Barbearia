@@ -1,6 +1,6 @@
 # Documentação do Barbearia no Ar
 
-> Índice de tudo que existe em `docs/`. Atualizado: 06/09/2026.
+> Índice de tudo que existe em `docs/`. Atualizado: 27/09/2026.
 >
 > **Se você está chegando agora ou voltando depois de um tempo, leia
 > `ESTADO-ATUAL.md` primeiro.** Ele diz onde o código está e qual é o próximo
@@ -24,7 +24,8 @@
 |---|---|---|
 | `PRECIFICACAO.md` | ✅ vigente | Preço, margem por cliente, concorrentes verificados |
 | `PLANO-PRODUTIZACAO.md` | ⚠️ parcialmente substituído | Posicionamento e público-alvo. **A escolha de arquitetura foi revertida** — ver `ARQUITETURA-MULTI-TENANT-V1.md` |
-| `FLUXO-COMPLETO.md` | ⚠️ caminhos antigos | O caminho da venda até o site no ar. Os caminhos de arquivo são anteriores ao monorepo |
+| `FLUXO-COMPLETO.md` | ⚠️ vai ser aposentado | O caminho antigo, com montagem, da venda até o site no ar — vale enquanto o `/onboarding` existir. O que o substitui é o `JORNADA-DO-BARBEIRO.md` |
+| `JORNADA-DO-BARBEIRO.md` | ⚠️ desenho, implementado em parte | O caminho do barbeiro no autoatendimento, da landing ao site no ar: o que ele vê, o que existe no código, o que falta e em que ordem construir |
 
 ## Arquitetura
 

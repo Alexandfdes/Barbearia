@@ -16,6 +16,8 @@
 > lugar ao autoatendimento: o dono se cadastra sozinho em `/cadastrar`, recebe o painel
 > na hora e tem 7 dias grátis. O documento continua certo sobre o que está no ar **hoje**;
 > deixa de valer no dia em que o `/onboarding` sair (`PENDENCIAS-ABERTAS.md` §4.15).
+> O caminho novo, passo a passo, com o que existe e o que falta, está em
+> `JORNADA-DO-BARBEIRO.md` (27/09/2026).
 >
 > **Todo item deste documento foi conferido no código**, arquivo por arquivo, na
 > data acima. Contagens de telas e rotas vêm de listagem do repositório, não de
