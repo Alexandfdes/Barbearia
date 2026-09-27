@@ -478,6 +478,10 @@ apresentação em `services`) · migrar os JSONs para o banco · portar o catál
 `Services.astro:8-46` para as colunas novas · Gallery deixa de usar `import.meta.glob` ·
 **remover** o `<script>` de `Services.astro:129-140` e o endpoint
 `/api/services/prices` (código morto depois do SSR — consumidor único verificado).
+✅ *Galeria feita em 25/09/2026:* tabela `gallery_images` (migration 0005 — com
+`tenant_id` e `widths`, sem `alt` e sem `active`; o motivo está no cabeçalho da migration),
+tela `/admin/galeria`, e `Gallery.astro` sem `import.meta.glob`. Depoimentos, FAQ e o
+catálogo em colunas continuam por fazer.
 *Aceite:* landing renderiza inteiramente do banco; `src/data/*.json` pode ser deletado;
 mudar categoria/descrição/preço no admin reflete no site sem rebuild.
 

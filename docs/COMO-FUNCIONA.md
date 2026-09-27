@@ -12,6 +12,13 @@
 > cliente para multi-tenant (01/09). O que estava escrito aqui virou mentira nos
 > três pontos. O histórico de cada decisão está no §7.
 >
+> ⚠️ **Mudou de novo em 24/09/2026, e desta vez o documento NÃO foi reescrito.** O
+> dono decidiu por autoatendimento com 7 dias grátis: a barbearia se cadastra sozinha,
+> recebe o painel na hora e escolhe entre três layouts de site, com as cores dele, depois
+> de cadastrar o cartão (`PLANO-PRODUTIZACAO.md` §13). Tudo que aqui diz "você monta" — o passo 3 e o §6
+> inteiro — descreve o que está no ar hoje e deixa de valer quando o novo fluxo existir.
+> Reescrever antes disso poria aqui um produto que ainda não existe.
+>
 > Os outros documentos explicam *como fazer*: `ESTADO-ATUAL.md` (onde o código
 > está), `ARQUITETURA-MULTI-TENANT-V1.md` (como o sistema é montado por dentro),
 > `ARQUITETURA-COBRANCA-V1.md` (o dinheiro), `PRECIFICACAO.md` (os números) e
