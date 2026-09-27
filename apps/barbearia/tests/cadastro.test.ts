@@ -60,10 +60,15 @@ describe('a regra de nascer uma barbearia', () => {
     const [t] = await conn`SELECT slug, business_name FROM tenants WHERE id = ${r.tenantId}`;
     expect(t.slug).toBe('cortes-do-ze');
 
-    const [s] = await conn`SELECT short_name, whatsapp_number FROM settings WHERE tenant_id = ${r.tenantId}`;
+    const [s] = await conn`SELECT short_name, whatsapp_number, whatsapp_display FROM settings WHERE tenant_id = ${r.tenantId}`;
     // "Barbearia Cortes do Zé" no topo estoura a barra: o prefixo genérico sai.
     expect(s.short_name).toBe('Cortes do Zé');
-    expect(s.whatsapp_number).toBe('84999990000');
+    // ⚠️ COM o 55. Até 27/09/2026 este caso exigia '84999990000' — e com isso a
+    // suíte garantia o defeito: o site monta `wa.me/<número>`, e sem o 55 o botão
+    // de WhatsApp abria uma conversa com +84, o Vietnã (`tests/whatsapp-da-loja.test.ts`).
+    expect(s.whatsapp_number).toBe('5584999990000');
+    // O que aparece escrito no rodapé: formatado, não do jeito que foi digitado.
+    expect(s.whatsapp_display).toBe('(84) 99999-0000');
 
     const [b] = await conn`SELECT phone, role FROM barbers WHERE tenant_id = ${r.tenantId}`;
     expect(b.phone).toBe('84999990000');

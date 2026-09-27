@@ -11,6 +11,7 @@ import { tenantDaSessao } from '../../lib/tenant.js';
 import { calcularCompletude } from '../../lib/completude.js';
 import { quantasFotos } from '../../lib/galeria.js';
 import { parseBusinessHours } from '../../lib/settings.js';
+import { reais } from '../../lib/dinheiro.js';
 import { TZ } from '../../lib/timezone.js';
 
 
@@ -232,7 +233,7 @@ weekDays.push(...semana);
 const maxRevenue = Math.max(...weekDays.map(d => d.revenue), 1);
 
 // ─── Helpers de display ───────────────────────────────────────────────────
-const fmtMoney = (cents: number) => `R$ ${(cents / 100).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`;
+const fmtMoney = reais;
 const fmtTime  = (iso: string) => formatInTimeZone(new Date(iso), TZ, 'HH:mm');
 const fmtDate  = (iso: string) => formatInTimeZone(new Date(iso), TZ, "dd 'de' MMM");
 

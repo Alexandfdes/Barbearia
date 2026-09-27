@@ -1,9 +1,9 @@
 ---
 import '../styles/global.css';
-import { SITE_URL } from '../config';
-import { getSettings } from '../lib/settings';
+import { getSettings, numeroDaLojaInternacional } from '../lib/settings';
 import { cssDoAccent } from '../lib/accent.js';
 import { jsonLdSeguro } from '../lib/jsonLd.js';
+import { enderecoPublico } from '../lib/tenant.js';
 
 interface Props {
   title?: string;
@@ -23,10 +23,21 @@ const {
   description = s.seoDescription
 } = Astro.props;
 
-const canonical = new URL(Astro.url.pathname, SITE_URL).href;
+// O endereço DESTA barbearia — nunca uma constante (ver `enderecoPublico`).
+const base = enderecoPublico(Astro.request, Astro.url);
+const canonical = new URL(Astro.url.pathname, base).href;
 // A imagem de compartilhamento e o ícone da aba saem do banco quando existirem.
 // URL absoluta no og:image porque WhatsApp e redes sociais exigem.
-const ogImage = s.ogPath ? new URL(s.ogPath, SITE_URL).href : `${SITE_URL}/og.jpg`;
+//
+// ⚠️ Sem a prévia que o dono sobe, vale a CAPA dele; sem capa, imagem nenhuma.
+// O `public/og.jpg` do repositório é a foto do Bayron, com o nome e o arroba dele:
+// até 27/09/2026 era o padrão de toda barbearia, e o link de um cliente novo
+// mandado no WhatsApp aparecia com a cara de outra barbearia. Continua valendo só
+// para o próprio Bayron, pelo mesmo interruptor dos componentes (`PENDENCIAS-ABERTAS.md` §4.7).
+const ogDoBayron = s.shortName === 'Bayron' ? '/og.jpg' : '';
+const previaPropria = Boolean(s.ogPath) || Boolean(ogDoBayron && !s.heroPath);
+const imagemDaPrevia = s.ogPath || s.heroPath || ogDoBayron;
+const ogImage = imagemDaPrevia ? new URL(imagemDaPrevia, base).href : null;
 const favicon = s.faviconPath ?? '/favicon.svg';
 
 // Cor de destaque da barbearia (Fase 5 / D5). O Tailwind v4 compila `bg-teal`
@@ -53,25 +64,25 @@ const estiloAccent = cssDoAccent({
     <meta property="og:locale" content="pt_BR" />
     <meta property="og:site_name" content={s.businessName} />
     <meta property="og:url" content={canonical} />
-    <meta property="og:image" content={ogImage} />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content={`${s.businessName} — ${s.addressCity}`} />
-    <meta name="twitter:card" content="summary_large_image" />
+    {ogImage && <meta property="og:image" content={ogImage} />}
+    {ogImage && previaPropria && <meta property="og:image:width" content="1200" />}
+    {ogImage && previaPropria && <meta property="og:image:height" content="630" />}
+    {ogImage && <meta property="og:image:alt" content={`${s.businessName} — ${s.addressCity}`} />}
+    <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={ogImage} />
+    {ogImage && <meta name="twitter:image" content={ogImage} />}
     <link rel="canonical" href={canonical} />
     <link rel="icon" href={favicon} />
     <title>{title}</title>
     <script type="application/ld+json" set:html={jsonLdSeguro({
       "@context": "https://schema.org",
       "@type": "HairSalon",
-      "@id": `${SITE_URL}/#business`,
+      "@id": `${base}/#business`,
       "name": s.businessName,
-      "image": ogImage,
-      "url": SITE_URL,
-      "telephone": `+${s.whatsappNumber}`,
+      "image": ogImage ?? undefined,
+      "url": base,
+      "telephone": numeroDaLojaInternacional(s) ? `+${numeroDaLojaInternacional(s)}` : undefined,
       "priceRange": "$$",
       "sameAs": s.instagramUrl ? [s.instagramUrl] : [],
       "address": {

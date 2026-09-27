@@ -35,9 +35,13 @@ const secoes: { titulo: string; nota?: string; campos: Campo[] }[] = [
     titulo: 'Identidade',
     campos: [
       { id: 'businessName', label: 'Nome da barbearia', hint: 'Aparece no rodapé, no título da aba e nos dados que o Google lê.' },
-      { id: 'shortName', label: 'Nome curto', hint: 'O que aparece no topo do site, ao lado do logo. Ex: "Bayron".' },
-      { id: 'tagline', label: 'Frase de efeito', hint: 'Guardada para uso futuro — o topo do site ainda não lê daqui.' },
-      { id: 'heroSubtitle', label: 'Texto abaixo do título', tipo: 'textarea', hint: 'Idem: guardado, ainda não usado pelo topo.' },
+      { id: 'shortName', label: 'Nome curto', hint: 'O que aparece no topo do site, ao lado do logo. Ex: "Cortes do Zé".' },
+      // ⚠️ Até 27/09/2026 os dois avisos abaixo diziam que o topo do site não lia
+      // estes campos. Lia: a frase É o título grande do topo (`components/Hero.astro`),
+      // e o medidor do painel cobra ela com o nome "frase do topo". O dono
+      // acreditava no aviso e deixava o topo genérico.
+      { id: 'tagline', label: 'Frase do topo', hint: 'O título grande do topo do site — a primeira coisa que o cliente lê. Em branco, o topo mostra o nome da barbearia.' },
+      { id: 'heroSubtitle', label: 'Texto abaixo da frase', tipo: 'textarea', hint: 'Aparece logo abaixo da frase do topo. Opcional.' },
       { id: 'aboutText', label: 'Sobre a barbearia', tipo: 'textarea', hint: 'O parágrafo do rodapé.' },
     ],
   },

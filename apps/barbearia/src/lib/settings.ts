@@ -19,6 +19,7 @@ import { eq } from 'drizzle-orm';
 import { db, first } from '../db/index.js';
 import { settings as settingsTable } from '../db/schema.js';
 import { tenantAtual, type Tenant } from './tenant.js';
+import { waPhone } from './whatsapp.js';
 
 export interface BusinessHour {
   label: string;
@@ -197,8 +198,27 @@ export function invalidateSettings(tenant?: Tenant): void {
  * link para o telefone DO CLIENTE; aqui o destino é o número da loja.
  */
 export function waUrl(message: string | undefined, s: Settings): string {
-  if (!s.whatsappNumber) return '';
+  const numero = numeroDaLojaInternacional(s);
+  if (!numero) return '';
   return message
-    ? `https://wa.me/${s.whatsappNumber}?text=${encodeURIComponent(message)}`
-    : `https://wa.me/${s.whatsappNumber}`;
+    ? `https://wa.me/${numero}?text=${encodeURIComponent(message)}`
+    : `https://wa.me/${numero}`;
+}
+
+/**
+ * O número da loja no formato que o wa.me e o schema.org exigem: com o código do
+ * país na frente.
+ *
+ * ⚠️ Não confie que o banco já traz o 55. Barbearia criada pelo cadastro antes de
+ * 27/09/2026 tem o número gravado sem ele, e o campo do painel aceita 10 dígitos.
+ * Sem o 55, o wa.me lê o DDD como código de país — "84…" abria uma conversa com
+ * um número do Vietnã.
+ *
+ * `waPhone` completa o 55 quando o número é brasileiro sem DDI e o mantém quando
+ * já tem. O que não passa na regra brasileira volta como está: sumir com o botão
+ * de quem hoje tem um número que funciona seria trocar um defeito por outro.
+ */
+export function numeroDaLojaInternacional(s: Pick<Settings, 'whatsappNumber'>): string {
+  if (!s.whatsappNumber) return '';
+  return waPhone(s.whatsappNumber) ?? s.whatsappNumber;
 }

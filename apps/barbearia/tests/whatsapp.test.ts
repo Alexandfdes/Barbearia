@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { waPhone, waLink, addMinutesToHm, buildWaMessages, firstName } from '../src/lib/whatsapp';
 
 describe('waPhone', () => {
@@ -67,5 +68,32 @@ describe('buildWaMessages', () => {
   it('nome vazio vira "cliente"', () => {
     expect(firstName('')).toBe('cliente');
     expect(firstName('  ')).toBe('cliente');
+  });
+});
+
+// Até 27/09/2026 o lembrete dizia "aqui da Barbearia Bayron" para qualquer cliente
+// do produto: o dono de outra barbearia mandava a mensagem e assinava com o nome
+// do Bayron. Visto ao vivo no primeiro teste de ponta a ponta.
+describe('as mensagens assinam com a barbearia da agenda', () => {
+  it('o lembrete assina com o nome que recebe', () => {
+    const m = buildWaMessages('João', '14:30', 'hoje', 'Barbearia Teste');
+    expect(m.lembrete).toContain('Barbearia Teste');
+    expect(m.lembrete).not.toMatch(/bayron/i);
+  });
+
+  it('sem nome, não assina — e não inventa um', () => {
+    const m = buildWaMessages('João', '14:30', 'hoje');
+    expect(m.lembrete).not.toMatch(/bayron/i);
+    expect(m.lembrete).not.toContain('—');
+  });
+
+  it('nenhuma das mensagens traz nome de barbearia fixo', () => {
+    const m = buildWaMessages('João', '14:30', 'hoje', 'Cortes do Zé');
+    for (const texto of Object.values(m)) expect(texto).not.toMatch(/bayron/i);
+  });
+
+  it('a agenda do dia passa o nome da barbearia dela', () => {
+    const pagina = readFileSync('src/pages/admin/dia/[date].astro', 'utf8');
+    expect(pagina).toMatch(/buildWaMessages\(.*clientData\.businessName\)/);
   });
 });

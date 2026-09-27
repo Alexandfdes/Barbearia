@@ -54,10 +54,15 @@ export interface WaMessages {
  * @param timeHm horário local "HH:MM" do agendamento
  * @param dia   rótulo do dia: 'hoje' ou 'dia 12/06'
  */
-export function buildWaMessages(name: string, timeHm: string, dia: string): WaMessages {
+export function buildWaMessages(name: string, timeHm: string, dia: string, barbearia?: string): WaMessages {
   const first = firstName(name);
+  // ⚠️ A assinatura é o nome da barbearia DA AGENDA, e nunca um nome fixo. Até
+  // 27/09/2026 o texto dizia "aqui da Barbearia Bayron" para qualquer cliente do
+  // produto — o dono mandava o lembrete e assinava com o nome de outra barbearia.
+  // Assinatura no fim, e não "aqui da…", porque "da" não serve para todo nome.
+  const assinatura = barbearia?.trim() ? `\n— ${barbearia.trim()}` : '';
   return {
-    lembrete: `Olá ${first}, aqui da Barbearia Bayron — lembrando do seu horário ${dia} às ${timeHm}. Qualquer coisa é só me chamar!`,
+    lembrete: `Olá ${first}, lembrando do seu horário ${dia} às ${timeHm}. Qualquer coisa é só me chamar!${assinatura}`,
     clienteAtrasado: `Fala, ${first}! Tudo bem? Vi que seu horário era às ${timeHm}. Está a caminho?`,
     barbeiroAtrasado: `Fala, ${first}! Tive um pequeno atraso no atendimento anterior, posso te atender às ${addMinutesToHm(timeHm, 15)}? Desculpa o transtorno!`,
   };

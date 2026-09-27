@@ -9,6 +9,7 @@ import { and, eq } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
 import { waPhone } from '../../lib/whatsapp.js';
 import { tenantDaSessao } from '../../lib/tenant.js';
+import { reais } from '../../lib/dinheiro.js';
 import { TZ } from '../../lib/timezone.js';
 
 
@@ -25,7 +26,7 @@ const rank: Record<string, number> = { pending: 0, fulfilled: 1, cancelled: 2 };
 rows.sort((a, b) => (rank[a.status] - rank[b.status]) || b.createdAt.localeCompare(a.createdAt));
 
 const pendingCount = rows.filter(r => r.status === 'pending').length;
-const brl = (c: number) => 'R$ ' + Math.round(c / 100);
+const brl = reais;
 function whenLabel(iso: string): string {
   const d = new Date(iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z');
   return isNaN(d.getTime()) ? '' : formatInTimeZone(d, TZ, 'dd/MM/yy HH:mm');

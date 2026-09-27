@@ -70,6 +70,7 @@ const s = await getSettings();
 </Layout>
 
 <script>
+import { reais } from '../lib/dinheiro';
 import {
 
   applyDiscountPct, type ComboProduct,
@@ -143,7 +144,8 @@ headerBackBtn.addEventListener('click', (e) => {
 const DAYS  = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
-function fmt(cents: number) { return `R$ ${(cents / 100).toFixed(0)}`; }
+// Com centavos quando há centavos — `lib/dinheiro.ts`.
+const fmt = reais;
 
 function spinner(msg = 'Carregando...') {
   return `<div class="flex items-center justify-center py-12 gap-3 text-neutral-500 text-sm">

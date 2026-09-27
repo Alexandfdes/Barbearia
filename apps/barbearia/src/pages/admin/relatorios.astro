@@ -10,6 +10,8 @@ import { and, gte, lt, eq, ne, or, isNull } from 'drizzle-orm';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { computeOccupancy } from '../../lib/occupancy.js';
 import { tenantDaSessao } from '../../lib/tenant.js';
+import { getSettings } from '../../lib/settings.js';
+import { reais } from '../../lib/dinheiro.js';
 import { TZ } from '../../lib/timezone.js';
 
 const START_HOUR = 9;
@@ -18,6 +20,14 @@ const END_HOUR = 19;
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
 const tenant = tenantDaSessao(session);
+
+// O cabeçalho da impressão é o DESTA barbearia. Até 27/09/2026 ele dizia
+// "Barbearia Bayron — Relatório", com a logo dele, para qualquer cliente.
+// A logo cravada só vale para o próprio Bayron, pelo mesmo interruptor dos
+// componentes do site (`PENDENCIAS-ABERTAS.md` §4.7).
+const cfgImpressao = await getSettings(tenant);
+const logoImpressao = cfgImpressao.logoPath
+  || (cfgImpressao.shortName === 'Bayron' ? printLogo.src : null);
 
 // Admin vê o negócio inteiro; barbeiro vê só os próprios dados.
 const isAdmin = session.role === 'admin';
@@ -287,7 +297,7 @@ const deltaTicket  = pctDelta(cur.ticketCents, prev.ticketCents);
 const deltaNoShow  = Math.round((cur.noShowRate - prev.noShowRate) * 10) / 10; // pontos percentuais
 
 // Helpers de apresentação
-const brl = (cents: number) => 'R$ ' + Math.round(cents / 100).toLocaleString('pt-BR');
+const brl = reais;
 
 const maxHora = Math.max(1, ...cur.porHora);
 const horas = cur.porHora.map((count, i) => ({ hora: START_HOUR + i, count, pct: Math.round((count / maxHora) * 100) }));
@@ -322,9 +332,9 @@ const geradoEm = formatInTimeZone(nowUtc, TZ, "dd/MM/yyyy 'às' HH:mm");
 
     <!-- Cabeçalho que aparece SÓ na impressão -->
     <div class="print-only" id="print-head">
-      <div class="print-logo"><img src={printLogo.src} alt="Barbearia Bayron" /></div>
+      {logoImpressao && <div class="print-logo"><img src={logoImpressao} alt={cfgImpressao.businessName} /></div>}
       <div class="print-titles">
-        <strong>Barbearia Bayron — Relatório</strong>
+        <strong>{cfgImpressao.businessName} — Relatório</strong>
         <span>{tituloPainel} · {subtitulo}</span>
       </div>
       <span class="print-date">Gerado em {geradoEm}</span>

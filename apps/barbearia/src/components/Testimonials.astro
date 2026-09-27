@@ -1,8 +1,8 @@
 ---
 import depoimentos from '../data/depoimentos.json';
-import { SITE_URL } from '../config';
 import { getSettings } from '../lib/settings';
 import { jsonLdSeguro } from '../lib/jsonLd.js';
+import { enderecoPublico } from '../lib/tenant.js';
 
 const s = await getSettings();
 const GOOGLE_REVIEWS_URL = s.googleReviewsUrl;
@@ -12,7 +12,8 @@ const REVIEW_COUNT = s.googleReviewCount;
 const ldJson = {
   "@context": "https://schema.org",
   "@type": "HairSalon",
-  "@id": `${SITE_URL}/#business`,
+  // O mesmo `@id` do `Layout.astro`: é assim que o Google liga a nota ao negócio.
+  "@id": `${enderecoPublico(Astro.request, Astro.url)}/#business`,
   "name": s.businessName,
   "aggregateRating": {
     "@type": "AggregateRating",
