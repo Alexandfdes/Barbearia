@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-09-13.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-09-25.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -24,6 +24,9 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **24/09** | **Autoatendimento, com 7 dias grátis.** O dono se cadastra sozinho, recebe o painel na hora e escolhe entre três layouts de site. Substitui a montagem assistida (§4.8). Adiantou para o primeiro cadastro o prazo do contrato (§1.2), do domínio e da política de suporte (§1.4) | `PLANO-PRODUTIZACAO.md` §13 |
+| **24/09** | **Cartão no cadastro**, cobrado só depois dos 7 dias. **Três layouts** de site, com **as cores escolhidas pelo dono** (§1.3, §4.13) | `PLANO-PRODUTIZACAO.md` §13 |
+| **24/09** | **Fotos no painel, logo depois do cadastro** — galeria do site (o carrossel, a partir de 3 fotos) e foto de produto por barbearia; não no formulário do cadastro. Feito em 25/09 (§2.7) | `PLANO-PRODUTIZACAO.md` §13 |
 
 **Ainda pendente dentro dos itens acima:** registrar `barbearianoar.com.br` (estava
 livre em 30/08/2026, **não registrado**) e, se quiser segurar para SEO,
@@ -35,6 +38,10 @@ ainda não está escolhido, e registrar antes de decidir é pagar por endereço 
 usar. **O gatilho deixou de ser uma data e passou a ser um evento:** antes de o nome
 aparecer em qualquer lugar que o cliente veja — link, e-mail, nota, subdomínio. Trocar
 depois de ter cliente é migração, não renomeação.
+
+⚠️ **Esse evento ficou mais perto em 24/09/2026** (`PLANO-PRODUTIZACAO.md` §13): no
+autoatendimento, o subdomínio aparece para o dono **no minuto do cadastro**. O domínio
+tem que existir antes de o cadastro abrir.
 
 ---
 
@@ -84,6 +91,22 @@ telefone e data de nascimento dos clientes dela sob a sua operação, e a exposi
 nesse dia. Sem contrato, a resposta para *"se eu sair, levo minha lista de clientes?"* é
 improvisada na frente do cliente — e a improvisada vira o combinado.
 
+⚠️ **O prazo adiantou em 24/09/2026** (`PLANO-PRODUTIZACAO.md` §13). Com 7 dias grátis, a
+exposição começa **no primeiro cadastro**, não na primeira venda: o dado entra antes de
+qualquer pagamento, e pode ficar sem pagamento nunca. E sem ninguém no caminho, não há
+conversa onde apresentar o termo — ele tem que ser **aceito na tela de cadastro**, com a
+versão aceita gravada junto da barbearia.
+
+**E o cartão pede uma cláusula própria** (decisão de 24/09, §1.3): o termo tem que dizer,
+sem letra miúda, **quando** o cartão vai ser cobrado e **como cancelar** antes disso.
+Cobrança automática depois de teste grátis é exatamente o que vira reclamação quando não
+está dito com clareza — é ponto para o advogado, não para improviso.
+
+Pergunta nova, que o teste grátis cria: **o que acontece com os dados de quem testou e
+não pagou?** Nome, telefone e data de nascimento de clientes de terceiro, guardados sem
+contrato vigente. Guardar para sempre é exposição; apagar cedo demais perde quem só
+esqueceu de pagar.
+
 ### 1.3 🔴 `[DECISÃO]` O que acontece quando não paga
 
 O gateway está escolhido, mas a política não. Hoje **não existe nada que suspenda uma
@@ -91,7 +114,27 @@ instância**. Se a regra for "site sai do ar após N dias", isso é feature a co
 ver §3.5. Sem taxa de instalação, essa pendência ficou mais cara: um caloteiro que fica
 3 meses sem pagar leva junto todo o trabalho de montagem, que agora não foi cobrado.
 
+**Meio respondido em 24/09/2026:** todo cliente novo tem **7 dias grátis**
+(`PLANO-PRODUTIZACAO.md` §13). O que ficou aberto — e agora vale para todo cliente, não só
+para quem atrasa:
+
+- **O que acontece no oitavo dia sem pagamento.** Site fora do ar com uma página
+  dizendo o motivo, agenda desligada com o site de pé, ou alguns dias de carência com
+  aviso. Parar de responder, dando 404 ou 502, está descartado
+  (`ARQUITETURA-COBRANCA-V1.md` §7.3): parece defeito do produto, não inadimplência.
+- ✅ **Cartão no cadastro: sim** — decidido em 24/09/2026. O dono cadastra o cartão para
+  entrar, e a primeira cobrança só acontece depois dos 7 dias
+  (`PLANO-PRODUTIZACAO.md` §13). Com isso, a pergunta de cima muda de forma: deixa de ser
+  "e se ele não pagar" e passa a ser **"e se a cobrança no cartão falhar"** — recusado,
+  sem limite, vencido, ou cancelado por ele.
+- **Aviso antes de acabar.** Quando, e por onde — o dono não abre e-mail; WhatsApp exige
+  a Evolution API ou parecido, que hoje não existe no produto.
+
 ### 1.4 🔴 `[DECISÃO]` Política de suporte — virou pré-requisito do preço
+
+⚠️ **O gatilho mudou em 24/09/2026** (`PLANO-PRODUTIZACAO.md` §13). Era "antes de combinar
+o escopo com o primeiro cliente", e essa conversa não existe no autoatendimento. A
+política tem que estar escrita onde o dono se cadastra.
 
 ⚠️ **Subiu de 🟠 para 🔴 em 01/09/2026, junto com a queda para R$ 100.** A R$ 180, 1,5h
 de suporte por cliente/mês cabia. A R$ 100 ela come 60% da mensalidade e sobram R$ 29
@@ -219,6 +262,9 @@ cliente dele faz um passo inútil e o wizard anuncia "4 passos" quando são 3. A
 no ponto mais sensível do funil.
 
 Correção: pular o passo e ajustar o contador quando `barbers.length === 1`.
+
+⚠️ **Subiu em 24/09/2026.** No autoatendimento, o `/cadastrar` cria a barbearia com **um**
+barbeiro só — o dono. Todo cliente novo começa exatamente no caso em que o passo é inútil.
 
 ### 2.3 ✅ `[TÉCNICO]` Site do produto sem controle de versão — RESOLVIDO em 06/09/2026
 
@@ -357,7 +403,29 @@ verificar e o mais caro de descobrir tarde.
 três), o que já estava registrado em §1.5 e o ensaio confirmou. No dia do segundo
 cliente eles perdem o acesso ao painel.
 
-### 2.7 🟠 `[TÉCNICO]` As fotos de produto de todas as barbearias na mesma pasta
+### 2.7 ✅ `[TÉCNICO]` As fotos de produto de todas as barbearias na mesma pasta — RESOLVIDO em 24/09/2026
+
+**A pasta:** `pastaDeProduto(tenant)` (`lib/uploads.ts`), com a mesma regra de
+`pastaDeMidia()`: a barbearia 1 continua em `UPLOAD_ROOT/products`, onde as fotos dela já
+estão e para onde o banco dela aponta; as outras gravam em `UPLOAD_ROOT/<slug>/products`.
+Gravar, apagar e servir passam pela mesma função — a remoção que estava duplicada em
+`api/admin/products/[id].ts` e `api/admin/combos/[id].ts` virou `apagarFotoProduto()`.
+
+**A rota:** `api/products/image/[name].ts` serve da pasta da barbearia que o middleware
+resolveu (`tenantResolvido()`), nunca de um nome solto numa pasta comum. Sem barbearia, 404.
+
+**Junto, o mesmo defeito na mídia da marca:** `api/media/[...path].ts` olhava só o endereço
+(`tenantDoHost`), e o painel mora num endereço central, que não é de barbearia nenhuma — a
+prévia da logo e da capa em `/admin/configuracoes` dava 404 para todo mundo. Passou a usar
+`tenantResolvido()`: a sessão no painel, o endereço no site.
+
+Coberto por `tests/fotos-por-barbearia.test.ts` (7 casos, 5 mutações verificadas).
+
+⚠️ **Foto de produto de barbearia que não é a 1, enviada antes disto, ficou na pasta comum**
+e passa a dar 404. Só em desenvolvimento — em produção existe só o Bayron. Reenvie pelo
+painel.
+
+<details><summary>O defeito, como estava</summary>
 
 Encontrado em 11/09/2026, conferindo rota por rota no passo 6.
 
@@ -381,6 +449,8 @@ Correção: `PRODUCT_UPLOAD_DIR` vira função de tenant, como `pastaDeMidia()`,
 passa a servir da pasta do host. ⚠️ **As fotos que já existem estão na pasta antiga** —
 mudar exige mover os arquivos do Bayron ou manter a queda para o caminho legado, do mesmo
 jeito que `pastaDeMidia()` faz.
+
+</details>
 
 ### 2.8 ✅ `[TÉCNICO]` O backup entregava o banco inteiro — RESOLVIDO em 22/09/2026
 
@@ -429,6 +499,11 @@ A rota de upload passa o tenant que ela já tinha resolvido.
 
 **A regra que fica:** um caminho de arquivo tem **uma** função que o monta, usada pela
 escrita e pela leitura. Havendo duas, elas divergem — é questão de quando, não de se.
+
+Guarda em `tests/uploads.test.ts` — e ela **não nasceu junto com o conserto**, como a regra
+da casa manda. Foi escrita em 24/09, quando a verificação por mutação mostrou que, com o
+caminho legado de volta, a suíte inteira continuava verde. Confere as duas metades: a pasta
+no disco e o endereço devolvido, para barbearia nova e para a de id 1, que fica no legado.
 
 ⚠️ **Continua aberto o §2.7** (foto de produto), que é a mesma classe de defeito no mesmo
 arquivo. Não entrou junto de propósito: a leitura de imagem de produto não passa por
@@ -495,7 +570,7 @@ Os dois caminhos de **reagendamento** fazem certo (`formatInTimeZone`), o que mo
 
 ### 2.11 🔴 `[TÉCNICO]` Três lugares somam três horas à mão, dentro do navegador
 
-`admin/bloqueios.astro:208`, `admin/dia/[date].astro:1371` e `:2004`:
+`admin/bloqueios.astro:211`, `admin/dia/[date].astro:1385` e `:2018` (linhas conferidas em 25/09/2026):
 
 ```js
 new Date(Date.UTC(y, mo - 1, d, h + 3, min)).toISOString();
@@ -552,6 +627,11 @@ Com `CADASTRO_ABERTO=1` (§4.8), qualquer um de fora planta isso.
 `calendar.ts`, de propósito, porque as duas telas mostram a mesma agenda por caminhos
 diferentes. O `manage_token` continua na resposta: ele é o link que o atendente manda para o
 cliente, e agora só vem junto de agendamento que o barbeiro pode ver.
+
+Guarda em `tests/busca-permissao.test.ts`, escrita **dois dias depois** do conserto pelo
+mesmo motivo do §2.9: com o filtro de papel removido, a suíte seguia 269 de 269. Ela roda a
+rota fora de `comTenant`, na conexão de dono, para testar a parede da aplicação e não a do
+banco — e confere que o barbeiro não recebe o link de cancelamento do colega.
 
 **A sessão:** `getSession()` passou a reconsultar a linha do barbeiro a cada requisição, e o
 `role` do banco vence o do cookie. Demitir corta o acesso na requisição seguinte; rebaixar
@@ -614,7 +694,7 @@ duas.
 
 ### 2.15 🟠 `[TÉCNICO]` Editar o nome de um serviço apaga os centavos do preço
 
-`admin/servicos.astro:45`, `:226`, `:378`:
+`admin/servicos.astro:50`, `:231`, `:383` (linhas conferidas em 25/09/2026):
 
 ```ts
 priceNum: Math.floor(r.priceCents / 100),                    // 3990 -> 39
@@ -627,6 +707,10 @@ preço vira **R$ 39,00** — sem aviso. E é impossível cadastrar centavos por 
 
 Os produtos fazem certo (`api/admin/products/index.ts:53-57`, com `parseFloat` e
 `Math.round`), o que mostra que aqui foi descuido.
+
+**E o site arredonda por conta própria** (conferido em 25/09/2026):
+`components/Services.astro:32` mostra `R$ ${Math.round(c / 100)}` — o serviço de R$ 39,90
+aparece como **R$ 40**. O site anuncia um preço que não é o cobrado.
 
 ### 2.16 🟠 `[TÉCNICO]` O desconto do combo vale em qualquer dia da semana
 
@@ -670,6 +754,131 @@ parede onde os documentos afirmam ter duas**, e a afirmação de "54 de 54 rotas
 mede menos do que diz.
 
 </details>
+
+### 2.18 ✅ `[TÉCNICO]` O guarda de escopo olhava o arquivo, não a consulta — RESOLVIDO em 25/09/2026
+
+**O guarda novo:** `tests/escopo-rotas.test.ts` passou a olhar **cada consulta** do Drizzle
+(`.from()`, `.update()`, `.delete()`) a tabela com `tenant_id` — e não mais só se o arquivo
+menciona `tenant.id` em algum lugar. As duas exceções, o login achando o barbeiro pelo
+telefone como dono, estão escritas no próprio teste, com o motivo.
+
+**E as doze consultas que ele achou foram escopadas:** as listas de produtos, combos,
+reservas e barbeiros nas telas do painel; o mapa de nomes da agenda do dia; o barbeiro
+logado em `/admin/configuracoes`; a próxima posição de produto e de combo; e o ramo do dono
+em serviços e bloqueios, na tela e na API. Nesses quatro últimos, o filtro da barbearia saiu
+de dentro do ramo por papel — `and(eq(x.tenantId, tenant.id), papel === 'admin' ? undefined : …)` —
+para nenhum ramo conseguir esquecê-lo.
+
+**Uma delas era defeito de verdade, não só parede faltando.** `api/admin/barbers/index.ts`
+conferia o telefone "em todas as barbearias, de propósito" — só que, sob o RLS, a consulta
+enxergava apenas a própria. Telefone já usado em outra barbearia passava pela conferência,
+batia no índice único e voltava como 500, "Erro ao criar barbeiro", sem o motivo. Agora quem
+responde é o índice, com 409 e a mensagem certa (`tests/telefone-unico.test.ts`).
+
+⚠️ **Nenhuma das doze vazava** — o RLS segurava todas. Mas "66 arquivos tocam o banco, 66
+filtram" era verdade e enganava: quase toda tela menciona `tenant.id` na primeira consulta,
+a que confere o barbeiro logado, e a segunda — a que lista o conteúdo da tela — podia não
+filtrar nada. O limite do guarda novo está escrito nele: pega **omissão**, não filtro errado.
+
+### 2.19 ✅ `[TÉCNICO]` Toda transação dentro de uma requisição estourava — inclusive o agendamento — RESOLVIDO em 25/09/2026
+
+`comTenant()` (`src/db/index.ts`) reserva uma conexão do pool para a requisição e a entrega
+ao Drizzle. A conexão reservada do postgres.js **não tem `begin()`**, e a transação do
+Drizzle é, por dentro, `client.begin(...)`. Toda transação dentro de uma requisição com
+barbearia estourava `this.client.begin is not a function`. São seis: **o agendamento pelo
+site**, o reagendamento, concluir atendimento, retirar reserva, salvar expediente e criar
+barbeiro.
+
+**Depois da migração para Postgres, o site do Bayron deixaria de aceitar agendamento.** O
+roteiro pegaria no §5 — "um agendamento novo, feito pelo site" — com o site já no ar
+(`ROTEIRO-MIGRACAO-PRODUCAO.md` §0.1).
+
+Por que a suíte não via: os testes chamavam as rotas **fora** de `comTenant`, onde `db` é o
+pool do dono, que tem `begin()`. Achado por acaso, rodando uma rota como em produção.
+
+**O conserto:** `ensinarTransacao()` dá à conexão reservada um `begin()` que abre a
+transação nela mesma — onde estão o papel restrito e a barbearia. Abrir em outra conexão do
+pool seria rodar como dono, sem RLS. Transação dentro de transação vira `SAVEPOINT`; duas ao
+mesmo tempo na mesma requisição são recusadas com o motivo, em vez de se intercalarem.
+
+Coberto por `tests/transacao-na-requisicao.test.ts` (7 casos, todos dentro de `comTenant`)
+e por um caso novo em `tests/bookAppointment.test.ts`, que agenda do jeito que roda em
+produção. Conferido ao vivo em 25/09/2026 com o build de produção: agendamento pelo site de
+uma barbearia recém-cadastrada, resposta 201.
+
+### 2.20 ✅ `[TÉCNICO]` A agenda do dia não respondia a clique nenhum — RESOLVIDO em 25/09/2026
+
+`admin/dia/[date].astro` recebia o fuso por `<script define:vars={{ TZ }}>`. **`define:vars`
+implica `is:inline`**: o Astro para de processar o bloco — e esse bloco tinha `import` e era
+TypeScript. O navegador recusava o bloco **inteiro** ("Cannot use import statement outside a
+module"): calendário, WhatsApp, comanda, venda de produto, concluir atendimento — nada
+respondia, na tela que o barbeiro mais abre.
+
+Conferido na branch `monorepo`; a `main` não foi olhada. Achado abrindo a tela no navegador,
+em 25/09; nenhum teste abria. O fuso passou a descer pelos dados da página
+(`clientData.tz`), e `tests/scripts-inline.test.ts` reprova `import` e sintaxe de TypeScript
+em qualquer script inline.
+
+⚠️ A regra 2 da skill `barbearia-fuso` mandava exatamente isto: *"o fuso desce por
+`define:vars`"*. Serve para script sem `import` e escrito em JavaScript puro — e só.
+
+### 2.21 ✅ `[TÉCNICO]` Foto de celular saía deitada e com o GPS de quem tirou — RESOLVIDO em 25/09/2026
+
+Duas coisas que o arquivo do celular traz, achadas desenhando a galeria:
+
+1. **A rotação em etiqueta.** Celular em pé grava os pixels deitados e uma etiqueta EXIF
+   dizendo "gire 90°". O navegador obedece a etiqueta no arquivo original, mas as variantes
+   WebP saíam do sharp sem ela — e é a variante que o srcset serve. Toda foto tirada em pé
+   aparecia **de lado**. Reproduzido com sharp 0.34.5: 1600×1200 com orientação 6 virava um
+   WebP de 640×480.
+2. **O GPS.** O original era gravado byte a byte e servido em endereço público (o `src` da
+   imagem): qualquer visitante lia onde a foto foi tirada. Foto tirada em casa entrega o
+   endereço do barbeiro.
+
+`normalizarFoto()` (`lib/uploads.ts`) grava tudo girado, **sem EXIF** e com no máximo 2560 px
+(produto: 1600). Arquivo que não é imagem de verdade passou a ser recusado, em vez de gravado
+e servido como `image/jpeg`. O limite de envio de produto subiu de 5 para 12 MB, o mesmo da
+marca. Coberto em `tests/uploads.test.ts`, com 4 mutações verificadas.
+
+O custo aceito: a foto é recomprimida (qualidade 88) e o "original" guardado deixa de ser o
+byte a byte do celular. ⚠️ **O que já está no volume não mudou:** fotos enviadas antes
+(logo, capa, produtos) continuam como estavam.
+
+### 2.22 🟠 `[TÉCNICO]` O gráfico da semana no painel depende do fuso do processo
+
+`admin/index.astro:33-37` acha a segunda-feira com `getDay()` e `setDate()` — que usam o
+fuso do **processo** — e formata o resultado com o da barbearia. É a regra 3 da skill
+`barbearia-fuso`, e não estava registrada aqui.
+
+Visto ao vivo em 25/09/2026, com o processo em UTC às 21h29 de Fortaleza: o gráfico mostrou
+**"SEG 20"** — 20/09/2026 foi domingo — e a janela da semana foi de 20/09 a 26/09. Entre 21h
+e meia-noite, o card "Esta semana" e o gráfico erram de semana.
+
+Em produção só não aparece se o container tiver `TZ=America/Fortaleza`: o `Dockerfile` não
+define, e o roteiro manda manter no `.env` (`ROTEIRO-MIGRACAO-PRODUCAO.md` §3.1). Com uma
+barbearia fora de UTC−3 (§2.1), não existe `TZ` que sirva às duas.
+
+**Correção:** a segunda-feira sai de `todayStr` — a data no fuso da barbearia —, com a conta
+de dias em UTC ao meio-dia, como o `addDaysStr` duas linhas abaixo já faz.
+
+### 2.23 🟡 `[TÉCNICO]` O login do painel aceita corpo que não é JSON
+
+`api/auth/login.ts:54` lê `request.json()` sem conferir o tipo do corpo, e abre sessão. Com o
+`checkOrigin` do Astro desligado (`astro.config.mjs`), um formulário de outro site consegue
+mandar `text/plain` com o corpo em forma de JSON: a página maliciosa deixaria o visitante
+logado numa conta **dela** ("login CSRF"), e o que ele digitasse depois iria para lá.
+
+**Não reproduzido num navegador** — é o mecanismo, conferido no código. O `/api/cadastrar`,
+que passou a abrir sessão em 25/09/2026, já recusa o que não é `application/json` (415). O
+login precisa da mesma linha.
+
+### 2.24 🟡 `[TÉCNICO]` O resumo do combo diz "Combo Boris" e põe o nome do produto no HTML sem escape
+
+`agendar.astro:445` interpola o nome do produto direto num `innerHTML`, e a linha 448
+escreve **"Combo Boris"** — o nome do combo do Bayron — no resumo de toda barbearia que
+tiver combo. Nome de produto com `<` ou `&` quebra o resumo; com HTML, executa no site da
+própria barbearia (quem cadastra o produto é o dono dela). Correção: escapar e usar o nome
+do combo que a tela já carrega.
 
 ---
 
@@ -1041,7 +1250,27 @@ probabilidade é baixa; a consequência é conteúdo de terceiro no site de quem
 que o contexto do passo 6 já entrega em toda requisição — e **concentrar as oito comparações
 numa função só**, para a próxima troca ser um arquivo em vez de oito.
 
-### 4.8 🔴 `[DECISÃO]` Dois caminhos para a barbearia nascer, e eles se contradizem
+⚠️ **Atualizado em 25/09/2026:** a galeria saiu da lista do que se herda. Em `Gallery.astro`
+a comparação decide agora só o avatar do cartão do Instagram (o logo empacotado, quando a
+barbearia não subiu o dela); as fotos vêm da tabela `gallery_images` de cada barbearia
+(migration 0005). Continuam oito componentes com a comparação.
+
+### 4.8 ✅ `[DECISÃO]` Dois caminhos para a barbearia nascer — DECIDIDO em 24/09/2026
+
+**Autoatendimento, com 7 dias grátis e cartão no cadastro.** O dono se cadastra sozinho,
+recebe o painel na hora e escolhe entre três layouts de site, com as cores dele.
+Sobrevive o `/cadastrar`; o `/onboarding` e o
+`/envios` saem (§4.15). A decisão, as duas alternativas rejeitadas e o que ela custa
+estão em `PLANO-PRODUTIZACAO.md` §13.
+
+**O que ela abriu:** os três layouts (§4.13), o teste e a cobrança (§4.14), a landing que
+conta a história antiga (§4.15) e o endereço publicado sem revisão (§4.16). E adiantou
+para o primeiro cadastro o prazo do contrato (§1.2) e da política de suporte (§1.4).
+
+Os três bloqueios listados abaixo continuam valendo — mudaram de "motivo para não
+decidir" para "o que tem que existir antes de abrir o cadastro" (§6).
+
+<details><summary>Como a pendência estava antes da decisão</summary>
 
 Encontrado em 15/09/2026, listando as rotas do monorepo — depois de o segundo já estar
 construído.
@@ -1076,6 +1305,8 @@ que ela existe. O botão na landing obedece à mesma variável.
 **Decisão necessária: qual dos dois sobrevive.** Enquanto os dois existirem, os dois
 precisam ser mantidos — e a landing precisa escolher uma história.
 
+</details>
+
 ### 4.9 🔴 `[TÉCNICO]` A tela de agendar é branca quando não há serviço
 
 Visto em 15/09/2026, servindo o site de uma barbearia recém-criada.
@@ -1094,6 +1325,10 @@ WhatsApp da barbearia.
 
 O `/cadastrar` reduz a janela — quem preenche preço no cadastro já nasce agendando — mas
 não fecha: quem deixar tudo em branco cai aqui.
+
+⚠️ **Subiu em 24/09/2026** (§4.8). Sem ninguém revisando antes de publicar, todo cadastro
+com preço em branco vai ao ar assim, no primeiro minuto do teste grátis — que é quando o
+dono decide se vai pagar.
 
 ### 4.10 🔴 `[TÉCNICO]` A página "Como fica" do site de vendas não tem nenhuma imagem
 
@@ -1147,6 +1382,127 @@ padrão**, usado por toda barbearia que ainda não escolheu cor — incluindo o 
 Correção: um `--color-teal-hover` mais escuro que `#0f766e`. Muda a cor de todos os botões
 do painel e do site padrão, então é decisão do dono.
 
+### 4.13 🔴 `[TÉCNICO]` Três layouts de site — hoje existe um
+
+Decidido em 24/09/2026 (`PLANO-PRODUTIZACAO.md` §13): o dono escolhe entre **três
+layouts**, e **as cores são dele**. Hoje o site tem **um** layout, a paleta "Dark
+Industrial" de `src/styles/global.css`, e o que muda de uma barbearia para outra é a cor de
+destaque (§4.2, `lib/accent.ts`), o conteúdo e as fotos.
+
+**"Estilo" quer dizer estrutura** — ordem e forma das seções, topo com ou sem foto. Foi a
+opção maior das duas que estavam na mesa: são três layouts para manter, testar e passar
+no contraste, para sempre. Rejeitada: estilo como paleta sobre a mesma estrutura, porque
+a paleta é do dono.
+
+**O princípio das cores já existe, e vale estender:** o dono escolhe o tom, e
+`derivarAccent()` ajusta só a luminosidade até o texto passar no contraste, preservando a
+matiz (13 testes). Ele nunca consegue deixar o próprio site ilegível.
+
+**Ainda falta decidir — e muda o tamanho do trabalho:**
+
+- **Quantas cores.** Hoje é **uma**: como cor, `api/admin/settings.ts` só aceita
+  `accentColor`. Se o dono quiser a principal e uma de apoio, são duas — e o painel, o
+  banco e a derivação de contraste passam a lidar com um par, não com uma cor.
+- **E o fundo.** Os três layouts são escuros, ou o dono pode ter site claro? Se o fundo
+  também for escolha dele, a garantia de contraste deixa de ser uma cor sobre um fundo
+  conhecido e passa a ser qualquer combinação — em três estruturas.
+
+O que já vale, e passa a valer para os três:
+
+- A regra do §4.1.1: seção sem conteúdo do cliente não aparece.
+- A skill `barbearia-paleta`: cada layout tem que passar no contraste com **qualquer** cor
+  que o dono escolher, não só com a padrão.
+- `PLANO-PRODUTIZACAO.md` §2: três, nunca N. Pedido de um quarto, sob medida, é agência.
+
+⚠️ **O site nasce sem foto** (`PLANO-PRODUTIZACAO.md` §13). No primeiro dia, o layout é
+quase tudo o que o visitante vê. Layout que depende de foto grande no topo fica pior sem
+ela do que um que não depende — e vai ser julgado exatamente sem ela. Dos três, pelo menos
+um tem que ficar bom sem foto nenhuma, e ser o que o cadastro sugere.
+
+Desde 25/09/2026 o dono sobe galeria, logo, capa e fotos de produto no painel logo depois
+do cadastro — isso muda o segundo dia, não o primeiro minuto. E cada layout tem que tratar
+a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`).
+
+### 4.14 🔴 `[TÉCNICO]` O teste de 7 dias e a cobrança automática não existem
+
+Decidido em 24/09/2026 (`PLANO-PRODUTIZACAO.md` §13). Conferido no código no mesmo dia:
+
+- **Não há data de fim.** A barbearia nasce `active` e fica assim para sempre. O status só
+  admite `active`, `suspended` e `cancelled` — no tipo (`lib/tenant.ts:37`) e numa trava
+  `CHECK` da migration 0001. O teste precisa de migration.
+- **Não há cobrança.** O desenho que existe contava com as primeiras assinaturas criadas
+  à mão (`ARQUITETURA-COBRANCA-V1.md` §10); agora ela tem que nascer sozinha. A Asaas
+  continua sendo o gateway (`ARQUITETURA-COBRANCA-V1.md` §4), e **exige CPF ou CNPJ** do
+  dono — o `/cadastrar` não pede.
+- **Não há conta na Asaas.** Conta PJ exige CNPJ (`ARQUITETURA-COBRANCA-V1.md` §11).
+- **O cartão vem no cadastro** (decisão de 24/09, §1.3), e o número **nunca pode passar
+  pelo seu servidor** — receber ou guardar cartão põe você dentro das exigências de
+  segurança das bandeiras. O cadastro tem que entregá-lo direto para a Asaas, pela
+  página de pagamento dela ou pela tokenização dela. **Conferir na documentação da Asaas
+  qual das duas aceita cartão hoje e primeira cobrança daqui a 7 dias**, antes de
+  desenhar a tela.
+- **Não há suspensão que se veja.** O status `suspended` já tira o site do ar, mas com
+  404; falta a página que diz o motivo (§3.5).
+
+Depende do que acontece no oitavo dia (§1.3).
+
+⚠️ **O webhook precisa de idempotência desde o primeiro cliente**
+(`ARQUITETURA-COBRANCA-V1.md` §5.1). A Asaas reenvia o evento quando não recebe resposta,
+e processar o mesmo pagamento duas vezes pode reativar uma barbearia suspensa.
+
+⚠️ **Ninguém desenhou ainda onde o teste expira.** O desenho de dois aplicativos
+(`ARQUITETURA-COBRANCA-V1.md` §2) continua de pé — a barbearia nunca sabe que dinheiro
+existe —, mas quem sabe a data de fim do teste é o banco da barbearia, e quem sabe se
+pagou é o outro aplicativo. A costura entre os dois é o primeiro desenho a fazer.
+
+### 4.15 🔴 `[TÉCNICO]` A landing e o `/onboarding` contam a história antiga
+
+**A landing.** Não é uma frase: é a tese da página. Conferido em 24/09/2026 em
+`apps/vendas/src/pages/index.astro`:
+
+| Linha | O que diz |
+|---|---|
+| `index.astro:93` | *"Pronto, no ar, sem você montar nada."* — no topo |
+| `index.astro:168` | *"A diferença não é o site. É quem monta."* — título da comparação |
+| `index.astro:185` | Quem monta: concorrente *"você, sozinho, preenchendo formulário"*; aqui *"eu monto inteira"* |
+| `index.astro:188` | Se não preencher: concorrente *"fica no ar do jeito que estiver"*; aqui *"não vai para o ar"* |
+| `index.astro:48` | Pergunta frequente: montar o site está incluso |
+| `index.astro:243` | *"a montagem do seu site está inclusa"* |
+| `index.astro:252` | No plano mensal: *"Site montado por mim, do zero"* |
+| `index.astro:268` | No plano anual: *"Prioridade na fila de montagem"* |
+
+⚠️ A linha 188 virou o contrário: no autoatendimento, *"fica no ar do jeito que estiver"*
+é o que **este** produto faz. A comparação precisa de outro eixo — e o que sobra é o do
+`PLANO-PRODUTIZACAO.md` §4: o site dele, com a marca dele, contra a página dentro do
+aplicativo dos outros. Mais os 7 dias grátis e os três layouts. O texto é a sua voz; o
+rascunho pode ser meu.
+
+**O `/onboarding` e o `/envios`** (app de vendas) saem, para existir um caminho só.
+Antes de apagar, conferir se o SQLite dele tem envio de verdade: quem mandou dados e
+fotos por ali está esperando resposta.
+
+### 4.16 🔴 `[TÉCNICO]` Endereço escolhido e publicado sem revisão
+
+No autoatendimento, qualquer um escolhe o endereço e o que escreve, e vai ao ar na hora
+sob o seu domínio. Conferido em 24/09/2026: o provisionador só confere se o endereço é um
+rótulo de DNS válido (`lib/provisionarBarbearia.ts:210`) e se já existe
+(`lib/provisionarBarbearia.ts:237`). **Não há lista de reservados.**
+
+- **Reservar** os nomes do próprio produto — `www`, `painel`, `admin`, `api`, `app`,
+  `mail` e o nome da marca. Sem isso, o primeiro a se cadastrar como `painel` recebe o
+  endereço do seu painel.
+
+  Conferido em 25/09/2026 como isso acontece: `resolverHost()` (`lib/tenant.ts:174-176`)
+  usa o primeiro rótulo de qualquer endereço como slug, e o middleware embrulha toda
+  requisição que resolve. Com uma barbearia `painel` ativa, **a raiz de `painel.<dominio>`
+  passa a mostrar o site dela** — no endereço que o dono de cada barbearia digita todo dia.
+  A tela de login não muda (não lê marca de barbearia nenhuma) e o login continua
+  funcionando: acha o barbeiro pelo telefone, e dali em diante quem decide é a sessão.
+- **Tirar do ar** o que não pode ficar sob o seu domínio. O mecanismo existe no banco — o
+  status `suspended` já some com o site —, mas acioná-lo hoje é abrir o `psql`.
+- O primeiro a pegar o nome de uma barbearia de verdade, que ainda nem é cliente, fica
+  com ele. Não tem conserto técnico barato; tem que caber no termo de uso (§1.2).
+
 ---
 
 ## 5. Verificações pendentes
@@ -1166,8 +1522,13 @@ do painel e do site padrão, então é decisão do dono.
 
 ## 6. Ordem sugerida
 
+⚠️ **Reordenada de novo em 24/09/2026**, pela decisão do autoatendimento (§4.8 e
+`PLANO-PRODUTIZACAO.md` §13). A onda 2 de 15/09 — o fuso — virou a onda 3. A onda 3 de
+15/09 — *antes de cobrar* — foi absorvida pela nova onda 2: sem ninguém no caminho,
+cobrar é pré-requisito de abrir a porta, não etapa depois dela.
+
 ⚠️ **Reordenada em 15/09/2026, depois da auditoria completa.** A lista numerada abaixo é
-anterior a ela e continua válida para o que sobrou; estas quatro ondas vêm antes.
+anterior a ela e continua válida para o que sobrou; estas ondas vêm antes.
 
 **Onda 0 — antes de qualquer deploy. ✅ FEITA em 22/09/2026.**
 A data no fuso da barbearia (§2.10), `await` nas duas transações (§2.14) e a trava do backup
@@ -1178,16 +1539,42 @@ código nem na suíte.
 **Onda 1 — antes do segundo cliente. ✅ FEITA em 22/09/2026.**
 Mídia por tenant (§2.9), papel na busca e revalidação da sessão (§2.13), escapar o JSON-LD
 (§2.12), consertar o guarda de escopo (§2.17) — e, junto com o último, escopar as quatro
-rotas que ele não enxergava. Sobra do bloco: o §2.7 (foto de produto, mesma classe do §2.9
-mas com outro caminho de leitura) e a revogação de sessão por troca de senha.
+rotas que ele não enxergava. Sobra do bloco: a revogação de sessão por troca de senha. O
+§2.7 (foto de produto) foi feito em 24/09, com a galeria.
 
-**Onda 2 — antes do primeiro cliente fora do UTC-3.**
+**Achados de 25/09/2026, ✅ já consertados — eram da onda 0:** a transação dentro da
+requisição (§2.19) e a agenda do dia sem resposta (§2.20). Os dois derrubariam o dia da
+migração, e nenhum aparecia na suíte. Junto, o guarda de escopo por consulta (§2.18) e a
+foto de celular (§2.21). Abertos no mesmo dia, para as ondas abaixo: §2.22, §2.23 e §2.24.
+
+**Onda 2 — antes de abrir o cadastro público.**
+No autoatendimento a porta abre sem ninguém olhando, então nada aqui é opcional.
+
+*Decisões suas, que o código não substitui:* o termo aceito no cadastro, com a cláusula
+da cobrança do cartão (§1.2); o que acontece quando o cartão recusa (§1.3); a política de
+suporte escrita na tela (§1.4); o domínio (§0); e quantas cores o dono escolhe, e se o
+fundo é dele ou do layout (§4.13).
+
+*Código, nesta ordem:*
+
+1. Os dois que já mordem hoje e tinham ficado fora de todas as ondas de 15/09: os
+   centavos do preço (§2.15) e o combo em qualquer dia (§2.16). Junto, os três de 25/09
+   que são uma linha cada: a semana do painel (§2.22), o login só com JSON (§2.23) e o
+   resumo do combo (§2.24).
+2. O que todo cadastro encontra no primeiro minuto: a tela de agendar vazia (§4.9) e o
+   passo inútil do barbeiro único (§2.2).
+3. Endereços reservados e um jeito de tirar do ar (§4.16).
+4. Os três layouts, com as cores do dono (§4.13).
+5. O teste de 7 dias, a cobrança e a página de suspensão (§4.14 e §3.5) — dependem do
+   §1.3 e da conta na Asaas.
+6. A landing e a aposentadoria do `/onboarding` (§4.15) — por último de propósito: ela
+   descreve o produto pronto.
+7. A página "Como fica" (§4.10) — as imagens têm que mostrar os três layouts, então vem
+   depois deles.
+
+**Onda 3 — antes do primeiro cliente fora do UTC-3.** *(Era a onda 2 em 15/09.)*
 Os três `+ 3` do navegador (§2.11), o teste de fuso passando a pegar aritmética de offset, e a
 coluna `timezone` por barbearia (§2.1).
-
-**Onda 3 — antes de cobrar.**
-Decidir qual cadastro sobrevive (§4.8), contrato e política de dados (§1.2), cobrança e
-suspensão (§3.5 e §1.3) — nessa ordem.
 
 
 0. ~~**Limpar o seed das migrations** (`PENDENCIAS-ABERTAS.md` §4.6)~~ — **sem objeto desde

@@ -15,6 +15,12 @@
 >
 > **O que continua de pé:** a escolha da Asaas, o desenho de dois aplicativos com a
 > instância da barbearia sem saber que dinheiro existe, e os estados do tenant.
+>
+> ⚠️ **24/09/2026: o onboarding assistido foi abandonado.** Decisão do dono:
+> autoatendimento, com 7 dias grátis (`PLANO-PRODUTIZACAO.md` §13). Ficam vencidos a
+> "decisão central" do §1, o argumento do §1.1, o fluxo do §3, os estados do §5.2 — que
+> não têm teste grátis —, duas linhas do §8 e a ordem do §10. Continuam de pé a Asaas
+> (§4), os dois aplicativos (§2) e a idempotência do webhook (§5.1).
 > Economia unitária e preços: `PRECIFICACAO.md`. Modelo de instância: `ARQUITETURA-PRODUTO-V1.md`.
 > Decisão comercial: `PLANO-PRODUTIZACAO.md`.
 >
@@ -44,9 +50,17 @@ percebe como SaaS e mantém a economia que sustenta o negócio (`PRECIFICACAO.md
 > caiu para R$ 100 em 01/09. O argumento de "onboarding assistido" continua
 > defensável — pela qualidade da montagem, não mais pela economia da entrada.
 
-**Decisão central: checkout self-service, onboarding assistido.**
+**Decisão central: checkout self-service, onboarding assistido.** ⚠️ *Vencida em
+24/09/2026: o onboarding também passou a ser sozinho. Ver o aviso no topo.*
 
 ### 1.1 Por que não o self-service completo agora
+
+> ⚠️ **Vencido em 24/09/2026 por decisão do dono** (`PLANO-PRODUTIZACAO.md` §13).
+>
+> Diferente dos argumentos do §1.2, estes **não foram refutados**: a premissa deles
+> continua de pé. Foram vencidos por decisão. Ficam aqui, sem cortes, como o que reler
+> se a conversão do teste grátis vier baixa — o segundo deles é, exatamente, a aposta
+> que o teste de 7 dias faz.
 
 > Revisado em 06/09/2026. **Dois dos quatro argumentos originais morreram** — um
 > porque a taxa de instalação foi abolida, outro porque o multi-tenant foi decidido
@@ -180,6 +194,13 @@ Verificado em 28/08/2026.
 | Assinaturas | Incluso | +0,7% do volume (Billing) |
 | Mensalidade da conta | Nenhuma | Nenhuma |
 | **Custo numa mensalidade de R$ 100** | **R$ 1,99 no Pix (1,99%)** | **R$ 5,08 no cartão (5,08%)** |
+
+> ⚠️ **24/09/2026: a cobrança recorrente passa a ser no cartão.** O dono cadastra o cartão
+> para entrar, e a primeira cobrança vem depois dos 7 dias grátis
+> (`PLANO-PRODUTIZACAO.md` §13). A comparação abaixo foi feita pensando em Pix; no cartão
+> vale a linha "cartão à vista" da tabela. As tarifas são de 28/08 — **reconferir na
+> página da Asaas antes de lançar**, e conferir também se ela aceita cartão hoje com
+> primeira cobrança daqui a 7 dias (`PENDENCIAS-ABERTAS.md` §4.14).
 
 **Escolhido: Asaas.** Tarifa fixa em Pix e boleto é o que importa num ticket de R$ 100 — 1,99%
 contra 5,08%. (Recalculado em 06/09 com o preço novo; a R$ 180 era 1,1% contra 4,9%. A
@@ -395,12 +416,12 @@ dentro das 3,5h de implantação já cobradas, e é o item que mais reforça a v
 | Não construir | Motivo |
 |---|---|
 | Multi-tenant com `tenant_id` | §1.1. Revisar em 15–25 clientes, como já diz o plano §8. |
-| Trial gratuito com instância viva | Cada curioso custa um container. Se houver trial, que seja sem instância. |
+| Trial gratuito com instância viva | Cada curioso custa um container. Se houver trial, que seja sem instância. ⚰️ *O motivo morreu com o multi-tenant: teste grátis é uma linha em `tenants`, não um container. E o teste foi decidido em 24/09.* |
 | Upgrade/downgrade de plano | Existe um plano. |
 | Portal de faturas próprio | O Asaas já tem. Mandar o link. |
 | Provisionamento por API | §7.2. |
 | Suspensão automática | §7.3. |
-| Cadastro sem intervenção humana | O produto entregue vazio é pior que produto nenhum. |
+| Cadastro sem intervenção humana | O produto entregue vazio é pior que produto nenhum. ⚠️ *Vencido por decisão em 24/09 — ver o §1.1.* |
 
 ---
 
@@ -428,6 +449,11 @@ A 6h por semana, o caminho do meio é de 4 a 6 meses. Não é pequeno. É por is
 ---
 
 ## 10. A ordem que eu defendo
+
+> ⚠️ **Vencida em 24/09/2026.** O passo 2 — vender três clientes e criar as assinaturas
+> à mão no Asaas — pressupunha alguém no caminho de cada cliente novo. No
+> autoatendimento a cobrança tem que nascer sozinha desde o primeiro
+> (`PLANO-PRODUTIZACAO.md` §13). Fica como registro do raciocínio.
 
 O erro caro seria construir as 106–146h antes de saber se alguém compra. O painel de controle
 só se paga a partir do 4º ou 5º cliente — para os três primeiros, **criar a assinatura à mão no

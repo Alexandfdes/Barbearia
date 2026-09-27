@@ -108,6 +108,11 @@ Isso não dispensa filtrar na aplicação — é a segunda parede, não a única
 >   todas dentro de uma transação só.
 > - O `SET` vem acompanhado de `SET ROLE barbearia_app`. Sem isso nada disso valeria:
 >   o dono das tabelas passa por cima das políticas, e o app conecta como dono.
+> - ⚠️ **A conexão reservada não sabe abrir transação** (achado em 25/09/2026): o
+>   `reserve()` do postgres.js não tem `begin()`, e sem ele toda transação dentro de
+>   requisição estourava — o agendamento inclusive. `ensinarTransacao()`, em
+>   `src/db/index.ts`, abre a transação na própria conexão reservada, com o papel e a
+>   barbearia já gravados (`PENDENCIAS-ABERTAS.md` §2.19).
 >
 > Detalhes e as decisões em `ESTADO-ATUAL.md` §9.10.
 

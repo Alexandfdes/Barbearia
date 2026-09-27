@@ -11,6 +11,12 @@
 > único (`ARQUITETURA-MULTI-TENANT-V1.md`, 01/09). A parte 3 descreve o que a
 > barbearia recebe, o que não muda; muda como isso é servido por baixo.
 >
+> ⚠️ **Este fluxo vai ser aposentado** — decisão de 24/09/2026
+> (`PLANO-PRODUTIZACAO.md` §13). O caminho `/onboarding` → `/envios` → você monta dá
+> lugar ao autoatendimento: o dono se cadastra sozinho em `/cadastrar`, recebe o painel
+> na hora e tem 7 dias grátis. O documento continua certo sobre o que está no ar **hoje**;
+> deixa de valer no dia em que o `/onboarding` sair (`PENDENCIAS-ABERTAS.md` §4.15).
+>
 > **Todo item deste documento foi conferido no código**, arquivo por arquivo, na
 > data acima. Contagens de telas e rotas vêm de listagem do repositório, não de
 > memória. O que ainda não existe está marcado como tal — não há nada aqui
@@ -125,7 +131,7 @@ uma ou duas horas por venda contra 10 a 15 horas para construir o script.
 
 ## 4. Parte 3 — O sistema que a barbearia recebe
 
-**21 telas e 47 rotas de programa.** Divididas em três públicos.
+**23 telas e 54 rotas de programa** — recontado em 25/09/2026 (eram 21 e 47 quando este documento foi escrito). Divididas em três públicos.
 
 ### 4.1 O que o cliente da barbearia vê
 
@@ -158,7 +164,7 @@ clique duplo não criar dois horários.
 > no ponto mais sensível do funil. Está registrado em `PENDENCIAS-ABERTAS.md` §2.2
 > e continua aberto.
 
-### 4.2 O que o dono e os barbeiros veem — 14 telas
+### 4.2 O que o dono e os barbeiros veem — 15 telas
 
 Acesso em `/admin/login`. Duas permissões: **admin** (o dono) e **barbeiro**.
 
@@ -174,14 +180,17 @@ Acesso em `/admin/login`. Duas permissões: **admin** (o dono) e **barbeiro**.
 | `/admin/relatorios` | Receita realizada e perdida, ticket médio, no-show, ocupação da cadeira, movimento por horário, receita por barbeiro, o que mais fatura, clientes únicos do mês | todos |
 | `/admin/produtos` | Cadastro dos produtos que aparecem no site | **só admin** |
 | `/admin/combos` | Serviço + produto com desconto, por dia da semana | **só admin** |
+| `/admin/galeria` | As fotos do carrossel da página inicial: enviar várias de uma vez, ordenar, remover. A seção só aparece no site a partir de 3 fotos (desde 25/09/2026) | **só admin** |
 | `/admin/barbeiros` | Cadastro, permissão e senha da equipe | **só admin** |
 | `/admin/configuracoes` | Nome, contato, endereço, horário de vitrine, avaliações, textos de busca | **só admin** |
 | `/admin/catalogo` | Redirecionamento — a tela foi fundida em Serviços | — |
 | `/admin/login` | Entrada do painel | — |
 
-### 4.3 As 47 rotas de programa
+### 4.3 As rotas de programa
 
-Não precisam ser conhecidas uma a uma, mas vale saber o desenho:
+Não precisam ser conhecidas uma a uma, mas vale saber o desenho. A divisão abaixo é a da
+primeira versão, com 47; depois entraram o cadastro, a mídia da marca e a galeria — hoje são
+54 arquivos em `src/pages/api/`.
 
 - **29 rotas administrativas** — agendamentos (cancelar, concluir, remarcar, marcar falta, anotações, histórico, busca, calendário), barbeiros, serviços, produtos, combos, reservas, vendas avulsas, horários, bloqueios, configurações e backup.
 - **4 rotas do link do cliente** — ver, remarcar, cancelar e baixar o `.ics` do calendário.

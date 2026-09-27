@@ -6,6 +6,11 @@
 >
 > Preços de concorrente e de infraestrutura foram conferidos direto nas páginas
 > oficiais nas datas indicadas. As contas de margem foram recalculadas para R$ 100.
+>
+> ⚠️ **24/09/2026: não existe mais implantação.** O cadastro virou autoatendimento,
+> com 7 dias grátis (`PLANO-PRODUTIZACAO.md` §13). Deixam de valer a frase "a montagem
+> do site está inclusa" (§2) e a premissa das 3,5h (§5). **O preço não mudou.** O que
+> passa a decidir a conta é quantos dos que testam pagam — número que ainda não existe.
 
 ---
 
@@ -31,7 +36,8 @@ inadimplência ou suporte, ler o v5** — já tem texto redigido.
 | **Mensal** | **R$ 100/mês** | Cancelamento com aviso de 30 dias |
 | **Anual, à vista** | **R$ 1.000/ano** | Paga 10 meses, usa 12. Sai por R$ 83/mês |
 
-Sem taxa de instalação: a montagem do site está inclusa.
+Sem taxa de instalação: a montagem do site está inclusa. ⚠️ *Desde 24/09 não há
+montagem: o dono monta sozinho (ver o topo).*
 
 **Meta: 10 clientes** = R$ 1.000/mês de receita bruta.
 
@@ -81,6 +87,10 @@ Premissas: R$ 40/h de valor-hora, 3,5h de implantação, rateio de 12 instância
 
 Implantação: 3,5h custam R$ 140 e a margem de caixa é R$ 89,17 → **paga em 1,6 mês**
 (era 0,8 mês a R$ 180). Continua saudável.
+
+⚠️ *Histórico desde 24/09/2026: sem implantação, esses R$ 140 por cliente saem da conta.
+O §5.1 continua valendo inteiro — no autoatendimento, o que o dono não aprende na tela
+vira mensagem para você.*
 
 ### 5.1 🔴 O suporte deixou de ser detalhe e virou a condição do preço
 

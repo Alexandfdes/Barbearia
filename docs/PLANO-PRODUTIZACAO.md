@@ -11,6 +11,10 @@
 > ⚠️ **O preço deste documento está velho.** Vale `PRECIFICACAO.md`: R$ 100/mês,
 > sem taxa de instalação, meta de 10 clientes.
 >
+> ⚠️ **O modelo de entrada deste documento foi substituído em 24/09/2026.** Onde se
+> lê montagem assistida — a implantação do §6.1 ao §6.3, e "dono de barbearia não
+> completa onboarding" no §2 —, vale o §13: **autoatendimento, com 7 dias grátis.**
+>
 > **O que continua valendo:** o posicionamento, o público-alvo, e o argumento de
 > por que não competir por preço com aplicativo de agendamento.
 > Arquitetura técnica: `docs/ARQUITETURA-PRODUTO-V1.md`.
@@ -64,6 +68,10 @@ vazamento entre lojas, para resolver um problema que ainda não existe (zero cli
 Além disso, dono de barbearia não completa onboarding self-service: não tem o logo em
 PNG separado, não tem as fotos organizadas, não sabe o que é DNS. A implantação é
 assistida de qualquer forma.
+
+> ⚠️ **Vencido por decisão em 24/09/2026** (§13). O cadastro passou a ser sozinho. A
+> parte do DNS deixou de valer por outro motivo: o subdomínio é nosso e nasce pronto.
+> A parte do logo e das fotos continua verdadeira — e por isso o site nasce sem foto.
 
 ### O modelo escolhido
 
@@ -183,6 +191,11 @@ Para os três primeiros clientes: cobrar pouco, ou só o setup, em troca de depo
 gravado e direito de uso como portfólio. Neste momento prova social vale mais que receita.
 
 ### 6.1 A implantação é uma linha de receita, não um favor
+
+> ⚠️ **§6.1 a §6.3 ficam como histórico.** A taxa de instalação acabou em 30/08
+> (`PRECIFICACAO.md` §2), e em 24/09 acabou a própria implantação (§13). Continua
+> valendo a regra do §6.2 — *vender o preenchimento, nunca mudar o site* —, agora
+> aplicada aos três layouts: escolher entre eles é produto, pedir um quarto é agência.
 
 **O sistema é o produto (mensalidade). A implantação é o serviço (uma vez, na entrada).**
 
@@ -361,3 +374,181 @@ Concretamente:
 | Contrato e LGPD (`PENDENCIAS-ABERTAS.md` §1.2) | Antes de a **primeira barbearia de terceiro** pagar |
 | Política de suporte (`PENDENCIAS-ABERTAS.md` §1.4) | Antes de **combinar o escopo** com o primeiro cliente |
 | Domínio (`PENDENCIAS-ABERTAS.md` §0) | Antes de o **nome aparecer em qualquer lugar** que o cliente veja |
+
+⚠️ **Os três gatilhos adiantaram em 24/09/2026** (§13). Com autoatendimento e 7 dias
+grátis, todos acontecem no **primeiro cadastro**: o estranho guarda dado de cliente
+desde o primeiro minuto do teste, vê o subdomínio na mesma hora, e não existe mais a
+conversa onde o escopo seria combinado. A tabela acima fica como registro do que valia
+no modelo assistido.
+
+## 13. Decisão: autoatendimento, com 7 dias grátis
+
+> Data: **24/09/2026**. Decisão do dono do projeto, registrada aqui para encerrar a
+> discussão. Substitui o modelo de entrada assistido que este documento (§2 e §6.1 a
+> §6.3) e o `ARQUITETURA-COBRANCA-V1.md` §1.1 defendiam.
+> Status: **decidido, em implementação.** O que já existe no código está no fim —
+> atualizado em 25/09/2026, com o cadastro abrindo o painel e as fotos.
+
+**O que foi decidido.** Tudo automático, sem ninguém no caminho:
+
+1. O dono da barbearia se cadastra sozinho: dados, serviços com preço, horário.
+2. Recebe o painel na hora, já com as informações dele.
+3. Escolhe entre **três layouts de site**. **As cores são dele**: ele diz quais são as da
+   barbearia, e o sistema garante que o texto continue legível.
+4. **Cadastra o cartão para entrar**, e tem **7 dias grátis** antes da primeira cobrança,
+   com o site no ar desde o primeiro minuto.
+
+**Rejeitado: rascunho com publicação manual.** O dono se cadastraria e entraria no
+painel, mas o site só iria ao ar depois de você revisar. Mantinha a promessa da landing,
+e põe uma pessoa no caminho de todo cliente novo — o pedido é que não haja nenhuma.
+
+**Rejeitado: só você monta** (`/onboarding` e `/envios`, o fluxo do `FLUXO-COMPLETO.md`).
+É o modelo que este documento defendia, com 3,5h de trabalho por cliente
+(`PRECIFICACAO.md` §5). Não escala.
+
+**Rejeitado: teste sem cartão.** Mais gente se cadastraria, e menos pagaria — e sobraria
+mais barbearia abandonada ocupando endereço e guardando dado de cliente sem contrato.
+
+**Rejeitado: estilo como paleta de cores.** As cores são as da barbearia, escolhidas pelo
+dono; o que ele escolhe entre três é a **estrutura** do site.
+
+**Os argumentos contrários não foram refutados — foram vencidos por decisão.** Estão no
+`ARQUITETURA-COBRANCA-V1.md` §1.1, e são o que reler se a conversão do teste vier baixa.
+
+### O que continua de pé
+
+- **O posicionamento do §4.** O produto continua sendo o site dele, com a marca dele — o
+  que Trinks, AppBarber e Booksy não entregam: eles dão uma página dentro do aplicativo
+  *deles*. Sai da história *quem monta*, não *o que se entrega*.
+- **A regra do §2: "dois ou três templates, nunca N".** Os três layouts são exatamente
+  isso. Layout é escolha entre três prontos, nunca estrutura sob medida para um cliente.
+- **O princípio da cor que já está implementado:** o dono escolhe o tom, o sistema ajusta
+  só a luminosidade até passar no contraste (`lib/accent.ts`). "As cores são dele" é
+  esse princípio estendido — ele nunca consegue deixar o próprio site ilegível.
+
+### O que esta decisão custa
+
+Registrado agora, como no §12, para não parecer surpresa depois. Nenhum destes é
+argumento para reverter — são o preço.
+
+**1. O prazo do contrato e da LGPD adiantou: não é mais a primeira venda, é o primeiro
+cadastro.** Com teste grátis, o estranho guarda nome, telefone e data de nascimento dos
+clientes dele no seu banco desde o primeiro minuto — sete dias antes de pagar, ou sem
+pagar nunca. E, sem ninguém no caminho, não há conversa onde o termo seria apresentado:
+ele tem que ser aceito na tela de cadastro (`PENDENCIAS-ABERTAS.md` §1.2).
+
+**2. O domínio e a política de suporte adiantaram junto.** O endereço aparece para o
+dono no primeiro minuto, porque é o subdomínio dele (`PENDENCIAS-ABERTAS.md` §0). E o
+§12 usava "combinar o escopo com o primeiro cliente" como gatilho da política de
+suporte — esse momento não existe mais. Ela tem que estar escrita onde ele se cadastra
+(`PENDENCIAS-ABERTAS.md` §1.4).
+
+**3. A cobrança automática deixou de poder esperar.** O `ARQUITETURA-COBRANCA-V1.md`
+§10 mandava criar as três primeiras assinaturas à mão no Asaas, com zero código. Sem
+ninguém no caminho, não há quem crie: a assinatura tem que nascer sozinha
+(`PENDENCIAS-ABERTAS.md` §4.14).
+
+**4. A landing perde a tese, não uma frase.** O título da comparação é *"A diferença
+não é o site. É quem monta."*, e o topo promete *"Pronto, no ar, sem você montar
+nada."* Com autoatendimento, quem monta é o dono. São oito pontos da página que deixam
+de ser verdade no dia em que o cadastro abrir, e um deles inverte: *"fica no ar do jeito
+que estiver"*, que a landing atribui ao concorrente, passa a ser o que este produto faz
+(`PENDENCIAS-ABERTAS.md` §4.15).
+
+**5. A primeira impressão passa a ser o que o cadastro gerou.** É o segundo argumento do
+`ARQUITETURA-COBRANCA-V1.md` §1.1, e ele enfraqueceu sem sumir. O `/cadastrar` já pede
+serviços, preços e horário, então o site nasce agendando, e os três layouts dão cara
+pronta. O que isso **não** resolve: o site nasce sem nenhuma foto — o `/cadastrar` continua sem
+campo de foto, por decisão (ver *Fotos*, abaixo) —, e quem deixar os preços em branco cai
+na tela de agendar vazia (`PENDENCIAS-ABERTAS.md` §4.9). Desde 25/09/2026 o dono sai do
+cadastro já dentro do painel, onde sobe logo, capa, galeria e fotos de produto, e o
+medidor de completude põe a galeria na lista. O primeiro minuto continua sem foto.
+
+**6. Site publicado sem revisão é publicado sob o seu domínio.** Qualquer um escolhe o
+endereço e o que escreve, e vai ao ar na hora. Sem endereços reservados e sem um jeito
+de tirar do ar, o primeiro a pegar `bayron` fica com ele, e o conteúdo é problema seu
+perante o Google (`PENDENCIAS-ABERTAS.md` §4.16).
+
+**7. O cartão tem regra própria, e tem quem fica de fora.** O número do cartão **não pode
+passar pelo seu servidor**: guardá-lo, ou só recebê-lo, põe você dentro das exigências de
+segurança de cartão das bandeiras. O cadastro tem que entregá-lo direto para a Asaas
+(`PENDENCIAS-ABERTAS.md` §4.14). E o alvo do §5 é barbearia sem sistema nenhum, que
+controla tudo no caderno; parte desses donos não tem cartão de crédito no nome do
+negócio, e débito em geral não serve para assinatura. Se muita gente desistir, é na tela
+do cartão que vai aparecer. Cobrar automaticamente depois do teste também exige termo
+claro sobre quando cobra e como cancelar — é exatamente o que vira reclamação quando não
+está dito (`PENDENCIAS-ABERTAS.md` §1.2).
+
+**8. As cores do dono valem nos três layouts.** O contraste hoje é garantido para **uma**
+cor sobre **um** layout escuro. Com três layouts, cada um tem que passar com qualquer cor
+que o dono escolher — e se ele puder escolher mais de uma cor, ou o fundo, o problema
+cresce (`PENDENCIAS-ABERTAS.md` §4.13).
+
+**9. O número que decide o negócio mudou.** Com montagem, o custo de entrada era o seu
+trabalho: 3,5h por cliente (`PRECIFICACAO.md` §5). Sem montagem, esse custo vai a perto
+de zero — e passa a decidir tudo **quantos dos que testam pagam no oitavo dia**. Esse
+número não existe ainda. Os concorrentes que dão teste grátis servem de referência para
+medir, não para supor.
+
+### Fotos: no painel, logo depois do cadastro
+
+> Data: **24/09/2026**, decisão do dono. Implementado em 25/09/2026.
+
+O dono sobe as fotos **no painel**, depois que o cadastro cria a barbearia — não no
+formulário do `/cadastrar`:
+
+- **Galeria do site** (`/admin/galeria`) — o carrossel da página inicial. Até 20 fotos, na
+  ordem que ele escolher; a seção só aparece a partir de 3 (`src/lib/galeria.ts`).
+- **Foto de produto e de combo** (`/admin/produtos`, `/admin/combos`), cada barbearia na
+  própria pasta (`PENDENCIAS-ABERTAS.md` §2.7).
+- **Logo e capa** (`/admin/configuracoes`), que já existiam.
+
+**Rejeitado: foto dentro do cadastro.** O formulário já pede dados, serviços com preço e
+horário. Foto de celular pode passar de 5 MB (estimativa, não medido — por isso o limite
+de envio é 12 MB), e subir várias pelo 4G põe o passo mais lento e mais sujeito a erro —
+formato HEIC, arquivo grande, conexão caindo — justo antes de a barbearia existir: erro de
+foto ali é cadastro perdido. E a foto precisa da pasta da barbearia para ser gravada, que
+só existe depois do cadastro. No painel, cada foto sobe sozinha e mostra o próprio erro.
+
+O que isto custa: o site continua nascendo sem foto (custo 5, acima). O cadastro deixa o
+dono logado no painel e o medidor pede *"Suba fotos dos seus cortes"* — mas fazer é com
+ele.
+
+### O que já existe no código
+
+Conferido em 24/09/2026, atualizado em 25/09/2026:
+
+| Parte | Estado |
+|---|---|
+| Cadastro sozinho, com serviços, preços e horário | ✅ `/cadastrar`, fechado atrás de `CADASTRO_ABERTO=1` |
+| Painel na hora | ✅ o dono sai do cadastro **já logado** no painel da barbearia nova (desde 25/09; antes entrava pelo login) |
+| Fotos — galeria do site e foto de produto | ✅ 25/09, no painel, depois do cadastro (ver *Fotos*, acima) |
+| Três layouts de site | ❌ existe **um**, escuro |
+| Cores do dono | ⚠️ existe **uma**: o dono escolhe a cor de destaque, e o contraste é garantido por derivação (`lib/accent.ts`, 13 testes) |
+| Cartão no cadastro | ❌ nenhuma linha de código |
+| Teste de 7 dias | ❌ nenhuma data de fim. O status da barbearia só admite `active`, `suspended` e `cancelled` — no tipo (`lib/tenant.ts:37`) e numa trava `CHECK` da migration 0001 |
+| Cobrança automática | ❌ nenhuma linha de código |
+
+### O que muda nos outros documentos
+
+Pela regra da casa, estes **não foram reescritos**: descrevem o que está no ar hoje, e
+reescrever antes de implementar poria nos documentos um sistema que não existe. Cada um
+ganhou, no máximo, um aviso apontando para cá.
+
+- `ARQUITETURA-COBRANCA-V1.md` §1 — a "decisão central: checkout self-service,
+  onboarding assistido".
+- `ARQUITETURA-COBRANCA-V1.md` §1.1 — o argumento contra o autoatendimento.
+- `ARQUITETURA-COBRANCA-V1.md` §3 — o fluxo pagar → formulário → você monta.
+- `ARQUITETURA-COBRANCA-V1.md` §5.2 — os estados do tenant, que não têm teste grátis.
+- `ARQUITETURA-COBRANCA-V1.md` §8 — duas linhas: teste com instância viva e cadastro sem
+  pessoa no caminho.
+- `ARQUITETURA-COBRANCA-V1.md` §10 — a ordem, que começava com assinaturas à mão.
+- `PRECIFICACAO.md` §2 e `PRECIFICACAO.md` §5 — "a montagem está inclusa" e a premissa
+  das 3,5h.
+- `COMO-FUNCIONA.md` §6 — "por que a montagem é sua", e o passo "você monta".
+- `FLUXO-COMPLETO.md` — o caminho `/onboarding` → `/envios` → você monta.
+- `ARQUITETURA-PRODUCAO.md` — o nó "Implantação ~3,5h — você monta" do diagrama.
+- `ARQUITETURA-PRODUTO-V1.md` — "mesmo com a implantação assistida", e "onboarding
+  self-service" na lista do que não construir.
+- `MONOREPO.md` — `/onboarding` e `/envios` no app de vendas, quando saírem.
+

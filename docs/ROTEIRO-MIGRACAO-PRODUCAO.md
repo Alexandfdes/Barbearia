@@ -1,6 +1,8 @@
 # Roteiro — pôr o Postgres no ar para o Bayron
 
 > Escrito em 13/09/2026. **Ainda não executado.**
+> Atualizado em 25/09/2026: as migrations 0004 e 0005, o passo 4.8 (a galeria do Bayron),
+> e dois defeitos que derrubariam o dia, já consertados (§0.1).
 > Companheiro de `ESTADO-ATUAL.md` §9 (a fila) e `PENDENCIAS-ABERTAS.md` §2.5 (o ensaio
 > da carga, já feito). O que este documento acrescenta é a parte que o ensaio **não**
 > cobriu: o deploy em si.
@@ -17,6 +19,20 @@ do projeto**: troca o motor do banco embaixo de uma barbearia que está atendend
 
 ⚠️ **Leia inteiro antes de começar o passo 1.** Metade do valor daqui está em saber o
 que vem depois antes de dar o primeiro comando.
+
+### 0.1 ⚠️ O que este roteiro teria encontrado no dia — achado em 25/09/2026
+
+Dois defeitos da branch `monorepo`, os dois achados rodando o código como em produção, e
+nenhum aparecia na suíte. **Os dois estão consertados e com teste**; ficam aqui porque
+mudam o que conferir no §5.
+
+- **O agendamento pelo site não funcionaria.** Toda transação dentro de uma requisição
+  estourava, e agendar é uma (`PENDENCIAS-ABERTAS.md` §2.19). O §5 pegaria na linha
+  *"um agendamento novo, feito pelo site"* — com o site já no ar, e o caminho seria o
+  rollback do §6.
+- **A agenda do dia não responderia a clique nenhum** (`PENDENCIAS-ABERTAS.md` §2.20). A
+  tela abria normal, e o §5 não tinha linha que pegasse: quem descobriria seria o primeiro
+  barbeiro a tentar fechar uma comanda.
 
 ---
 
@@ -126,6 +142,13 @@ dentro da imagem, não só a presença do binário.
 ⚠️ **O que isto NÃO prova:** que o EasyPanel vai construir a mesma coisa. Ele usa o
 contexto de build do §2.4 e as variáveis do §3.1. A imagem é a mesma; o ambiente ao redor
 dela, não.
+
+⚠️ **O `Dockerfile` mudou em 25/09/2026** — uma linha que leva as fotos do carrossel do
+Bayron para `seed/galeria-bayron/`, de onde o passo 4.8 as lê. O build de 13/09 não prova
+esta versão: **reconstrua antes do dia.** E a saída do boot agora tem seis migrations, da
+`0000` à `0005_galeria.sql`, `✓ 6 migration(s) aplicada(s)` e, logo depois, a linha
+`✓ papel do app: <usuário> pode assumir barbearia_app` (conferido em 25/09 contra
+PostgreSQL 16.13).
 
 ### 2.2 O endereço do Bayron resolve
 
@@ -303,7 +326,7 @@ fazer. **Recusa não é problema — é o roteiro funcionando.**
 DATABASE_URL='postgres://...' node scripts/startup.mjs
 ```
 
-Confira: `0001`, `0002`, `0003` aplicadas, e a linha do `pg_dump`.
+Confira: da `0001` à `0005` aplicadas, a linha do papel do app e a do `pg_dump`.
 
 ### 4.5 O endereço
 
@@ -331,6 +354,23 @@ SELECT last_value, is_called FROM appointments_id_seq;
 Aponte o serviço para a `main` (depois do merge) ou para a `monorepo`, com o contexto de
 build corrigido e o `.env` novo, e construa.
 
+### 4.8 A galeria do Bayron
+
+Com o site novo no ar, no **console do container** no EasyPanel:
+
+```bash
+node scripts/importar-galeria-bayron.mjs
+```
+
+Confira: `✓ 20 foto(s) importada(s) para a galeria de "bayron" (barbearia 1)`.
+
+Até 24/09 as fotos do carrossel eram uma pasta do repositório; desde a migration 0005 o
+site lê a galeria do banco. **Sem este passo, o site do Bayron fica sem a seção** — não
+quebra, só some. O script lê as fotos que a imagem traz em `seed/galeria-bayron/`, grava
+no volume (`/data/uploads/galeria`) e é idempotente: se a galeria já tiver foto, não faz
+nada. Ensaiado em 25/09 com as 20 fotos reais: 19 ganharam a variante de 640 px; a
+`carrosel12.jpg` tem 416 px de largura e fica só com o original — a foto já é pequena de origem.
+
 ---
 
 ## 5. Depois — o que conferir com o site no ar
@@ -339,13 +379,16 @@ Na ordem, porque cada um depende do anterior:
 
 - [ ] **O site abre** em `bayron.alexandrefdev.tech` e mostra o conteúdo do Bayron.
       Se der 404, é o §2.2 — o endereço não resolveu.
-- [ ] **As fotos aparecem** — logo, capa, galeria. Se sumiram, é `UPLOAD_ROOT`.
+- [ ] **As fotos aparecem** — logo e capa. Se sumiram, é `UPLOAD_ROOT`. **A galeria**
+      aparece depois do 4.8; se não aparecer, é ele que faltou.
 - [ ] **Um barbeiro consegue entrar no painel.** Pelo slug ainda funciona enquanto
       houver uma barbearia só.
 - [ ] **A agenda do dia mostra os agendamentos de sempre.**
 - [ ] **Um agendamento novo, feito pelo site**, aparece no painel. É o teste da
       sequence: se der erro de chave duplicada, foi o `setval` (não deve acontecer, está
-      coberto por teste).
+      coberto por teste). É também o teste da transação dentro da requisição (§0.1).
+- [ ] **A agenda do dia responde:** abra `/admin/dia/<hoje>`, clique num agendamento e no
+      calendário. Até 25/09 a tela abria e não respondia a nada (§0.1).
 - [ ] **O backup roda:** `node scripts/backup.mjs` gera os **dois** arquivos, `.sql.gz`
       e `-fotos.tar.gz`.
 - [ ] **O log do boot** não tem o banner de `pg_dump` faltando.
@@ -363,6 +406,7 @@ volta para a `main` antiga e subir.** O SQLite não foi tocado pela carga — el
 | A carga recusa (4.3) | A recusa diz o motivo. Nada foi gravado: está tudo numa transação. |
 | A carga passou mas a contagem não bate | `dropdb` e `createdb` do banco novo, e recomece do 4.2. O SQLite está intacto. |
 | O site sobe e dá 404 | §2.2 — preencha `tenants.domain`. Não precisa reverter nada. |
+| O site sobe sem a galeria | Rode o 4.8. Não precisa reverter nada. |
 | Qualquer coisa pior | Serviço de volta para a imagem antiga + volume antigo. Perde-se o que tiver sido feito no Postgres. |
 
 ⚠️ **Só apague o `/data` antigo depois de uma semana rodando.** Ele é a única cópia do
