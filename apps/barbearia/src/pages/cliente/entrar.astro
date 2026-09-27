@@ -5,6 +5,7 @@ import Layout from '../../layouts/Layout.astro';
 import { getCustomerSession } from '../../lib/customerSession.js';
 
 import { tenantDoHost } from '../../lib/tenant.js';
+import { getSettings } from '../../lib/settings.js';
 
 // Endereço que não é de barbearia nenhuma: 404 seco, sem renderizar.
 //
@@ -20,11 +21,15 @@ if (!tenantDoHost(Astro.request)) {
 // Se já está logado, vai direto pra listagem
 const session = await getCustomerSession(Astro.request);
 if (session) return Astro.redirect('/cliente');
+
+// ⚠️ O nome é o da barbearia do endereço. Até 27/09/2026 esta página dizia
+// "Barbearia Bayron" no título e no topo para o cliente de qualquer barbearia.
+const { businessName } = await getSettings(tenantDoHost(Astro.request)!);
 ---
 
 <Layout
-  title="Acessar meus agendamentos · Barbearia Bayron"
-  description="Veja seus agendamentos na Barbearia Bayron usando seu telefone."
+  title={`Acessar meus agendamentos · ${businessName}`}
+  description={`Veja seus agendamentos na ${businessName} usando seu telefone.`}
 >
   <div class="min-h-screen bg-dark flex flex-col">
 
@@ -37,7 +42,7 @@ if (session) return Astro.redirect('/cliente');
           </svg>
           Início
         </a>
-        <span class="text-neutral-400 text-sm font-medium">Barbearia Bayron</span>
+        <span class="text-neutral-400 text-sm font-medium">{businessName}</span>
       </div>
     </div>
 

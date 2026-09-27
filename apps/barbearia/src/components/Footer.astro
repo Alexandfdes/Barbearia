@@ -185,16 +185,19 @@ const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário
     <div class="flex flex-col sm:flex-row justify-between items-center gap-4 text-[10px] text-neutral-500 text-left">
       <div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-center sm:text-left">
         <p>&copy; {currentYear} {s.businessName}. Todos os direitos reservados.</p>
-        <span class="hidden sm:inline text-neutral-800">|</span>
-        <div class="flex gap-3">
-          <a href="#" class="hover:text-neutral-400 transition-colors">Termos de Uso</a>
-          <span class="text-neutral-800">•</span>
-          <a href="#" class="hover:text-neutral-400 transition-colors">Políticas de Privacidade</a>
-        </div>
+        {/*
+          ⚠️ Aqui havia "Termos de Uso" e "Políticas de Privacidade" com `href="#"`:
+          links que não levavam a lugar nenhum, num site que coleta nome e
+          telefone. Saíram em 27/09/2026 e voltam quando os textos existirem
+          (`PENDENCIAS-ABERTAS.md` §1.2).
+        */}
       </div>
-      <p class="text-neutral-600 hover:text-teal-light/50 transition-colors duration-300 tracking-wide text-center sm:text-right">
-        Respeito e precisão em cada detalhe.
-      </p>
+      {/* O slogan é do Bayron: numa barbearia nova ele assinava o rodapé com a frase de outra. */}
+      {BAYRON && (
+        <p class="text-neutral-600 hover:text-teal-light/50 transition-colors duration-300 tracking-wide text-center sm:text-right">
+          Respeito e precisão em cada detalhe.
+        </p>
+      )}
     </div>
   </div>
 </footer>

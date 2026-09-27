@@ -6,10 +6,8 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { db } from '../../../../../db/index.js';
 import { appointments, barbers, services } from '../../../../../db/schema.js';
 import { getSettings } from '../../../../../lib/settings.js';
-import { tenantDoHost } from '../../../../../lib/tenant.js';
+import { enderecoPublicoDe, tenantDoHost } from '../../../../../lib/tenant.js';
 import { TZ } from '../../../../../lib/timezone.js';
-
-const SITE_HOST = 'bayron.alexandrefdev.tech';
 
 function toIcsDate(isoStr: string): string {
   return new Date(isoStr).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
@@ -65,13 +63,17 @@ export const GET: APIRoute = async ({ params, request }) => {
   const now      = toIcsDate(new Date().toISOString());
   const start    = toIcsDate(appt.startsAt);
   const end      = toIcsDate(appt.endsAt);
-  const uid      = `appointment-${appt.id}@${SITE_HOST}`;
-  const url      = `https://${SITE_HOST}/a/${token}`;
+  // ⚠️ O endereço é o da barbearia do agendamento. Até 27/09/2026 era uma
+  // constante com o domínio do Bayron: o convite de calendário de todo cliente do
+  // produto levava para o site dele, onde o link do agendamento não existe.
+  const endereco = enderecoPublicoDe(tenant, new URL(request.url).origin);
+  const uid      = `appointment-${appt.id}@${new URL(endereco).host}`;
+  const url      = `${endereco}/a/${token}`;
   const s = await getSettings();
   const summary  = icsEscape(`${appt.serviceName} com ${appt.barberName} — ${s.businessName}`);
   const location = icsEscape(`${s.addressStreet} — ${s.addressCity}`);
   const description = icsEscape(`Cliente: ${appt.customerName}\nLink: ${url}`);
-  const filename = `bayron-${formatInTimeZone(new Date(appt.startsAt), TZ, 'yyyyMMdd-HHmm')}.ics`;
+  const filename = `agendamento-${formatInTimeZone(new Date(appt.startsAt), TZ, 'yyyyMMdd-HHmm')}.ics`;
 
   const CRLF = '\r\n';
   const lines = [

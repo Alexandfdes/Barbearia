@@ -19,3 +19,17 @@ export function normalizePhone(input: string | null | undefined): string {
   if (d.length < 10) return '';
   return d;
 }
+
+/**
+ * Telefone BR para uma pessoa ler: "(84) 99665-8951" ou "(84) 3333-4444".
+ *
+ * O cadastro gravava o texto do jeito que o dono digitou, e "84996658951" saía
+ * assim, cru, no rodapé do site (achado em 27/09/2026, testando o autoatendimento).
+ * Número que não normaliza volta como veio: formatar é enfeite, não validação.
+ */
+export function formatarTelefone(input: string | null | undefined): string {
+  const d = normalizePhone(input);
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return (input ?? '').trim();
+}

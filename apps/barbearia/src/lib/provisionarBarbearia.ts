@@ -31,6 +31,7 @@
 import type postgres from 'postgres';
 import bcrypt from 'bcryptjs';
 import { derivarAccent, ACCENT_PADRAO, isHex, type Accent } from './accent.js';
+import { formatarTelefone } from './phone.js';
 
 const BCRYPT_COST = 12;
 
@@ -292,6 +293,14 @@ export async function provisionarBarbearia(
   const sobre = (dados.sobre ?? '').trim() || null;
 
   const accent = dados.cor ? derivarAccent(dados.cor) : ACCENT_PADRAO;
+
+  // ⚠️ O WhatsApp DA LOJA vai com o 55. O site monta `wa.me/<número>`, e o wa.me lê
+  // o começo do número como código do país: sem o 55, "84 99665-8951" virava +84,
+  // o Vietnã. Todo botão de WhatsApp de toda barbearia criada por aqui levava a um
+  // número que não existe — achado em 27/09/2026, no primeiro teste de ponta a
+  // ponta. É também o formato que o campo do painel pede ("DDI + DDD + número").
+  // O LOGIN continua sem o 55: é assim que `normalizePhone` compara no login.
+  const whatsappDaLoja = `55${telefoneDigitos}`;
   const hash = bcrypt.hashSync(senha, BCRYPT_COST);
 
   // Slug do dono dentro da barbearia. Único por tenant, então o primeiro nome basta.
@@ -318,7 +327,7 @@ export async function provisionarBarbearia(
         accent_color, accent_hover, accent_light,
         seo_title, products_section_title
       ) VALUES (
-        ${tenant.id}, ${nome}, ${curto}, ${telefoneDigitos}, ${dados.telefone},
+        ${tenant.id}, ${nome}, ${curto}, ${whatsappDaLoja}, ${formatarTelefone(telefoneDigitos)},
         ${endereco}, ${cidade}, ${horarioDeVitrine(semana)},
         ${instagramHandle}, ${instagramUrl}, ${sobre},
         ${accent.color}, ${accent.hover}, ${accent.light},

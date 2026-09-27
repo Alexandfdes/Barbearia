@@ -7,6 +7,7 @@ import { db } from '../../db/index.js';
 import { barbers, barberServices, services } from '../../db/schema.js';
 import { and, eq } from 'drizzle-orm';
 import { tenantDaSessao } from '../../lib/tenant.js';
+import { reais } from '../../lib/dinheiro.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
@@ -47,8 +48,9 @@ const rows = await baseSelect.orderBy(services.name);
 const svcList = rows.map(r => ({
   id:           r.id,
   name:         r.name,
-  priceNum:     Math.floor(r.priceCents / 100),
-  price:        `R$ ${(r.priceCents / 100).toFixed(0)}`,
+  // Com os centavos: `Math.floor` aqui apagava os 90 de R$ 39,90 ao salvar.
+  priceNum:     (r.priceCents / 100).toFixed(2),
+  price:        reais(r.priceCents),
   globalActive: r.globalActive,
   active:       r.bsActive ?? false,
   duration:     r.bsDuration ?? 30,
@@ -93,7 +95,7 @@ const inactiveCount = svcList.length - activeCount;
           </div>
           <div>
             <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Preço (R$)</label>
-            <input id="new-price" type="number" min="0" step="1" placeholder="0"
+            <input id="new-price" type="number" min="0" step="0.01" placeholder="0"
               class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
           </div>
         </div>
@@ -227,7 +229,7 @@ const inactiveCount = svcList.length - activeCount;
                 </div>
                 <div>
                   <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Preço (R$)</label>
-                  <input data-edit-price={String(svc.id)} type="number" min="0" step="1"
+                  <input data-edit-price={String(svc.id)} type="number" min="0" step="0.01"
                     value={svc.priceNum}
                     class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50" />
                 </div>
@@ -281,6 +283,7 @@ const inactiveCount = svcList.length - activeCount;
 
 
 <script>
+  import { centavosDoCampo } from '../../lib/dinheiro';
   // ── Configuração do barbeiro (toggle "eu ofereço" + duração) ────────────────
   const list = document.getElementById('services-list')!;
 
@@ -380,7 +383,7 @@ const inactiveCount = svcList.length - activeCount;
       const res = await fetch(`/api/admin/services/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: nameEl.value.trim(), priceCents: parseInt(priceEl.value, 10) * 100 }),
+        body: JSON.stringify({ name: nameEl.value.trim(), priceCents: centavosDoCampo(priceEl.value) }),
       });
 
       if (res.ok) { location.reload(); }
@@ -423,17 +426,17 @@ const inactiveCount = svcList.length - activeCount;
 
     errorEl.classList.add('hidden');
     const name  = nameEl.value.trim();
-    const price = parseInt(priceEl.value, 10);
+    const priceCents = centavosDoCampo(priceEl.value);
 
-    if (!name)                      { errorEl.textContent = 'Informe o nome';   errorEl.classList.remove('hidden'); return; }
-    if (isNaN(price) || price <= 0) { errorEl.textContent = 'Preço inválido';   errorEl.classList.remove('hidden'); return; }
+    if (!name)                                { errorEl.textContent = 'Informe o nome';   errorEl.classList.remove('hidden'); return; }
+    if (isNaN(priceCents) || priceCents <= 0) { errorEl.textContent = 'Preço inválido';   errorEl.classList.remove('hidden'); return; }
 
     btn.disabled = true; btn.textContent = 'Criando...';
 
     const res  = await fetch('/api/admin/services', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, priceCents: price * 100 }),
+      body: JSON.stringify({ name, priceCents }),
     });
     const data = await res.json();
 

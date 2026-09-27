@@ -10,6 +10,7 @@ import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { bookAppointment } from '../../../../lib/bookAppointment.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
+import { reais } from '../../../../lib/dinheiro.js';
 import { TZ } from '../../../../lib/timezone.js';
 
 
@@ -77,7 +78,7 @@ export const GET: APIRoute = async ({ request, url }) => {
   return json(rows.map(r => ({
     ...r,
     timeLocal: formatInTimeZone(new Date(r.startsAt), TZ, 'HH:mm'),
-    price:     `R$ ${(r.priceCents / 100).toFixed(0)}`,
+    price:     reais(r.priceCents),
   })));
 };
 

@@ -11,6 +11,9 @@ import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { waPhone } from '../../../lib/whatsapp.js';
 import { computeOccupancy, pickEmptiestBand } from '../../../lib/occupancy.js';
 import { tenantDaSessao } from '../../../lib/tenant.js';
+import { getSettings } from '../../../lib/settings.js';
+import { reais } from '../../../lib/dinheiro.js';
+import { diaDaSemana, faixaDoDia, type Semana } from '../../../lib/gradeDeHorarios.js';
 import { TZ } from '../../../lib/timezone.js';
 
 
@@ -247,7 +250,7 @@ const apptList: ApptView[] = apptRows.map(a => {
     serviceName:     a.serviceName,
     timeLocal:       time,
     endTimeLocal:    endTime,
-    price:           `R$ ${(a.priceCents / 100).toFixed(0)}`,
+    price:           reais(a.priceCents),
     topMin:          pos.topMin,
     durationMin:     pos.durationMin,
     wa,
@@ -257,7 +260,14 @@ const apptList: ApptView[] = apptRows.map(a => {
   };
 });
 
-const blockList: BlockView[] = timeOffRows.map(b => {
+// Todo bloqueio que toca o dia aparece na lista. Até 27/09/2026 o filtro era
+// `durationMin > 0` — a altura na linha do tempo fixa de 08:00 → 19:00, que nem
+// existe mais na tela —, e bloqueio fora dessa janela (das 19:30 às 20:30, por
+// exemplo) sumia da agenda sem aviso. O `gte` da consulta traz também o que
+// termina exatamente à meia-noite em que o dia começa: esse não toca o dia.
+const blockList: BlockView[] = timeOffRows
+  .filter(b => new Date(b.endsAt) > new Date(dayStart))
+  .map(b => {
   const pos = timelinePos(b.startsAt, b.endsAt);
   return {
     id:           b.id,
@@ -267,7 +277,7 @@ const blockList: BlockView[] = timeOffRows.map(b => {
     timeLocal:    formatInTimeZone(new Date(b.startsAt), TZ, 'HH:mm'),
     endTimeLocal: formatInTimeZone(new Date(b.endsAt),   TZ, 'HH:mm'),
   };
-}).filter(b => b.durationMin > 0);
+});
 
 // Receita do dia: serviço de confirmados + concluídos, e os produtos/comanda dos
 // concluídos (produto só conta quando concluído — mesma regra do relatório mensal).
@@ -275,7 +285,7 @@ const revenueCents = apptRows
   .filter(a => a.status === 'confirmed' || a.status === 'completed')
   .reduce((sum, a) => sum + a.priceCents + (a.status === 'completed' ? (itemsByAppt.get(a.id) ?? 0) : 0), 0)
   + salesCents;
-const revenueLabel = `R$ ${(revenueCents / 100).toFixed(0)}`;
+const revenueLabel = reais(revenueCents);
 const revenueCount = apptRows.filter(a => a.status === 'confirmed' || a.status === 'completed').length;
 
 // Próximo agendamento (confirmed que ainda não acabou)
@@ -382,6 +392,23 @@ const apptsLite = apptList.map(a => ({
   telUrl:            a.telUrl,
 }));
 
+// O expediente de verdade (`working_hours`), por barbeiro e dia da semana. Vai para
+// o navegador montar a grade de "Mover horário", e dá a faixa do topo da agenda —
+// as duas eram 08:00 → 19:00 fixo até 27/09/2026 (`lib/gradeDeHorarios.ts`).
+const linhasDeExpediente = await db
+  .select({ barberId: workingHours.barberId, weekday: workingHours.weekday, startTime: workingHours.startTime, endTime: workingHours.endTime })
+  .from(workingHours)
+  .where(eq(workingHours.tenantId, tenant.id));
+const expediente: Record<number, Semana> = {};
+for (const l of linhasDeExpediente) {
+  ((expediente[l.barberId] ??= {})[l.weekday] ??= []).push({ inicio: l.startTime, fim: l.endTime });
+}
+const faixaDoExpediente = faixaDoDia(
+  Object.entries(expediente)
+    .filter(([id]) => !filterBarberId || Number(id) === filterBarberId)
+    .flatMap(([, semana]) => semana[diaDaSemana(date)] ?? []),
+);
+
 const clientData = {
   date,
   role:              session.role,
@@ -397,6 +424,9 @@ const clientData = {
   // O fuso vai para o navegador por aqui, e não por `define:vars` — ver o
   // comentário no <script> lá embaixo.
   tz:                TZ,
+  // Assina as mensagens prontas de WhatsApp (`buildWaMessages`).
+  businessName:      (await getSettings(tenant)).businessName,
+  expediente,
 };
 ---
 
@@ -542,7 +572,7 @@ const clientData = {
         <p class="text-xs text-slate-500 uppercase tracking-widest">Receita prevista do dia</p>
         <p class="text-3xl font-bold text-teal mt-1 tabular-nums">{revenueLabel}</p>
         <p class="text-xs text-slate-500 mt-0.5">
-          {revenueCount} {revenueCount === 1 ? 'agendamento' : 'agendamentos'} considerados (confirmados + concluídos)
+          {revenueCount} {revenueCount === 1 ? 'agendamento considerado' : 'agendamentos considerados'} (confirmados + concluídos)
         </p>
       </div>
       {nextAppt ? (
@@ -581,7 +611,7 @@ const clientData = {
         </p>
         <div class="flex items-center gap-3">
           <p class="text-[10px] text-slate-400 uppercase tracking-widest hidden sm:block">
-            {String(START_HOUR).padStart(2, '0')}:00 → {String(END_HOUR).padStart(2, '0')}:00
+            {faixaDoExpediente ? `${faixaDoExpediente.inicio} → ${faixaDoExpediente.fim}` : 'Sem expediente'}
           </p>
         </div>
       </div>
@@ -593,7 +623,9 @@ const clientData = {
           </svg>
           <p class="text-sm font-medium text-slate-700 mt-3">Nenhum agendamento para este dia</p>
           <p class="text-xs text-slate-500 mt-1">
-            Dia livre · expediente {String(START_HOUR).padStart(2, '0')}:00 → {String(END_HOUR).padStart(2, '0')}:00
+            {faixaDoExpediente
+              ? `Dia livre · expediente ${faixaDoExpediente.inicio} → ${faixaDoExpediente.fim}`
+              : 'Sem expediente neste dia'}
           </p>
           <div class="flex flex-wrap gap-2 mt-5 justify-center">
             <button type="button" data-empty-manual
@@ -636,7 +668,7 @@ const clientData = {
       <div class="flex items-center justify-between mb-3 gap-3">
         <p class="text-xs text-slate-500 uppercase tracking-widest">Produtos vendidos</p>
         <p class="text-xs text-slate-400" id="sales-count">
-          {saleRows.length > 0 ? `${saleRows.length} ${saleRows.length === 1 ? 'venda' : 'vendas'} · R$ ${Math.round(salesCents / 100)}` : ''}
+          {saleRows.length > 0 ? `${saleRows.length} ${saleRows.length === 1 ? 'venda' : 'vendas'} · ${reais(salesCents)}` : ''}
         </p>
       </div>
       <div id="sales-list" class="space-y-2">
@@ -651,7 +683,7 @@ const clientData = {
                 <p class="text-[10px] text-slate-400">{sv.barberName.split(' ')[0]}</p>
               )}
             </div>
-            <span class="text-sm font-semibold text-teal tabular-nums shrink-0">R$ {Math.round(sv.priceCents / 100)}</span>
+            <span class="text-sm font-semibold text-teal tabular-nums shrink-0">{reais(sv.priceCents)}</span>
             <button type="button" data-sale-remove={String(sv.id)} class="text-slate-400 hover:text-red-600 transition-colors shrink-0" aria-label="Remover venda">✕</button>
           </div>
         ))}
@@ -708,7 +740,7 @@ const clientData = {
           <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Produto</label>
           <select id="sale-product" class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50">
             {clientData.products.map(p => (
-              <option value={p.name} data-cents={String(p.priceCents)}>{p.name} — R$ {Math.round(p.priceCents / 100)}</option>
+              <option value={p.name} data-cents={String(p.priceCents)}>{p.name} — {reais(p.priceCents)}</option>
             ))}
             <option value="__outro__">Outro produto…</option>
           </select>
@@ -1185,6 +1217,9 @@ const clientData = {
   // ambiente, e cravar aqui faria a tela discordar do banco (`lib/timezone.ts`) —,
   // só que pelo mesmo caminho do resto dos dados: `clientData.tz`.
   import { waPhone, waLink, buildWaMessages } from '../../../lib/whatsapp';
+  import { reais } from '../../../lib/dinheiro';
+  import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
+  import { diaDaSemana, horariosParaMover } from '../../../lib/gradeDeHorarios';
 
   const container = document.getElementById('admin-data-container')!;
   const clientData = JSON.parse(container.dataset.client!);
@@ -1379,11 +1414,11 @@ const clientData = {
   })();
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
+  // Hora local da barbearia → instante UTC, pelo fuso que vem do servidor
+  // (`clientData.tz`). Até 27/09/2026 esta conta somava 3 horas à mão: Fortaleza
+  // cravada no código que roda no celular do dono (`PENDENCIAS-ABERTAS.md` §2.11).
   function localTimeToUtcIso(dateStr, timeStr) {
-    const [y, mo, d]   = dateStr.split('-').map(Number);
-    const [h, min]     = timeStr.split(':').map(Number);
-    const utc          = new Date(Date.UTC(y, mo - 1, d, h + 3, min));
-    return utc.toISOString();
+    return fromZonedTime(`${dateStr}T${timeStr}:00`, TZ).toISOString();
   }
 
   async function callApi(endpoint, method = 'POST', body = undefined) {
@@ -1488,9 +1523,9 @@ const clientData = {
     // Vendas de produto avulsas do dia entram na receita (não no contador de agendamentos)
     total += clientData.salesCents || 0;
     const rev = document.querySelector('section [class*="text-teal"][class*="text-3xl"]');
-    if (rev) rev.textContent = `R$ ${(total / 100).toFixed(0)}`;
+    if (rev) rev.textContent = reais(total);
     const countEl = document.querySelector('section .text-xs.text-slate-500.mt-0\\.5');
-    if (countEl) countEl.textContent = `${count} ${count === 1 ? 'agendamento' : 'agendamentos'} considerados (confirmados + concluídos)`;
+    if (countEl) countEl.textContent = `${count} ${count === 1 ? 'agendamento considerado' : 'agendamentos considerados'} (confirmados + concluídos)`;
   }
 
   // ─── Action buttons ─────────────────────────────────────────────────────────
@@ -1578,7 +1613,7 @@ const clientData = {
       toast('Telefone inválido — corrija nos detalhes do agendamento', 'error');
       return;
     }
-    const msgs = buildWaMessages(appt.customerName, appt.timeLocal, diaLabel());
+    const msgs = buildWaMessages(appt.customerName, appt.timeLocal, diaLabel(), clientData.businessName);
     waSub.textContent = `${appt.customerName} · ${appt.timeLocal} · ${appt.customerPhoneDisplay}`;
     waOptLembrete.href        = waLink(appt.wa, msgs.lembrete);
     waOptAtrasoCliente.href   = waLink(appt.wa, msgs.clienteAtrasado);
@@ -1718,7 +1753,7 @@ const clientData = {
   // Ficha do cliente: faixa de stats agregados.
   function renderClientStats(stats, total) {
     if (!dmStats) return;
-    const brl = (c) => 'R$ ' + Math.round((c || 0) / 100).toLocaleString('pt-BR');
+    const brl = (c) => reais(c || 0);
 
     // Primeira visita: só existe o agendamento atual.
     if (!stats || (total ?? stats.totalCount) <= 1) {
@@ -1779,7 +1814,7 @@ const clientData = {
         const d = new Date(h.startsAt);
         const dateLabel = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit' });
         const timeLabel = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
-        const price = `R$ ${(h.priceCents / 100).toFixed(0)}`;
+        const price = reais(h.priceCents);
         const statusColor = h.status === 'completed' ? 'text-teal'
                          : h.status === 'cancelled' ? 'text-red-600/70'
                          : h.status === 'no_show'   ? 'text-amber-600/80'
@@ -1988,34 +2023,22 @@ const clientData = {
     currentMoveSlot = null;
 
     try {
-      const params = new URLSearchParams({
-        barberId: String(appt.barberId),
-        serviceId: '0', // não usa serviceId aqui, mas API exige; vou só pedir o slots por barberId
-        date: targetDate,
-      });
-      // /api/slots espera serviceId pra calcular duração. Como vamos manter o serviço,
-      // usamos a duração do próprio appt: adicionamos excludeAppointmentId pra liberar o slot atual.
-      params.set('excludeAppointmentId', String(appt.id));
-
-      // Sem serviceId fácil — pedir slots pra cada serviço seria lento. Vamos usar uma alternativa:
-      // gerar slots por step de 15min entre 08:00 e 19:00, sem chamar a API.
-      // (A API de reschedule revalida no servidor.)
+      // A grade sai do expediente DO BARBEIRO naquele dia da semana — até
+      // 27/09/2026 era 08:00 → 19:00 fixo, e oferecia horário que o servidor
+      // recusava (`lib/gradeDeHorarios.ts`). Conflito com outro atendimento o
+      // servidor continua conferindo ao confirmar.
       dmMoveSlots.innerHTML = '';
+      const janelas = clientData.expediente?.[appt.barberId]?.[diaDaSemana(targetDate)] ?? [];
+      const horarios = horariosParaMover(janelas, appt.durationMinutes);
+      if (horarios.length === 0) {
+        dmMoveSlots.innerHTML = '<span class="text-slate-500">O barbeiro não trabalha neste dia.</span>';
+        return;
+      }
       const grid = document.createElement('div');
       grid.className = 'grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto';
 
-      const STEP = 15; // 15 minutos entre slots
-      const startMin = clientData.startHour * 60;
-      const endMin   = (clientData.startHour + 11) * 60; // 08:00-19:00
-      const duration = appt.durationMinutes;
-
-      for (let m = startMin; m + duration <= endMin; m += STEP) {
-        const h = Math.floor(m / 60);
-        const mm = m % 60;
-        const label = `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
-        // utc: targetDate local + h:mm → UTC adicionando 3h (Fortaleza UTC-3)
-        const [y, mo, d] = targetDate.split('-').map(Number);
-        const utc = new Date(Date.UTC(y, mo - 1, d, h + 3, mm)).toISOString();
+      for (const label of horarios) {
+        const utc = localTimeToUtcIso(targetDate, label);
 
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -2218,13 +2241,13 @@ const clientData = {
       comandaExtras.forEach((ex, i) => {
         const row = document.createElement('div');
         row.className = 'flex items-center justify-between gap-2 text-sm bg-slate-100 rounded px-3 py-2';
-        row.innerHTML = `<span class="text-slate-700">${ex.name}</span><span class="flex items-center gap-3"><span class="text-slate-500 tabular-nums">R$ ${Math.round(ex.priceCents / 100)}</span><button type="button" data-cm-remove="${i}" class="text-red-600/70 hover:text-red-600" aria-label="Remover">✕</button></span>`;
+        row.innerHTML = `<span class="text-slate-700">${ex.name}</span><span class="flex items-center gap-3"><span class="text-slate-500 tabular-nums">${reais(ex.priceCents)}</span><button type="button" data-cm-remove="${i}" class="text-red-600/70 hover:text-red-600" aria-label="Remover">✕</button></span>`;
         list.appendChild(row);
       });
     }
     const total = mainCents + comandaExtras.reduce((s, e) => s + e.priceCents, 0);
     const totalEl = document.getElementById('cm-total');
-    if (totalEl) totalEl.textContent = 'R$ ' + Math.round(total / 100);
+    if (totalEl) totalEl.textContent = reais(total);
   }
 
   async function openComanda(id: string) {
@@ -2248,7 +2271,7 @@ const clientData = {
         opt.value = String(svc.id);
         opt.dataset.name  = svc.name;
         opt.dataset.cents = String(svc.priceCents);
-        opt.textContent   = `${svc.name} — R$ ${Math.round(svc.priceCents / 100)}`;
+        opt.textContent   = `${svc.name} — ${reais(svc.priceCents)}`;
         select.appendChild(opt);
       });
     }
@@ -2325,7 +2348,7 @@ const clientData = {
     const emptyEl    = document.getElementById('sales-empty');
     const countEl    = document.getElementById('sales-count');
 
-    const brlSale = (cents: number) => 'R$ ' + Math.round(cents / 100);
+    const brlSale = (cents: number) => reais(cents);
     const escSale = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const unitCents = () => { const v = parseFloat(priceInput.value); return isFinite(v) && v >= 0 ? Math.round(v * 100) : 0; };
     const qty = () => { const q = parseInt(qtyInput.value, 10); return isFinite(q) && q > 0 ? q : 1; };
@@ -2477,9 +2500,8 @@ const clientData = {
         const isoStr = typeof slot === 'string' ? slot : slot.utc;
         const label  = typeof slot === 'string'
           ? (() => {
-              const [h, min] = new Date(isoStr).toISOString().slice(11, 16).split(':').map(Number);
-              const hLocal   = (h - 3 + 24) % 24;
-              return `${String(hLocal).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+              // Pelo fuso da barbearia, não por "- 3" (`PENDENCIAS-ABERTAS.md` §2.11).
+              return formatInTimeZone(new Date(isoStr), TZ, 'HH:mm');
             })()
           : slot.time;
         const btn = document.createElement('button');

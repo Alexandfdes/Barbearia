@@ -7,8 +7,9 @@ export const WHATSAPP_NUMBER = "15551547238";
 
 export const TOPSALAO_URL = '/agendar';
 
-// Domínio oficial em produção — fonte única para canonical, og:url e a imagem de preview.
-export const SITE_URL = "https://bayron.alexandrefdev.tech";
+// ⚠️ Aqui ficava `SITE_URL`, o domínio do Bayron, usado como canonical, og:url e
+// imagem de prévia de TODO site. Removido em 27/09/2026: o endereço de cada
+// barbearia sai de `enderecoPublico()` (`src/lib/tenant.ts`).
 
 // Link do Instagram
 export const INSTAGRAM_URL = "https://www.instagram.com/barbearia_bayron/";

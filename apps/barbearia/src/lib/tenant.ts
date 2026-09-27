@@ -235,6 +235,26 @@ export function urlDoSite(tenant: Tenant): string {
 }
 
 /**
+ * O endereço público do site que está sendo servido: o que vai no canonical, no
+ * og:url, na imagem de prévia e no `@id` do schema.org.
+ *
+ * ⚠️ Nunca uma constante. Até 27/09/2026 estes valores saíam de `SITE_URL`
+ * (`src/config.ts`), o domínio do Bayron — herança de quando cada cliente tinha a
+ * própria instância. No multi-tenant, todo site do produto dizia ao Google que a
+ * página "de verdade" era a do Bayron, e o link mandado no WhatsApp mostrava a
+ * foto e o nome dele (`public/og.jpg`).
+ *
+ * Sem `DOMINIO_BASE` (desenvolvimento), vale o endereço da própria requisição.
+ */
+export function enderecoPublicoDe(tenant: Tenant | null, origemDaRequisicao: string): string {
+  return (tenant && urlDoSite(tenant)) || origemDaRequisicao;
+}
+
+export function enderecoPublico(request: Request, url: URL): string {
+  return enderecoPublicoDe(tenantDoHost(request), url.origin);
+}
+
+/**
  * `http` para desenvolvimento, `https` para o resto.
  *
  * ⚠️ `DOMINIO_BASE=localhost:4321` é a forma de ver o multi-tenant funcionando na

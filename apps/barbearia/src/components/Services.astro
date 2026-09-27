@@ -1,4 +1,5 @@
 ---
+import { reais } from '../lib/dinheiro.js';
 import { TOPSALAO_URL } from '../config';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/index';
@@ -29,7 +30,7 @@ const doBanco = BAYRON ? [] : await db
   .where(and(eq(servicesTable.active, true), eq(servicesTable.tenantId, tenantAtual().id)))
   .orderBy(servicesTable.name);
 
-const reais = (c: number) => `R$ ${Math.round(c / 100)}`;
+// O formatador é um só para o site inteiro — ver `lib/dinheiro.ts`.
 
 /** Sem serviço nenhum a seção não existe — a regra do §4.1. */
 const temServico = BAYRON || doBanco.length > 0;
@@ -181,6 +182,7 @@ const combos = [
 )}
 
 <script>
+  import { reais } from '../lib/dinheiro';
   // Sincroniza os preços com o catálogo do banco (fonte da verdade).
   // Os valores no HTML são fallback caso o fetch falhe ou o serviço não exista lá.
   async function syncServicePrices() {
@@ -191,7 +193,7 @@ const combos = [
       const bySlug = new Map(list.map(s => [s.slug, s.priceCents]));
       document.querySelectorAll<HTMLElement>('[data-price-slug]').forEach(el => {
         const cents = bySlug.get(el.dataset.priceSlug ?? '');
-        if (typeof cents === 'number') el.textContent = `R$ ${Math.round(cents / 100)}`;
+        if (typeof cents === 'number') el.textContent = reais(cents);
       });
     } catch { /* mantém os preços de fallback do HTML */ }
   }

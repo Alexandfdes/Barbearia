@@ -9,6 +9,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { ptBR } from 'date-fns/locale';
 import { getSettings, waUrl } from '../../lib/settings';
 import { tenantDoHost } from '../../lib/tenant.js';
+import { reais } from '../../lib/dinheiro.js';
 import { TZ } from '../../lib/timezone.js';
 
 const tenant = tenantDoHost(Astro.request);
@@ -66,9 +67,9 @@ const items = (await db
 const itemsTotalCents = items.reduce((sum, it) => sum + it.priceCents, 0);
 const totalCents = appt.priceCents + itemsTotalCents;
 
-const price       = `R$ ${(appt.priceCents / 100).toFixed(0)}`;
-const totalDisplay = `R$ ${(totalCents / 100).toFixed(0)}`;
-const fmtCents    = (c: number) => `R$ ${(c / 100).toFixed(0)}`;
+const price       = reais(appt.priceCents);
+const totalDisplay = reais(totalCents);
+const fmtCents    = reais;
 const isConfirmed = appt.status === 'confirmed';
 const isCancelled = appt.status === 'cancelled';
 const isCompleted = appt.status === 'completed';
