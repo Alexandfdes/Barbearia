@@ -162,8 +162,9 @@ saem as vagas do site.
 
 - **Todos os preços em branco** = o site nasce com o botão "Reservar horário" levando a
   uma tela em branco (`PENDENCIAS-ABERTAS.md` §4.9). O cadastro avisa, mas deixa passar.
-- **Os centavos somem**: R$ 39,90 aparece "R$ 40" no site, e editar o nome no painel grava
-  R$ 39,00 (`PENDENCIAS-ABERTAS.md` §2.15).
+- ~~**Os centavos somem**~~ — ✅ consertado em 27/09/2026: R$ 39,90 aparece R$ 39,90 no site,
+  no agendamento e no painel, e editar o nome não mexe mais no preço
+  (`PENDENCIAS-ABERTAS.md` §2.15).
 - **Barbearia de um barbeiro só** ainda obriga o cliente a escolher barbeiro no agendamento
   (`PENDENCIAS-ABERTAS.md` §2.2) — e todo cadastro nasce com um barbeiro só, o dono.
 
@@ -322,6 +323,9 @@ as fotos de produto se sobem ali mesmo (`PLANO-PRODUTIZACAO.md` §13, *Fotos*).
 - **O painel abre em 14%** para quem preencheu só o obrigatório (a tabela do passo 4). Para
   quem acabou de atravessar um formulário longo, 14% soa como "falta quase tudo". Com a cor
   e a frase no cadastro, abre em 36%.
+- No teste de 27/09/2026, na máquina do dono, abriu em **32%** — ele preencheu também o texto
+  sobre e o Instagram. E a tela de Configurações dizia que a frase do topo era ignorada, quando
+  é ela o título do site; consertado no mesmo dia (`PENDENCIAS-ABERTAS.md` §2.28).
 
 ### 2.8 Passo 8 — O site no ar
 
@@ -339,11 +343,22 @@ as fotos de produto se sobem ali mesmo (`PLANO-PRODUTIZACAO.md` §13, *Fotos*).
   esconde o "Ver meu site" (`apps/barbearia/src/layouts/AdminLayout.astro:124-127`).
 - Para cada barbearia nova funcionar sem trabalho seu, falta o registro DNS curinga e o
   certificado emitido por endereço (`ARQUITETURA-COBRANCA-V1.md` §7.4).
+- ✅ **Consertado em 27/09/2026, no primeiro teste na máquina do dono:** o botão de WhatsApp de
+  toda barbearia nova chamava um número do Vietnã, porque o cadastro gravava o número sem o 55
+  (`PENDENCIAS-ABERTAS.md` §2.25); e o link do site, mandado no WhatsApp, abria com a foto e o
+  endereço do Bayron (`PENDENCIAS-ABERTAS.md` §2.26).
 
 **O que falta:** a tela de fim do cadastro não mostra o site (`cadastrar.astro:325-329`).
 Falta uma "O seu site está no ar", com o link, o botão de mandar pelo WhatsApp e o texto
 pronto para a bio do Instagram. É o momento em que ele mostra o produto para alguém — e
 quem mostra, convence a si mesmo a pagar no 8º dia.
+
+**O teste de 27/09/2026 confirmou a falta.** Quem terminou o cadastro esperava que ele pedisse
+as fotos e os produtos. Pela decisão de 24/09 as fotos ficam no painel
+(`PLANO-PRODUTIZACAO.md` §13), e isso continua certo — o problema é que o fim do cadastro não
+leva a nada: painel em 32% e um site escuro, só com o nome. A mesma tela do "O seu site está no
+ar" deve trazer os próximos passos — as fotos dos cortes, a capa, a cor e a frase do topo, cada
+um com o botão que leva lá. Os produtos, não: nem toda barbearia vende.
 
 **O que pode dar errado:**
 
@@ -351,6 +366,10 @@ quem mostra, convence a si mesmo a pagar no 8º dia.
   (`PLANO-PRODUTIZACAO.md` §13, custo 5).
 - **O endereço `painel` na mão de um estranho** mostraria o site dele no endereço do seu
   painel (`PENDENCIAS-ABERTAS.md` §4.16).
+- **A aba do navegador mostra o ícone do Astro** — o framework do site — em toda barbearia que
+  não subiu o dela: `apps/barbearia/src/layouts/Layout.astro:41` cai em
+  `apps/barbearia/public/favicon.svg`, que é o ícone que vem com o Astro. Conferido no código
+  em 27/09/2026; não consertado.
 
 ### 2.9 Passo 9 — Os 7 dias
 
@@ -482,8 +501,9 @@ caminho do barbeiro. Muda uma coisa lá e encaixa o que a jornada achou sem luga
 
 0. **A conta na Asaas e a prova no sandbox**: as três perguntas do passo 5, a volta e o
    webhook.
-1. **Os pequenos que já mordem hoje:** os centavos, o combo em qualquer dia, a semana do
-   painel, o login só com JSON e o resumo do combo (`PENDENCIAS-ABERTAS.md` §6, item 1).
+1. **Os pequenos que já mordem hoje:** ~~os centavos~~ (✅ 27/09), o combo em qualquer dia,
+   a semana do painel, o login só com JSON e o resumo do combo (`PENDENCIAS-ABERTAS.md` §6,
+   item 1).
 2. **O que todo cadastro encontra no primeiro minuto:** a tela de agendar vazia
    (`PENDENCIAS-ABERTAS.md` §4.9) e o passo inútil do barbeiro único
    (`PENDENCIAS-ABERTAS.md` §2.2).
@@ -520,6 +540,11 @@ certificados** (`ARQUITETURA-COBRANCA-V1.md` §7.4), que dependem do nome.
 - `ARQUITETURA-COBRANCA-V1.md` e `FLUXO-COMPLETO.md` — um aviso no cabeçalho apontando para
   cá. O `ESTADO-ATUAL.md` §8 ganhou a linha de 27/09; o índice `README.md`, a linha deste
   documento, e a do `FLUXO-COMPLETO.md` passou a apontar para cá.
+
+**Mudou de novo em 27/09/2026, depois do primeiro teste na máquina do dono:** os passos 3, 7
+e 8 ganharam o que foi consertado e o que o teste confirmou (`PENDENCIAS-ABERTAS.md` §2.15 e
+`PENDENCIAS-ABERTAS.md` §2.25 a `PENDENCIAS-ABERTAS.md` §2.28), e o item 1 do §5 perdeu os
+centavos.
 
 **Muda quando for decidido ou implementado — não antes:**
 
