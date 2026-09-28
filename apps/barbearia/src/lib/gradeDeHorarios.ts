@@ -62,3 +62,36 @@ export function faixaDoDia(janelas: Janela[]): Janela | null {
   const fins = janelas.map((j) => j.fim).sort();
   return { inicio: inicios[0], fim: fins[fins.length - 1] };
 }
+
+/**
+ * As horas do gráfico "Movimento por horário" do relatório: do começo do primeiro
+ * expediente ao fim do último, e mais qualquer hora em que houve atendimento fora
+ * dele — um encaixe às 08:00 aparece, em vez de sumir. `contagem[h]` é o número de
+ * atendimentos que começaram na hora `h` (0–23, local). Sem expediente e sem
+ * atendimento, `null`.
+ *
+ * ⚠️ Até 27/09/2026 o gráfico era fixo de 09 às 19: o atendimento das 08:00 ou das
+ * 20:00 sumia do relatório sem aviso, e barbearia que abre às 07:00 via duas horas
+ * de barra vazia a menos do que trabalhou.
+ */
+export function horasDoGrafico(
+  expediente: { startTime: string; endTime: string }[],
+  contagem: number[],
+): { inicio: number; fim: number } | null {
+  let inicio = Infinity;
+  let fim = -Infinity;
+  for (const janela of expediente) {
+    const abre = emMinutos(janela.startTime);
+    const fecha = emMinutos(janela.endTime);
+    if (fecha <= abre) continue;
+    inicio = Math.min(inicio, Math.floor(abre / 60));
+    fim = Math.max(fim, Math.ceil(fecha / 60) - 1);
+  }
+  contagem.forEach((n, hora) => {
+    if (n > 0) {
+      inicio = Math.min(inicio, hora);
+      fim = Math.max(fim, hora);
+    }
+  });
+  return Number.isFinite(inicio) ? { inicio, fim } : null;
+}
