@@ -9,6 +9,9 @@
  * (caso raro; a UI de bloqueio não incentiva sobreposição).
  */
 
+import { fromZonedTime } from 'date-fns-tz';
+import { TZ } from './timezone.js';
+
 export interface OccBand {
   key: string;
   /** rótulo já no formato da frase: "de manhã", "à tarde", "no fim do dia" */
@@ -45,8 +48,15 @@ interface Params {
   timeOff: { barberId: number | null; startsAt: string; endsAt: string }[];
   appointments: { barberId: number; startsAt: string; endsAt: string }[];
   bands?: OccBand[];
-  /** offset local em minutos relativo a UTC. Fortaleza (sem horário de verão) = -180 */
-  utcOffsetMin?: number;
+  /**
+   * A zona da barbearia (IANA). Padrão: o `TZ` de `lib/timezone.ts`.
+   *
+   * ⚠️ Até 27/09/2026 era `utcOffsetMin`, com `-180` quando ninguém informava — e
+   * nenhum chamador informava. Offset não é fuso: valia até o primeiro cliente fora
+   * do UTC−3. Em Manaus, a janela das 09:00 às 13:00 era medida uma hora antes, e a
+   * ocupação e a "faixa mais vazia" saíam de outro horário (`PENDENCIAS-ABERTAS.md` §2.11).
+   */
+  tz?: string;
 }
 
 function hmToMin(hm: string): number {
@@ -60,12 +70,21 @@ function overlapMs(aS: number, aE: number, bS: number, bE: number): number {
 
 export function computeOccupancy(params: Params): DayBandOccupancy[] {
   const bands = params.bands ?? DEFAULT_BANDS;
-  const utcOffsetMin = params.utcOffsetMin ?? -180;
+  const tz = params.tz ?? TZ;
 
-  // epoch UTC (ms) de um horário local (minutos) numa data local
+  // O instante (epoch em ms) de um horário local — minutos desde 00:00 — numa data
+  // local, pela zona. `24:00` (1440) é a meia-noite do dia seguinte.
   function epoch(dateStr: string, minLocal: number): number {
-    const [y, mo, d] = dateStr.split('-').map(Number);
-    return Date.UTC(y, mo - 1, d, 0, 0) + (minLocal - utcOffsetMin) * 60_000;
+    if (minLocal >= 24 * 60) {
+      // Conta de calendário, ao meio-dia UTC: não depende de fuso.
+      const [y, mo, d] = dateStr.split('-').map(Number);
+      const t = new Date(Date.UTC(y, mo - 1, d + 1, 12));
+      const amanha = `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`;
+      return epoch(amanha, minLocal - 24 * 60);
+    }
+    const hh = String(Math.floor(minLocal / 60)).padStart(2, '0');
+    const mm = String(minLocal % 60).padStart(2, '0');
+    return fromZonedTime(`${dateStr}T${hh}:${mm}:00`, tz).getTime();
   }
 
   const timeOffParsed = params.timeOff.map(t => ({

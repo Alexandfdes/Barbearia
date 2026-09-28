@@ -5,6 +5,7 @@ import Layout from '../layouts/Layout.astro';
 import { getSettings } from '../lib/settings';
 
 import { tenantDoHost } from '../lib/tenant.js';
+import { TZ } from '../lib/timezone.js';
 
 // Endereço que não é de barbearia nenhuma: 404 seco, sem renderizar.
 //
@@ -55,7 +56,7 @@ const s = await getSettings();
       </div>
 
       <!-- Área do wizard -->
-      <div id="wizard">
+      <div id="wizard" data-tz={TZ}>
         <div class="flex items-center justify-center py-20 gap-3 text-neutral-500">
           <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -326,14 +327,23 @@ function renderStep2() {
 }
 
 // ── Step 3: Data & Hora ───────────────────────────────────────────────────────
-function todayFortaleza(): string {
-  // Fortaleza = UTC-3, sem horário de verão
-  const d = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+// A data de hoje NA BARBEARIA — o fuso vem do servidor, no `data-tz` do wizard.
+//
+// ⚠️ Até 27/09/2026 era `Date.now() - 3 * 60 * 60 * 1000`: hoje em Fortaleza, para
+// qualquer barbearia. Em Manaus, das 23:00 à meia-noite o calendário já começava no
+// dia seguinte — o cliente não via o dia de hoje (`PENDENCIAS-ABERTAS.md` §2.11).
+// `Intl` e não `date-fns-tz`: esta é a página do cliente, e o calendário não
+// justifica carregar mais uma biblioteca no celular dele.
+function hojeNaBarbearia(): string {
+  const partes = new Intl.DateTimeFormat('en-US', {
+    timeZone: wizard.dataset.tz, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const parte = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? '';
+  return `${parte('year')}-${parte('month')}-${parte('day')}`;
 }
 
 function buildDates() {
-  const todayStr = todayFortaleza();
+  const todayStr = hojeNaBarbearia();
   const base = new Date(todayStr + 'T12:00:00Z');
   return Array.from({ length: 30 }, (_, i) => {
     const t = new Date(base.getTime() + i * 86_400_000);

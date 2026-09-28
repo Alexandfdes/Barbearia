@@ -54,7 +54,9 @@ const SO_TYPESCRIPT: [string, RegExp][] = [
 
 describe('scripts inline (`define:vars` / `is:inline`)', () => {
   it('o recorte acha os blocos inline que existem — guarda contra o regex quebrar em silêncio', () => {
-    expect(blocosInline().length).toBeGreaterThanOrEqual(3);
+    // Eram três; desde 27/09/2026 são dois (configurações e expediente): o de
+    // bloqueios deixou de ser `define:vars` para poder importar a conversão de fuso.
+    expect(blocosInline().length).toBeGreaterThanOrEqual(2);
   });
 
   it('nenhum tem `import` — script inline não é módulo', () => {

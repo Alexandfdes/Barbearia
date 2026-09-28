@@ -63,10 +63,11 @@ const allBarbers = session.role === 'admin'
 const upcoming = entries.filter(e => !e.isPast);
 const past     = entries.filter(e => e.isPast);
 
-// Today in Fortaleza for form default
+// Hoje, no fuso da barbearia, para o valor inicial do formulário.
 const todayStr = formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
 
-const clientData = { role: session.role, sessionBarberId: session.barberId, allBarbers };
+// O fuso desce pelos dados da página, como na agenda do dia (`clientData.tz`).
+const clientData = { role: session.role, sessionBarberId: session.barberId, tz: TZ };
 ---
 
 <AdminLayout title="Bloqueios" barberName={barberRow.name} role={session.role}>
@@ -200,15 +201,29 @@ const clientData = { role: session.role, sessionBarberId: session.barberId, allB
     )}
 
   </main>
+  <div id="bloqueios-dados" data-client={JSON.stringify(clientData)} class="hidden"></div>
 </AdminLayout>
 
-<script define:vars={{ clientData }}>
-  const { role, sessionBarberId, allBarbers } = clientData;
+<script>
+  // Script processado pelo Astro, e não `define:vars`: `define:vars` deixa o bloco
+  // inline, sem `import` — e sem `import` não há como converter pelo fuso.
+  //
+  // ⚠️ Até 27/09/2026 esta conta era `Date.UTC(y, mo - 1, d, h + 3, min)`: Fortaleza
+  // cravada no navegador do dono. Em Manaus, bloquear o almoço das 12:00 às 13:00
+  // gravava das 11:00 às 12:00 — e o site continuava vendendo o meio-dia com o
+  // barbeiro almoçando (`PENDENCIAS-ABERTAS.md` §2.11).
+  import { fromZonedTime } from 'date-fns-tz';
 
-  function localToUtcIso(dateStr, timeStr) {
-    const [y, mo, d] = dateStr.split('-').map(Number);
-    const [h, min]   = timeStr.split(':').map(Number);
-    return new Date(Date.UTC(y, mo - 1, d, h + 3, min)).toISOString();
+  const dados = document.getElementById('bloqueios-dados') as HTMLElement;
+  const clientData = JSON.parse(dados.dataset.client ?? '{}') as {
+    role: string;
+    sessionBarberId: number;
+    tz: string;
+  };
+  const { role, sessionBarberId } = clientData;
+
+  function localToUtcIso(dateStr: string, timeStr: string): string {
+    return fromZonedTime(`${dateStr}T${timeStr}:00`, clientData.tz).toISOString();
   }
 
   // Toggle new form
@@ -218,13 +233,13 @@ const clientData = { role: session.role, sessionBarberId: session.barberId, allB
 
   // Submit new bloqueio
   document.getElementById('f-submit')?.addEventListener('click', async () => {
-    const barberEl = document.getElementById('f-barber');
-    const dateEl   = document.getElementById('f-date');
-    const startEl  = document.getElementById('f-start');
-    const endEl    = document.getElementById('f-end');
-    const reasonEl = document.getElementById('f-reason');
-    const errorEl  = document.getElementById('f-error');
-    const submitBtn = document.getElementById('f-submit');
+    const barberEl = document.getElementById('f-barber') as HTMLSelectElement | null;
+    const dateEl   = document.getElementById('f-date') as HTMLInputElement | null;
+    const startEl  = document.getElementById('f-start') as HTMLInputElement | null;
+    const endEl    = document.getElementById('f-end') as HTMLInputElement | null;
+    const reasonEl = document.getElementById('f-reason') as HTMLInputElement | null;
+    const errorEl  = document.getElementById('f-error') as HTMLElement;
+    const submitBtn = document.getElementById('f-submit') as HTMLButtonElement;
 
     errorEl.classList.add('hidden');
 
@@ -268,7 +283,7 @@ const clientData = { role: session.role, sessionBarberId: session.barberId, allB
 
   // Delete entry
   document.addEventListener('click', async (e) => {
-    const btn = e.target.closest('[data-delete]');
+    const btn = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>('[data-delete]');
     if (!btn) return;
 
     const id = btn.dataset.delete;
