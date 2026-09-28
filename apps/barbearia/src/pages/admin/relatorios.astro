@@ -13,9 +13,7 @@ import { tenantDaSessao } from '../../lib/tenant.js';
 import { getSettings } from '../../lib/settings.js';
 import { reais } from '../../lib/dinheiro.js';
 import { TZ } from '../../lib/timezone.js';
-
-const START_HOUR = 9;
-const END_HOUR = 19;
+import { horasDoGrafico } from '../../lib/gradeDeHorarios.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
@@ -115,13 +113,13 @@ async function loadMonth(ym: string): Promise<MonthMetrics> {
   const porBarbeiro = new Map<string, number>();
   const porServico  = new Map<string, { count: number; cents: number }>();
   const porProduto  = new Map<string, { count: number; cents: number }>();
-  const porHora: number[] = new Array(END_HOUR - START_HOUR + 1).fill(0);
+  // As 24 horas: o recorte do gráfico sai do expediente, lá embaixo (`horasDoGrafico`).
+  const porHora: number[] = new Array(24).fill(0);
   const monthPhones = new Set<string>();
   const occAppts: { barberId: number; startsAt: string; endsAt: string }[] = [];
 
   const bumpHora = (startsAt: string) => {
-    const h = Number(formatInTimeZone(new Date(startsAt), TZ, 'H'));
-    if (h >= START_HOUR && h <= END_HOUR) porHora[h - START_HOUR]++;
+    porHora[Number(formatInTimeZone(new Date(startsAt), TZ, 'H'))]++;
   };
 
   for (const r of rows) {
@@ -299,8 +297,12 @@ const deltaNoShow  = Math.round((cur.noShowRate - prev.noShowRate) * 10) / 10; /
 // Helpers de apresentação
 const brl = reais;
 
-const maxHora = Math.max(1, ...cur.porHora);
-const horas = cur.porHora.map((count, i) => ({ hora: START_HOUR + i, count, pct: Math.round((count / maxHora) * 100) }));
+const faixaDoGrafico = horasDoGrafico(whRows, cur.porHora);
+const porHoraNoGrafico = faixaDoGrafico ? cur.porHora.slice(faixaDoGrafico.inicio, faixaDoGrafico.fim + 1) : [];
+const maxHora = Math.max(1, ...porHoraNoGrafico);
+const horas = porHoraNoGrafico.map((count, i) => ({
+  hora: faixaDoGrafico!.inicio + i, count, pct: Math.round((count / maxHora) * 100),
+}));
 
 const barbeirosRank = [...cur.porBarbeiro.entries()]
   .map(([name, cents]) => ({ name, cents }))
@@ -519,15 +521,19 @@ const geradoEm = formatInTimeZone(nowUtc, TZ, "dd/MM/yyyy 'às' HH:mm");
 
         <section class="bg-white border border-slate-200 rounded-lg p-5">
           <p class="text-xs text-slate-500 uppercase tracking-widest mb-4">Movimento por horário</p>
-          <div class="flex items-end gap-1.5" style="height: 120px;">
-            {horas.map(h => (
-              <div class="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
-                <span class="text-[10px] text-slate-400 tabular-nums">{h.count > 0 ? h.count : ''}</span>
-                <div class="w-full bg-teal/70 hover:bg-teal rounded-t-sm transition-colors" style={`height: ${h.pct}%`} title={`${h.hora}:00 — ${h.count} agendamentos`}></div>
-                <span class="text-[10px] text-slate-400 tabular-nums">{h.hora}</span>
-              </div>
-            ))}
-          </div>
+          {horas.length === 0 ? (
+            <p class="text-sm text-slate-400">Sem expediente cadastrado e sem atendimento neste mês.</p>
+          ) : (
+            <div class="flex items-end gap-1.5" style="height: 120px;" data-grafico-horas>
+              {horas.map(h => (
+                <div class="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
+                  <span class="text-[10px] text-slate-400 tabular-nums">{h.count > 0 ? h.count : ''}</span>
+                  <div class="w-full bg-teal/70 hover:bg-teal rounded-t-sm transition-colors" style={`height: ${h.pct}%`} title={`${h.hora}:00 — ${h.count} agendamentos`}></div>
+                  <span class="text-[10px] text-slate-400 tabular-nums" data-hora={String(h.hora)}>{h.hora}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {isAdmin && barbeirosRank.length > 0 && (

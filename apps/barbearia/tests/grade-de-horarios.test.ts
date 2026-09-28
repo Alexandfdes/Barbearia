@@ -9,7 +9,7 @@
 // instante somando 3 horas à mão (`PENDENCIAS-ABERTAS.md` §2.11).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { diaDaSemana, faixaDoDia, horariosParaMover } from '../src/lib/gradeDeHorarios.js';
+import { diaDaSemana, faixaDoDia, horariosParaMover, horasDoGrafico } from '../src/lib/gradeDeHorarios.js';
 
 describe('horariosParaMover()', () => {
   const nove = [{ inicio: '09:00', fim: '19:00' }];
@@ -86,5 +86,43 @@ describe('a agenda do dia usa o expediente real', () => {
     expect(agenda).not.toMatch(/h \+ 3/);
     expect(agenda).not.toMatch(/h - 3 \+ 24/);
     expect(agenda).toMatch(/fromZonedTime\(`\$\{dateStr\}T\$\{timeStr\}:00`, TZ\)/);
+  });
+});
+
+describe('horasDoGrafico() — o movimento por horário do relatório', () => {
+  const vinte4 = (marcas: Record<number, number> = {}) => Array.from({ length: 24 }, (_, h) => marcas[h] ?? 0);
+  const expediente = (inicio: string, fim: string) => ({ startTime: inicio, endTime: fim });
+
+  it('do começo do primeiro expediente ao fim do último', () => {
+    expect(horasDoGrafico([expediente('07:00', '12:00'), expediente('14:00', '21:00')], vinte4())).toEqual({ inicio: 7, fim: 20 });
+  });
+
+  it('fechar às 19:30 inclui a hora das 19', () => {
+    expect(horasDoGrafico([expediente('09:00', '19:30')], vinte4())).toEqual({ inicio: 9, fim: 19 });
+  });
+
+  it('atendimento fora do expediente aparece, em vez de sumir', () => {
+    // Era o defeito: 09 a 19 fixo, e o encaixe das 08:00 e o das 20:00 não contavam.
+    expect(horasDoGrafico([expediente('09:00', '19:00')], vinte4({ 8: 1, 20: 2 }))).toEqual({ inicio: 8, fim: 20 });
+  });
+
+  it('sem expediente, só as horas com atendimento', () => {
+    expect(horasDoGrafico([], vinte4({ 10: 1, 15: 3 }))).toEqual({ inicio: 10, fim: 15 });
+  });
+
+  it('sem expediente e sem atendimento, nada', () => {
+    expect(horasDoGrafico([], vinte4())).toBeNull();
+  });
+});
+
+describe('o relatório não crava 09 → 19', () => {
+  const relatorio = readFileSync('src/pages/admin/relatorios.astro', 'utf8');
+  it('as constantes saíram e o recorte vem de horasDoGrafico', () => {
+    expect(relatorio).not.toMatch(/const START_HOUR = \d+/);
+    expect(relatorio).not.toMatch(/const END_HOUR = \d+/);
+    expect(relatorio).toMatch(/horasDoGrafico\(whRows, cur\.porHora\)/);
+  });
+  it('conta as 24 horas, sem filtro', () => {
+    expect(relatorio).toMatch(/new Array\(24\)\.fill\(0\)/);
   });
 });
