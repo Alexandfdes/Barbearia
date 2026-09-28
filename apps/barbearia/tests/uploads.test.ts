@@ -19,6 +19,7 @@ import { readFileSync, mkdtempSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import sharp from 'sharp';
 import type { Tenant } from '../src/lib/tenant.js';
+import { metadadosDoArquivo } from './imagemEmDisco.js';
 
 /** Recarrega o módulo com o ambiente pedido — a raiz é const de topo. */
 async function raizCom(env: Record<string, string | undefined>): Promise<string> {
@@ -193,7 +194,7 @@ describe('a foto do celular chega em pé e sem o GPS', () => {
     expect(r.larguras).toContain(640);
 
     const nome = r.path.split('/').pop()!.replace(/\.jpg$/, '-640.webp');
-    const m = await sharp(join(pastaDeMidia('galeria', VINTAGE), nome)).metadata();
+    const m = await metadadosDoArquivo(join(pastaDeMidia('galeria', VINTAGE), nome));
     expect(m.width).toBe(640);
     expect(m.height).toBeGreaterThan(m.width!);
   });
@@ -203,7 +204,7 @@ describe('a foto do celular chega em pé e sem o GPS', () => {
     const r = await salvarMidiaMarca(await fotoDeCelularEmPe(), 'galeria', VINTAGE);
     if ('error' in r) throw new Error(r.error);
 
-    const m = await sharp(join(pastaDeMidia('galeria', VINTAGE), r.path.split('/').pop()!)).metadata();
+    const m = await metadadosDoArquivo(join(pastaDeMidia('galeria', VINTAGE), r.path.split('/').pop()!));
     expect(m.exif).toBeUndefined();
     expect(m.orientation ?? 1).toBe(1);
     expect(m.height).toBeGreaterThan(m.width!); // e os pixels já estão em pé
@@ -221,7 +222,7 @@ describe('a foto do celular chega em pé e sem o GPS', () => {
     const { salvarMidiaMarca, pastaDeMidia } = await modulo();
     const r = await salvarMidiaMarca(await fotoDeCelularEmPe(4000, 3000), 'hero', VINTAGE);
     if ('error' in r) throw new Error(r.error);
-    const m = await sharp(join(pastaDeMidia('hero', VINTAGE), r.path.split('/').pop()!)).metadata();
+    const m = await metadadosDoArquivo(join(pastaDeMidia('hero', VINTAGE), r.path.split('/').pop()!));
     expect(Math.max(m.width!, m.height!)).toBe(2560);
   });
 
@@ -229,7 +230,7 @@ describe('a foto do celular chega em pé e sem o GPS', () => {
     const { saveProductImage, pastaDeProduto } = await modulo();
     const r = await saveProductImage(await fotoDeCelularEmPe(), VINTAGE);
     if ('error' in r) throw new Error(r.error);
-    const m = await sharp(join(pastaDeProduto(VINTAGE), r.path.split('/').pop()!)).metadata();
+    const m = await metadadosDoArquivo(join(pastaDeProduto(VINTAGE), r.path.split('/').pop()!));
     expect(m.exif).toBeUndefined();
     expect(m.height).toBeGreaterThan(m.width!);
     expect(Math.max(m.width!, m.height!)).toBeLessThanOrEqual(1600);
