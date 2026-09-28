@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import { getSettings } from '../lib/settings';
 import { tenantAtual, urlDoSite } from '../lib/tenant.js';
+import { iconeDaAba } from '../lib/iconeDaAba.js';
 
 const s = await getSettings();
 // Vazio quando não há domínio próprio nem DOMINIO_BASE: aí o link some,
@@ -64,7 +65,7 @@ const grupos: { titulo: string; itens: { href: string; label: string; ativo: boo
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href={s.faviconPath ?? '/favicon.svg'} />
+    <link rel="icon" href={iconeDaAba(s)} />
     <title>{title} — {s.shortName}</title>
   </head>
   <body class="bg-slate-50 text-slate-800 min-h-screen font-sans">

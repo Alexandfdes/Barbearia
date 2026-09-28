@@ -2,6 +2,8 @@
 export const prerender = false;
 import '../../styles/global.css';
 import { getSession } from '../../lib/session.js';
+import { iconeComLetra } from '../../lib/iconeDaAba.js';
+import { ACCENT_PADRAO } from '../../lib/accent.js';
 
 const session = await getSession(Astro.request);
 if (session) return Astro.redirect('/admin');
@@ -11,7 +13,8 @@ if (session) return Astro.redirect('/admin');
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- A tela de entrar é do produto, não de uma barbearia: a inicial dele, na cor padrão. -->
+    <link rel="icon" type="image/svg+xml" href={iconeComLetra('Barbearia no Ar', ACCENT_PADRAO.color)} />
     <title>Entrar — Barbearia no Ar</title>
   </head>
   <body class="bg-dark text-cream min-h-screen flex items-center justify-center px-4">

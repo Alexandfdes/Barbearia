@@ -4,6 +4,7 @@ import { getSettings, numeroDaLojaInternacional } from '../lib/settings';
 import { cssDoAccent } from '../lib/accent.js';
 import { jsonLdSeguro } from '../lib/jsonLd.js';
 import { enderecoPublico } from '../lib/tenant.js';
+import { iconeDaAba } from '../lib/iconeDaAba.js';
 
 interface Props {
   title?: string;
@@ -38,7 +39,9 @@ const ogDoBayron = s.shortName === 'Bayron' ? '/og.jpg' : '';
 const previaPropria = Boolean(s.ogPath) || Boolean(ogDoBayron && !s.heroPath);
 const imagemDaPrevia = s.ogPath || s.heroPath || ogDoBayron;
 const ogImage = imagemDaPrevia ? new URL(imagemDaPrevia, base).href : null;
-const favicon = s.faviconPath ?? '/favicon.svg';
+// Sem ícone enviado, a inicial da barbearia na cor dela — até 27/09/2026 caía no
+// `public/favicon.svg`, o ícone do Astro (ver `lib/iconeDaAba.ts`).
+const favicon = iconeDaAba(s);
 
 // Cor de destaque da barbearia (Fase 5 / D5). O Tailwind v4 compila `bg-teal`
 // para `background-color: var(--color-teal)`, então sobrescrever a variável aqui
