@@ -366,10 +366,10 @@ um com o botão que leva lá. Os produtos, não: nem toda barbearia vende.
   (`PLANO-PRODUTIZACAO.md` §13, custo 5).
 - **O endereço `painel` na mão de um estranho** mostraria o site dele no endereço do seu
   painel (`PENDENCIAS-ABERTAS.md` §4.16).
-- **A aba do navegador mostra o ícone do Astro** — o framework do site — em toda barbearia que
-  não subiu o dela: `apps/barbearia/src/layouts/Layout.astro:41` cai em
-  `apps/barbearia/public/favicon.svg`, que é o ícone que vem com o Astro. Conferido no código
-  em 27/09/2026; não consertado.
+- ~~**A aba do navegador mostrava o ícone do Astro**~~ — o framework do site — em toda
+  barbearia que não subiu o dela. ✅ Consertado em 27/09/2026: sem ícone enviado, a aba mostra
+  a inicial da barbearia na cor dela, no site e no painel
+  (`apps/barbearia/src/lib/iconeDaAba.ts`).
 
 ### 2.9 Passo 9 — Os 7 dias
 
@@ -541,8 +541,8 @@ certificados** (`ARQUITETURA-COBRANCA-V1.md` §7.4), que dependem do nome.
   cá. O `ESTADO-ATUAL.md` §8 ganhou a linha de 27/09; o índice `README.md`, a linha deste
   documento, e a do `FLUXO-COMPLETO.md` passou a apontar para cá.
 
-**Mudou de novo em 27/09/2026, depois do primeiro teste na máquina do dono:** os passos 3, 7
-e 8 ganharam o que foi consertado e o que o teste confirmou (`PENDENCIAS-ABERTAS.md` §2.15 e
+**Mudou de novo em 27/09/2026, depois do primeiro teste na máquina do dono:** os passos
+3, 7 e 8 ganharam o que foi consertado e o que o teste confirmou (`PENDENCIAS-ABERTAS.md` §2.15 e
 `PENDENCIAS-ABERTAS.md` §2.25 a `PENDENCIAS-ABERTAS.md` §2.28), e o item 1 do §5 perdeu os
 centavos.
 
