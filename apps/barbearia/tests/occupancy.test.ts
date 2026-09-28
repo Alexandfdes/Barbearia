@@ -86,6 +86,50 @@ describe('computeOccupancy', () => {
   });
 });
 
+describe('a ocupação no fuso da barbearia, não em UTC−3', () => {
+  // Manaus é UTC−4: a manhã de lá (09:00–13:00) vai das 13:00Z às 17:00Z. Com o
+  // `-180` de antes, a conta media a manhã das 12:00Z às 16:00Z — uma hora antes.
+  const ATENDIMENTO_DAS_12_EM_MANAUS = { barberId: 1, startsAt: '2026-06-16T16:00:00.000Z', endsAt: '2026-06-16T17:00:00.000Z' };
+
+  it('o atendimento das 12:00 às 13:00 em Manaus é da manhã dela', () => {
+    const occ = computeOccupancy({
+      days: [DAY], workingHours: WH_FULL, timeOff: [], tz: 'America/Manaus',
+      appointments: [ATENDIMENTO_DAS_12_EM_MANAUS],
+    });
+    expect(bandOf(occ, 'manha').bookedMin).toBe(60);
+    expect(bandOf(occ, 'tarde').bookedMin).toBe(0);
+  });
+
+  it('o bloqueio segue a mesma zona', () => {
+    // 12:00–13:00 em Manaus: tira 60 minutos da manhã, não da tarde.
+    const occ = computeOccupancy({
+      days: [DAY], workingHours: WH_FULL, appointments: [], tz: 'America/Manaus',
+      timeOff: [{ barberId: 1, startsAt: '2026-06-16T16:00:00.000Z', endsAt: '2026-06-16T17:00:00.000Z' }],
+    });
+    expect(bandOf(occ, 'manha').availableMin).toBe(180);
+    expect(bandOf(occ, 'tarde').availableMin).toBe(240);
+  });
+
+  it('sem zona, vale a de lib/timezone — a mesma conta de antes em Fortaleza', () => {
+    // 16:00Z é 13:00 em Fortaleza: tarde.
+    const occ = computeOccupancy({ days: [DAY], workingHours: WH_FULL, timeOff: [], appointments: [ATENDIMENTO_DAS_12_EM_MANAUS] });
+    expect(bandOf(occ, 'tarde').bookedMin).toBe(60);
+  });
+
+  it('expediente até 24:00 fecha à meia-noite do dia seguinte', () => {
+    const occ = computeOccupancy({
+      days: [DAY],
+      workingHours: [{ barberId: 1, weekday: 2, startTime: '20:00', endTime: '24:00' }],
+      bands: [{ key: 'noite', label: 'à noite', startMin: 20 * 60, endMin: 24 * 60 }],
+      timeOff: [],
+      // 23:00–00:00 de Fortaleza = 02:00Z–03:00Z do dia 17
+      appointments: [{ barberId: 1, startsAt: '2026-06-17T02:00:00.000Z', endsAt: '2026-06-17T03:00:00.000Z' }],
+    });
+    expect(bandOf(occ, 'noite').availableMin).toBe(240);
+    expect(bandOf(occ, 'noite').bookedMin).toBe(60);
+  });
+});
+
 describe('pickEmptiestBand', () => {
   const base = { weekday: 2, bandKey: 'manha', bandLabel: 'de manhã', bookedMin: 0 };
   it('escolhe a faixa mais livre acima dos thresholds', () => {
