@@ -13,6 +13,7 @@ import postgres from 'postgres';
 import sharp from 'sharp';
 import { exigirBancoDeTeste } from './guardaBanco.js';
 import { recriarSchema } from './migrations.js';
+import { metadadosDoArquivo } from './imagemEmDisco.js';
 
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
@@ -105,8 +106,8 @@ describe.skipIf(!TEM_BANCO)('importar a galeria do Bayron', () => {
     const [primeira] = await sql<{ path: string }[]>`
       SELECT path FROM gallery_images WHERE tenant_id = 1 ORDER BY sort_order LIMIT 1`;
     const nome = primeira.path.split('/').pop()!;
-    const original = await sharp(join(raiz, 'galeria', nome)).metadata();
-    const variante = await sharp(join(raiz, 'galeria', nome.replace('.jpg', '-640.webp'))).metadata();
+    const original = await metadadosDoArquivo(join(raiz, 'galeria', nome));
+    const variante = await metadadosDoArquivo(join(raiz, 'galeria', nome.replace('.jpg', '-640.webp')));
     expect(original.height).toBeGreaterThan(original.width!);
     expect(original.exif).toBeUndefined();
     expect(variante.height).toBeGreaterThan(variante.width!);
