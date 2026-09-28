@@ -2,13 +2,17 @@
 
 > Este arquivo é lido em toda sessão. Cada linha custa contexto: aponte para os
 > documentos, não os duplique. Estado que muda toda semana mora em
-> `docs/PENDENCIAS-ABERTAS.md`, não aqui.
+> `docs/PENDENCIAS-ABERTAS.md` e `docs/ESTADO-ATUAL.md`, não aqui.
+>
+> Revisado em 27/09/2026: até então este arquivo dizia que o código ainda era SQLite e
+> que o porte não tinha sido aplicado — o estado de 06/09 de manhã.
 
 ## O que é
 
-SaaS para barbearias, vendido como **site próprio + agendamento + faturamento** por
-mensalidade, com a montagem do site inclusa. Nasceu sob medida para a Barbearia Bayron,
-que não fechou; virou produto.
+SaaS para barbearias: **site próprio + agendamento + faturamento**, por mensalidade.
+Nasceu sob medida para a Barbearia Bayron, que não fechou; virou produto. Desde 24/09/2026
+é **autoatendimento**: o dono se cadastra sozinho, com 7 dias grátis
+(`docs/PLANO-PRODUTIZACAO.md` §13).
 
 ## Um repositório, dois aplicativos
 
@@ -28,6 +32,22 @@ O `Dockerfile` não mudou, mas o caminho sim — `docs/MONOREPO.md` §3.
 ⚠️ **Padrão de `.gitignore` para conteúdo sensível nunca é ancorado na raiz.** Ao mover
 o app para `apps/barbearia/`, `data/**/*.db` parou de casar e o git tentou versionar o
 banco com os dados reais dos clientes. Use `**/data/...` — `docs/MONOREPO.md` §6.
+
+## Onde o código está
+
+Na branch **`monorepo`**, os passos 1 a 6 de `docs/ARQUITETURA-MULTI-TENANT-V1.md` §9
+estão aplicados: Postgres, a tabela `tenants` com `tenant_id` nas tabelas de dados, RLS, e
+a sessão e o endereço decidindo a barbearia. Falta a exclusion constraint do passo 7. O
+estado de cada passo: `docs/ESTADO-ATUAL.md` §4.
+
+⚠️ **A produção não tem nada disso.** O site do Bayron roda a `main` — último commit em
+10/07/2026, anterior ao monorepo e ainda em SQLite. A `monorepo` tem tudo dela e mais, e
+nada foi mesclado (conferido em 27/09/2026). O caminho para o ar é
+`docs/ROTEIRO-MIGRACAO-PRODUCAO.md`, ainda não executado.
+
+⚠️ **`migracao-postgres/` e `migracao-tenants/`, na raiz, são entregas antigas** — o
+conteúdo já está aplicado em `apps/barbearia/`, e a `0001` de lá diverge da de `drizzle/`
+(`docs/PENDENCIAS-ABERTAS.md` §4.6). Não aplique nada de lá.
 
 ## Skills do projeto
 
@@ -49,19 +69,21 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 | Preciso saber | Documento |
 |---|---|
 | **Onde o código está agora** — comece por aqui | `ESTADO-ATUAL.md` |
-| O que ainda não está decidido | `PENDENCIAS-ABERTAS.md` |
+| O que ainda não está decidido, e a ordem do trabalho (§6) | `PENDENCIAS-ABERTAS.md` |
+| O caminho do dono, da landing ao site no ar — o roteiro do autoatendimento | `JORNADA-DO-BARBEIRO.md` |
 | Por que o produto existe, para quem se vende, o que é agência | `PLANO-PRODUTIZACAO.md` |
 | Preço, margem, concorrentes verificados | `PRECIFICACAO.md` |
 | Arquitetura alvo: multi-tenant, Postgres, RLS, três apps | `ARQUITETURA-MULTI-TENANT-V1.md` |
 | Fases da produtização e as decisões D1–D7 | `ARQUITETURA-PRODUTO-V1.md` |
-| Cobrança, Asaas, onboarding, estados do tenant | `ARQUITETURA-COBRANCA-V1.md` |
+| Cobrança, Asaas, estados do tenant | `ARQUITETURA-COBRANCA-V1.md` |
 | Como fica em produção com N barbearias | `ARQUITETURA-PRODUCAO.md` |
+| Como pôr a `monorepo` no ar para o Bayron | `ROTEIRO-MIGRACAO-PRODUCAO.md` |
 | Por que os dois projetos viraram um repositório | `MONOREPO.md` |
 | O modelo em português claro, sem termo técnico | `COMO-FUNCIONA.md` |
 
-⚠️ `COMO-FUNCIONA.md` e `FLUXO-COMPLETO.md` são de 30/08 e estão **desatualizados sobre
-o nome do produto** (dizem que não foi decidido; foi: Barbearia no Ar).
-O `README.md` da raiz foi reescrito em 06/09 e descreve o monorepo.
+⚠️ `FLUXO-COMPLETO.md` é o caminho antigo, com montagem assistida — o do autoatendimento
+é `JORNADA-DO-BARBEIRO.md`. O nome em uso é Barbearia no Ar; o definitivo foi adiado em
+11/09 (`PENDENCIAS-ABERTAS.md` §0).
 
 ## Regras que não se negociam
 
@@ -72,42 +94,31 @@ O `README.md` da raiz foi reescrito em 06/09 e descreve o monorepo.
 3. **As duas paletas são invertidas.** Ver a skill `barbearia-paleta`. Copiar a regra de
    um site para o outro produz botão ilegível — já aconteceu.
 4. **Documento que mente é pior que documento nenhum.** Ver a skill `barbearia-docs`.
+5. **Fuso nunca é conta.** Hora local vira instante por `fromZonedTime` com o fuso de
+   `apps/barbearia/src/lib/timezone.ts`, inclusive no navegador — o fuso desce pelos dados
+   da página. `tests/timezone-unico.test.ts` reprova a zona cravada e a conta de offset.
 
 ## Como trabalhar aqui
 
-- **O shell da máquina do usuário costuma estar fora** ("Workspace unavailable"). Nesse
-  caso: `device_stage_files` → editar no container → `device_commit_files`, sempre com
+- **Testes:** vitest em `apps/barbearia/tests/`; com banco, `npm run test:db`. Sem
+  `DATABASE_URL`, os testes de banco **pulam em silêncio** — o número certo é o da linha
+  mais recente do `docs/ESTADO-ATUAL.md` §8. Teste de escopo se escreve junto com a rota,
+  nunca depois.
+- **Migrations:** `apps/barbearia/drizzle/NNNN_nome.sql`, escritas à mão e aplicadas por
+  `scripts/startup.mjs`, que confere o hash de cada uma. Não há journal do Drizzle, e
+  `db:push` e `db:generate` recusam de propósito.
+- **O shell da máquina do usuário (`device_bash`) às vezes está fora.** Nesse caso:
+  `device_stage_files` → editar no container → `device_commit_files`, sempre com
   `expectedMtimeMs` para não sobrescrever edição do usuário.
+- **Quando está de pé, ele não apaga arquivo nenhum — e o git apaga trava o tempo todo.**
+  Use `git --no-optional-locks status`; commite com
+  `git -c core.createObject=rename -c gc.auto=0 -c maintenance.auto=false`; e mova para
+  `_to_delete/` o `.git/HEAD.lock` que todo commit deixa. Trava esquecida quebra o git do
+  Windows dele. Para gravar por cima de arquivo existente, `tar` precisa de `--overwrite`.
+- **A suíte não roda nesse shell:** o `node_modules` é do Windows. Nunca `npm install` por
+  lá — ela roda na nuvem, sobre arquivos conferidos por sha256 com os da máquina.
 - **`cp` pode falhar em silêncio** no container (arquivos anteriores ficam somente-leitura).
   Conferir depois de copiar; "não deu erro" não é o mesmo que "funcionou".
-- **Testes:** vitest em `tests/*.test.ts`. Hoje são **10 arquivos para 49 rotas** — não
-  existe rede de segurança. Teste de escopo se escreve junto com a rota, nunca depois.
-- **Migrations:** `drizzle/NNNN_nome.sql` mais `meta/_journal.json`. A última é a `0009`.
 - **Verificar antes de afirmar.** Rodar, renderizar, medir contraste, contar. Este projeto
-  já teve documento afirmando que algo estava pronto quando não estava.
-
-## Onde o código está na migração
-
-Todo caminho abaixo é a partir de `apps/barbearia/`.
-
-**Passo 1 de `ARQUITETURA-MULTI-TENANT-V1.md` §9 — feito.** `src/lib/tenant.ts` é o único
-resolvedor de tenant e `src/lib/settings.ts` centraliza toda leitura e escrita da tabela
-`settings`.
-
-⚠️ **Correção de 06/09/2026:** este parágrafo afirmava também que
-`pastaDeMidia()`/`urlDeMidia()` eram "os únicos lugares que montam caminho de mídia".
-**Elas não existiam** — só o `tests/tenant.test.ts` as referenciava, e por isso o teste não
-compilava. A terceira costura do passo 1 ficou por fazer e só foi escrita em 06/09, dentro
-do passo 3.5 (`migracao-tenants/`). Fica como lembrete: documento que afirma "feito" sem
-alguém ter aberto o arquivo é o erro que este projeto mais comete.
-
-**Passos 3, 3.5 e 4 — escritos e testados, NÃO aplicados.** Tabela `tenants`, `tenant_id`
-nas 12 tabelas, rede de testes portada, e 53 de 54 rotas e páginas escopadas por tenant.
-Tudo em `migracao-tenants/`, com o LEIA-ME de lá. Depende do passo 2 estar aplicado.
-
-**Passo 2 (Postgres) — escrito e testado, NÃO aplicado.** O porte inteiro está em
-`migracao-postgres/porte-postgres.patch`, verificado contra um PostgreSQL 16 real. O
-código em `apps/barbearia/src/` continua em SQLite até o patch ser aplicado. Como aplicar
-e as três armadilhas de runtime: `migracao-postgres/LEIA-ME.md`.
-
-Os passos 3 a 7 estão em `ARQUITETURA-MULTI-TENANT-V1.md` §9.
+  já teve documento afirmando que algo estava pronto quando não estava — este arquivo
+  inclusive, por três semanas.

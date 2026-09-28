@@ -241,6 +241,8 @@ recebe o valor por `define:vars`, em vez de ter a própria cópia).
 arquivo de `src/` cravar uma zona IANA de novo, ou usar `timeZone:` / `AT TIME ZONE`
 sem importar do módulo. Foi testado recravando o fuso em `slots.ts` de propósito — o
 teste pegou. Sem isso, o problema volta na primeira linha copiada de outro arquivo.
+Desde 27/09/2026 ele reprova também a **conta** de offset — `h + 3`, `-180`, três horas em
+milissegundos —, que passava livre (§2.11).
 
 ⚠️ **O que sobrou — e por isso o item não está fechado:** variável de ambiente vale
 para **o processo inteiro**. Enquanto cada barbearia tem a própria instância, está
@@ -575,7 +577,39 @@ Os dois caminhos de **reagendamento** fazem certo (`formatInTimeZone`), o que mo
 
 </details>
 
-### 2.11 🔴 `[TÉCNICO]` Três horas somadas à mão — a agenda do dia saiu em 27/09/2026, falta o bloqueio
+### 2.11 ✅ `[TÉCNICO]` Três horas somadas à mão — RESOLVIDO em 27/09/2026
+
+Eram seis lugares, cinco deles no navegador — todos certos em Fortaleza por coincidência, e
+errados em qualquer barbearia fora do UTC−3. Os três da agenda do dia saíram primeiro (o
+bloco recolhido abaixo); os outros três, no mesmo dia, à noite:
+
+| Onde | A conta | O que fazia em Manaus (UTC−4) | Agora |
+|---|---|---|---|
+| Bloqueio de horário (`admin/bloqueios.astro:211`, na época) | `Date.UTC(y, mo - 1, d, h + 3, min)` | o almoço das 12:00–13:00 gravava 11:00–12:00, e o site vendia o meio-dia com o barbeiro almoçando | `fromZonedTime` com o fuso da barbearia (`admin/bloqueios.astro:225-227`), que desce pelos dados da página (`admin/bloqueios.astro:70` e `admin/bloqueios.astro:204`) |
+| Ocupação por faixa (`lib/occupancy.ts:63`, na época) | `utcOffsetMin ?? -180` — e nenhum chamador informava | a manhã (09:00–13:00) era medida uma hora antes: a ocupação do mês no relatório e a faixa ociosa que a agenda sugere para promoção saíam de outro horário | recebe a zona, não o offset, e converte cada horário por `fromZonedTime` (`lib/occupancy.ts:59` e `lib/occupancy.ts:73-87`) |
+| O calendário do cliente, no agendamento (`agendar.astro:329`, na época) | `Date.now() - 3 * 60 * 60 * 1000` | das 23:00 à meia-noite, o calendário começava no dia seguinte — com o rótulo "Hoje" | a data de hoje no fuso da barbearia, pelo `Intl` do navegador (`agendar.astro:337-343`), com o fuso no `data-tz` do wizard (`agendar.astro:59`) |
+
+O do bloqueio não era trocar uma linha: o script daquela tela era `define:vars`, que o Astro
+entrega sem empacotar — sem `import`, sem `lib/timezone.ts`. Virou script processado, como o
+da agenda do dia.
+
+**A guarda passou a pegar a conta.** `tests/timezone-unico.test.ts:92` reprova, em todo `.ts`
+e `.astro` de `src/` — scripts de página inclusive, comentários não —, a hora mais ou menos 3,
+o `Date.UTC` com ± 3, o `utcOffsetMin` e o `-180`, as três horas em milissegundos e o
+`getTimezoneOffset()`. O controle: rodada sobre a árvore de 27/09 de manhã, ela aponta os
+seis lugares, cada um na linha certa; e não confunde a classe `h-3.5` do Tailwind nem o
+`rotate-180`.
+
+**Visto rodando**, com o servidor em `America/Manaus`: antes do conserto, o bloqueio das
+12:00 às 13:00 foi gravado como 15:00–16:00 UTC — 11:00–12:00 lá — e o calendário, às 23:30
+de uma segunda, abriu em *"Ter 29 · Hoje"*. Depois: 16:00–17:00 UTC, e *"Seg 28 · Hoje"*.
+
+⚠️ **O que a guarda ainda não pega:** a classe 3 da skill `barbearia-fuso` — o dia lido no
+fuso do processo com `getDay()`, que é o `PENDENCIAS-ABERTAS.md` §2.22, ainda aberto. A data
+lida em UTC com `toISOString().slice(0, 10)` tem a guarda dela (`tests/data-do-fuso.test.ts`).
+E o fuso continua um só por processo (§2.1).
+
+<details><summary>Como estava de 25/09 até a tarde de 27/09/2026</summary>
 
 **O que sobra:** `admin/bloqueios.astro:211` (conferido em 27/09/2026):
 
@@ -614,6 +648,8 @@ de mover (`:2041`), pelo encaixe (`:2163`) e pela criação manual (`:2610-2611`
 hora e a API aceitava em silêncio, porque o horário deslocado também era expediente válido.
 Guarda nova: `tests/grade-de-horarios.test.ts:85` reprova `h + 3` e `h - 3 + 24` — **naquele
 arquivo só**.
+
+</details>
 
 ### 2.12 ✅ `[TÉCNICO]` XSS armazenado pelo nome da barbearia — RESOLVIDO em 22/09/2026
 
@@ -1040,15 +1076,21 @@ UTC; e o bloqueio das 19:30 aparece.
 conheceu. Horário ocupado aparece como livre, e o servidor recusa ao confirmar. O próximo
 passo natural é a grade sair do mesmo cálculo de vagas do site.
 
-⚠️ **Mesma família, não consertado:** o gráfico por hora do relatório conta só os atendimentos
-que começam entre 09:00 e 19:59 (`admin/relatorios.astro:17-18`, `:124`) — o das 08:00 ou o
-das 20:00 some do gráfico, sem aviso. E a constante continua no topo da agenda
-(`admin/dia/[date].astro:21-23`), alimentando cálculos que a tela não usa mais: a linha do
-"agora" e as linhas de hora da linha do tempo antiga.
+✅ **O gráfico por hora do relatório, da mesma família, saiu no mesmo dia, à noite.** Contava só os
+atendimentos que começavam entre 09:00 e 19:59 — o das 08:00 ou o das 20:00 sumia, sem
+aviso. Agora conta as 24 horas (`admin/relatorios.astro:117`) e mostra do começo do primeiro
+expediente ao fim do último, mais qualquer hora com atendimento fora dele
+(`lib/gradeDeHorarios.ts:77`, usado em `admin/relatorios.astro:300`). Visto rodando: num
+expediente de 09:00 às 19:00, as barras vão de 9 a 18 — antes, de 9 a 19, fixo.
+
+⚠️ **Sobra:** a constante continua no topo da agenda (`admin/dia/[date].astro:21-23`),
+alimentando cálculos que a tela não usa mais — a linha do "agora" e as linhas de hora da
+linha do tempo antiga.
 
 Guarda: `tests/grade-de-horarios.test.ts` — a grade começa na abertura, termina a tempo,
-alcança a noite, respeita o turno partido e o dia de folga; e a página usa o expediente, não
-volta a cravar 08:00 → 19:00 nem a descartar o bloqueio pela linha do tempo (`:78`).
+alcança a noite, respeita o turno partido e o dia de folga; a página usa o expediente, não
+volta a cravar 08:00 → 19:00 nem a descartar o bloqueio pela linha do tempo (`:78`); e o
+relatório não volta ao 09 → 19.
 
 ### 2.28 ✅ `[TÉCNICO]` Três textos que diziam o que não é — RESOLVIDO em 27/09/2026
 
@@ -1818,8 +1860,9 @@ foto de celular (§2.21). Abertos no mesmo dia, para as ondas abaixo: §2.22, §
 consertados:** o WhatsApp de toda barbearia nova (§2.25), o nome e o endereço do Bayron
 (§2.26), a agenda do dia presa em 08:00–19:00 (§2.27) e três textos falsos (§2.28). Com eles
 saíram os centavos (§2.15, do item 1 da onda 2) e os dois `+ 3` da agenda do dia (§2.11).
-Registrados no mesmo dia e não consertados: o `+ 3` do bloqueio e o `-180` da ocupação
-(§2.11), e o gráfico por hora do relatório (§2.27).
+Os três que ficaram registrados — o `+ 3` do bloqueio, o `-180` da ocupação e o gráfico por
+hora do relatório — saíram no mesmo dia, à noite, junto com um sexto lugar da conta, o calendário do
+cliente (§2.11), e o ícone do Astro na aba de toda barbearia (`JORNADA-DO-BARBEIRO.md` §2.8).
 
 **Onda 2 — antes de abrir o cadastro público.**
 No autoatendimento a porta abre sem ninguém olhando, então nada aqui é opcional.
@@ -1858,9 +1901,8 @@ cobrança (§4.14).
    depois deles.
 
 **Onda 3 — antes do primeiro cliente fora do UTC-3.** *(Era a onda 2 em 15/09.)*
-O `+ 3` que sobrou no navegador e o `-180` da ocupação (§2.11) — os dois da agenda do dia
-saíram em 27/09 —, o teste de fuso passando a pegar aritmética de offset, e a coluna
-`timezone` por barbearia (§2.1).
+~~As contas de offset (§2.11) e o teste de fuso passando a pegá-las~~ — ✅ feitos em
+27/09. Sobra a coluna `timezone` por barbearia (§2.1).
 
 
 0. ~~**Limpar o seed das migrations** (`PENDENCIAS-ABERTAS.md` §4.6)~~ — **sem objeto desde
