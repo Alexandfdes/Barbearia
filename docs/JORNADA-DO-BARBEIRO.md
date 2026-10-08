@@ -16,6 +16,12 @@
 > `PENDENCIAS-ABERTAS.md` §4.14 (o teste e a cobrança), `ARQUITETURA-COBRANCA-V1.md` (a
 > Asaas) e `FLUXO-COMPLETO.md` (o caminho antigo, com montagem, que este substitui quando
 > estiver pronto).
+>
+> ⚠️ **08/10/2026: seis decisões mudaram este desenho** (`PLANO-PRODUTIZACAO.md` §13): um
+> layout com a cor do dono; o cartão no fim do teste, não no cadastro; a cobrança como módulo
+> do app; e-mail para a senha e os avisos; 3 dias de carência; só plano mensal. Os passos 4,
+> 5, 9 e 10, o §3 e o §5 ainda descrevem o desenho anterior — são reescritos junto com o
+> código de cada parte.
 
 **Legenda:** ✅ existe e foi visto funcionando · ⚠️ existe pela metade · ❌ não existe
 

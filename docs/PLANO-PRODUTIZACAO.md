@@ -403,6 +403,9 @@ no modelo assistido.
 4. **Cadastra o cartão para entrar**, e tem **7 dias grátis** antes da primeira cobrança,
    com o site no ar desde o primeiro minuto.
 
+> ⚠️ **08/10/2026: os itens 3 e 4 mudaram** — um layout no lançamento, e o cartão pedido no
+> fim do teste. Ver o fim desta seção.
+
 **Rejeitado: rascunho com publicação manual.** O dono se cadastraria e entraria no
 painel, mas o site só iria ao ar depois de você revisar. Mantinha a promessa da landing,
 e põe uma pessoa no caminho de todo cliente novo — o pedido é que não haja nenhuma.
@@ -413,6 +416,8 @@ e põe uma pessoa no caminho de todo cliente novo — o pedido é que não haja 
 
 **Rejeitado: teste sem cartão.** Mais gente se cadastraria, e menos pagaria — e sobraria
 mais barbearia abandonada ocupando endereço e guardando dado de cliente sem contrato.
+⚠️ **Revertido em 08/10/2026:** o cartão passou para o fim do teste, com estes mesmos motivos
+registrados como custo — ver o fim desta seção.
 
 **Rejeitado: estilo como paleta de cores.** As cores são as da barbearia, escolhidas pelo
 dono; o que ele escolhe entre três é a **estrutura** do site.
@@ -556,4 +561,60 @@ ganhou, no máximo, um aviso apontando para cá.
 - `ARQUITETURA-PRODUTO-V1.md` — "mesmo com a implantação assistida", e "onboarding
   self-service" na lista do que não construir.
 - `MONOREPO.md` — `/onboarding` e `/envios` no app de vendas, quando saírem.
+
+### 08/10/2026 — o desenho do cadastro e da cobrança
+
+> Decisões do dono em 08/10/2026, para começar o bloco grande: o teste, a cobrança, a cara
+> do site no cadastro e a senha. Mudam os itens 3 e 4 da decisão de 24/09 e fecham cinco
+> pendências. Cada uma foi escolhida entre opções apresentadas com o custo de cada lado.
+
+**1. Um layout no lançamento, com a cor do dono escolhida no cadastro.** Os outros dois
+layouts ficam para quando houver clientes pagando que peçam. Muda o item 3, que eram três.
+Pesou: três estruturas para manter e passar no contraste com qualquer cor, para sempre,
+antes de alguém pagar o primeiro mês. A cor é **uma**, e o fundo é o do layout — a
+garantia de contraste que já existe (`lib/accent.ts`) cobre (`PENDENCIAS-ABERTAS.md` §4.13).
+
+**2. O cartão é pedido no fim do teste, não no cadastro.** O dono entra só com o cadastro,
+tem os 7 dias com o site no ar, e o painel pede o cartão antes do 8º dia. Muda o item 4 e
+**reverte a rejeição do "teste sem cartão"** registrada acima. Os motivos daquela
+rejeição continuam verdadeiros e viram o custo desta escolha:
+
+- mais gente começa o teste, e menos gente paga;
+- sobra barbearia abandonada ocupando endereço e guardando dado de cliente sem contrato —
+  e falta a regra de quanto tempo a suspensa guarda os dados e segura o endereço
+  (`PENDENCIAS-ABERTAS.md` §1.2);
+- trazer de volta quem não cadastrou o cartão depende do aviso, e o canal escolhido é o
+  e-mail (item 4).
+
+O argumento a favor, que já estava registrado: quem não tem cartão de crédito desistia no
+cadastro (`JORNADA-DO-BARBEIRO.md` §2.5).
+
+**3. A cobrança mora num módulo do app da barbearia**, não num aplicativo separado. Reverte
+o `ARQUITETURA-COBRANCA-V1.md` §2, onde a reversão está registrada com o motivo.
+
+**4. O canal da recuperação de senha e dos avisos é o e-mail**, pedido no cadastro. Um canal
+só para as duas coisas (`PENDENCIAS-ABERTAS.md` §4.17). Rejeitado: WhatsApp, que exige um
+serviço de envio pago ou não oficial. Custo aceito: o dono pode não abrir o e-mail — e é por
+ele que vêm o aviso do fim do teste e o de cobrança.
+
+**5. Cobrança que falha dá 3 dias de carência.** O painel avisa e o site segue no ar; depois,
+o site mostra "temporariamente indisponível", sem expor a dívida aos clientes da
+barbearia, e o painel só abre a tela de regularizar. Nada é apagado; pagou, volta na hora
+(`PENDENCIAS-ABERTAS.md` §1.3). Rejeitados: suspender na hora, e desligar só a agenda.
+**Proposto, a confirmar:** o teste que acaba sem cartão segue a mesma regra.
+
+**6. Só plano mensal no lançamento.** O anual vira oferta no painel depois do 8º dia, para
+quem já viu o produto funcionando.
+
+**O que muda nos outros documentos** — reescritos junto com o código de cada parte, e
+marcados com um aviso até lá:
+
+- os passos 4, 5, 9 e 10 da jornada: `JORNADA-DO-BARBEIRO.md` §2.4,
+  `JORNADA-DO-BARBEIRO.md` §2.5, `JORNADA-DO-BARBEIRO.md` §2.9 e `JORNADA-DO-BARBEIRO.md` §2.10;
+- as duas decisões do passo 5 e a ordem de construção: `JORNADA-DO-BARBEIRO.md` §3 e
+  `JORNADA-DO-BARBEIRO.md` §5;
+- as pendências: `PENDENCIAS-ABERTAS.md` §1.3, `PENDENCIAS-ABERTAS.md` §4.13,
+  `PENDENCIAS-ABERTAS.md` §4.14, `PENDENCIAS-ABERTAS.md` §4.17 e a ordem do
+  `PENDENCIAS-ABERTAS.md` §6;
+- os estados do tenant: `ARQUITETURA-COBRANCA-V1.md` §5.2.
 

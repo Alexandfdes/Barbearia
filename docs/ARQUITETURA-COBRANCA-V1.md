@@ -29,6 +29,10 @@
 > decidir, vale o §2. Os estados do §5.2 têm substitutos propostos em
 > `JORNADA-DO-BARBEIRO.md` §3.1: `pending` → `trial` → `active`.
 >
+> ⚠️ **08/10/2026: o §2 foi revertido.** A cobrança mora num módulo do app da barbearia
+> (decisão do dono, `PLANO-PRODUTIZACAO.md` §13). E o estado `pending` caiu junto com o
+> cartão no cadastro: o cartão passou a ser pedido no fim do teste.
+>
 > Todas as afirmações sobre o código atual foram verificadas arquivo por arquivo
 > em 28/08/2026. Referências no formato `arquivo:linha` são literais.
 
@@ -122,6 +126,15 @@ RLS como segunda parede. Está na skill `barbearia-multi-tenant`, e não é opci
 ---
 
 ## 2. Princípio de arquitetura: dois aplicativos, não um
+
+> ⚠️ **Revertido em 08/10/2026** — decisão do dono (`PLANO-PRODUTIZACAO.md` §13): a cobrança
+> mora num **módulo isolado dentro do app da barbearia**. Das três razões abaixo, a 1 e a 3
+> eram do tempo de uma instância por barbearia — "N instâncias", "15 volumes"; com o app
+> multi-tenant, um só e num lugar só, não se aplicam. A 2 continua valendo — *se a cobrança
+> quebrar, as barbearias continuam funcionando* — e passa a ser garantida assim: o webhook
+> só grava o evento cru e responde 200, e o processamento vem depois (§5.1); e um teste vai
+> impedir que tela de barbearia importe o módulo de cobrança. O ganho: um deploy só, e o
+> status muda sem costurar dois bancos. O texto de 28/08 fica abaixo, como histórico.
 
 **A instância da barbearia nunca sabe que dinheiro existe.**
 
