@@ -1,4 +1,4 @@
-# Documentação do Barbearia no Ar
+# Documentação do Fadeline
 
 > Índice de tudo que existe em `docs/`. Atualizado: 27/09/2026.
 >

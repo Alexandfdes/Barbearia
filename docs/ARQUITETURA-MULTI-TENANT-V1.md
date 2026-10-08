@@ -37,8 +37,8 @@ Três aplicações, um banco.
 flowchart TD
     subgraph apps["TRÊS APLICAÇÕES"]
         S["Site público<br/>N barbearias, tenant pelo Host<br/>leitura + agendamento"]
-        P["Painel (o SaaS)<br/>painel.barbearianoar.com.br<br/>tenant pela sessão"]
-        V["Site de vendas<br/>barbearianoar.com.br<br/>sem tenant"]
+        P["Painel (o SaaS)<br/>painel.fadeline.com.br<br/>tenant pela sessão"]
+        V["Site de vendas<br/>fadeline.com.br<br/>sem tenant"]
     end
     S --> DB[("PostgreSQL<br/>um banco<br/>RLS por tenant")]
     P --> DB
@@ -123,7 +123,7 @@ Isso não dispensa filtrar na aplicação — é a segunda parede, não a única
 ```sql
 CREATE TABLE tenants (
   id           serial PRIMARY KEY,
-  slug         text NOT NULL UNIQUE,     -- barbeariax.barbearianoar.com.br
+  slug         text NOT NULL UNIQUE,     -- barbeariax.fadeline.com.br
   domain       text UNIQUE,              -- domínio próprio, quando houver
   business_name text NOT NULL,
   status       text NOT NULL DEFAULT 'active',  -- active | suspended | cancelled
@@ -223,7 +223,7 @@ nasce a obrigação do §3: validar o tenant da sessão a cada requisição.
 
 **A tela `/acessar` simplifica.** Ela existe porque cada barbearia tinha um painel em
 endereço próprio. Com painel central, o barbeiro vai sempre para
-`painel.barbearianoar.com.br` e o login descobre a barbearia. A página vira um
+`painel.fadeline.com.br` e o login descobre a barbearia. A página vira um
 redirecionamento — ou some.
 
 **Deploy: de dez para dois.** É o ganho que motivou tudo.

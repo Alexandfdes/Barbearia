@@ -1,4 +1,6 @@
-# Barbearia no Ar
+# Fadeline
+
+Nome provisório desde 08/10/2026 — antes, Barbearia no Ar (`docs/PENDENCIAS-ABERTAS.md` §0.1).
 
 Monorepo do produto. Dois aplicativos, um repositório.
 

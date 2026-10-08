@@ -160,7 +160,7 @@ http://barbearia-vintage.localhost:4321
 ```
 
 Duas barbearias, dois endereços, **um processo só**. `resolverHost()` pega o primeiro
-rótulo exatamente como faria com `barbeariasalaojovem.barbearianoar.com.br`, e sem
+rótulo exatamente como faria com `barbeariasalaojovem.fadeline.com.br`, e sem
 precisar preencher a coluna `domain` à mão.
 
 ⚠️ `urlDoSite()` usa `http` para `localhost` e `127.0.0.1`, e `https` para o resto — o

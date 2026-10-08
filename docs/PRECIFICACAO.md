@@ -131,7 +131,7 @@ nada que compense, e a margem a 1,5h de suporte já seria negativa.
 
 **Subdomínio nosso incluso; domínio próprio como opção paga pelo cliente.**
 
-- Todo cliente entra em `barbeariax.barbearianoar.com.br`, sem custo e sem trabalho:
+- Todo cliente entra em `barbeariax.fadeline.com.br`, sem custo e sem trabalho:
   DNS curinga mais Traefik emitindo certificado por host.
 - Quem quiser domínio próprio paga o registro (R$ 40/ano) no CPF/CNPJ dele, e você
   aponta e opera como responsável técnico.

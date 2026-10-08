@@ -1,6 +1,9 @@
 # Briefing — página inicial do Barbearia no Ar
 
 > Para entregar ao Claude Design. Atualizado: 2026-08-30 (v2 — paleta clara).
+> ⚠️ **Desde 08/10/2026 o produto se chama Fadeline** (provisório —
+> `docs/PENDENCIAS-ABERTAS.md` §0.1). Este texto é de 30/08 e usa o nome antigo; na
+> página, o nome vem de `NOME_PRODUTO`, em `src/config.ts`.
 >
 > Este documento descreve **o que a página precisa fazer**, não como codar. Onde
 > há número (cor, tempo, tamanho), ele é decisão tomada, não sugestão.

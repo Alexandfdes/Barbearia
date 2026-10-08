@@ -1,4 +1,4 @@
-# Tela inicial do Barbearia no Ar — estado e histórico
+# Tela inicial do Fadeline — estado e histórico
 
 > **O que é:** o registro do que a página inicial de vendas é hoje, e do caminho
 > até aqui. Atualizado: 06/09/2026.

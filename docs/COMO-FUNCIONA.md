@@ -132,7 +132,7 @@ flowchart TD
 
 ### 4.1 O endereço do site
 
-**Todo cliente ganha um endereço nosso, de graça:** `barbeariax.barbearianoar.com.br`.
+**Todo cliente ganha um endereço nosso, de graça:** `barbeariax.fadeline.com.br`.
 
 **Quem quiser o endereço próprio** — `barbeariax.com.br` — paga o registro, uns
 R$ 40 por ano, no CPF ou CNPJ dele. Você aponta e opera.
@@ -171,7 +171,7 @@ agendamento os concorrentes vendem mais barato.
 
 **A conta hoje** (verificada em 01/09, detalhe em `PRECIFICACAO.md` §3 e §5):
 
-| | Barbearia no Ar | Trinks | AppBarber | Booksy |
+| | Fadeline | Trinks | AppBarber | Booksy |
 |---|---|---|---|---|
 | Mensalidade | R$ 100 | R$ 76 | R$ 79,90 | R$ 99,99 |
 | Quem monta a página | você | o dono | o dono | o dono |
@@ -269,5 +269,6 @@ decisão foi construir escalável desde a base em vez de migrar doendo depois.
 | Se o cliente sair, ele leva a lista de clientes dele? | A resposta certa é sim, com um arquivo para baixar. Ainda não existe. |
 | Quem paga a renovação do domínio próprio no ano 2? | Em aberto. |
 
-O que **já** tem resposta e saiu desta lista: o nome do produto (Barbearia no Ar,
-30/08), o preço (§8) e o endereço dos sites dos clientes (§4.1).
+O que **já** tem resposta e saiu desta lista: o nome do produto (Fadeline, provisório
+desde 08/10 — antes, Barbearia no Ar), o preço (§8) e o endereço dos sites dos clientes
+(§4.1).
