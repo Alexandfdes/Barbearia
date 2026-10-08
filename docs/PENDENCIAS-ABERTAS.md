@@ -28,15 +28,14 @@
 | **24/09** | **Cartão no cadastro**, cobrado só depois dos 7 dias. **Três layouts** de site, com **as cores escolhidas pelo dono** (§1.3, §4.13) | `PLANO-PRODUTIZACAO.md` §13 |
 | **24/09** | **Fotos no painel, logo depois do cadastro** — galeria do site (o carrossel, a partir de 3 fotos) e foto de produto por barbearia; não no formulário do cadastro. Feito em 25/09 (§2.7) | `PLANO-PRODUTIZACAO.md` §13 |
 | **27/09** | **Layout e cores escolhidos no cadastro, antes do cartão** — o site já nasce com a cara que o dono escolheu. Rejeitado: escolher no painel, depois de entrar (§4.13) | `PLANO-PRODUTIZACAO.md` §13 e `JORNADA-DO-BARBEIRO.md` §2.4 |
-| **08/10** | **Nome provisório: Fadeline** — escolhido pelo dono entre 103 nomes conferidos no registro.br. Provisório tem prazo: vale até o cadastro abrir. A tela ainda diz "Barbearia no Ar" | `PENDENCIAS-ABERTAS.md` §0.1 |
+| **08/10** | **Nome provisório: Fadeline** — escolhido pelo dono entre 103 nomes conferidos no registro.br. Provisório tem prazo: vale até o cadastro abrir. Trocado no código no mesmo dia | `PENDENCIAS-ABERTAS.md` §0.1 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026, **não registrado**) e procurar o nome na busca de marcas do INPI — classes 42,
-35 e 44 — antes de gastar com logo. E trocar o nome no código: o login do painel e o
-cadastro ainda dizem "Barbearia no Ar", e `apps/vendas/src/config.ts` ainda crava
-`NOME_PRODUTO = 'Barbearia no Ar'` e `SITE_URL = 'https://barbearianoar.com.br'` — um
-domínio que nunca foi registrado. O domínio dos subdomínios não precisa de código: vem de
-`DOMINIO_BASE`. *(Até 08/10, este item era registrar `barbearianoar.com.br` e, para SEO,
+35 e 44 — antes de gastar com logo. O código já usa o nome novo, desde 08/10: o
+`NOME_PRODUTO` de `apps/vendas/src/config.ts` e o de `apps/barbearia/src/lib/produto.ts`,
+que `tests/nome-do-produto.test.ts` mantém iguais; o `SITE_URL` é `https://fadeline.com.br`.
+O domínio dos subdomínios não precisa de código: vem de `DOMINIO_BASE`. *(Até 08/10, este item era registrar `barbearianoar.com.br` e, para SEO,
 `sitedabarbearia.com.br`.)*
 
 ⚠️ **Adiado por decisão de 11/09/2026** (`PLANO-PRODUTIZACAO.md` §12): o nome definitivo

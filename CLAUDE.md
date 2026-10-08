@@ -1,4 +1,4 @@
-# Barbearia no Ar — contexto para o Claude
+# Fadeline — contexto para o Claude
 
 > Este arquivo é lido em toda sessão. Cada linha custa contexto: aponte para os
 > documentos, não os duplique. Estado que muda toda semana mora em
@@ -82,9 +82,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 | O modelo em português claro, sem termo técnico | `COMO-FUNCIONA.md` |
 
 ⚠️ `FLUXO-COMPLETO.md` é o caminho antigo, com montagem assistida — o do autoatendimento
-é `JORNADA-DO-BARBEIRO.md`. O nome no código ainda é Barbearia no Ar; em 08/10 o dono
-escolheu **Fadeline** como nome provisório, e a troca no código não foi feita
-(`PENDENCIAS-ABERTAS.md` §0.1).
+é `JORNADA-DO-BARBEIRO.md`. O nome do produto é **Fadeline**, provisório desde 08/10
+(antes, Barbearia no Ar): o `NOME_PRODUTO` de `apps/vendas/src/config.ts` e o de
+`apps/barbearia/src/lib/produto.ts`, que um teste mantém iguais (`PENDENCIAS-ABERTAS.md` §0.1).
 
 ## Regras que não se negociam
 

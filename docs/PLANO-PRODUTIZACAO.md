@@ -348,6 +348,9 @@ compartilhado, e-mail transacional ou print de tela carrega um endereço morto. 
 entra em nota fiscal, contrato, e-mail e subdomínio de cliente: trocar depois de ter
 cliente é migração, não renomeação.
 
+*(Atualizado em 08/10/2026: o nome provisório é Fadeline, e o `SITE_URL` passou a
+`fadeline.com.br` — também ainda não registrado. `PENDENCIAS-ABERTAS.md` §0.1.)*
+
 **4. "Deixar o produto 100% primeiro" é a parte que merece desconfiança.**
 
 Produto não fica 100% — a lista cresce enquanto se trabalha nela. Só na semana de

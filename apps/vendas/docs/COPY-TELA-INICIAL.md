@@ -1,6 +1,9 @@
 # Copy da tela inicial — Barbearia no Ar
 
 > Texto completo das 10 seções, extraído do `src/pages/index.astro` em 30/08/2026.
+> ⚠️ **Desde 08/10/2026 o produto se chama Fadeline** (provisório —
+> `docs/PENDENCIAS-ABERTAS.md` §0.1). Este texto é de 30/08 e usa o nome antigo; na
+> página, o nome vem de `NOME_PRODUTO`, em `src/config.ts`.
 > Acompanha o `BRIEFING-TELA-INICIAL.md`.
 >
 > **Este texto é para ser usado como está.** Os valores que no código vêm de variáveis

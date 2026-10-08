@@ -338,7 +338,7 @@ as fotos de produto se sobem ali mesmo (`PLANO-PRODUTIZACAO.md` §13, *Fotos*).
   grava — o defeito que o derrubava dentro da requisição foi consertado em 25/09
   (`PENDENCIAS-ABERTAS.md` §2.19).
 - **Mas não existe endereço de verdade.** O domínio do produto não foi registrado, e o nome
-  definitivo ainda não foi escolhido (`PENDENCIAS-ABERTAS.md` §0). Sem `DOMINIO_BASE`, o
+  ainda é provisório: Fadeline, desde 08/10 (`PENDENCIAS-ABERTAS.md` §0.1). Sem `DOMINIO_BASE`, o
   sistema não inventa um endereço (`apps/barbearia/src/lib/tenant.ts:229`), e o painel
   esconde o "Ver meu site" (`apps/barbearia/src/layouts/AdminLayout.astro:124-127`).
 - Para cada barbearia nova funcionar sem trabalho seu, falta o registro DNS curinga e o

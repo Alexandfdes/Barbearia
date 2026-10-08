@@ -30,7 +30,7 @@ conjunto. Este mostra: **o que roda onde, quando N barbearias estiverem pagando.
 ```mermaid
 flowchart TD
     subgraph seu["O QUE É SEU — uma instância de cada"]
-        P["Site do produto<br/>barbearianoar.com.br<br/>venda · onboarding · caixa de entrada"]
+        P["Site do produto<br/>fadeline.com.br<br/>venda · onboarding · caixa de entrada"]
         C["Painel de controle<br/>tenants · assinaturas · webhooks<br/>❌ não existe ainda"]
     end
 
@@ -82,7 +82,7 @@ horários — tudo é linha no banco dela. Foi a Fase 1 (marca vindo do banco) e
 
 Traefik do EasyPanel emitindo certificado por host sob demanda (HTTP-01).
 
-- **Subdomínio nosso** — um registro DNS curinga `*.barbearianoar.com.br` aponta para o
+- **Subdomínio nosso** — um registro DNS curinga `*.fadeline.com.br` aponta para o
   IP do VPS. Cliente novo não dá trabalho nenhum.
 - **Domínio próprio do cliente** — registrar, apontar, adicionar o host. ~15 minutos
   manuais, dentro da implantação. É o que mais reforça a venda; não vale automatizar.

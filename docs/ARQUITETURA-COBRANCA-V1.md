@@ -483,7 +483,7 @@ O passo 2 é o único que produz informação nova. Os outros produzem código.
 
 | Item | Natureza |
 |---|---|
-| Nome do produto e domínio | ✅ Resolvidos em 30/08 e 01/09: **Barbearia no Ar**, com subdomínio nosso incluso e domínio próprio como opção paga. Ver `PENDENCIAS-ABERTAS.md` §0. **Falta registrar `barbearianoar.com.br`** — sem ele não há domínio pai para os subdomínios. |
+| Nome do produto e domínio | 🟡 Nome **provisório desde 08/10/2026: Fadeline** (antes, Barbearia no Ar, de 30/08), com subdomínio nosso incluso e domínio próprio como opção paga (01/09). Ver `PENDENCIAS-ABERTAS.md` §0.1. **Falta registrar `fadeline.com.br`** — sem ele não há domínio pai para os subdomínios. |
 | Conta PJ no Asaas | Exige CNPJ. Se você não tem, verificar se conta PF atende. |
 | Emissão de nota fiscal | Não tratado neste desenho. Cobrar recorrente de 15 clientes tem consequência fiscal. |
 | Termos de uso e política de privacidade | O checkout público precisa deles na tela. Ver `PENDENCIAS-ABERTAS.md` §1.2. |
