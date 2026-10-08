@@ -82,8 +82,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 | O modelo em português claro, sem termo técnico | `COMO-FUNCIONA.md` |
 
 ⚠️ `FLUXO-COMPLETO.md` é o caminho antigo, com montagem assistida — o do autoatendimento
-é `JORNADA-DO-BARBEIRO.md`. O nome em uso é Barbearia no Ar; o definitivo foi adiado em
-11/09 (`PENDENCIAS-ABERTAS.md` §0).
+é `JORNADA-DO-BARBEIRO.md`. O nome no código ainda é Barbearia no Ar; em 08/10 o dono
+escolheu **Fadeline** como nome provisório, e a troca no código não foi feita
+(`PENDENCIAS-ABERTAS.md` §0.1).
 
 ## Regras que não se negociam
 

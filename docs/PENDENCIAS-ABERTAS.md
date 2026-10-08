@@ -28,11 +28,16 @@
 | **24/09** | **Cartão no cadastro**, cobrado só depois dos 7 dias. **Três layouts** de site, com **as cores escolhidas pelo dono** (§1.3, §4.13) | `PLANO-PRODUTIZACAO.md` §13 |
 | **24/09** | **Fotos no painel, logo depois do cadastro** — galeria do site (o carrossel, a partir de 3 fotos) e foto de produto por barbearia; não no formulário do cadastro. Feito em 25/09 (§2.7) | `PLANO-PRODUTIZACAO.md` §13 |
 | **27/09** | **Layout e cores escolhidos no cadastro, antes do cartão** — o site já nasce com a cara que o dono escolheu. Rejeitado: escolher no painel, depois de entrar (§4.13) | `PLANO-PRODUTIZACAO.md` §13 e `JORNADA-DO-BARBEIRO.md` §2.4 |
+| **08/10** | **Nome provisório: Fadeline** — escolhido pelo dono entre 103 nomes conferidos no registro.br. Provisório tem prazo: vale até o cadastro abrir. A tela ainda diz "Barbearia no Ar" | `PENDENCIAS-ABERTAS.md` §0.1 |
 
-**Ainda pendente dentro dos itens acima:** registrar `barbearianoar.com.br` (estava
-livre em 30/08/2026, **não registrado**) e, se quiser segurar para SEO,
-`sitedabarbearia.com.br`. Enquanto não registrar, o `SITE_URL` do produto aponta para um
-domínio que não existe.
+**Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
+08/10/2026, **não registrado**) e procurar o nome na busca de marcas do INPI — classes 42,
+35 e 44 — antes de gastar com logo. E trocar o nome no código: o login do painel e o
+cadastro ainda dizem "Barbearia no Ar", e `apps/vendas/src/config.ts` ainda crava
+`NOME_PRODUTO = 'Barbearia no Ar'` e `SITE_URL = 'https://barbearianoar.com.br'` — um
+domínio que nunca foi registrado. O domínio dos subdomínios não precisa de código: vem de
+`DOMINIO_BASE`. *(Até 08/10, este item era registrar `barbearianoar.com.br` e, para SEO,
+`sitedabarbearia.com.br`.)*
 
 ⚠️ **Adiado por decisão de 11/09/2026** (`PLANO-PRODUTIZACAO.md` §12): o nome definitivo
 ainda não está escolhido, e registrar antes de decidir é pagar por endereço que não vai
@@ -43,6 +48,54 @@ depois de ter cliente é migração, não renomeação.
 ⚠️ **Esse evento ficou mais perto em 24/09/2026** (`PLANO-PRODUTIZACAO.md` §13): no
 autoatendimento, o subdomínio aparece para o dono **no minuto do cadastro**. O domínio
 tem que existir antes de o cadastro abrir.
+
+**08/10/2026: nome provisório escolhido — Fadeline** (§0.1). "Provisório" tem o prazo do
+evento acima: o nome definitivo precisa estar no código e no domínio antes de o cadastro
+abrir.
+
+### 0.1 O nome — a pesquisa de 08/10/2026
+
+> Feita em 08/10/2026, a pedido do dono, porque "Barbearia no Ar" soa genérico.
+> **Decisão: Fadeline, provisório.** Os domínios foram conferidos no registro.br no mesmo
+> dia — disponibilidade muda de um dia para o outro. **Não conferido:** INPI, Instagram e
+> se já existe empresa com o nome; a busca na web estava desligada na organização.
+
+**Os critérios, na ordem do dono:** só barbearia — o nome pode usar o vocabulário do
+barbeiro; não genérico; português ou inglês; curto, porque aparece no endereço de cada
+cliente (`cortesdoze.<nome>.com.br`); e `.com.br` livre.
+
+**Por que Fadeline.** Palavra inventada: entre os finalistas, a marca mais fácil de
+proteger. "Fade" é o corte que todo barbeiro faz, e "line" o brasileiro conhece de
+"online". Curto (8 letras) e natural como substantivo — "uso o Fadeline".
+
+**O que ele custa, aceito na escolha:** não diz o que faz, e a landing explica; prende a
+marca a um estilo de corte; ouvido num áudio, pode ser escrito "feidlain"; e o
+`fadeline.com` está à venda por US$ 1.499 (Atom, conferido em 08/10) — qualquer um pode
+comprar.
+
+| Finalista | `.com.br` em 08/10 | Por que não ficou |
+|---|---|---|
+| Tudo na Régua | livre | Frase: diz o que faz, mas trava como substantivo ("uso o Tudo na Régua") |
+| Agenda na Régua | livre | O mesmo, e deixa de fora o site, que é o diferencial |
+| Tá na Régua | livre | O mesmo; e `naregua.com.br` já tem dono |
+| Vez Marcada | livre | Descritivo: protege pouco como marca |
+| Cortelo | livre | Inventado e sem significado: começa do zero |
+| Book a Fade | livre | Inglês, e fala com o cliente da barbearia, não com quem paga |
+| Toalha Quente | livre | Comprido; evoca só a barbearia clássica |
+| Barbearia no Ar | livre | O nome anterior: genérico |
+
+**Rejeitados pelo nome, não pelo domínio:** Pode Sentar ("sentar" tem duplo sentido no
+funk); Corteiro (no áudio vira "carteiro"); Bem Aparado (`bemaparado` se lê "parado");
+Arrumadinho (no Nordeste é o prato típico); Cortagenda (lido rápido, "corta agenda");
+Barbook (lido "bar book", e o Facebook já processou nomes terminados em "-book");
+Trinque (soa como Trinks, concorrente); e qualquer "Barber-alguma-coisa" — o AppBarber,
+concorrente direto, já ocupa esse som.
+
+**Já tinham dono em 08/10 — não adianta procurar de novo:** afiado, trato, acerto, gume,
+aprumo, alinhado, topete, freguesia, caderneta, barbada, cortejo, navalhado, arremate,
+fade, lineup, blend, nextcut, fadeflow, barbagenda, cadeiracheia, cadeiracativa,
+horamarcada, agendacheia, suavez, minhavez, naregua, tratofeito, odesempre, figaro e
+minhabarber, todos `.com.br`. Ao todo, 103 nomes conferidos, 31 livres.
 
 ---
 
