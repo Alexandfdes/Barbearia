@@ -32,7 +32,7 @@ describe('resolvedor de tenant — sessão', () => {
     // Servir o site da barbearia errada é pior que não servir nada: quem chama
     // responde 404.
     expect(resolverHost(null)).toBeNull();
-    expect(resolverHost('naoexiste.barbearianoar.com.br')).toBeNull();
+    expect(resolverHost('naoexiste.fadeline.com.br')).toBeNull();
     expect(resolverHost('')).toBeNull();
   });
 
@@ -53,7 +53,7 @@ describe('resolvedor de tenant — sessão', () => {
     // comportamento, e é por isso que `src/middleware.ts` aquece o cache uma vez
     // por requisição, antes de qualquer rota. Sem aquecer, a primeira visita
     // depois de cada boot cairia em 404.
-    expect(tenantDoHost(new Request('https://vintage.barbearianoar.com.br/'))).toBeNull();
+    expect(tenantDoHost(new Request('https://vintage.fadeline.com.br/'))).toBeNull();
 
     // Fora de requisição, `tenantAtual()` segue sendo a barbearia única: é o que
     // scripts, seeds e testes querem dizer. Dentro de requisição ela entrega a

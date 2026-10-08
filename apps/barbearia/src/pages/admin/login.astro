@@ -4,6 +4,7 @@ import '../../styles/global.css';
 import { getSession } from '../../lib/session.js';
 import { iconeComLetra } from '../../lib/iconeDaAba.js';
 import { ACCENT_PADRAO } from '../../lib/accent.js';
+import { NOME_PRODUTO } from '../../lib/produto.js';
 
 const session = await getSession(Astro.request);
 if (session) return Astro.redirect('/admin');
@@ -14,14 +15,14 @@ if (session) return Astro.redirect('/admin');
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- A tela de entrar é do produto, não de uma barbearia: a inicial dele, na cor padrão. -->
-    <link rel="icon" type="image/svg+xml" href={iconeComLetra('Barbearia no Ar', ACCENT_PADRAO.color)} />
-    <title>Entrar — Barbearia no Ar</title>
+    <link rel="icon" type="image/svg+xml" href={iconeComLetra(NOME_PRODUTO, ACCENT_PADRAO.color)} />
+    <title>Entrar — {NOME_PRODUTO}</title>
   </head>
   <body class="bg-dark text-cream min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-sm">
 
       <div class="text-center mb-8">
-        <p class="text-xs text-gray uppercase tracking-widest mb-1">Barbearia no Ar</p>
+        <p class="text-xs text-gray uppercase tracking-widest mb-1">{NOME_PRODUTO}</p>
         <h1 class="font-serif text-2xl font-medium text-white">Painel</h1>
       </div>
 

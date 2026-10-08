@@ -5,9 +5,9 @@ import Layout from '../layouts/Layout.astro';
 import { NOME_PRODUTO, SITE_URL, whatsappUrl } from '../config';
 
 // Domínio do produto, usado quando o cliente está num subdomínio nosso
-// (ex.: "vintage" → vintage.barbearianoar.com.br). A decisão entre subdomínio
-// nosso e domínio próprio do cliente ainda está aberta em PENDENCIAS §1.1,
-// então esta tela aceita as duas formas e não depende de qual vencer.
+// (ex.: "vintage" → vintage.fadeline.com.br). Os dois existem: subdomínio nosso
+// incluso e domínio próprio como opção paga (PENDENCIAS §1.1, decidido em
+// 01/09/2026) — por isso esta tela aceita as duas formas.
 const DOMINIO_BASE = new URL(SITE_URL).hostname;
 
 const waAjuda = whatsappUrl('Olá! Não lembro o endereço do painel da minha barbearia, pode me mandar?');

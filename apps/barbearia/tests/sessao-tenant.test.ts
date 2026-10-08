@@ -149,10 +149,10 @@ describe.skipIf(!TEM_BANCO)('a sessão decide a barbearia', () => {
   });
 
   it('resolverHost acha pelo subdomínio e recusa o que não existe', () => {
-    expect(lib.resolverHost('bayron.barbearianoar.com.br')?.id).toBe(1);
-    expect(lib.resolverHost('BAYRON.barbearianoar.com.br:443')?.id).toBe(1);
-    expect(lib.resolverHost('devendo.barbearianoar.com.br')).toBeNull(); // suspensa
-    expect(lib.resolverHost('naoexiste.barbearianoar.com.br')).toBeNull();
+    expect(lib.resolverHost('bayron.fadeline.com.br')?.id).toBe(1);
+    expect(lib.resolverHost('BAYRON.fadeline.com.br:443')?.id).toBe(1);
+    expect(lib.resolverHost('devendo.fadeline.com.br')).toBeNull(); // suspensa
+    expect(lib.resolverHost('naoexiste.fadeline.com.br')).toBeNull();
   });
 
   it('resolverHost acha por domínio próprio', async () => {

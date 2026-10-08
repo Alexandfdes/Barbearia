@@ -7,7 +7,7 @@ import { sql } from 'drizzle-orm';
  */
 export const tenants = pgTable('tenants', {
   id: serial('id').primaryKey(),
-  /** Vira o subdomínio: {slug}.barbearianoar.com.br */
+  /** Vira o subdomínio: {slug}.<DOMINIO_BASE> */
   slug: text('slug').notNull().unique(),
   /** Domínio próprio, quando o cliente paga por um. Nulo é o padrão. */
   domain: text('domain').unique(),

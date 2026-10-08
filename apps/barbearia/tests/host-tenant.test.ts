@@ -57,8 +57,8 @@ afterAll(async () => {
 
 describe.skipIf(!TEM_BANCO)('o endereço decide a barbearia', () => {
   it('subdomínio resolve pelo slug', () => {
-    expect(tenant.tenantDoHost(pedido('bayron.barbearianoar.com.br'))?.slug).toBe('bayron');
-    expect(tenant.tenantDoHost(pedido('vintage.barbearianoar.com.br'))?.slug).toBe('vintage');
+    expect(tenant.tenantDoHost(pedido('bayron.fadeline.com.br'))?.slug).toBe('bayron');
+    expect(tenant.tenantDoHost(pedido('vintage.fadeline.com.br'))?.slug).toBe('vintage');
   });
 
   it('domínio próprio resolve pela coluna `domain`', () => {
@@ -68,25 +68,25 @@ describe.skipIf(!TEM_BANCO)('o endereço decide a barbearia', () => {
   it('endereço desconhecido devolve null — quem chama responde 404', () => {
     // ⚠️ Nunca um tenant padrão. Servir o site da barbearia errada é pior que
     // não servir nada, e o padrão silencioso é exatamente como isso aconteceria.
-    expect(tenant.tenantDoHost(pedido('naoexiste.barbearianoar.com.br'))).toBeNull();
-    expect(tenant.tenantDoHost(pedido('painel.barbearianoar.com.br'))).toBeNull();
+    expect(tenant.tenantDoHost(pedido('naoexiste.fadeline.com.br'))).toBeNull();
+    expect(tenant.tenantDoHost(pedido('painel.fadeline.com.br'))).toBeNull();
     expect(tenant.tenantDoHost(pedido(null))).toBeNull();
   });
 
   it('barbearia suspensa não é servida — é assim que o inadimplente sai do ar', () => {
-    expect(tenant.tenantDoHost(pedido('sumida.barbearianoar.com.br'))).toBeNull();
+    expect(tenant.tenantDoHost(pedido('sumida.fadeline.com.br'))).toBeNull();
   });
 
   it('a porta no host não atrapalha', () => {
     // Em desenvolvimento o host chega como `bayron.localhost:4321`.
-    expect(tenant.tenantDoHost(pedido('bayron.barbearianoar.com.br:4321'))?.slug).toBe('bayron');
+    expect(tenant.tenantDoHost(pedido('bayron.fadeline.com.br:4321'))?.slug).toBe('bayron');
   });
 
   it('`tenantAtual()` entrega a barbearia da requisição, não a número 1', async () => {
     // ESTE é o caso que impede o site da segunda barbearia sair com a marca da
     // primeira: os doze componentes chamam `getSettings()` sem argumento, e o
     // valor padrão deles sai daqui.
-    const vintage = tenant.tenantDoHost(pedido('vintage.barbearianoar.com.br'))!;
+    const vintage = tenant.tenantDoHost(pedido('vintage.fadeline.com.br'))!;
     const dentro = await comTenant(vintage, async () => tenant.tenantAtual());
     expect(dentro.slug).toBe('vintage');
   });
