@@ -29,6 +29,7 @@
 | **24/09** | **Fotos no painel, logo depois do cadastro** — galeria do site (o carrossel, a partir de 3 fotos) e foto de produto por barbearia; não no formulário do cadastro. Feito em 25/09 (§2.7) | `PLANO-PRODUTIZACAO.md` §13 |
 | **27/09** | **Layout e cores escolhidos no cadastro, antes do cartão** — o site já nasce com a cara que o dono escolheu. Rejeitado: escolher no painel, depois de entrar (§4.13) | `PLANO-PRODUTIZACAO.md` §13 e `JORNADA-DO-BARBEIRO.md` §2.4 |
 | **08/10** | **Nome provisório: Fadeline** — escolhido pelo dono entre 103 nomes conferidos no registro.br. Provisório tem prazo: vale até o cadastro abrir. Trocado no código no mesmo dia | `PENDENCIAS-ABERTAS.md` §0.1 |
+| **08/10** | **O desenho do cadastro e da cobrança:** um layout com a cor do dono; o cartão no fim do teste; a cobrança como módulo do app; e-mail para a senha e os avisos; 3 dias de carência; só mensal | `PLANO-PRODUTIZACAO.md` §13 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026, **não registrado**) e procurar o nome na busca de marcas do INPI — classes 42,
@@ -168,6 +169,13 @@ nenhum: parece que a política existe.
 
 ### 1.3 🔴 `[DECISÃO]` O que acontece quando não paga
 
+> **Decidido em 08/10/2026** (`PLANO-PRODUTIZACAO.md` §13): cobrança que falha dá **3 dias de
+> carência** — o painel avisa e o site segue no ar; depois, o site mostra "temporariamente
+> indisponível", sem expor a dívida, e o painel só abre a tela de regularizar. Nada é
+> apagado. E o cartão deixou de ser pedido no cadastro: vem no fim do teste. **Proposto, a
+> confirmar:** o teste que acaba sem cartão segue a mesma regra. **Continua aberto:** quanto
+> tempo a barbearia suspensa guarda os dados e segura o endereço (§1.2).
+
 O gateway está escolhido, mas a política não. Hoje **não existe nada que suspenda uma
 instância**. Se a regra for "site sai do ar após N dias", isso é feature a construir —
 ver §3.5. Sem taxa de instalação, essa pendência ficou mais cara: um caloteiro que fica
@@ -181,7 +189,8 @@ para quem atrasa:
   dizendo o motivo, agenda desligada com o site de pé, ou alguns dias de carência com
   aviso. Parar de responder, dando 404 ou 502, está descartado
   (`ARQUITETURA-COBRANCA-V1.md` §7.3): parece defeito do produto, não inadimplência.
-- ✅ **Cartão no cadastro: sim** — decidido em 24/09/2026. O dono cadastra o cartão para
+- ⚠️ **Cartão no cadastro: sim** — decidido em 24/09/2026, **revertido em 08/10/2026**: o
+  cartão passou para o fim do teste (`PLANO-PRODUTIZACAO.md` §13). O dono cadastra o cartão para
   entrar, e a primeira cobrança só acontece depois dos 7 dias
   (`PLANO-PRODUTIZACAO.md` §13). Com isso, a pergunta de cima muda de forma: deixa de ser
   "e se ele não pagar" e passa a ser **"e se a cobrança no cartão falhar"** — recusado,
@@ -1678,6 +1687,11 @@ do painel e do site padrão, então é decisão do dono.
 
 ### 4.13 🔴 `[TÉCNICO]` Três layouts de site — hoje existe um
 
+> **Decidido em 08/10/2026: um layout no lançamento**, com **uma** cor escolhida pelo dono no
+> cadastro e o fundo do layout (`PLANO-PRODUTIZACAO.md` §13). Os outros dois layouts ficam
+> para quando houver clientes pagando que peçam. O resto desta seção é o desenho de três,
+> mantido como registro.
+
 Decidido em 24/09/2026 (`PLANO-PRODUTIZACAO.md` §13): o dono escolhe entre **três
 layouts**, e **as cores são dele**. Hoje o site tem **um** layout, a paleta "Dark
 Industrial" de `src/styles/global.css`, e o que muda de uma barbearia para outra é a cor de
@@ -1725,6 +1739,10 @@ do cadastro — isso muda o segundo dia, não o primeiro minuto. E cada layout t
 a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`).
 
 ### 4.14 🔴 `[TÉCNICO]` O teste de 7 dias e a cobrança automática não existem
+
+> **08/10/2026** (`PLANO-PRODUTIZACAO.md` §13): o cartão é pedido **no fim do teste**, não no
+> cadastro; a cobrança mora num **módulo do app da barbearia** (`ARQUITETURA-COBRANCA-V1.md`
+> §2); e só há plano mensal no lançamento.
 
 Decidido em 24/09/2026 (`PLANO-PRODUTIZACAO.md` §13). Conferido no código no mesmo dia:
 
@@ -1838,6 +1856,9 @@ rótulo de DNS válido (`lib/provisionarBarbearia.ts:210`) e se já existe
 
 ### 4.17 🟠 `[DECISÃO]` Recuperação de senha — e o e-mail que o cadastro não pede
 
+> **Decidido em 08/10/2026: e-mail**, pedido no cadastro — um canal só, para a recuperação
+> de senha e para os avisos de fim de teste e de cobrança (`PLANO-PRODUTIZACAO.md` §13).
+
 Encontrado em 27/09/2026, desenhando a jornada do barbeiro (`JORNADA-DO-BARBEIRO.md` §2.2).
 
 **Não existe "esqueci minha senha".** Quem troca a senha de um dono hoje é você, rodando
@@ -1917,6 +1938,9 @@ hora do relatório — saíram no mesmo dia, à noite, junto com um sexto lugar 
 cliente (§2.11), e o ícone do Astro na aba de toda barbearia (`JORNADA-DO-BARBEIRO.md` §2.8).
 
 **Onda 2 — antes de abrir o cadastro público.**
+
+> ⚠️ **08/10/2026:** o desenho mudou (`PLANO-PRODUTIZACAO.md` §13). Os itens 4 e 5 abaixo
+> valem com um layout, a cor e o e-mail no cadastro, e o cartão no fim do teste.
 No autoatendimento a porta abre sem ninguém olhando, então nada aqui é opcional.
 
 *Decisões suas, que o código não substitui:* o termo aceito no cadastro, com a cláusula
