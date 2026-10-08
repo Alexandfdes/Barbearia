@@ -32,7 +32,7 @@ import { tenants as tenantsTable } from '../db/schema.js';
 
 export interface Tenant {
   id: number;
-  /** Vira o subdomínio: <slug>.barbearianoar.com.br */
+  /** Vira o subdomínio: <slug>.<DOMINIO_BASE> */
   slug: string;
   status: 'active' | 'suspended' | 'cancelled';
   /** Domínio próprio, quando o cliente optou por um (ver `PRECIFICACAO.md` §6). */
@@ -161,7 +161,7 @@ export function tenantDoHost(request: Request): Tenant | null {
 }
 
 /**
- * Resolve `barbeariax.barbearianoar.com.br` pelo slug e um domínio próprio pela
+ * Resolve `barbeariax.<DOMINIO_BASE>` pelo slug e um domínio próprio pela
  * coluna `domain`. Tenant não encontrado devolve `null`.
  */
 export function resolverHost(host: string | null): Tenant | null {
@@ -211,7 +211,7 @@ export function resolverHost(host: string | null): Tenant | null {
  *
  * Isso estava certo quando cada barbearia tinha a própria instância e o painel
  * morava em `barbearia.com/admin`: a raiz era o site dela. Com o painel central
- * (`painel.barbearianoar.com.br`), `/` é a raiz do PAINEL, que não é barbearia
+ * (`painel.<DOMINIO_BASE>`), `/` é a raiz do PAINEL, que não é barbearia
  * nenhuma — e o dono clicava no link para ver o site dele e recebia
  * "Barbearia não encontrada".
  *

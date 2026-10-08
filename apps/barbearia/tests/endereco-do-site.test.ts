@@ -28,12 +28,12 @@ afterEach(() => {
 
 describe('o endereço é o da barbearia servida', () => {
   it('subdomínio do produto', () => {
-    process.env.DOMINIO_BASE = 'barbearianoar.com.br';
-    expect(enderecoPublicoDe(vintage, 'http://interno:4321')).toBe('https://vintage.barbearianoar.com.br');
+    process.env.DOMINIO_BASE = 'fadeline.com.br';
+    expect(enderecoPublicoDe(vintage, 'http://interno:4321')).toBe('https://vintage.fadeline.com.br');
   });
 
   it('domínio próprio vence o subdomínio', () => {
-    process.env.DOMINIO_BASE = 'barbearianoar.com.br';
+    process.env.DOMINIO_BASE = 'fadeline.com.br';
     expect(enderecoPublicoDe(comDominio, 'http://interno:4321')).toBe('https://barbeariadoze.com.br');
   });
 
@@ -43,7 +43,7 @@ describe('o endereço é o da barbearia servida', () => {
   });
 
   it('sem barbearia no endereço, o da própria requisição — nunca o de outra', () => {
-    process.env.DOMINIO_BASE = 'barbearianoar.com.br';
+    process.env.DOMINIO_BASE = 'fadeline.com.br';
     expect(enderecoPublicoDe(null, 'http://localhost:4321')).toBe('http://localhost:4321');
   });
 });

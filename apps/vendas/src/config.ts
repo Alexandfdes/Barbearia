@@ -4,8 +4,10 @@
  */
 
 // Nome do produto. Aparece no topo, no rodapé, no título da aba e dentro das
-// mensagens de WhatsApp. Um lugar só.
-export const NOME_PRODUTO = 'Barbearia no Ar';
+// mensagens de WhatsApp. Um lugar só neste site; o app da barbearia tem o dele em
+// apps/barbearia/src/lib/produto.ts, e um teste confere que os dois batem.
+// Provisório desde 08/10/2026 — antes, "Barbearia no Ar" (docs/PENDENCIAS-ABERTAS.md §0.1).
+export const NOME_PRODUTO = 'Fadeline';
 
 /** Frase de uma linha que acompanha o nome. */
 export const SUBTITULO = 'Site e agendamento para barbearias';
@@ -15,9 +17,9 @@ export const WHATSAPP = '5584999051196';
 
 /**
  * Domínio onde este site vai rodar. Alimenta o link canônico e a prévia de compartilhamento.
- * ⚠️ Em 30/08/2026 este domínio estava LIVRE mas AINDA NÃO REGISTRADO. Registre antes de publicar.
+ * ⚠️ Em 08/10/2026 este domínio estava LIVRE mas AINDA NÃO REGISTRADO. Registre antes de publicar.
  */
-export const SITE_URL = 'https://barbearianoar.com.br';
+export const SITE_URL = 'https://fadeline.com.br';
 
 export const PRECO = {
   /** Mensalidade. Não há taxa de instalação: a montagem do site está inclusa. */

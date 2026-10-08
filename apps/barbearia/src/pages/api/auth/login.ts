@@ -6,7 +6,7 @@ export const prerender = false;
  * ── POR QUE NÃO É MAIS POR SLUG ──────────────────────────────────────────────
  *
  * O slug era único no mundo. A migration 0001 o tornou único POR BARBEARIA, e o
- * painel é central (painel.barbearianoar.com.br): não há endereço de onde
+ * painel é central (painel.<DOMINIO_BASE>): não há endereço de onde
  * deduzir de quem é o login. Dois donos chamados "bayron" colidiam.
  *
  * O telefone é único no mundo por natureza (migration 0002), então ele responde

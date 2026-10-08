@@ -16,6 +16,7 @@ export const prerender = false;
  * O que ele deixar em branco entra DESLIGADO. Nenhum "R$ 0,00" vai para o ar.
  */
 import { CATALOGO_SUGERIDO } from '../lib/catalogoSugerido.js';
+import { NOME_PRODUTO } from '../lib/produto.js';
 
 if (process.env.CADASTRO_ABERTO !== '1') {
   return new Response('Not found', { status: 404 });
@@ -27,7 +28,7 @@ if (process.env.CADASTRO_ABERTO !== '1') {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex" />
-  <title>Criar a sua barbearia — Barbearia no Ar</title>
+  <title>Criar a sua barbearia — {NOME_PRODUTO}</title>
   <style is:global>
     /*
      * Escura, e com a paleta do SITE DE VENDAS — não a da barbearia.
@@ -35,7 +36,7 @@ if (process.env.CADASTRO_ABERTO !== '1') {
      * ⚠️ As regras de botão dos dois aplicativos são INVERTIDAS, e copiar a de
      * um para o outro produz botão ilegível (`.claude/skills/barbearia-paleta`).
      * Esta tela mora no app da barbearia mas é a porta do funil do produto: quem
-     * chega aqui veio da landing e vê a marca do Barbearia no Ar, não a da
+     * chega aqui veio da landing e vê a marca do produto, não a da
      * barbearia dele — que nem existe ainda.
      *
      * Daí o botão ser verde CLARO com texto GRAFITE, e clarear no hover.
