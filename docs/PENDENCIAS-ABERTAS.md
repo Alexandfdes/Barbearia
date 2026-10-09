@@ -1192,6 +1192,46 @@ coisa falsa.
 Guarda: `tests/textos-do-painel.test.ts`, com controle de que o topo do site lê os dois campos
 — sem ele, o caso do aviso passaria mesmo se o topo parasse de ler.
 
+### 2.29 ✅ `[TÉCNICO]` Dependências com falha de segurança conhecida — RESOLVIDO na `monorepo` em 09/10/2026; a `main` continua com elas
+
+O `npm audit` de 09/10/2026 apontava, nos dois apps, falhas críticas e altas no que vai para
+produção: o Astro 6 (XSS, SSRF pelo cabeçalho `Host`, desvio de autorização, execução remota
+pela otimização de imagem AVIF), o adaptador Node 10 (um `Host` malformado derruba o servidor,
+segundo o aviso — não reproduzido aqui) e o sharp 0.34 (libvips, libheif, librsvg). As
+correções do Astro só existem na versão 7.
+
+**Feito:** Astro 7.3.5, `@astrojs/node` 11.1.6 e sharp 0.35.5 nos dois apps; no da barbearia,
+também o Vitest 4 — para o Astro, o Tailwind e os testes usarem um Vite só, o 8 — e o
+`@types/node`, que faltava. O `npm audit` dá zero nos dois, no que vai para produção. Versões
+publicadas há ao menos duas semanas, menos o sharp 0.35.5, a única com a correção.
+
+O que o compilador novo mudou, e como foi conferido:
+
+- **Recusa o que o antigo consertava sozinho.** O `<script>` do `/agendar` nunca tinha sido
+  fechado, e o `Hero.astro` tinha um comentário HTML e uma `<div>` lado a lado num ramo do
+  `? :`. Os dois pararam o build; estão consertados. `tests/astro-7.test.ts` compila todo
+  `.astro` dos dois apps a cada rodada da suíte — o `npm run dev` só descobriria ao abrir a tela.
+- **Espaço em branco.** O padrão novo (`compressHTML: 'jsx'`) apaga espaço entre elementos de
+  linha. Os dois `astro.config.mjs` fixam `true`, a regra do Astro 6.
+- **O HTML renderizado foi comparado** com o do Astro 6 — as mesmas páginas, contra o mesmo
+  banco: 25 telas do app e 8 do site de vendas, iguais nó por nó, fora espaço entre blocos, que
+  não aparece, a minificação dos scripts e o `charset` em minúsculas na página 404 do site de
+  vendas. Nenhuma tela com erro de JavaScript ao abrir.
+
+⚠️ **O npm 10 quebra ao mexer nessas dependências** (*"Cannot read properties of null (reading
+'edgesOut')"*, um defeito dele com dependências pares). Os `package-lock.json` foram gerados com
+o npm 11 e regravados com o npm 10 — o 11 grava um lock que o `npm ci` do 10 recusa, e o
+`npm ci` do Docker é o 10. Os dois instalam com os dois.
+
+⚠️ **A produção não tem nada disso.** O site do Bayron roda a `main`, que trava as mesmas
+versões com falha — o `package-lock.json` da `main`, conferido em 09/10/2026: Astro 6.3.7,
+`@astrojs/node` 10.1.1, sharp 0.34.5. Fecha com a migração (`ROTEIRO-MIGRACAO-PRODUCAO.md`) ou
+com a mesma atualização na `main`, antes dela.
+
+**`astro check`:** com o `@types/node`, de 674 erros para 356, quase todos em dois arquivos — os
+scripts de `admin/dia/[date].astro` (264) e de `cadastrar.astro` (78). Erro novo em qualquer
+outro arquivo agora aparece.
+
 ---
 
 ## 3. Operação com vários clientes
