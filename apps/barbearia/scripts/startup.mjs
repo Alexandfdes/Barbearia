@@ -41,6 +41,19 @@ const PASTA = resolve(__dirname, '..', 'drizzle');
  */
 const ate = process.argv.find((a) => a.startsWith('--ate='))?.slice(6);
 
+/**
+ * `--so-migrations`: aplica as migrations e confere o papel do app, sem o aviso
+ * do `pg_dump`. É o que o `npm run dev` roda antes de subir (`predev`, no
+ * `package.json`): na máquina de desenvolvimento o `pg_dump` quase nunca está no
+ * PATH, e um aviso que aparece a cada `npm run dev` vira ruído que ninguém lê —
+ * inclusive no dia em que importar.
+ *
+ * Existe desde 09/10/2026: o `npm run dev` não aplicava migration, e a 0007
+ * derrubou o ambiente do dono com "column trial_ends_at does not exist" em toda
+ * página, até ele rodar o `db:migrate` à mão.
+ */
+const soMigrations = process.argv.includes('--so-migrations');
+
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error('DATABASE_URL não definido. Ex: postgres://usuario:senha@host:5432/barbearia');
@@ -214,7 +227,7 @@ async function conferirPapelDoApp() {
 try {
   await main();
   await conferirPapelDoApp();
-  conferirPgDump();
+  if (!soMigrations) conferirPgDump();
 } catch (erro) {
   // Erro de boot já imprimiu o próprio diagnóstico. Dizer "migration falhou"
   // em cima dele mandaria procurar defeito no lugar errado.
