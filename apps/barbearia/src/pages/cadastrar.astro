@@ -164,6 +164,9 @@ if (process.env.CADASTRO_ABERTO !== '1') {
     .fim ol { margin: 6px 0 18px; padding-left: 20px; }
     .fim li { margin: 6px 0; color: var(--ink-suave); }
     .fim li a { color: var(--brand-claro); }
+    .fim .teste { margin: 0 0 14px; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line);
+                  font-size: 13px; color: var(--ink-suave); }
+    .fim .teste strong { color: var(--ink); }
     .fim .principal { display: block; text-align: center; padding: 14px; border-radius: 6px; background: var(--brand);
                       color: var(--on-brand); font-weight: 700; font-size: 14px; letter-spacing: .08em;
                       text-transform: uppercase; text-decoration: none; }
@@ -433,7 +436,9 @@ if (process.env.CADASTRO_ABERTO !== '1') {
       return e;
     }
 
-    function mostrarFim(dados: { site?: string | null; telefoneLogin?: string; servicosAtivos?: number }): void {
+    function mostrarFim(dados: {
+      site?: string | null; telefoneLogin?: string; servicosAtivos?: number; ultimoDiaDoTeste?: string | null;
+    }): void {
       const pronto = $('pronto') as HTMLElement;
       pronto.replaceChildren();
       const site = dados.site || null;
@@ -481,6 +486,13 @@ if (process.env.CADASTRO_ABERTO !== '1') {
       const d = String(dados.telefoneLogin ?? '');
       const telefone = d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
         : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : d;
+      // O prazo, dito na hora: o cartão só é pedido no fim do teste (decisão de
+      // 08/10/2026), e quem não sabe a data não se prepara para ela.
+      if (dados.ultimoDiaDoTeste) {
+        pronto.append(el('p', { className: 'teste' },
+          el('strong', {}, `7 dias grátis, até ${dados.ultimoDiaDoTeste}.`),
+          ' O cartão só é pedido no fim do teste — o painel avisa antes.'));
+      }
       pronto.append(el('a', { href: '/admin', className: 'principal' }, 'Abrir o meu painel'));
       pronto.append(el('p', { className: 'dica' },
         `Você já está dentro do painel. Da próxima vez, entre com o WhatsApp ${telefone} e a senha que escolheu.`));

@@ -42,6 +42,7 @@ import { checkRateLimit } from '../../lib/rateLimit.js';
 import { getClientIp } from '../../lib/clientIp.js';
 import { carregarTenants, invalidarTenants, resolverHost, urlDoSite } from '../../lib/tenant.js';
 import { makeSessionCookie } from '../../lib/session.js';
+import { ultimoDia } from '../../lib/situacao.js';
 
 export const CADASTRO_ABERTO = () => process.env.CADASTRO_ABERTO === '1';
 
@@ -137,6 +138,8 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     site,
     telefoneLogin: r.telefoneLogin,
     servicosAtivos: r.servicosAtivos,
+    /** "15/10", no fuso da barbearia — o navegador de quem cadastra pode estar em outro. */
+    ultimoDiaDoTeste: r.testeAte ? ultimoDia(r.testeAte) : null,
     /** O que ainda falta para o site ficar de pé, dito na hora. */
     avisos: r.servicosAtivos === 0
       ? ['Nenhum serviço com preço: ninguém consegue agendar até você preencher um em /admin/servicos.']

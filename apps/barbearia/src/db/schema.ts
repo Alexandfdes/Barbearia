@@ -12,8 +12,16 @@ export const tenants = pgTable('tenants', {
   /** Domínio próprio, quando o cliente paga por um. Nulo é o padrão. */
   domain: text('domain').unique(),
   businessName: text('business_name').notNull(),
-  /** active | suspended (inadimplente, dados preservados) | cancelled */
-  status: text('status', { enum: ['active', 'suspended', 'cancelled'] }).notNull().default('active'),
+  /**
+   * trial | active | past_due | suspended (tirada do ar à mão) | cancelled.
+   * ⚠️ Não é a fase de agora: teste vencido e carência vencida saem do TEMPO, em
+   * `lib/situacao.ts` (migration 0007).
+   */
+  status: text('status', { enum: ['trial', 'active', 'past_due', 'suspended', 'cancelled'] }).notNull().default('active'),
+  /** Fim do teste de 7 dias; a carência começa aqui. Obrigatório quando `trial`. */
+  trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
+  /** Quando a cobrança falhou; a carência começa aqui. Obrigatório quando `past_due`. */
+  pastDueSince: timestamp('past_due_since', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

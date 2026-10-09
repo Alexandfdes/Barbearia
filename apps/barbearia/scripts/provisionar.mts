@@ -21,6 +21,9 @@
  *                        sem o prefixo "Barbearia"/"Salão"
  *   --telefone-dono=...  telefone com que o DONO entra no painel; sem isso, o
  *                        mesmo --telefone da barbearia
+ *   --sem-teste          nasce pagando, sem o teste de 7 dias — para barbearia
+ *                        que você combinou por fora. Sem isso, nasce no teste,
+ *                        como pelo cadastro da web (decisão de 08/10/2026)
  *
  * A senha inicial NÃO vai por argumento — argumento fica no histórico do shell.
  * Use a variável de ambiente SENHA_INICIAL.
@@ -37,6 +40,7 @@
  */
 import postgres from 'postgres';
 import { provisionarBarbearia } from '../src/lib/provisionarBarbearia.js';
+import { ultimoDia } from '../src/lib/situacao.js';
 
 const BCRYPT_COST = 12;
 
@@ -92,6 +96,7 @@ const curto = arg('curto');
 const telefoneDono = arg('telefone-dono');
 const cor = arg('cor');
 const dominio = arg('dominio') ?? null;
+const semTeste = process.argv.includes('--sem-teste');
 
 // Só o que impede a função de rodar fica aqui. O RESTO das recusas — slug
 // inválido, senha curta, telefone repetido — mora em `provisionarBarbearia()`,
@@ -114,7 +119,7 @@ const sql = postgres(url, { max: 1, onnotice: () => {} });
 try {
   const r = await provisionarBarbearia(sql, {
     slug, nome, dono, telefone, endereco, cidade, senha,
-    curto, telefoneDono, cor, dominio,
+    curto, telefoneDono, cor, dominio, semTeste,
   });
 
   if (!r.ok) {
@@ -131,6 +136,9 @@ try {
   console.log(`  entra com   ${r.telefoneLogin}  (WhatsApp, não usuário)`);
   console.log(`  cor         ${r.accent.color}${r.corVeioDoCliente ? '' : ' (padrão)'}`);
   console.log(`  horário     seg–sex 09:00–19:00, sáb 09:00–18:00`);
+  console.log(r.testeAte
+    ? `  teste       até ${ultimoDia(r.testeAte, undefined, 'dd/MM/yyyy')} — depois, 3 dias de carência e fora do ar sem cartão`
+    : `  teste       nenhum: nasceu pagando (--sem-teste)`);
   console.log(`\n  ⓘ  Se o painel já estiver no ar, ele leva até 30s para enxergar`);
   console.log(`     esta barbearia — é o cache de tenants (src/lib/tenant.ts).`);
   console.log(`\n⚠️  A barbearia está SEM SERVIÇOS. Enquanto não houver o primeiro,`);

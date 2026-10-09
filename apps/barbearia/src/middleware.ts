@@ -19,14 +19,39 @@
  * em vez de progressivamente. Nas páginas deste app — a maior tem 50 KB — é
  * diferença que não se vê. O ganho é a fronteira do contexto ser exata em vez
  * de "provavelmente".
+ *
+ * ── E A BARBEARIA FORA DO AR ─────────────────────────────────────────────────
+ *
+ * Teste ou carência vencidos sem pagamento, ou tirada do ar à mão
+ * (`lib/situacao.ts`). As rotas não sabem disso, e não precisam: para elas a
+ * barbearia simplesmente não existe — `tenantDoHost()` e `getSession()` devolvem
+ * `null`, e cada uma responde 404 ou "não autenticado" como sempre respondeu. O
+ * que muda é decidido aqui, antes delas: o site mostra o aviso com o WhatsApp da
+ * barbearia, e o painel leva o dono à tela de assinatura (decisões de 08/10/2026,
+ * `docs/PLANO-PRODUTIZACAO.md` §13).
  */
 import { defineMiddleware } from 'astro:middleware';
 import { comTenant } from './db/index.js';
-import { getSession } from './lib/session.js';
-import { carregarTenants, tenantDaSessaoOuNulo, tenantDoHost, type Tenant } from './lib/tenant.js';
+import { getSession, sessaoForaDoAr } from './lib/session.js';
+import {
+  carregarTenants, tenantDaSessaoOuNulo, tenantDoHost, tenantSuspensoDoHost, type Tenant,
+} from './lib/tenant.js';
+import { getSettings } from './lib/settings.js';
+import { respostaForaDoAr } from './lib/siteForaDoAr.js';
+import { TELA_DE_ASSINATURA } from './lib/assinatura.js';
 
 export const onRequest = defineMiddleware(async (contexto, next) => {
-  const tenant = await tenantDaRequisicao(contexto.request);
+  const caminho = new URL(contexto.request.url).pathname;
+  const { tenant, daSessao } = await tenantDaRequisicao(contexto.request);
+
+  // ⚠️ ANTES de olhar o endereço: no desenvolvimento, o painel e a barbearia 1
+  // dividem o `localhost`, e o endereço devolveria a barbearia 1 para quem está
+  // com a sessão de outra, fora do ar — que cairia num laço entre o login e o
+  // painel sem nunca ver por quê.
+  if (!daSessao && ehDoPainel(caminho)) {
+    const desvio = await painelDeBarbeariaForaDoAr(contexto.request, caminho, next);
+    if (desvio) return desvio;
+  }
 
   // Sem barbearia identificada, a requisição segue SEM contexto: roda como dono
   // do banco e as políticas de RLS não a alcançam.
@@ -37,26 +62,70 @@ export const onRequest = defineMiddleware(async (contexto, next) => {
   // login. O outro caso que cai aqui é host desconhecido — e aí cada rota e
   // página pública responde 404 antes de renderizar qualquer coisa
   // (`lib/tenant.ts`, passo 6).
-  if (tenant === null) return next();
+  if (tenant === null) {
+    // Endereço de barbearia FORA DO AR: em vez do 404, o aviso com o WhatsApp
+    // dela (`lib/siteForaDoAr.ts`). As rotas públicas nem chegam a rodar.
+    const suspensa = tenantSuspensoDoHost(contexto.request.headers.get('host'));
+    if (suspensa) {
+      return comTenant(suspensa, async () => respostaForaDoAr(caminho, await getSettings(suspensa)));
+    }
+    return next();
+  }
 
-  const resposta = await comTenant(tenant, async () => {
+  return servirComTenant(tenant, next);
+});
+
+/**
+ * Rotas do painel. O login fica de fora: ele não usa barbearia nenhuma, e quem
+ * está fora do ar precisa conseguir entrar com outra conta.
+ */
+function ehDoPainel(caminho: string): boolean {
+  if (caminho === '/admin/login') return false;
+  return caminho === '/admin' || caminho.startsWith('/admin/') || caminho.startsWith('/api/admin/');
+}
+
+async function servirComTenant(tenant: Tenant, next: () => Promise<Response>): Promise<Response> {
+  return comTenant(tenant, async () => {
     const r = await next();
     // Lê o corpo inteiro ainda dentro do contexto. Ver o aviso acima.
     if (!r.body) return r;
     const corpo = await r.arrayBuffer();
     return new Response(corpo, { status: r.status, statusText: r.statusText, headers: r.headers });
   });
-
-  return resposta;
-});
+}
 
 /**
- * De quem é esta requisição.
+ * O painel de quem está com a barbearia FORA DO AR.
+ *
+ * `getSession()` não enxerga essa sessão, e as 53 rotas do painel continuam
+ * respondendo "não autenticado" sozinhas. Faltava o caminho de volta: o dono que
+ * entra com a senha certa vai para a tela de assinatura — e só ela abre, com a
+ * barbearia dele no contexto. Página recebe redirecionamento; API, 402.
+ *
+ * Devolve `null` quando não é o caso, e a requisição segue o caminho de sempre.
+ */
+async function painelDeBarbeariaForaDoAr(
+  request: Request, caminho: string, next: () => Promise<Response>,
+): Promise<Response | null> {
+  const fora = await sessaoForaDoAr(request);
+  if (!fora) return null;
+
+  if (caminho === TELA_DE_ASSINATURA) return servirComTenant(fora.tenant, next);
+  if (caminho.startsWith('/api/')) {
+    return new Response(JSON.stringify({ error: 'A barbearia está fora do ar.', assinatura: TELA_DE_ASSINATURA }), {
+      status: 402, headers: { 'content-type': 'application/json; charset=utf-8' },
+    });
+  }
+  return new Response(null, { status: 303, headers: { location: TELA_DE_ASSINATURA } });
+}
+
+/**
+ * De quem é esta requisição — e se quem disse foi a sessão do painel.
  *
  * A sessão do painel manda: o barbeiro pode estar acessando de qualquer
  * endereço. Sem sessão, decide o host — é o site público da barbearia.
  */
-async function tenantDaRequisicao(request: Request): Promise<Tenant | null> {
+async function tenantDaRequisicao(request: Request): Promise<{ tenant: Tenant | null; daSessao: boolean }> {
   // ⚠️ O AQUECIMENTO VEM PRIMEIRO, E A ORDEM É O CONSERTO DE UM DEFEITO REAL.
   //
   // Antes de 15/09/2026 esta linha ficava DEPOIS da leitura da sessão. O efeito
@@ -80,7 +149,7 @@ async function tenantDaRequisicao(request: Request): Promise<Tenant | null> {
 
   const sessao = await getSession(request);
   const daSessao = sessao ? tenantDaSessaoOuNulo(sessao) : null;
-  if (daSessao) return daSessao;
+  if (daSessao) return { tenant: daSessao, daSessao: true };
 
-  return tenantDoHost(request);
+  return { tenant: tenantDoHost(request), daSessao: false };
 }

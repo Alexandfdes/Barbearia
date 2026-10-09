@@ -36,13 +36,15 @@ import { sep } from 'node:path';
 /**
  * Arquivo → quantas ocorrências conferidas e aprovadas ele tem.
  *
- * As duas são a mesma função repetida: recebem uma data 'YYYY-MM-DD' que já é
- * local, montam `Date.UTC(y, m - 1, d + n, 12)` para somar dias sem esbarrar em
+ * As três são a mesma ideia repetida: recebem uma data 'YYYY-MM-DD' que já é
+ * local, montam o meio-dia UTC dela — `Date.UTC(y, m - 1, d + n, 12)`, ou
+ * `${dia}T12:00:00Z` em `lib/situacao.ts` — para somar dias sem esbarrar em
  * horário de verão, e leem de volta. Nunca tocam num instante.
  */
 const PERMITIDOS = new Map<string, number>([
   ['src/pages/admin/index.astro', 1],      // addDaysStr() — navegação de semana
   ['src/pages/admin/dia/[date].astro', 1], // offsetDate() — navegação de dia
+  ['src/lib/situacao.ts', 1],              // somarDias() — o fim do teste e da carência, sobre a data local ao meio-dia
 ]);
 
 const PADRAO = /toISOString\(\)\s*\.slice\(\s*0\s*,\s*10\s*\)/g;

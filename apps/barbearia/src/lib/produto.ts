@@ -8,3 +8,11 @@
  * alguma tela escrever o nome à mão.
  */
 export const NOME_PRODUTO = 'Fadeline';
+
+/**
+ * A mensalidade, em reais — a da tela de assinatura do painel. O site de vendas
+ * tem a dele (`PRECO.mensal`, em `apps/vendas/src/config.ts`), e
+ * `tests/preco-do-produto.test.ts` reprova se as duas divergirem: o preço que a
+ * landing promete é o que o painel cobra.
+ */
+export const PRECO_MENSAL = 100;

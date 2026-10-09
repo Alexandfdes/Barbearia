@@ -18,9 +18,12 @@
  *
  * ── O QUE O CACHE CUSTA ──────────────────────────────────────────────────────
  *
- * Barbearia suspensa continua entrando por até `TTL_MS`. É aceitável numa
- * cobrança mensal, e o login já recusa suspensa na porta de entrada
- * (`pages/api/auth/login.ts`) — o atraso só afeta quem já estava dentro.
+ * Um status mudado no banco — o pagamento que chegou, a barbearia tirada do ar à
+ * mão — leva até `TTL_MS` para valer. É aceitável numa cobrança mensal.
+ *
+ * O TEMPO não atrasa: o teste que vence e a carência que acaba saem de
+ * `lib/situacao.ts` a cada consulta, com o relógio de agora, a partir dos prazos
+ * que o cache guarda (migration 0007).
  *
  * Barbearia recém-criada demora o mesmo tanto para aparecer. Por isso
  * `invalidarTenants()` existe: o provisionamento chama e o cliente novo não
@@ -29,15 +32,24 @@
 import { db } from '../db/index.js';
 import { armazemTenant } from '../db/contexto.js';
 import { tenants as tenantsTable } from '../db/schema.js';
+import { situacaoDe, noAr, type StatusDaBarbearia } from './situacao.js';
 
 export interface Tenant {
   id: number;
   /** Vira o subdomínio: <slug>.<DOMINIO_BASE> */
   slug: string;
-  status: 'active' | 'suspended' | 'cancelled';
+  /** ⚠️ Não é a fase de agora — essa é `situacaoDe(tenant)`, em `lib/situacao.ts`. */
+  status: StatusDaBarbearia;
   /** Domínio próprio, quando o cliente optou por um (ver `PRECIFICACAO.md` §6). */
   domain: string | null;
+  /** Fim do teste grátis (`trial_ends_at`). */
+  testeAte?: Date | null;
+  /** Quando a cobrança falhou (`past_due_since`). */
+  atrasadaDesde?: Date | null;
 }
+
+/** No ar AGORA: pagando, no teste ou na carência. */
+const estaNoAr = (t: Tenant | undefined | null): t is Tenant => Boolean(t) && noAr(situacaoDe(t as Tenant));
 
 /**
  * A barbearia única de antes dos tenants.
@@ -78,6 +90,8 @@ export async function carregarTenants(forcar = false): Promise<void> {
     slug: tenantsTable.slug,
     status: tenantsTable.status,
     domain: tenantsTable.domain,
+    testeAte: tenantsTable.trialEndsAt,
+    atrasadaDesde: tenantsTable.pastDueSince,
   }).from(tenantsTable);
 
   const id = new Map<number, Tenant>();
@@ -90,6 +104,8 @@ export async function carregarTenants(forcar = false): Promise<void> {
       slug: l.slug,
       status: l.status as Tenant['status'],
       domain: l.domain ?? null,
+      testeAte: l.testeAte ?? null,
+      atrasadaDesde: l.atrasadaDesde ?? null,
     };
     id.set(t.id, t);
     slug.set(t.slug, t);
@@ -113,7 +129,8 @@ export function invalidarTenants(): void {
  * Painel: a barbearia vem da sessão, não do endereço — o painel é central.
  *
  * ⚠️ Devolve `null` quando a sessão não tem tenant, quando ele sumiu do banco ou
- * quando a barbearia não está `active`. Quem chama trata como "não autenticado".
+ * quando a barbearia não está no ar — suspensa ou encerrada; o teste e a carência
+ * contam como no ar (`lib/situacao.ts`). Quem chama trata como "não autenticado".
  *
  * Na prática ninguém precisa tratar: `getSession()` já faz essa checagem e
  * devolve `null`, e toda rota do painel começa com `if (!session) return 401`.
@@ -121,7 +138,7 @@ export function invalidarTenants(): void {
  */
 export function tenantDaSessao(session: SessaoComTenant | null): Tenant {
   const t = session?.tenantId != null ? porId.get(session.tenantId) : undefined;
-  if (!t || t.status !== 'active') {
+  if (!estaNoAr(t)) {
     // Cair num tenant padrão aqui serviria os dados da barbearia errada. Estourar
     // é a única saída segura — e `getSession()` já barra antes de chegar aqui.
     throw new Error(
@@ -136,7 +153,19 @@ export function tenantDaSessao(session: SessaoComTenant | null): Tenant {
 /** Versão que não estoura — para `getSession()`, que precisa decidir em vez de falhar. */
 export function tenantDaSessaoOuNulo(session: SessaoComTenant | null): Tenant | null {
   const t = session?.tenantId != null ? porId.get(session.tenantId) : undefined;
-  return t && t.status === 'active' ? t : null;
+  return estaNoAr(t) ? t : null;
+}
+
+/**
+ * A barbearia de um id, ESTEJA ELA NO AR OU NÃO.
+ *
+ * ⚠️ Existe para um caminho só: a sessão de quem está com a barbearia fora do ar
+ * e precisa chegar à tela de assinatura para regularizar (`lib/session.ts`,
+ * `sessaoForaDoAr`). Qualquer outro uso devolveria barbearia suspensa como se
+ * estivesse valendo — use `tenantDaSessao()`.
+ */
+export function tenantPorIdMesmoForaDoAr(id: number | null | undefined): Tenant | null {
+  return id != null ? porId.get(id) ?? null : null;
 }
 
 /**
@@ -169,11 +198,28 @@ export function resolverHost(host: string | null): Tenant | null {
   const limpo = host.toLowerCase().split(':')[0].replace(/\.$/, '');
 
   const porDominioProprio = porDominio.get(limpo);
-  if (porDominioProprio?.status === 'active') return porDominioProprio;
+  if (estaNoAr(porDominioProprio)) return porDominioProprio;
 
   const sub = limpo.split('.')[0];
   const t = porSlug.get(sub);
-  return t && t.status === 'active' ? t : null;
+  return estaNoAr(t) ? t : null;
+}
+
+/**
+ * A barbearia SUSPENSA dona deste endereço — a que tem site, mas fora do ar.
+ *
+ * O site dela não dá 404: mostra que está temporariamente indisponível, com o
+ * WhatsApp da barbearia (decisão de 08/10/2026, `docs/PLANO-PRODUTIZACAO.md` §13).
+ * Quem responde é o `src/middleware.ts`; as rotas públicas continuam recebendo
+ * `null` de `tenantDoHost()` e nunca servem nada de barbearia suspensa.
+ *
+ * Encerrada não entra: endereço de barbearia que saiu responde 404, como antes.
+ */
+export function tenantSuspensoDoHost(host: string | null): Tenant | null {
+  if (!host) return null;
+  const limpo = host.toLowerCase().split(':')[0].replace(/\.$/, '');
+  const t = porDominio.get(limpo) ?? porSlug.get(limpo.split('.')[0]);
+  return t && situacaoDe(t).fase === 'suspensa' ? t : null;
 }
 
 /**
