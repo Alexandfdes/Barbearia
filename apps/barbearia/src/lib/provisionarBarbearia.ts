@@ -32,6 +32,10 @@ import type postgres from 'postgres';
 import bcrypt from 'bcryptjs';
 import { derivarAccent, ACCENT_PADRAO, isHex, type Accent } from './accent.js';
 import { formatarTelefone } from './phone.js';
+import { enderecoReservado } from './enderecosReservados.js';
+
+/** Confere a forma, não a existência: a existência só a primeira mensagem prova. */
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const BCRYPT_COST = 12;
 
@@ -63,6 +67,17 @@ export interface DadosDaBarbearia {
   instagram?: string;
   /** Como o dono descreve a barbearia. Vai para `about_text`. */
   sobre?: string;
+  /**
+   * A frase do topo do site — o título que o visitante lê primeiro. Vai para
+   * `tagline`; sem ela, o topo mostra o nome da barbearia (`Hero.astro`).
+   */
+  frase?: string;
+  /**
+   * O e-mail do dono: recuperação de senha e avisos do teste e da cobrança
+   * (decisão de 08/10/2026). O cadastro pela web exige; o script de linha de
+   * comando, não — por isso é opcional aqui.
+   */
+  email?: string;
   /**
    * A semana dele. Ausente = comercial padrão.
    *
@@ -110,7 +125,7 @@ export interface BarbeariaCriada {
 export interface RecusaDeProvisionamento {
   ok: false;
   /** Qual campo recusou, para a tela poder apontar o erro no lugar certo. */
-  campo: 'slug' | 'nome' | 'dono' | 'telefone' | 'telefone-dono' | 'endereco' | 'cidade' | 'senha' | 'cor' | 'servicos' | 'horarios';
+  campo: 'slug' | 'nome' | 'dono' | 'telefone' | 'telefone-dono' | 'endereco' | 'cidade' | 'senha' | 'cor' | 'servicos' | 'horarios' | 'email' | 'frase';
   erro: string;
   /** `true` quando o problema é colisão com algo que já existe (HTTP 409). */
   conflito?: boolean;
@@ -213,6 +228,24 @@ export async function provisionarBarbearia(
       ok: false, campo: 'slug',
       erro: `"${slug}" não serve como endereço. Use só letras minúsculas, números e hífen.`,
     };
+  }
+
+  // `painel`, `www`, o nome do produto… — `lib/enderecosReservados.ts` diz por quê.
+  if (enderecoReservado(slug)) {
+    return {
+      ok: false, campo: 'slug',
+      erro: `"${slug}" é um endereço reservado do sistema. Escolha outro.`,
+    };
+  }
+
+  const email = (dados.email ?? '').trim().toLowerCase() || null;
+  if (email && (email.length > 254 || !EMAIL.test(email))) {
+    return { ok: false, campo: 'email', erro: `"${dados.email}" não parece um e-mail.` };
+  }
+
+  const frase = (dados.frase ?? '').trim() || null;
+  if (frase && frase.length > 200) {
+    return { ok: false, campo: 'frase', erro: 'A frase do topo passa de 200 caracteres.' };
   }
 
   if (dados.cor && !isHex(dados.cor)) {
@@ -323,13 +356,13 @@ export async function provisionarBarbearia(
       INSERT INTO settings (
         tenant_id, business_name, short_name, whatsapp_number, whatsapp_display,
         address_street, address_city, business_hours,
-        instagram_handle, instagram_url, about_text,
+        instagram_handle, instagram_url, about_text, tagline,
         accent_color, accent_hover, accent_light,
         seo_title, products_section_title
       ) VALUES (
         ${tenant.id}, ${nome}, ${curto}, ${whatsappDaLoja}, ${formatarTelefone(telefoneDigitos)},
         ${endereco}, ${cidade}, ${horarioDeVitrine(semana)},
-        ${instagramHandle}, ${instagramUrl}, ${sobre},
+        ${instagramHandle}, ${instagramUrl}, ${sobre}, ${frase},
         ${accent.color}, ${accent.hover}, ${accent.light},
         ${nome}, 'Produtos'
       )
@@ -338,8 +371,8 @@ export async function provisionarBarbearia(
     // Sem `phone` o dono é criado e NÃO consegue entrar: o login do painel é
     // por telefone. A falha só apareceria no primeiro acesso dele.
     const [barbeiro] = await tx`
-      INSERT INTO barbers (tenant_id, name, slug, phone, role, password_hash)
-      VALUES (${tenant.id}, ${dono}, ${slugDono}, ${telefoneLogin}, 'admin', ${hash})
+      INSERT INTO barbers (tenant_id, name, slug, phone, email, role, password_hash)
+      VALUES (${tenant.id}, ${dono}, ${slugDono}, ${telefoneLogin}, ${email}, 'admin', ${hash})
       RETURNING id
     `;
 

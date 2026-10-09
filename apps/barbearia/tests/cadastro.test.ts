@@ -33,7 +33,14 @@ const BASE = {
   endereco: 'R. das Flores, 42',
   cidade: 'Mossoró/RN',
   senha: 'segredo123',
+  email: 'ze@exemplo.com.br',
 };
+
+/**
+ * Uma "conexão" que estoura se for usada: prova que a recusa aconteceu ANTES de
+ * tocar o banco — e deixa o caso rodar sem banco nenhum.
+ */
+const semBanco = (() => { throw new Error('tocou o banco'); }) as unknown as ReturnType<typeof postgres>;
 
 beforeAll(async () => {
   if (!TEM_BANCO) return;
@@ -254,6 +261,73 @@ describe('a semana que o dono preenche', () => {
   });
 });
 
+describe('o que o cadastro passou a pedir em 08/10/2026', () => {
+  // A cor e a frase do topo no cadastro, para o site nascer com a cara do dono
+  // (um layout só no lançamento), e o e-mail, que é o canal da senha e dos avisos
+  // do teste — `docs/PLANO-PRODUTIZACAO.md` §13.
+  it.skipIf(!TEM_BANCO)('a frase vai para o topo do site, a cor para o site e o e-mail para o dono', async () => {
+    const r = await provisionarBarbearia(conn, {
+      ...BASE, email: '  Ze.Silva@Exemplo.com.BR ', frase: '  Corte na régua, sem fila.  ', cor: '#b91c1c',
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+
+    const [cfg] = await conn`SELECT tagline, accent_color FROM settings WHERE tenant_id = ${r.tenantId}`;
+    expect(cfg.tagline).toBe('Corte na régua, sem fila.');
+    expect(cfg.accent_color).toBe(r.accent.color);
+    expect(r.corVeioDoCliente).toBe(true);
+
+    const [dono] = await conn`SELECT email FROM barbers WHERE id = ${r.barbeiroId}`;
+    expect(dono.email).toBe('ze.silva@exemplo.com.br');
+  });
+
+  it.skipIf(!TEM_BANCO)('sem frase e sem e-mail (o script de linha de comando) também nasce — os dois ficam vazios', async () => {
+    const { email: _e, ...semEmail } = BASE;
+    const r = await provisionarBarbearia(conn, semEmail);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const [cfg] = await conn`SELECT tagline FROM settings WHERE tenant_id = ${r.tenantId}`;
+    const [dono] = await conn`SELECT email FROM barbers WHERE id = ${r.barbeiroId}`;
+    expect(cfg.tagline).toBeNull();
+    expect(dono.email).toBeNull();
+  });
+
+  it('RECUSA e-mail sem forma de e-mail, antes de tocar o banco', async () => {
+    for (const ruim of ['ze', 'ze@', 'ze@exemplo', '@exemplo.com', 'ze silva@exemplo.com']) {
+      const r = await provisionarBarbearia(semBanco, { ...BASE, email: ruim });
+      expect(r.ok, ruim).toBe(false);
+      if (!r.ok) expect(r.campo).toBe('email');
+    }
+  });
+
+  it('RECUSA frase do topo com mais de 200 caracteres, antes de tocar o banco', async () => {
+    const r = await provisionarBarbearia(semBanco, { ...BASE, frase: 'x'.repeat(201) });
+    expect(r).toMatchObject({ ok: false, campo: 'frase' });
+  });
+
+  it('a rota EXIGE o e-mail — sem ele, nem chega ao banco', async () => {
+    const anterior = process.env.CADASTRO_ABERTO;
+    process.env.CADASTRO_ABERTO = '1';
+    try {
+      const { POST } = await import('../src/pages/api/cadastrar.js');
+      const { email: _e, ...semEmail } = BASE;
+      const r = await POST({
+        request: new Request('http://x/api/cadastrar', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ ...semEmail, slug: 'sem-email' }),
+        }),
+        clientAddress: '7.7.7.7',
+      } as never);
+      expect(r.status).toBe(400);
+      expect((await r.json()).campo).toBe('email');
+    } finally {
+      if (anterior === undefined) delete process.env.CADASTRO_ABERTO;
+      else process.env.CADASTRO_ABERTO = anterior;
+    }
+  }, 30_000);
+});
+
 describe('a porta nasce fechada', () => {
   // ⚠️ O IMPORT MORA NO GANCHO, NÃO NO CASO — E ISSO CONSERTA UM VERMELHO REAL.
   //
@@ -302,7 +376,11 @@ describe('a rota, de ponta a ponta', () => {
     // SUBSTITUI pela sessão do dono novo (decisão de 24/09: cadastrou, já
     // recebe o painel). O que não pode é sobrar a sessão antiga.
     const anterior = process.env.CADASTRO_ABERTO;
+    const baseAntes = process.env.DOMINIO_BASE;
     process.env.CADASTRO_ABERTO = '1';
+    // Com domínio configurado, a resposta traz o endereço do site — é o que a
+    // tela de fim mostra e manda no WhatsApp.
+    process.env.DOMINIO_BASE = 'fadeline.com.br';
     try {
       const mod = await import('../src/pages/api/cadastrar.js');
       const r = await mod.POST({
@@ -324,6 +402,7 @@ describe('a rota, de ponta a ponta', () => {
 
       const corpo = await r.json();
       expect(corpo.slug).toBe('salao-jovem');
+      expect(corpo.site).toBe('https://salao-jovem.fadeline.com.br');
       expect(corpo.servicosAtivos).toBe(1);
       expect(corpo.avisos).toEqual([]);
 
@@ -338,6 +417,8 @@ describe('a rota, de ponta a ponta', () => {
     } finally {
       if (anterior === undefined) delete process.env.CADASTRO_ABERTO;
       else process.env.CADASTRO_ABERTO = anterior;
+      if (baseAntes === undefined) delete process.env.DOMINIO_BASE;
+      else process.env.DOMINIO_BASE = baseAntes;
     }
   });
 });
