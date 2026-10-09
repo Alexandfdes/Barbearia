@@ -14,9 +14,12 @@
   --color-dark-card: #1a1a1a;
   --color-dark-surface: #222222;
 
-  /* Verde industrial — derivado de #0f766e */
+  /* Verde industrial — o par padrão, igual a ACCENT_PADRAO (`lib/accent.ts`).
+     O hover ESCURECE: o texto do botão é branco. Até 09/10/2026 era #0d9488,
+     mais claro que o próprio botão — 3,74:1 com branco, abaixo do piso de 4,5:1
+     (`PENDENCIAS-ABERTAS.md` §4.12). #0b5f58 dá 7,52:1. */
   --color-teal: #0f766e;
-  --color-teal-hover: #0d9488;
+  --color-teal-hover: #0b5f58;
   --color-teal-light: #5eead4;
   --color-teal-muted: #4a7a64;
 

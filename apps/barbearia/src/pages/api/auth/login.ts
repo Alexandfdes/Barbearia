@@ -51,6 +51,16 @@ const bodySchema = z.object({
 });
 
 export const POST: APIRoute = async ({ request, clientAddress }) => {
+  // Só JSON. Com o `checkOrigin` desligado (`astro.config.mjs`), um formulário de
+  // outro site manda `text/plain` com corpo em forma de JSON sem pré-voo nenhum —
+  // e esta rota abriria sessão: o visitante ficaria logado numa conta do atacante
+  // ("login CSRF"), e o que ele cadastrasse depois iria para lá. `application/json`
+  // vindo de outro site exige o pré-voo de CORS, que este servidor não autoriza.
+  // Até 09/10/2026 faltava esta linha (`PENDENCIAS-ABERTAS.md` §2.23).
+  if (!(request.headers.get('content-type') ?? '').toLowerCase().startsWith('application/json')) {
+    return json({ error: 'Envie os dados como JSON.' }, 415);
+  }
+
   let body: unknown;
   try { body = await request.json(); }
   catch { return json({ error: 'JSON inválido' }, 400); }
