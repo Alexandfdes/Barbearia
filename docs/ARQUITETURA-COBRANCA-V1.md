@@ -447,9 +447,30 @@ O painel detecta os 15 dias e **avisa você**. Você clica. Não automatize aind
 
 ### 7.4 Subdomínio e SSL
 
-Um registro DNS curinga `*.seuproduto.com.br → IP do VPS` mais o Traefik do EasyPanel emitindo
-certificado por host sob demanda (HTTP-01). Zero trabalho por cliente novo e nenhuma API de DNS
-para integrar.
+> ⚠️ **Corrigido em 09/10/2026: o parágrafo abaixo não funciona como está escrito.**
+> Conferido na documentação do Traefik nesta data: ele pede certificado só para os endereços
+> escritos nas regras de roteamento (`Host()` ou `tls.domains`), não para qualquer endereço na
+> hora em que alguém acessa; e *"wildcard certificates can only be generated through a DNS-01
+> challenge"*. A documentação do EasyPanel diz o mesmo: o domínio curinga dele é DNS-01, com a
+> credencial da API do provedor de DNS nas variáveis do Traefik.
+>
+> **E o DNS do registro.br não está na lista de provedores que o Traefik suporta** (a do lego,
+> conferida na mesma data); a Cloudflare está. O caminho, então:
+>
+> 1. registrar `fadeline.com.br` no registro.br, como planejado;
+> 2. trocar os servidores de nome para os da Cloudflare (plano gratuito) — o registro continua
+>    no registro.br, só o DNS muda de lugar;
+> 3. no Traefik do EasyPanel, o resolvedor DNS-01 com um token da Cloudflare, e o domínio do
+>    app marcado como curinga — e a raiz e o `painel.` em entradas separadas, que é como o
+>    EasyPanel pede.
+>
+> **Rejeitado: cadastrar cada subdomínio à mão no EasyPanel**, um certificado por barbearia.
+> O autoatendimento deixaria de ser automático, e o Let's Encrypt limita a 50 certificados por
+> domínio a cada 7 dias (conferido em 09/10/2026). **Não testado:** depende do domínio
+> registrado e da VPS. É o teste que decide se a tela "O seu site está no ar" diz a verdade
+> (`JORNADA-DO-BARBEIRO.md` §2.8).
+>
+> *O texto de 28/08, como estava:*
 
 Domínio próprio do cliente continua manual: registrar, apontar, adicionar o host. São ~15 minutos
 dentro das 3,5h de implantação já cobradas, e é o item que mais reforça a venda

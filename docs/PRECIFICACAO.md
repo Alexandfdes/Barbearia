@@ -132,7 +132,9 @@ nada que compense, e a margem a 1,5h de suporte já seria negativa.
 **Subdomínio nosso incluso; domínio próprio como opção paga pelo cliente.**
 
 - Todo cliente entra em `barbeariax.fadeline.com.br`, sem custo e sem trabalho:
-  DNS curinga mais Traefik emitindo certificado por host.
+  DNS curinga mais um certificado curinga. *(Corrigido em 09/10/2026: dizia "Traefik
+  emitindo certificado por host", o que ele não faz; o certificado curinga exige o DNS na
+  Cloudflare — `ARQUITETURA-COBRANCA-V1.md` §7.4.)*
 - Quem quiser domínio próprio paga o registro (R$ 40/ano) no CPF/CNPJ dele, e você
   aponta e opera como responsável técnico.
 

@@ -80,15 +80,21 @@ horários — tudo é linha no banco dela. Foi a Fase 1 (marca vindo do banco) e
 
 ## 4. Roteamento e certificado
 
-Traefik do EasyPanel emitindo certificado por host sob demanda (HTTP-01).
+~~Traefik do EasyPanel emitindo certificado por host sob demanda (HTTP-01).~~ **Corrigido em
+09/10/2026:** o Traefik não emite certificado para qualquer endereço na hora, e o certificado
+curinga dos subdomínios só sai pelo desafio DNS-01 — com o DNS num provedor que ele suporte, e
+o registro.br não é um deles. O caminho é o DNS na Cloudflare (`ARQUITETURA-COBRANCA-V1.md`
+§7.4). Para o domínio próprio do cliente, o certificado por endereço continua valendo: ali o
+endereço é escrito à mão.
 
 - **Subdomínio nosso** — um registro DNS curinga `*.fadeline.com.br` aponta para o
   IP do VPS. Cliente novo não dá trabalho nenhum.
 - **Domínio próprio do cliente** — registrar, apontar, adicionar o host. ~15 minutos
   manuais, dentro da implantação. É o que mais reforça a venda; não vale automatizar.
 
-A escolha entre os dois **ainda está aberta** (`PENDENCIAS-ABERTAS.md` §1.1). A tela
-`/acessar` do site do produto já aceita as duas formas, então a decisão não a bloqueia.
+~~A escolha entre os dois **ainda está aberta**~~ — decidida em 01/09/2026: subdomínio nosso
+incluso, domínio próprio como opção paga pelo cliente (`PENDENCIAS-ABERTAS.md` §1.1 e
+`PRECIFICACAO.md` §6). A tela `/acessar` do site do produto já aceita as duas formas.
 
 ## 5. Como uma barbearia nova entra
 
