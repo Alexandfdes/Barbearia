@@ -110,6 +110,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   subir (`predev`). Não há journal do Drizzle, e `db:push` e `db:generate` recusam de propósito.
 - **E-mail no desenvolvimento** vai para `apps/barbearia/data/emails/`, um `.txt` por e-mail —
   é ali que está o link da senha nova. Com `SMTP_URL`, sai de verdade (`src/lib/email.ts`).
+- **Dependências:** o npm 10 quebra ao mexer nelas (`edgesOut`). Gere o lock com
+  `npx npm@11 install` e regrave com o npm 10 (`npm install`), que é o do Docker; o `npm ci`
+  dos dois tem que passar (`docs/PENDENCIAS-ABERTAS.md` §2.29).
 - **O shell da máquina do usuário (`device_bash`) às vezes está fora.** Nesse caso:
   `device_stage_files` → editar no container → `device_commit_files`, sempre com
   `expectedMtimeMs` para não sobrescrever edição do usuário.
