@@ -536,7 +536,7 @@ Conferido em 24/09/2026, atualizado em 25/09/2026 e em 08/10/2026:
 | Fotos — galeria do site e foto de produto | ✅ 25/09, no painel, depois do cadastro (ver *Fotos*, acima) |
 | Três layouts de site | ❌ existe **um**, escuro — e é o do lançamento, pela decisão de 08/10 (abaixo) |
 | Cores do dono | ✅ **uma**, escolhida no cadastro com a prévia do topo do site desde 08/10, e trocada no painel; o contraste é garantido por derivação (`lib/accent.ts`, 13 testes) |
-| E-mail do dono | ✅ pedido no cadastro desde 08/10, para a senha e os avisos — que ainda não existem |
+| E-mail do dono | ✅ pedido no cadastro desde 08/10; desde 09/10, a senha nova, os avisos do teste e da cobrança e o e-mail de boas-vindas — falta o provedor de envio (`PENDENCIAS-ABERTAS.md` §4.17) |
 | Cartão no cadastro | ❌ nenhuma linha de código — e, desde 08/10, pedido no fim do teste, não no cadastro |
 | Teste de 7 dias | ✅ desde 08/10: nasce no teste, com a data de fim; 3 dias de carência; depois, o site fora do ar com o WhatsApp da barbearia e o painel só na tela de assinatura (`PENDENCIAS-ABERTAS.md` §4.14) |
 | Cobrança automática | ❌ nenhuma linha de código — e, sem ela, ninguém consegue pagar: o cadastro não abre antes |
@@ -636,5 +636,7 @@ e `PENDENCIAS-ABERTAS.md` §4.13, e em parte `PENDENCIAS-ABERTAS.md` §4.17 — 
 a recuperação não existe. **Com o teste de 7 dias, no mesmo dia:** `JORNADA-DO-BARBEIRO.md`
 §2.6, `JORNADA-DO-BARBEIRO.md` §2.9 e `JORNADA-DO-BARBEIRO.md` §2.10,
 `PENDENCIAS-ABERTAS.md` §1.3, `PENDENCIAS-ABERTAS.md` §3.5 e `PENDENCIAS-ABERTAS.md` §4.14, e o
-`ARQUITETURA-COBRANCA-V1.md` §5.2.
+`ARQUITETURA-COBRANCA-V1.md` §5.2. **Com o e-mail, em 09/10/2026:** `PENDENCIAS-ABERTAS.md` §4.17,
+`PENDENCIAS-ABERTAS.md` §2.13 e `PENDENCIAS-ABERTAS.md` §1.3, e os passos 2 e 9 do
+`JORNADA-DO-BARBEIRO.md`.
 

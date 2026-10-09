@@ -29,7 +29,7 @@
 | **24/09** | **Fotos no painel, logo depois do cadastro** — galeria do site (o carrossel, a partir de 3 fotos) e foto de produto por barbearia; não no formulário do cadastro. Feito em 25/09 (§2.7) | `PLANO-PRODUTIZACAO.md` §13 |
 | **27/09** | **Layout e cores escolhidos no cadastro, antes do cartão** — o site já nasce com a cara que o dono escolheu. Rejeitado: escolher no painel, depois de entrar (§4.13) | `PLANO-PRODUTIZACAO.md` §13 e `JORNADA-DO-BARBEIRO.md` §2.4 |
 | **08/10** | **Nome provisório: Fadeline** — escolhido pelo dono entre 103 nomes conferidos no registro.br. Provisório tem prazo: vale até o cadastro abrir. Trocado no código no mesmo dia | `PENDENCIAS-ABERTAS.md` §0.1 |
-| **08/10** | **O desenho do cadastro e da cobrança:** um layout com a cor do dono; o cartão no fim do teste; a cobrança como módulo do app; e-mail para a senha e os avisos; 3 dias de carência; só mensal. **Feitos no mesmo dia:** o cadastro (§4.13, §4.16 e §4.17) e o teste de 7 dias, com a carência e o site fora do ar (§1.3, §3.5 e §4.14) | `PLANO-PRODUTIZACAO.md` §13 |
+| **08/10** | **O desenho do cadastro e da cobrança:** um layout com a cor do dono; o cartão no fim do teste; a cobrança como módulo do app; e-mail para a senha e os avisos; 3 dias de carência; só mensal. **Feitos no mesmo dia:** o cadastro (§4.13, §4.16 e §4.17) e o teste de 7 dias, com a carência e o site fora do ar (§1.3, §3.5 e §4.14). **Em 09/10:** o e-mail — a senha nova, os avisos do teste e da cobrança e a troca de senha derrubando as sessões (§4.17 e §2.13) | `PLANO-PRODUTIZACAO.md` §13 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -181,8 +181,9 @@ nenhum: parece que a política existe.
 > site fora do ar mostra o WhatsApp da barbearia; o painel fora do ar mostra também os
 > próximos horários, para consulta; e o teste vai até o fim do 7º dia depois do cadastro.
 > **Feito em 08/10/2026:** a regra roda no código (`apps/barbearia/src/lib/situacao.ts`); falta
-> a cobrança que a dispara (§4.14). **Continua aberto:** quanto tempo a barbearia suspensa
-> guarda os dados e segura o endereço (§1.2).
+> a cobrança que a dispara (§4.14). **Feito em 09/10/2026:** os avisos por e-mail — 2 dias
+> antes do fim do teste, no começo da carência e quando o site sai do ar (§4.17). **Continua
+> aberto:** quanto tempo a barbearia suspensa guarda os dados e segura o endereço (§1.2).
 
 O gateway está escolhido, mas a política não. Hoje **não existe nada que suspenda uma
 instância**. Se a regra for "site sai do ar após N dias", isso é feature a construir —
@@ -203,8 +204,9 @@ para quem atrasa:
   (`PLANO-PRODUTIZACAO.md` §13). Com isso, a pergunta de cima muda de forma: deixa de ser
   "e se ele não pagar" e passa a ser **"e se a cobrança no cartão falhar"** — recusado,
   sem limite, vencido, ou cancelado por ele.
-- **Aviso antes de acabar.** Quando, e por onde — o dono não abre e-mail; WhatsApp exige
-  a Evolution API ou parecido, que hoje não existe no produto.
+- ~~**Aviso antes de acabar.** Quando, e por onde — o dono não abre e-mail; WhatsApp exige
+  a Evolution API ou parecido, que hoje não existe no produto.~~ — ✅ por e-mail, decidido em
+  08/10 e feito em 09/10/2026 (§4.17). O custo aceito continua: o dono pode não abrir o e-mail.
 
 ### 1.4 🔴 `[DECISÃO]` Política de suporte — virou pré-requisito do preço
 
@@ -776,9 +778,14 @@ na conexão de dono, que enxerga todas as barbearias — sem o filtro, um cookie
 
 Quatro casos novos em `tests/sessao-tenant.test.ts`, todos vermelhos com a versão anterior.
 
-⚠️ **Trocar a senha ainda não derruba sessão.** A reconsulta cobre demissão e rebaixamento,
-não revogação por senha — para isso falta um carimbo de versão da sessão gravado no
-barbeiro e conferido aqui.
+✅ **Trocar a senha derruba as sessões abertas — desde 09/10/2026.** O cookie passou a levar
+quando foi emitido, e a troca grava `barbers.senha_trocada_em` (migration 0008): a sessão
+emitida antes da troca deixa de valer na requisição seguinte
+(`apps/barbearia/src/lib/session.ts`). Vale pelos três caminhos — o link do e-mail, a tela da
+equipe e o `scripts/set-admin-password.mjs`. Quem troca a própria senha pela tela da equipe
+recebe uma sessão nova na mesma resposta, e os outros aparelhos caem. Cookie de antes desta
+versão vale até a primeira troca. *Como estava:* a reconsulta cobria demissão e
+rebaixamento, não revogação por senha.
 
 <details><summary>Os defeitos, como estavam</summary>
 
@@ -1892,7 +1899,85 @@ rótulo de DNS válido (hoje em `lib/provisionarBarbearia.ts:236`) e se já exis
 - O primeiro a pegar o nome de uma barbearia de verdade, que ainda nem é cliente, fica
   com ele. Não tem conserto técnico barato; tem que caber no termo de uso (§1.2).
 
-### 4.17 🟠 `[TÉCNICO]` Recuperação de senha — o e-mail já é pedido, a recuperação não existe
+### 4.17 ✅ `[TÉCNICO]` Recuperação de senha — FEITA em 09/10/2026; falta o provedor de envio
+
+> **Decidido em 08/10/2026: e-mail**, pedido no cadastro — um canal só, para a recuperação
+> de senha e para os avisos de fim de teste e de cobrança (`PLANO-PRODUTIZACAO.md` §13).
+>
+> **Feito em 09/10/2026:** o envio (`apps/barbearia/src/lib/email.ts`), o "Esqueci minha
+> senha" no login, a troca de senha derrubando as sessões abertas (§2.13), o e-mail na tela da
+> equipe, o e-mail de boas-vindas e os avisos do teste e da cobrança. **Falta o provedor de
+> envio:** sem ele, em produção, nada sai — e o sistema diz isso em vez de fingir que mandou.
+
+**O que existe:**
+
+- **"Esqueci minha senha"** — o link fica no login e leva a `/admin/esqueci`, que pede o
+  WhatsApp de login e manda o link ao e-mail **gravado**. A resposta é a mesma exista o número
+  ou não, e nem o tempo de resposta muda: o envio não é esperado
+  (`apps/barbearia/src/pages/api/auth/esqueci.ts`). O link vale **1 hora e uma vez**; o banco
+  guarda o hash do token, não o token; pedir de novo invalida o anterior; dois cliques no
+  mesmo link trocam a senha uma vez só. O endereço do link sai de `PAINEL_URL` ou de
+  `painel.<DOMINIO_BASE>`, **nunca do `Host` da requisição** — é o caminho do ataque conhecido
+  como *password reset poisoning*, em que o e-mail legítimo leva o dono ao site de quem pediu
+  (`apps/barbearia/src/lib/redefinicaoDeSenha.ts`).
+- **Trocar a senha derruba as sessões abertas**, pelos três caminhos (§2.13).
+- **O e-mail aparece e se troca na tela da equipe** (`/admin/barbeiros`), com aviso para o
+  dono que está sem; e a tela de assinatura diz para onde vão os avisos.
+- **Boas-vindas:** o cadastro manda o primeiro e-mail na hora, com o site, o painel, o
+  WhatsApp de login e o fim do teste. É a pista mais cedo de um e-mail digitado errado.
+- **Os avisos do teste e da cobrança** (`apps/barbearia/src/lib/avisos.ts`): 2 dias antes do
+  fim do teste, no começo da carência — teste vencido ou cobrança que falhou — e quando o site
+  sai do ar. Sai só o da fase de agora, um por prazo: a trava é a tabela `avisos_enviados`
+  (migration 0008). O texto do meio é o mesmo parágrafo da tela de assinatura.
+- **Quem dispara os avisos** é o `scripts/avisos-daemon.mjs`, de hora em hora, lançado pelo CMD
+  do Dockerfile como o daemon de backup. Ele chama `POST /api/tarefas/avisos` pela porta local,
+  com um token derivado do `SESSION_SECRET` — variável nenhuma a mais para configurar. Sem o
+  token, a rota responde 404.
+
+**O transporte é SMTP, de qualquer provedor** — escolher o provedor não mexe no código. Sem
+`SMTP_URL` em produção: o boot mostra o quadro "E-MAIL DESLIGADO" (`scripts/startup.mjs`), o
+"Esqueci minha senha" responde que não está funcionando e a tarefa dos avisos recusa com o
+motivo. No desenvolvimento, cada e-mail vira um `.txt` em `apps/barbearia/data/emails/`, que o
+`.gitignore` deixa de fora — tem link de senha.
+
+**Rejeitados, no disparo dos avisos:** o cron do EasyPanel — para app com Dockerfile ele roda
+dentro do container e pede o `crond` no lugar do comando que sobe o servidor (documentação do
+EasyPanel, conferida em 09/10/2026) — e um serviço de cron de fora, como o cron-job.org: mais
+uma conta, e a tarefa parando sem ninguém ver.
+
+**Escolhido na implementação, não por você — revise se quiser outro:** o aviso sai **2 dias**
+antes do fim do teste; o "saiu do ar" não sai para quem está fora do ar há **mais de 7 dias**
+(senão, no primeiro dia desta tarefa, toda barbearia abandonada receberia um aviso de semanas
+atrás); o link vale **1 hora**; a senha nova pede **8 caracteres**, como o cadastro; e o
+barbeiro da equipe também pode pedir a senha nova, se tiver e-mail.
+
+**O que falta, nesta ordem:**
+
+1. **Escolher o provedor de envio** e criar a conta — qualquer um que fale SMTP (Brevo,
+   Amazon SES, Resend, Postmark…). Preço e limite de plano grátis **não foram conferidos**:
+   olhar na hora de escolher.
+2. **Os registros de DNS do envio** — SPF, DKIM e DMARC — no DNS do domínio, o da Cloudflare
+   (§0). Sem eles, o e-mail cai no spam ou nem chega.
+3. **As variáveis no EasyPanel:** `SMTP_URL` (ex.: `smtps://usuario:senha@smtp.provedor.com:465`)
+   e `EMAIL_REMETENTE` (ex.: `Fadeline <nao-responda@fadeline.com.br>`, do domínio verificado
+   no provedor). `PAINEL_URL` só se o painel não morar em `painel.<DOMINIO_BASE>`.
+   `EMAIL_RESPONDER_PARA` é opcional — sem ela, quem responde o e-mail fala com ninguém.
+4. **Testar de um celular:** pedir a senha nova e ver o e-mail chegar na caixa de entrada,
+   não no spam.
+
+**O que ficou de fora — risco aceito, não esquecimento:**
+
+- **Confirmar o e-mail por um link**, recomendado aqui antes. No lugar dele: o e-mail de
+  boas-vindas e o e-mail à vista no painel. O que sobra: e-mail digitado errado só aparece
+  quando o dono nota que não recebeu nada.
+- **Avisar o e-mail antigo quando o e-mail muda.** Quem roubar a sessão do dono pode trocar
+  o e-mail e, depois, a senha. Hoje a troca de e-mail não avisa ninguém.
+- **Quem não tem e-mail** — o dono do Bayron, e quase toda a equipe — continua dependendo de
+  alguém: o barbeiro, do dono, pela tela da equipe; o dono, de você, pelo
+  `scripts/set-admin-password.mjs`. ⚠️ A regra manual continua: só troque a senha se o pedido
+  vier **do próprio número de login**.
+
+<details><summary>Como estava, até 09/10/2026</summary>
 
 > **Decidido em 08/10/2026: e-mail**, pedido no cadastro — um canal só, para a recuperação
 > de senha e para os avisos de fim de teste e de cobrança (`PLANO-PRODUTIZACAO.md` §13).
@@ -1936,6 +2021,8 @@ lugar no painel para ver e trocar o e-mail — hoje não há, nem para corrigir 
 errado. Recomendo confirmar o e-mail por um link já no primeiro envio: a forma é conferida
 no cadastro, a existência não.
 
+</details>
+
 ---
 
 ## 5. Verificações pendentes
@@ -1972,8 +2059,8 @@ código nem na suíte.
 **Onda 1 — antes do segundo cliente. ✅ FEITA em 22/09/2026.**
 Mídia por tenant (§2.9), papel na busca e revalidação da sessão (§2.13), escapar o JSON-LD
 (§2.12), consertar o guarda de escopo (§2.17) — e, junto com o último, escopar as quatro
-rotas que ele não enxergava. Sobra do bloco: a revogação de sessão por troca de senha. O
-§2.7 (foto de produto) foi feito em 24/09, com a galeria.
+rotas que ele não enxergava. ~~Sobra do bloco: a revogação de sessão por troca de senha~~ —
+✅ feita em 09/10/2026 (§2.13). O §2.7 (foto de produto) foi feito em 24/09, com a galeria.
 
 **Achados de 25/09/2026, ✅ já consertados — eram da onda 0:** a transação dentro da
 requisição (§2.19) e a agenda do dia sem resposta (§2.20). Os dois derrubariam o dia da
@@ -2000,7 +2087,7 @@ de suporte escrita na tela (§1.4); o domínio (§0); ~~quantas cores o dono esc
 fundo é dele ou do layout (§4.13)~~; e ~~o canal da recuperação de senha (§4.17)~~. Propostas
 em 27/09, também suas: ~~o cartão antes de a barbearia existir, e onde mora o código da
 cobrança (§4.14)~~. Os riscados foram decididos em 08/10/2026 (`PLANO-PRODUTIZACAO.md` §13);
-falta confirmar se o teste que acaba sem cartão segue os mesmos 3 dias.
+o teste que acaba sem cartão segue os mesmos 3 dias — confirmado no mesmo dia (§1.3).
 
 *Código, nesta ordem* — detalhada pelo caminho do barbeiro em
 `JORNADA-DO-BARBEIRO.md` §5:
@@ -2022,8 +2109,9 @@ falta confirmar se o teste que acaba sem cartão segue os mesmos 3 dias.
 5. ~~O teste de 7 dias~~ e ~~a página de suspensão~~ — ✅ feitos em 08/10/2026, com a
    contagem dos dias no painel —, a cobrança (§4.14 e §3.5) e o botão de cancelar. A
    cobrança depende da conta na Asaas, e o cadastro não abre sem ela.
-   - **5b.** A recuperação de senha (§4.17) e o aviso antes de cobrar (§1.3), que usam o
-     mesmo canal — o e-mail, já pedido no cadastro desde 08/10.
+   - **5b.** ~~A recuperação de senha (§4.17) e o aviso antes de cobrar (§1.3), que usam o
+     mesmo canal~~ — ✅ feitos em 09/10/2026, pelo e-mail. Falta o provedor de envio, que
+     depende do domínio (§4.17).
 6. A landing, o `/acessar` e a aposentadoria do `/onboarding` (§4.15) — por último de
    propósito: ela descreve o produto pronto.
 7. A página "Como fica" (§4.10) — as imagens têm que mostrar os três layouts, então vem

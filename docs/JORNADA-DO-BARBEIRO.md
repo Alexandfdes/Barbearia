@@ -40,7 +40,7 @@ flowchart TD
     P5 --> P6["6 · A barbearia nasce<br/>✅ no teste de 7 dias"]
     P6 --> P7["7 · O painel na hora<br/>✅"]
     P7 --> P8["8 · O site no ar<br/>⚠️ sem domínio"]
-    P8 --> P9["9 · Os 7 dias<br/>⚠️ falta o aviso por e-mail"]
+    P8 --> P9["9 · Os 7 dias<br/>⚠️ falta o provedor de e-mail"]
     P9 --> P10["10 · Depois do teste<br/>⚠️ falta a cobrança"]
 ```
 
@@ -54,7 +54,7 @@ flowchart TD
 | 6 | A barbearia é criada | ✅ no teste, com a data de fim gravada, desde 08/10 |
 | 7 | Entra no painel | ✅ já logado, desde 25/09 |
 | 8 | O site vai ao ar | ⚠️ a tela de fim mostra o link desde 08/10; não há domínio |
-| 9 | Os 7 dias grátis | ⚠️ a contagem no painel existe desde 08/10; o aviso por e-mail, não |
+| 9 | Os 7 dias grátis | ⚠️ a contagem no painel existe desde 08/10, e o aviso por e-mail desde 09/10 — falta o provedor de envio |
 | 10 | A primeira cobrança, e o que vem depois | ⚠️ a carência e o site fora do ar existem desde 08/10; a cobrança, não |
 
 **O que já dá para mostrar hoje, de ponta a ponta,** na sua máquina, com
@@ -148,22 +148,22 @@ só, em cinco blocos (`cadastrar.astro:184-289`):
 
 **O que pode dar errado:**
 
-- **A senha criada às pressas é a que ele esquece.** Não existe "esqueci minha senha": hoje
-  quem troca é você, rodando `scripts/set-admin-password.mjs`. No autoatendimento cada
-  esquecimento vira um chamado, e o suporte precisa caber em meia hora por cliente
-  (`PENDENCIAS-ABERTAS.md` §1.4). O canal foi decidido em 08/10 — e-mail — e o e-mail já é
-  pedido; a recuperação não existe (`PENDENCIAS-ABERTAS.md` §4.17, com a regra manual para até
-  lá).
+- ~~**A senha criada às pressas é a que ele esquece.** Não existe "esqueci minha senha"~~ — ✅
+  existe desde 09/10/2026: o link no login manda a senha nova ao e-mail do cadastro
+  (`PENDENCIAS-ABERTAS.md` §4.17). Quem não tem e-mail — a equipe, e o dono do Bayron —
+  continua dependendo de alguém: o barbeiro, do dono, pela tela da equipe; o dono, de você,
+  pelo `scripts/set-admin-password.mjs`, com a regra manual de lá. ⚠️ E, em produção, nada sai
+  até existir o provedor de envio.
 - **Um WhatsApp para duas coisas.** Quem entra com o número pessoal e quer o da loja no
   site não tem como separar. O provisionador aceita um segundo número (`telefoneDono`,
   `apps/barbearia/src/lib/provisionarBarbearia.ts:53`), mas nem a tela nem a rota do
   cadastro o recebem (`apps/barbearia/src/pages/api/cadastrar.ts:62-82`).
-- ~~**Não pedimos e-mail**~~ — ✅ pedimos desde 08/10/2026. Falta o que o usa: o envio, a
-  recuperação de senha e os avisos (`PENDENCIAS-ABERTAS.md` §4.17).
-- **E-mail digitado errado ninguém percebe.** A forma é conferida, a existência não:
-  `ze@gmial.com` passa, e o erro só aparece no dia em que ele pedir a senha nova — ou no aviso
-  do fim do teste que não chegou. E o painel não tem onde corrigir o e-mail. Recomendo
-  confirmar por um link, junto com o envio (`PENDENCIAS-ABERTAS.md` §4.17).
+- ~~**Não pedimos e-mail**~~ — ✅ pedimos desde 08/10/2026, e desde 09/10 ele é usado: a
+  senha nova, os avisos e o e-mail de boas-vindas (`PENDENCIAS-ABERTAS.md` §4.17).
+- **E-mail digitado errado continua difícil de perceber.** A forma é conferida, a existência
+  não: `ze@gmial.com` passa. Desde 09/10 há duas pistas — o e-mail de boas-vindas, que não
+  chega, e o e-mail à vista no painel, na tela da equipe e na de assinatura, onde se corrige.
+  A confirmação por link, recomendada aqui antes, não foi feita (`PENDENCIAS-ABERTAS.md` §4.17).
 
 ### 2.3 Passo 3 — Horário, serviços e preços
 
@@ -433,15 +433,18 @@ sem a cor e a frase, que passaram a ser pedidas no próprio cadastro (passo 4).
   de assinatura (o texto em `apps/barbearia/src/lib/assinatura.ts`; a faixa no
   `AdminLayout.astro`). O fim do cadastro já diz a data — *"7 dias grátis, até 15/10."* —, e
   a tela `/admin/assinatura` diz o prazo, o preço e o que acontece depois.
-- **O aviso fora do painel não existe.** Quem não abre o painel não vê a faixa. O canal está
-  decidido — e-mail, já pedido no cadastro (`PENDENCIAS-ABERTAS.md` §4.17) —; falta o envio.
+- **O aviso fora do painel existe desde 09/10/2026**, por e-mail: 2 dias antes do fim do
+  teste, quando ele acaba e quando o site sai do ar — um de cada, e só o da fase de agora
+  (`apps/barbearia/src/lib/avisos.ts`). ⚠️ Em produção, só sai depois de existir o provedor de
+  envio (`PENDENCIAS-ABERTAS.md` §4.17).
 - ~~**Um aviso antes da primeira cobrança**~~ — mudou de forma em 08/10: com o cartão no fim
   do teste, o aviso que importa é o do fim do teste e o da carência.
 
 **O que pode dar errado:** ~~a cobrança que ele não lembrava de ter autorizado~~ — sem
 objeto desde 08/10: ninguém é cobrado sem ter cadastrado o cartão depois de usar. O risco
 virou o contrário: **o dono que gostou, não abriu o painel e só descobre que o site saiu do
-ar quando um cliente reclama.** Até o e-mail existir, a faixa é o único aviso.
+ar quando um cliente reclama.** Até o provedor de e-mail existir, a faixa é o único aviso; depois, o e-mail — que ele pode
+não abrir.
 
 ### 2.10 Passo 10 — A primeira cobrança, e o que vem depois
 
@@ -458,7 +461,7 @@ botão do cartão está desligado até a Asaas entrar (`PENDENCIAS-ABERTAS.md` �
 | **O cartão recusa** | ✅ a mesma regra (`PENDENCIAS-ABERTAS.md` §1.3) — falta quem marque a falha: o webhook da Asaas gravando `past_due` |
 | **Fora do ar** | ✅ desde 08/10: o site responde 503 com *"O agendamento online está temporariamente indisponível"*, o nome e o WhatsApp da barbearia, sem falar em dívida (`apps/barbearia/src/lib/siteForaDoAr.ts`). O painel abre só a tela de assinatura, sem a navegação e com os próximos horários para consulta; o login leva até ela. Pagou, volta — em até 30 segundos, o tempo do cache de barbearias. Dar 404 continua descartado (`PENDENCIAS-ABERTAS.md` §3.5) |
 | **Ele quer cancelar** | Um botão no painel. Sem ele, cancelar é mandar WhatsApp para você — e o "avisando 30 dias" começa quando você lê. No autoatendimento, o comum é cancelar na hora e o site ficar no ar até o fim do mês pago; é decisão para o termo (`PENDENCIAS-ABERTAS.md` §1.2) |
-| **Esqueceu a senha** | A recuperação que não existe (`PENDENCIAS-ABERTAS.md` §4.17) |
+| **Esqueceu a senha** | ✅ desde 09/10: "Esqueci minha senha" no login, com o link no e-mail do cadastro; quem não tem e-mail depende do dono ou de você (`PENDENCIAS-ABERTAS.md` §4.17) |
 | **Quer a nota fiscal** | Não tratado em desenho nenhum (`ARQUITETURA-COBRANCA-V1.md` §11) |
 | **Quer levar os clientes embora** | A exportação (`PENDENCIAS-ABERTAS.md` §3.6) — é resposta de contrato também |
 | **Testou e não pagou** | O que fazer com os dados dos clientes dele — e com o endereço, que a barbearia fora do ar segura para sempre (`PENDENCIAS-ABERTAS.md` §1.2) |
@@ -554,10 +557,10 @@ Em ordem de quando trava:
 | Quantas cores, e se o fundo é dele (`PENDENCIAS-ABERTAS.md` §4.13) | 4 | Uma cor, fundo do layout: é o que a garantia de contraste de hoje já cobre |
 | O cartão antes ou depois da barbearia (§3.1, acima; registrado em `PENDENCIAS-ABERTAS.md` §4.14) | 5 | Antes: nasce `pending` |
 | Onde mora a cobrança (§3.2, acima; registrado em `PENDENCIAS-ABERTAS.md` §4.14) | 5 | O módulo, registrando a reversão |
-| Como ele recupera a senha, e se o cadastro pede e-mail (`PENDENCIAS-ABERTAS.md` §4.17) | 2 e 10 | Um canal só para a senha e para o aviso de cobrança |
+| ~~Como ele recupera a senha, e se o cadastro pede e-mail~~ — ✅ e-mail, decidido em 08/10 e feito em 09/10 (`PENDENCIAS-ABERTAS.md` §4.17) | 2 e 10 | Um canal só para a senha e para o aviso de cobrança |
 | O plano anual à vista no autoatendimento (`PENDENCIAS-ABERTAS.md` §4.15) | 1 e 5 | Tirar da primeira versão: começa mensal, e o anual vira oferta dentro do painel depois do 8º dia |
 | O 8º dia sem pagamento (`PENDENCIAS-ABERTAS.md` §1.3) | 10 | — |
-| O canal do aviso antes de cobrar (`PENDENCIAS-ABERTAS.md` §1.3) | 9 | O mesmo da recuperação de senha |
+| ~~O canal do aviso antes de cobrar~~ — ✅ o e-mail, feito em 09/10 (`PENDENCIAS-ABERTAS.md` §1.3) | 9 | O mesmo da recuperação de senha |
 | O nome e o domínio (`PENDENCIAS-ABERTAS.md` §0) | 8 | Antes de abrir o cadastro: o endereço aparece para o dono no primeiro minuto |
 
 ---
@@ -596,8 +599,9 @@ caminho do barbeiro. Muda uma coisa lá e encaixa o que a jornada achou sem luga
    contagem e a tela de assinatura. **Faltam** o Checkout, o webhook idempotente e o
    cancelar. `pending` e a limpeza das pendentes saíram: com o cartão no fim do teste, elas
    não existem.
-   - **5b. A recuperação de senha e o aviso antes de cobrar**, que usam o mesmo canal
-     (`PENDENCIAS-ABERTAS.md` §4.17 e `PENDENCIAS-ABERTAS.md` §1.3).
+   - ~~**5b. A recuperação de senha e o aviso antes de cobrar**, que usam o mesmo canal~~ —
+     ✅ 09/10, pelo e-mail; falta o provedor de envio (`PENDENCIAS-ABERTAS.md` §4.17 e
+     `PENDENCIAS-ABERTAS.md` §1.3).
 6. **A landing, o `/acessar` e a aposentadoria do `/onboarding` e do `/envios`**
    (`PENDENCIAS-ABERTAS.md` §4.15) — por último de propósito: ela descreve o produto pronto.
 7. **A página "Como fica"** (`PENDENCIAS-ABERTAS.md` §4.10) — mostra os três layouts, então
@@ -638,6 +642,12 @@ existe no código* do `PLANO-PRODUTIZACAO.md` §13 e a linha de 08/10 do `ESTADO
 `PENDENCIAS-ABERTAS.md` §3.5, `PENDENCIAS-ABERTAS.md` §4.14 e a onda 2 do
 `PENDENCIAS-ABERTAS.md` §6, o `PLANO-PRODUTIZACAO.md` §13, o `ARQUITETURA-COBRANCA-V1.md` §5.2,
 o `ARQUITETURA-MULTI-TENANT-V1.md` §5.1 e o `ESTADO-ATUAL.md` §7 e o `ESTADO-ATUAL.md` §8.
+
+**Mudou em 09/10/2026, com o e-mail:** os passos 2 e 9, a tabela do passo 10, as duas
+decisões do e-mail no §4 e o item 5b do §5, acima; e, fora daqui, `PENDENCIAS-ABERTAS.md` §1.3,
+`PENDENCIAS-ABERTAS.md` §2.13, `PENDENCIAS-ABERTAS.md` §4.17 e a onda 2 do
+`PENDENCIAS-ABERTAS.md` §6, o `PLANO-PRODUTIZACAO.md` §13, o `ARQUITETURA-COBRANCA-V1.md` §5.2, o
+`ROTEIRO-MIGRACAO-PRODUCAO.md` §3.1 e o `ESTADO-ATUAL.md` §7 e o `ESTADO-ATUAL.md` §8.
 
 **Muda quando for decidido ou implementado — não antes:**
 
