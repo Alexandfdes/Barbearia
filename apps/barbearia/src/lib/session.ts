@@ -21,6 +21,14 @@ import { barbers } from '../db/schema.js';
 export interface SessionData extends SessaoComTenant {
   barberId: number;
   role: 'admin' | 'barber';
+  /**
+   * Quando o cookie foi emitido, em milissegundos — carimbado por
+   * `makeSessionCookie`, nunca por quem chama. É o que faz trocar a senha tirar
+   * todo mundo de dentro: sessão emitida antes da troca deixa de valer
+   * (`conferirBarbeiro`, abaixo). Cookie de antes de 09/10/2026 não tem; conta
+   * como emitido no começo dos tempos.
+   */
+  emitidaEm?: number;
 }
 
 function secret(): string {
@@ -134,11 +142,24 @@ async function conferirBarbeiro(data: SessionData): Promise<SessionData | null> 
   // na conexão de dono, que enxerga todas as barbearias. Sem ele, um cookie com
   // `barberId` de uma barbearia e `tenantId` de outra passaria.
   const barbeiro = await first(db
-    .select({ role: barbers.role, active: barbers.active })
+    .select({ role: barbers.role, active: barbers.active, senhaTrocadaEm: barbers.senhaTrocadaEm })
     .from(barbers)
     .where(and(eq(barbers.id, data.barberId), eq(barbers.tenantId, data.tenantId!))));
 
   if (!barbeiro || !barbeiro.active) return null;
+
+  // ⚠️ TROCAR A SENHA TIRA TODO MUNDO DE DENTRO — e até 09/10/2026 não tirava.
+  //
+  // O cookie é lacrado e não tem registro no servidor: uma sessão aberta valia
+  // os 30 dias inteiros, com a senha trocada ou não (`PENDENCIAS-ABERTAS.md`
+  // §2.13). O caso que importa é o pior: o dono desconfia que alguém sabe a
+  // senha dele, troca — e quem já estava dentro continua dentro.
+  //
+  // A troca grava `senha_trocada_em` (migration 0008), e o cookie emitido ANTES
+  // dela deixa de valer aqui. Pelo e-mail de senha nova, pela tela da equipe ou
+  // pelo script de suporte: os três gravam.
+  const trocada = barbeiro.senhaTrocadaEm?.getTime();
+  if (trocada !== undefined && (data.emitidaEm ?? 0) < trocada) return null;
 
   // O papel do banco vence o do cookie: rebaixar tem efeito na requisição
   // seguinte, sem precisar derrubar a sessão.
@@ -146,7 +167,8 @@ async function conferirBarbeiro(data: SessionData): Promise<SessionData | null> 
 }
 
 export async function makeSessionCookie(data: SessionData): Promise<string> {
-  const seal   = await sealData(data, { password: secret(), ttl: TTL });
+  // O carimbo é sempre AGORA: quem chama não escolhe quando a sessão nasceu.
+  const seal   = await sealData({ ...data, emitidaEm: Date.now() }, { password: secret(), ttl: TTL });
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
   return `${SESSION_COOKIE}=${seal}; HttpOnly${secure}; SameSite=Lax; Max-Age=${TTL}; Path=/`;
 }

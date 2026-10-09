@@ -1,7 +1,12 @@
 /**
  * Define/reseta a senha de um barbeiro direto no banco — o caminho de suporte
- * para quando o dono perdeu o acesso ao painel (não dá para trocar a senha pela
- * interface sem estar logado).
+ * para quando o dono perdeu o acesso ao painel.
+ *
+ * Desde 09/10/2026 existe o "Esqueci minha senha" do login, que manda o link ao
+ * e-mail cadastrado (`src/lib/redefinicaoDeSenha.ts`). Este script continua sendo
+ * o caminho de quem NÃO tem e-mail no cadastro — o dono do Bayron é um deles.
+ * ⚠️ A regra de sempre: só troque se o pedido vier do próprio número de login
+ * (`docs/PENDENCIAS-ABERTAS.md` §4.17).
  *
  * Uso:
  *   node scripts/set-admin-password.mjs <slug> <novaSenha>
@@ -78,11 +83,19 @@ try {
 
   // Reativa junto: senão o login recusa mesmo com a senha certa, e o suporte
   // fica caçando por que "a senha nova não funciona".
-  await sql`UPDATE barbers SET password_hash = ${hash}, active = true WHERE id = ${barbeiro.id}`;
+  //
+  // E grava `senha_trocada_em` (migration 0008): toda sessão aberta com a senha
+  // antiga cai na requisição seguinte (`src/lib/session.ts`). Quem pede a senha
+  // ao suporte porque desconfia de alguém quer esse alguém fora.
+  await sql`
+    UPDATE barbers
+       SET password_hash = ${hash}, active = true, senha_trocada_em = ${new Date().toISOString()}
+     WHERE id = ${barbeiro.id}
+  `;
 
   if (!barbeiro.active) console.log('(barbeiro estava inativo — reativado)');
   console.log(`✓ Senha de "${barbeiro.name}" (${barbeiro.tenant_slug}/${slug}) atualizada.`);
-  console.log('Agora é só logar no painel com essa senha.');
+  console.log('As sessões abertas com a senha antiga foram encerradas. Agora é só logar no painel com a nova.');
 } catch (erro) {
   console.error('✕ Falhou:', erro.message);
   process.exitCode = 1;

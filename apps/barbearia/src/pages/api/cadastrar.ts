@@ -43,6 +43,10 @@ import { getClientIp } from '../../lib/clientIp.js';
 import { carregarTenants, invalidarTenants, resolverHost, urlDoSite } from '../../lib/tenant.js';
 import { makeSessionCookie } from '../../lib/session.js';
 import { ultimoDia } from '../../lib/situacao.js';
+import { enviarEmail, normalizarEmail } from '../../lib/email.js';
+import { formatarTelefone } from '../../lib/phone.js';
+import { urlDoPainel } from '../../lib/tenant.js';
+import { NOME_PRODUTO } from '../../lib/produto.js';
 
 export const CADASTRO_ABERTO = () => process.env.CADASTRO_ABERTO === '1';
 
@@ -161,6 +165,26 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
    * sessão de outra barbearia para ele cair dentro.
    */
   const sessao = await makeSessionCookie({ barberId: r.barbeiroId, role: 'admin', tenantId: r.tenantId });
+
+  // O primeiro e-mail — e o único jeito de saber cedo que o endereço existe: se
+  // ele não chegar, o dono descobre hoje, com o cadastro fresco, e não no dia em
+  // que pedir a senha nova. Sem `await`: o cadastro já deu certo, e um provedor
+  // de e-mail lento não pode segurar a tela de "O seu site está no ar".
+  const email = normalizarEmail(parsed.data.email);
+  if (email) {
+    enviarEmail({
+      para: email,
+      ...emailDeBoasVindas({
+        dono: parsed.data.dono.trim(),
+        barbearia: r.nome,
+        site,
+        painel: urlDoPainel(),
+        whatsapp: formatarTelefone(r.telefoneLogin),
+        ultimoDiaDoTeste: corpo.ultimoDiaDoTeste,
+      }),
+    }).catch((erro) => console.warn('[cadastro] o e-mail de boas-vindas não saiu:', erro instanceof Error ? erro.message : erro));
+  }
+
   return new Response(JSON.stringify(corpo), {
     status: 201,
     headers: {
@@ -169,6 +193,34 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     },
   });
 };
+
+/** O e-mail de boas-vindas. Exportado para o teste ler o que o dono vai ler. */
+export function emailDeBoasVindas(d: {
+  dono: string;
+  barbearia: string;
+  site: string | null;
+  painel: string;
+  whatsapp: string;
+  ultimoDiaDoTeste: string | null;
+}): { assunto: string; texto: string } {
+  return {
+    assunto: `${d.barbearia} está no ar — ${NOME_PRODUTO}`,
+    texto: [
+      `Olá, ${d.dono}.`,
+      '',
+      ...(d.site ? [`O site da barbearia está no ar: ${d.site}`, ''] : []),
+      ...(d.painel ? [`O seu painel: ${d.painel}/admin`] : []),
+      `Você entra com o seu WhatsApp, ${d.whatsapp}, e a senha que criou no cadastro.`,
+      '',
+      ...(d.ultimoDiaDoTeste ? [`O teste grátis vai até ${d.ultimoDiaDoTeste}. Até lá, nada é cobrado.`, ''] : []),
+      'É para este e-mail que vão o link de senha nova, se você esquecer a sua, e os avisos do teste e da cobrança.',
+      '',
+      'Não foi você que fez este cadastro? Pode ignorar este e-mail.',
+      '',
+      `— ${NOME_PRODUTO}`,
+    ].join('\n'),
+  };
+}
 
 /** A lista que a tela mostra com os preços em branco. Uma fonte só. */
 export const GET: APIRoute = async () => {

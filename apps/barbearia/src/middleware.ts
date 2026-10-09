@@ -42,6 +42,15 @@ import { TELA_DE_ASSINATURA } from './lib/assinatura.js';
 
 export const onRequest = defineMiddleware(async (contexto, next) => {
   const caminho = new URL(contexto.request.url).pathname;
+
+  // As tarefas agendadas (`pages/api/tarefas/`) não são de barbearia nenhuma, e
+  // quem as chama é o daemon, pela porta local — `Host: 127.0.0.1`. Sem este
+  // desvio, o endereço decidiria: uma barbearia cadastrada com o endereço `127`
+  // (válido: só números) capturaria a chamada, e, fora do ar, a tarefa receberia
+  // a página de "temporariamente indisponível" no lugar da resposta. Os avisos
+  // parariam para todas as barbearias por causa de uma.
+  if (caminho.startsWith('/api/tarefas/')) return next();
+
   const { tenant, daSessao } = await tenantDaRequisicao(contexto.request);
 
   // ⚠️ ANTES de olhar o endereço: no desenvolvimento, o painel e a barbearia 1
@@ -76,11 +85,15 @@ export const onRequest = defineMiddleware(async (contexto, next) => {
 });
 
 /**
- * Rotas do painel. O login fica de fora: ele não usa barbearia nenhuma, e quem
- * está fora do ar precisa conseguir entrar com outra conta.
+ * As telas de `/admin` que abrem sem sessão: o login e as duas da senha nova
+ * (`lib/redefinicaoDeSenha.ts`). Nenhuma usa barbearia: quem está fora do ar
+ * precisa conseguir entrar com outra conta — e trocar a senha que esqueceu.
  */
+const PAINEL_PUBLICO = new Set(['/admin/login', '/admin/esqueci', '/admin/nova-senha']);
+
+/** Rotas do painel — as que pedem sessão. */
 function ehDoPainel(caminho: string): boolean {
-  if (caminho === '/admin/login') return false;
+  if (PAINEL_PUBLICO.has(caminho)) return false;
   return caminho === '/admin' || caminho.startsWith('/admin/') || caminho.startsWith('/api/admin/');
 }
 

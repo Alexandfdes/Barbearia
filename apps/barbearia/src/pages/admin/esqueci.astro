@@ -1,0 +1,124 @@
+---
+export const prerender = false;
+import '../../styles/global.css';
+import { iconeComLetra } from '../../lib/iconeDaAba.js';
+import { ACCENT_PADRAO } from '../../lib/accent.js';
+import { NOME_PRODUTO } from '../../lib/produto.js';
+
+/**
+ * "Esqueci minha senha" — pede o WhatsApp de login e manda o link ao e-mail
+ * gravado (`lib/redefinicaoDeSenha.ts`). Pública: o middleware a deixa abrir sem
+ * sessão, como o login.
+ */
+---
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href={iconeComLetra(NOME_PRODUTO, ACCENT_PADRAO.color)} />
+    <title>Senha nova — {NOME_PRODUTO}</title>
+  </head>
+  <body class="bg-dark text-cream min-h-screen flex items-center justify-center px-4">
+    <div class="w-full max-w-sm">
+
+      <div class="text-center mb-8">
+        <p class="text-xs text-gray uppercase tracking-widest mb-1">{NOME_PRODUTO}</p>
+        <h1 class="font-serif text-2xl font-medium text-white">Senha nova</h1>
+      </div>
+
+      <form id="esqueci-form" class="bg-dark-card border border-white/10 rounded-md p-6 space-y-4">
+        <p class="text-sm text-gray-light">
+          Digite o WhatsApp com que você entra no painel. O link para criar a senha nova vai para o
+          e-mail cadastrado.
+        </p>
+        <div>
+          <label for="whatsapp" class="block text-xs text-gray-light uppercase tracking-widest mb-2">
+            Seu WhatsApp
+          </label>
+          <input
+            id="whatsapp"
+            type="tel"
+            inputmode="tel"
+            placeholder="(84) 99999-0000"
+            autocomplete="tel"
+            autofocus
+            class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2.5 text-sm text-cream placeholder-gray focus:outline-none focus:border-teal-light/60 transition-colors"
+          />
+        </div>
+
+        <div id="esqueci-erro" class="hidden text-red-400 text-sm text-center py-1" role="alert"></div>
+
+        <button
+          type="submit"
+          id="esqueci-btn"
+          class="w-full bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest px-6 py-3 rounded transition-colors duration-300 text-sm"
+        >
+          Mandar o link
+        </button>
+      </form>
+
+      <!--
+        A mesma resposta para qualquer número — a rota não diz se ele existe
+        (`api/auth/esqueci.ts`). Por isso a frase cobre o barbeiro da equipe, que
+        quase nunca tem e-mail cadastrado: quem troca a senha dele é o dono, pelo painel.
+      -->
+      <div id="esqueci-ok" class="hidden bg-dark-card border border-white/10 rounded-md p-6 space-y-3" role="status">
+        <p id="esqueci-mensagem" class="text-sm text-cream"></p>
+        <p class="text-xs text-gray">
+          É da equipe e não tem e-mail no cadastro? Peça ao dono da barbearia para trocar a sua
+          senha em Barbeiros, no painel.
+        </p>
+      </div>
+
+      <p class="text-center mt-6">
+        <a href="/admin/login" class="text-xs text-gray hover:text-cream underline underline-offset-4">Voltar para o login</a>
+      </p>
+    </div>
+
+    <script>
+      const form  = document.getElementById('esqueci-form') as HTMLFormElement;
+      const campo = document.getElementById('whatsapp') as HTMLInputElement;
+      const erro  = document.getElementById('esqueci-erro') as HTMLDivElement;
+      const botao = document.getElementById('esqueci-btn') as HTMLButtonElement;
+      const ok    = document.getElementById('esqueci-ok') as HTMLDivElement;
+      const msg   = document.getElementById('esqueci-mensagem') as HTMLParagraphElement;
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        erro.classList.add('hidden');
+        erro.textContent = '';
+
+        if (campo.value.replace(/\D/g, '').length < 10) {
+          erro.textContent = 'Digite o WhatsApp com o DDD.';
+          erro.classList.remove('hidden');
+          return;
+        }
+
+        botao.disabled = true;
+        botao.textContent = 'Mandando...';
+        try {
+          const res = await fetch('/api/auth/esqueci', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ whatsapp: campo.value.trim() }),
+          });
+          const dados = await res.json().catch(() => ({}));
+          if (res.ok) {
+            msg.textContent = dados.mensagem ?? 'Pedido recebido.';
+            form.classList.add('hidden');
+            ok.classList.remove('hidden');
+            return;
+          }
+          erro.textContent = dados.error ?? 'Não deu para mandar agora. Tente de novo.';
+          erro.classList.remove('hidden');
+        } catch {
+          erro.textContent = 'Erro de conexão. Tente novamente.';
+          erro.classList.remove('hidden');
+        }
+        botao.disabled = false;
+        botao.textContent = 'Mandar o link';
+      });
+    </script>
+  </body>
+</html>

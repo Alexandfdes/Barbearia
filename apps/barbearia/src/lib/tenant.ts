@@ -281,6 +281,33 @@ export function urlDoSite(tenant: Tenant): string {
 }
 
 /**
+ * O endereço do PAINEL — o que vai no link do e-mail de senha nova e dos avisos.
+ *
+ * ⚠️ NUNCA sai do `Host` da requisição, e é o que esta função existe para garantir.
+ *
+ * O `Host` é escrito por quem faz a requisição. Montado a partir dele, o link do
+ * e-mail de senha nova é a armadilha conhecida como *password reset poisoning*:
+ * alguém pede a senha nova do dono de uma barbearia mandando `Host: site-dele.com`,
+ * o e-mail legítimo — com o NOSSO remetente — chega ao dono com o link apontando
+ * para o site do atacante, e o primeiro clique entrega o token a ele.
+ *
+ * `PAINEL_URL` manda quando existe; sem ela, `painel.<DOMINIO_BASE>`, o endereço do
+ * desenho (`docs/ARQUITETURA-MULTI-TENANT-V1.md`). Sem nenhuma das duas: no
+ * desenvolvimento, o servidor local; em produção, vazio — e quem chama recusa
+ * mandar um e-mail com link quebrado.
+ */
+export function urlDoPainel(env: Record<string, string | undefined> = process.env): string {
+  const fixo = env.PAINEL_URL?.trim().replace(/\/+$/, '');
+  if (fixo) return fixo;
+
+  const base = env.DOMINIO_BASE?.trim();
+  if (base) return `${protocoloDe(base)}://painel.${base}`;
+
+  if (env.NODE_ENV !== 'production') return `http://localhost:${env.PORT?.trim() || '4321'}`;
+  return '';
+}
+
+/**
  * O endereço público do site que está sendo servido: o que vai no canonical, no
  * og:url, na imagem de prévia e no `@id` do schema.org.
  *

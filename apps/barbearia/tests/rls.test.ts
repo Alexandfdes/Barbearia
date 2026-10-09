@@ -276,6 +276,8 @@ describe('a rede não tem furo por descuido', () => {
       'src/db/index.ts',                  // quem define os dois
       'src/pages/api/auth/login.ts',      // acha o barbeiro antes de saber a barbearia
       'src/pages/api/cadastrar.ts',       // cria a barbearia: ela ainda não existe para ter contexto
+      'src/lib/redefinicaoDeSenha.ts',    // a senha nova: acha o barbeiro pelo telefone, como o login
+      'src/lib/avisos.ts',                // a tarefa dos avisos: não vem de requisição de barbearia nenhuma
     ];
 
     const arquivos = [...globSync('src/**/*.ts'), ...globSync('src/**/*.astro')]

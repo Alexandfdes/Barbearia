@@ -8,6 +8,10 @@ import { NOME_PRODUTO } from '../../lib/produto.js';
 
 const session = await getSession(Astro.request);
 if (session) return Astro.redirect('/admin');
+
+// Quem chega da tela de senha nova (`admin/nova-senha.astro`): a troca deu certo
+// e todas as sessões caíram, esta inclusive. Falta só entrar com a senha nova.
+const senhaTrocada = Astro.url.searchParams.get('senha') === 'trocada';
 ---
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -25,6 +29,12 @@ if (session) return Astro.redirect('/admin');
         <p class="text-xs text-gray uppercase tracking-widest mb-1">{NOME_PRODUTO}</p>
         <h1 class="font-serif text-2xl font-medium text-white">Painel</h1>
       </div>
+
+      {senhaTrocada && (
+        <p id="senha-trocada" class="mb-4 text-sm text-center text-cream bg-teal/20 border border-teal/40 rounded-md px-4 py-3" role="status">
+          Senha trocada. Entre com a senha nova.
+        </p>
+      )}
 
       <form id="login-form" class="bg-dark-card border border-white/10 rounded-md p-6 space-y-4">
         <div>
@@ -92,6 +102,9 @@ if (session) return Astro.redirect('/admin');
               </svg>
             </button>
           </div>
+          <p class="mt-1.5 text-right">
+            <a href="/admin/esqueci" id="link-esqueci" class="text-[11px] text-gray hover:text-cream underline underline-offset-4">Esqueci minha senha</a>
+          </p>
         </div>
 
         <div id="login-error" class="hidden text-red-400 text-sm text-center py-1"></div>

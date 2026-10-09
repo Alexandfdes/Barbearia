@@ -111,6 +111,15 @@ describe('os comandos do package.json apontam para arquivos que existem', () => 
     expect(scripts['db:provisionar']).toMatch(/provisionar\.mts/);
   });
 
+  it('o boot de produção avisa quando o e-mail está desligado', () => {
+    // E-mail desligado não dá erro em lugar nenhum: o dono pede a senha nova e
+    // espera, e o aviso do fim do teste não chega. O aviso do boot é o lugar onde
+    // se olha quando o deploy termina — conferido rodando em 09/10/2026.
+    const fonte = readFileSync('scripts/startup.mjs', 'utf8');
+    expect(fonte).toMatch(/function conferirEmail\(\)/);
+    expect(fonte).toMatch(/if \(!soMigrations\) \{\s*conferirPgDump\(\);\s*conferirEmail\(\);/);
+  });
+
   it('o `npm run dev` aplica as migrations pendentes antes de subir', () => {
     // Em 09/10/2026 a migration 0007 derrubou o ambiente do dono: o `npm run dev`
     // não migrava, e toda página respondia "column trial_ends_at does not exist"

@@ -10,6 +10,7 @@ import { json, violouUnico } from '../../../../lib/api.js';
 import { normalizePhone } from '../../../../lib/phone.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
+import { emailValido, normalizarEmail } from '../../../../lib/email.js';
 
 const BCRYPT_COST = 12;
 
@@ -28,6 +29,9 @@ const createSchema = z.object({
   phone:    z.string().min(10).max(25),
   role:     z.enum(['admin', 'barber']),
   password: z.string().min(6).max(200),
+  // Opcional: sem ele o barbeiro não recebe a senha nova por e-mail, e quem a
+  // troca é o dono, nesta mesma tela.
+  email:    z.string().max(254).optional(),
 });
 
 // GET — lista todos os barbeiros (ativos e inativos), sem o hash da senha
@@ -43,6 +47,7 @@ export const GET: APIRoute = async ({ request }) => {
       name:      barbers.name,
       slug:      barbers.slug,
       phone:     barbers.phone,
+      email:     barbers.email,
       role:      barbers.role,
       active:    barbers.active,
       createdAt: barbers.createdAt,
@@ -75,6 +80,11 @@ export const POST: APIRoute = async ({ request }) => {
 
   const phone = normalizePhone(parsed.data.phone);
   if (!phone) return json({ error: 'Telefone inválido: informe DDD + número.' }, 400);
+
+  const email = normalizarEmail(parsed.data.email);
+  if (email && !emailValido(email)) {
+    return json({ error: `"${parsed.data.email}" não parece um e-mail.` }, 400);
+  }
 
   // ⚠️ O telefone é único NO MUNDO, não nesta barbearia: é o que faz o login do
   // painel central saber de quem é quem está entrando (índice `barbers_phone_uq`,
@@ -112,7 +122,7 @@ export const POST: APIRoute = async ({ request }) => {
   let newId: number | bigint;
   try {
     newId = await db.transaction(async (tx) => {
-      const res = await tx.insert(barbers).values({ tenantId: tenant.id, name, slug, phone, role, passwordHash })
+      const res = await tx.insert(barbers).values({ tenantId: tenant.id, name, slug, phone, email, role, passwordHash })
         .returning({ id: barbers.id });
       const id = res[0].id;
 

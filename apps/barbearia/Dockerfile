@@ -43,5 +43,6 @@ COPY --from=build /app/src/assets/fotos-videos/carrosel*.jpg ./seed/galeria-bayr
 VOLUME ["/data"]
 EXPOSE 4321
 
-# Roda as migrations, sobe o daemon de backup (diário às 03:00) e inicia o servidor
-CMD ["sh", "-c", "node scripts/startup.mjs && (node scripts/backup-daemon.mjs &) && node dist/server/entry.mjs"]
+# Roda as migrations, sobe os daemons — o de backup (diário às 03:00) e o dos avisos
+# por e-mail (de hora em hora, `scripts/avisos-daemon.mjs`) — e inicia o servidor
+CMD ["sh", "-c", "node scripts/startup.mjs && (node scripts/backup-daemon.mjs &) && (node scripts/avisos-daemon.mjs &) && node dist/server/entry.mjs"]

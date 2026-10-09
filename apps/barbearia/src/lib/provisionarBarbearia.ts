@@ -34,9 +34,7 @@ import { derivarAccent, ACCENT_PADRAO, isHex, type Accent } from './accent.js';
 import { formatarTelefone } from './phone.js';
 import { enderecoReservado } from './enderecosReservados.js';
 import { fimDoTeste } from './situacao.js';
-
-/** Confere a forma, não a existência: a existência só a primeira mensagem prova. */
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { emailValido, normalizarEmail } from './email.js';
 
 const BCRYPT_COST = 12;
 
@@ -249,8 +247,9 @@ export async function provisionarBarbearia(
     };
   }
 
-  const email = (dados.email ?? '').trim().toLowerCase() || null;
-  if (email && (email.length > 254 || !EMAIL.test(email))) {
+  // A regra do e-mail mora em `lib/email.ts` — a mesma da tela da equipe.
+  const email = normalizarEmail(dados.email);
+  if (email && !emailValido(email)) {
     return { ok: false, campo: 'email', erro: `"${dados.email}" não parece um e-mail.` };
   }
 

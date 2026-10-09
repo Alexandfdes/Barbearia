@@ -172,6 +172,38 @@ function conferirPgDump() {
   console.log(`✓ backup: ${r.stdout.trim()}`);
 }
 
+/**
+ * Confere, no boot de produção, que o e-mail consegue sair — a senha nova e os
+ * avisos do teste e da cobrança dependem dele (`src/lib/email.ts`).
+ *
+ * Não derruba o boot, pelo mesmo motivo do `pg_dump`: barbearia fora do ar é
+ * pior que barbearia sem e-mail. Mas e-mail desligado não dá erro em lugar
+ * nenhum — o dono pede a senha nova e espera, o aviso do fim do teste não chega —,
+ * e este é o lugar onde se olha quando o deploy termina.
+ */
+function conferirEmail() {
+  if (process.env.NODE_ENV !== 'production') return;
+  const faltam = [];
+  if (!process.env.SMTP_URL?.trim()) {
+    faltam.push('SMTP_URL — o endereço do provedor de envio, ex: smtps://usuario:senha@smtp.provedor.com:465');
+  }
+  if (!process.env.PAINEL_URL?.trim() && !process.env.DOMINIO_BASE?.trim()) {
+    faltam.push('PAINEL_URL ou DOMINIO_BASE — sem eles, o link do e-mail não tem para onde apontar');
+  }
+  if (faltam.length === 0) {
+    console.log('✓ e-mail: SMTP configurado');
+    return;
+  }
+  console.warn(
+    '\n' +
+    '  ┌──────────────────────────────────────────────────────────────┐\n' +
+    '  │  ⚠️  E-MAIL DESLIGADO — SENHA NOVA E AVISOS NÃO VÃO SAIR     │\n' +
+    '  └──────────────────────────────────────────────────────────────┘\n' +
+    faltam.map((f) => `  Falta: ${f}\n`).join('') +
+    '  O app vai subir e atender normalmente.\n'
+  );
+}
+
 /** Falha de boot que JÁ se explicou sozinha — o `catch` final não repete nada. */
 class ErroDeBoot extends Error {}
 
@@ -227,7 +259,10 @@ async function conferirPapelDoApp() {
 try {
   await main();
   await conferirPapelDoApp();
-  if (!soMigrations) conferirPgDump();
+  if (!soMigrations) {
+    conferirPgDump();
+    conferirEmail();
+  }
 } catch (erro) {
   // Erro de boot já imprimiu o próprio diagnóstico. Dizer "migration falhou"
   // em cima dele mandaria procurar defeito no lugar errado.
