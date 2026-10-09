@@ -106,11 +106,29 @@ describe.skipIf(!TEM_BANCO)('login do painel por telefone', () => {
     expect(r.status).toBe(401);
   });
 
-  it('barbearia suspensa não entra — é assim que o inadimplente perde acesso', async () => {
+  // ⚠️ MUDOU EM 08/10/2026. Até então a barbearia suspensa não entrava — e o dono
+  // que deixou o teste vencer não tinha como ver o motivo nem como pagar. Agora
+  // ENTRA, mas a sessão só abre a tela de assinatura: para o resto do painel,
+  // `getSession()` continua devolvendo `null` (`tests/teste-gratis.test.ts`).
+  it('barbearia fora do ar entra — e é mandada para a tela de assinatura', async () => {
     await sql`UPDATE tenants SET status = 'suspended' WHERE slug = 'cortes-do-ze'`;
     const r = await entrar('84999990003', SENHA);
     await sql`UPDATE tenants SET status = 'active' WHERE slug = 'cortes-do-ze'`;
+    expect(r.status).toBe(200);
+    expect(r.body.destino).toBe('/admin/assinatura');
+  });
+
+  it('barbearia no ar vai para o painel', async () => {
+    const r = await entrar('84999990003', SENHA);
+    expect(r.body.destino).toBe('/admin');
+  });
+
+  it('barbearia encerrada não entra', async () => {
+    await sql`UPDATE tenants SET status = 'cancelled' WHERE slug = 'cortes-do-ze'`;
+    const r = await entrar('84999990003', SENHA);
+    await sql`UPDATE tenants SET status = 'active' WHERE slug = 'cortes-do-ze'`;
     expect(r.status).toBe(403);
+    expect(r.cookie).toBeNull();
   });
 
   it('com DUAS barbearias, o slug para de valer e a rota recusa em vez de chutar', async () => {

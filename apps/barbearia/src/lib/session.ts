@@ -4,8 +4,9 @@ export const SESSION_COOKIE = '__bayron_session';
 const TTL = 30 * 24 * 60 * 60;
 
 import { and, eq } from 'drizzle-orm';
-import type { SessaoComTenant } from './tenant.js';
-import { carregarTenants, tenantDaSessaoOuNulo } from './tenant.js';
+import type { SessaoComTenant, Tenant } from './tenant.js';
+import { carregarTenants, tenantDaSessaoOuNulo, tenantPorIdMesmoForaDoAr } from './tenant.js';
+import { situacaoDe, type Situacao } from './situacao.js';
 import { db, first } from '../db/index.js';
 import { barbers } from '../db/schema.js';
 
@@ -49,54 +50,99 @@ function secret(): string {
  *     serviria os dados da barbearia errada. Na prática: no dia da virada, cada
  *     barbeiro entra uma vez a mais.
  *  2. **Tenant que sumiu do banco.**
- *  3. **Barbearia suspensa ou cancelada.** É por aqui que o inadimplente perde o
- *     acesso — com até 30s de atraso, o TTL do cache em `lib/tenant.ts`.
+ *  3. **Barbearia fora do ar — suspensa ou encerrada.** É por aqui que o
+ *     inadimplente perde o painel: o teste e a carência vencidos saem do relógio
+ *     (`lib/situacao.ts`); o status mudado no banco, com até 30s de atraso, o TTL
+ *     do cache em `lib/tenant.ts`. Quem está fora do ar ainda chega à tela de
+ *     assinatura — por `sessaoForaDoAr()`, abaixo, e só por ela.
  */
 export async function getSession(request: Request): Promise<SessionData | null> {
-  const cookieHeader = request.headers.get('cookie') ?? '';
-  const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`));
-  if (!match) return null;
   try {
-    const data = await unsealData<SessionData>(match[1], { password: secret(), ttl: TTL });
-    if (typeof data.barberId !== 'number' || !data.role) return null;
+    const data = await lerCookie(request);
+    if (!data) return null;
 
     // Aquece o cache ANTES de validar — é o que deixa `tenantDaSessao()` síncrona
     // nas 53 chamadas seguintes.
     await carregarTenants();
     if (!tenantDaSessaoOuNulo(data)) return null;
 
-    // ⚠️ O BARBEIRO TAMBÉM É RECONSULTADO, E ANTES DISTO NÃO ERA.
-    //
-    // A barbearia era revalidada a cada requisição; o barbeiro, nunca. Papel e
-    // situação viajavam **lacrados no cookie por até 30 dias**, então:
-    //
-    //   · demitir alguém (`active = false`) não tirava o acesso dele;
-    //   · rebaixar de admin para barbeiro não tirava os poderes de admin;
-    //   · trocar a senha não derrubava sessão nenhuma.
-    //
-    // "Tirar o acesso" que não tira o acesso é pior que não existir: o dono
-    // acredita que resolveu, e não volta a olhar.
-    //
-    // É uma consulta por chave primária a cada requisição autenticada. Poderia ser
-    // cache com TTL, como o de tenants — mas o painel serve poucas requisições por
-    // minuto, e o atraso de um cache aqui é exatamente o que estamos consertando.
-    //
-    // O filtro por `tenant_id` não é zelo: este caminho roda ANTES de `comTenant`,
-    // na conexão de dono, que enxerga todas as barbearias. Sem ele, um cookie com
-    // `barberId` de uma barbearia e `tenantId` de outra passaria.
-    const barbeiro = await first(db
-      .select({ role: barbers.role, active: barbers.active })
-      .from(barbers)
-      .where(and(eq(barbers.id, data.barberId), eq(barbers.tenantId, data.tenantId!))));
-
-    if (!barbeiro || !barbeiro.active) return null;
-
-    // O papel do banco vence o do cookie: rebaixar tem efeito na requisição
-    // seguinte, sem precisar derrubar a sessão.
-    return { ...data, role: barbeiro.role as SessionData['role'] };
+    return await conferirBarbeiro(data);
   } catch {
     return null;
   }
+}
+
+/**
+ * A sessão de quem está com a barbearia FORA DO AR — e só dela.
+ *
+ * O painel de barbearia suspensa abre uma tela só, a de assinatura, com a agenda
+ * para consulta (decisão de 08/10/2026, `docs/PLANO-PRODUTIZACAO.md` §13). Para o
+ * resto do painel, essa sessão não existe: `getSession()` continua devolvendo
+ * `null`, e as 53 rotas continuam respondendo "não autenticado" sem mudar uma
+ * linha. Quem decide para onde ela vai é o `src/middleware.ts`.
+ *
+ * Encerrada não entra nem aqui.
+ */
+export async function sessaoForaDoAr(
+  request: Request,
+): Promise<{ sessao: SessionData; tenant: Tenant; situacao: Situacao } | null> {
+  try {
+    const data = await lerCookie(request);
+    if (!data) return null;
+
+    await carregarTenants();
+    const tenant = tenantPorIdMesmoForaDoAr(data.tenantId);
+    if (!tenant) return null;
+    const situacao = situacaoDe(tenant);
+    if (situacao.fase !== 'suspensa') return null;
+
+    const sessao = await conferirBarbeiro(data);
+    return sessao ? { sessao, tenant, situacao } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** O cookie aberto e com forma de sessão — sem conferir barbearia nem barbeiro. */
+async function lerCookie(request: Request): Promise<SessionData | null> {
+  const cookieHeader = request.headers.get('cookie') ?? '';
+  const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`));
+  if (!match) return null;
+  const data = await unsealData<SessionData>(match[1], { password: secret(), ttl: TTL });
+  if (typeof data.barberId !== 'number' || !data.role || data.tenantId == null) return null;
+  return data;
+}
+
+async function conferirBarbeiro(data: SessionData): Promise<SessionData | null> {
+  // ⚠️ O BARBEIRO TAMBÉM É RECONSULTADO, E ANTES DISTO NÃO ERA.
+  //
+  // A barbearia era revalidada a cada requisição; o barbeiro, nunca. Papel e
+  // situação viajavam **lacrados no cookie por até 30 dias**, então:
+  //
+  //   · demitir alguém (`active = false`) não tirava o acesso dele;
+  //   · rebaixar de admin para barbeiro não tirava os poderes de admin;
+  //   · trocar a senha não derrubava sessão nenhuma.
+  //
+  // "Tirar o acesso" que não tira o acesso é pior que não existir: o dono
+  // acredita que resolveu, e não volta a olhar.
+  //
+  // É uma consulta por chave primária a cada requisição autenticada. Poderia ser
+  // cache com TTL, como o de tenants — mas o painel serve poucas requisições por
+  // minuto, e o atraso de um cache aqui é exatamente o que estamos consertando.
+  //
+  // O filtro por `tenant_id` não é zelo: este caminho roda ANTES de `comTenant`,
+  // na conexão de dono, que enxerga todas as barbearias. Sem ele, um cookie com
+  // `barberId` de uma barbearia e `tenantId` de outra passaria.
+  const barbeiro = await first(db
+    .select({ role: barbers.role, active: barbers.active })
+    .from(barbers)
+    .where(and(eq(barbers.id, data.barberId), eq(barbers.tenantId, data.tenantId!))));
+
+  if (!barbeiro || !barbeiro.active) return null;
+
+  // O papel do banco vence o do cookie: rebaixar tem efeito na requisição
+  // seguinte, sem precisar derrubar a sessão.
+  return { ...data, role: barbeiro.role as SessionData['role'] };
 }
 
 export async function makeSessionCookie(data: SessionData): Promise<string> {

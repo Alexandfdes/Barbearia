@@ -33,6 +33,7 @@ import bcrypt from 'bcryptjs';
 import { derivarAccent, ACCENT_PADRAO, isHex, type Accent } from './accent.js';
 import { formatarTelefone } from './phone.js';
 import { enderecoReservado } from './enderecosReservados.js';
+import { fimDoTeste } from './situacao.js';
 
 /** Confere a forma, não a existência: a existência só a primeira mensagem prova. */
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -88,6 +89,12 @@ export interface DadosDaBarbearia {
    * anunciando 09:00 e oferecendo vaga às 09:00.
    */
   horarios?: HorarioDoCadastro[];
+  /**
+   * Nasce pagando, sem o teste de 7 dias. Só o script de linha de comando oferece
+   * (`--sem-teste`), para barbearia que você combinou por fora; o cadastro pela
+   * web nunca — lá todo mundo começa no teste (decisão de 08/10/2026).
+   */
+  semTeste?: boolean;
 }
 
 export interface HorarioDoCadastro {
@@ -120,6 +127,8 @@ export interface BarbeariaCriada {
   servicosCriados: number;
   /** Quantos já nascem no ar. Zero significa site sem agendamento possível. */
   servicosAtivos: number;
+  /** Fim do teste grátis; `null` quando nasceu pagando (`semTeste`). */
+  testeAte: Date | null;
 }
 
 export interface RecusaDeProvisionamento {
@@ -198,7 +207,9 @@ export function horarioDeVitrine(semana: HorarioDoCadastro[]): string {
 
 export async function provisionarBarbearia(
   sql: postgres.Sql,
-  dados: DadosDaBarbearia
+  dados: DadosDaBarbearia,
+  /** O relógio, para o teste poder fixar a data do cadastro. */
+  agora: Date = new Date(),
 ): Promise<ResultadoProvisionamento> {
   const slug = (dados.slug ?? '').trim().toLowerCase();
   const nome = (dados.nome ?? '').trim();
@@ -342,13 +353,23 @@ export async function provisionarBarbearia(
       .normalize('NFD').replace(/[̀-ͯ]/g, '')
       .toLowerCase().replace(/[^a-z0-9]/g, '') || 'admin';
 
+  const testeAte = dados.semTeste ? null : fimDoTeste(agora);
+
   // Tudo numa transação: barbearia meio criada — com tenant e sem dono, por
   // exemplo — é pior que criação nenhuma, porque o slug fica ocupado e o
   // provisionamento não pode simplesmente rodar de novo.
   const resultado = await sql.begin(async (tx) => {
+    // ⚠️ Toda barbearia nasce NO TESTE, com a data de fim gravada — não `active`,
+    // o padrão da coluna, que daria o produto de graça para sempre a quem se
+    // cadastrasse. A fase de cada dia sai de `lib/situacao.ts`.
+    //
+    // A data vai como TEXTO ISO, e não como `Date`: no pool do app o Drizzle troca
+    // o conversor de datas pelo que não converte nada, e um `Date` chega ao driver
+    // cru — "The string argument must be of type string". O teste só pega isso
+    // pela rota, que usa o pool; pelo script, com conexão própria, passava.
     const [tenant] = await tx`
-      INSERT INTO tenants (slug, domain, business_name)
-      VALUES (${slug}, ${dominio}, ${nome})
+      INSERT INTO tenants (slug, domain, business_name, status, trial_ends_at)
+      VALUES (${slug}, ${dominio}, ${nome}, ${testeAte ? 'trial' : 'active'}, ${testeAte ? testeAte.toISOString() : null})
       RETURNING id
     `;
 
@@ -415,5 +436,6 @@ export async function provisionarBarbearia(
     corVeioDoCliente: Boolean(dados.cor),
     servicosCriados: servicos.length,
     servicosAtivos: resultado.ativos,
+    testeAte,
   };
 }

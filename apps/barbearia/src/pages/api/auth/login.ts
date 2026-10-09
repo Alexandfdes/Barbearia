@@ -22,7 +22,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { compare } from 'bcryptjs';
-import { and, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 /**
  * ⚠️ `dbDono` e não `db`, e este é UM DOS DOIS lugares onde isso é certo.
  *
@@ -37,6 +37,7 @@ import { dbDono, first } from '../../../db/index.js';
 import { barbers, tenants } from '../../../db/schema.js';
 import { json } from '../../../lib/api.js';
 import { makeSessionCookie } from '../../../lib/session.js';
+import { situacaoDe, noAr } from '../../../lib/situacao.js';
 import { checkRateLimit, resetRateLimit } from '../../../lib/rateLimit.js';
 import { getClientIp } from '../../../lib/clientIp.js';
 import { normalizePhone } from '../../../lib/phone.js';
@@ -129,15 +130,22 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     return json({ error: 'WhatsApp ou senha inválidos' }, 401);
   }
 
-  // A barbearia precisa estar ativa. Sessão viva de barbearia suspensa é como um
-  // inadimplente continua usando o sistema (regra 6 da skill barbearia-multi-tenant).
+  // A situação da barbearia decide para onde ele vai — e se entra.
+  //
+  // ⚠️ FORA DO AR ENTRA, desde 08/10/2026, e isso não reabre o painel: a sessão
+  // de barbearia suspensa só abre a tela de assinatura (`src/middleware.ts`); para
+  // o resto, `getSession()` continua devolvendo `null` — a regra 6 da skill
+  // barbearia-multi-tenant segue valendo. Até essa data o login recusava, e o
+  // dono que deixou o teste vencer não tinha como ver o motivo nem como pagar.
+  // ENCERRADA continua recusada.
   const barbearia = await first(
-    dbDono.select({ status: tenants.status })
+    dbDono.select({ status: tenants.status, testeAte: tenants.trialEndsAt, atrasadaDesde: tenants.pastDueSince })
       .from(tenants)
-      .where(and(eq(tenants.id, barbeiro.tenantId), eq(tenants.status, 'active')))
+      .where(eq(tenants.id, barbeiro.tenantId))
   );
-  if (!barbearia) {
-    return json({ error: 'Esta barbearia está suspensa. Fale com o suporte.' }, 403);
+  const situacao = barbearia ? situacaoDe(barbearia) : null;
+  if (!situacao || situacao.fase === 'cancelada') {
+    return json({ error: 'Esta barbearia foi encerrada. Fale com o suporte.' }, 403);
   }
 
   resetRateLimit(rlKey);
@@ -149,7 +157,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     tenantId: barbeiro.tenantId,
   });
 
-  return new Response(JSON.stringify({ ok: true }), {
+  return new Response(JSON.stringify({ ok: true, destino: noAr(situacao) ? '/admin' : '/admin/assinatura' }), {
     status:  200,
     headers: { 'Content-Type': 'application/json', 'Set-Cookie': cookie },
   });
