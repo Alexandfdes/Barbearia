@@ -1,5 +1,6 @@
 /**
- * Camada de leitura da configuração da barbearia (tabela `settings`, linha 1).
+ * Camada de leitura da configuração da barbearia (tabela `settings`, uma linha
+ * por barbearia).
  *
  * Substitui o `src/config.ts`, que era hardcoded em código e é o que fazia este
  * repositório ser "o site do Bayron" em vez de um produto.
@@ -20,6 +21,7 @@ import { db, first } from '../db/index.js';
 import { settings as settingsTable } from '../db/schema.js';
 import { tenantAtual, type Tenant } from './tenant.js';
 import { waPhone } from './whatsapp.js';
+import { ACCENT_PADRAO } from './accent.js';
 
 export interface BusinessHour {
   label: string;
@@ -58,9 +60,16 @@ export interface Settings {
 }
 
 /**
- * Defaults do template. Só entram em cena se a linha 1 sumir — o que a migration
- * 0009 impede. Existem para o site nunca cair por causa de configuração ausente,
- * e são o embrião do template genérico que a Fase 6 vai usar ao provisionar.
+ * Defaults do template. Só entram em cena se a barbearia não tiver linha em
+ * `settings` — o `getSettings` avisa no log quando isso acontece. Existem para o
+ * site nunca cair por causa de configuração ausente.
+ *
+ * ⚠️ Até 09/10/2026 este comentário dizia que "a migration 0009" impedia a linha
+ * de sumir: era a numeração do SQLite, que não existe mais. A `0009` de hoje
+ * (`drizzle/0009_hover_padrao.sql`) é outra coisa.
+ *
+ * A cor é o par padrão do produto, `ACCENT_PADRAO` — até 09/10/2026 o hover daqui
+ * era #0d9488, que reprova com o texto branco (`PENDENCIAS-ABERTAS.md` §4.12).
  */
 export const TEMPLATE_DEFAULTS: Settings = {
   businessName: 'Barbearia',
@@ -79,9 +88,9 @@ export const TEMPLATE_DEFAULTS: Settings = {
   businessHours: [],
   seoTitle: 'Barbearia',
   seoDescription: '',
-  accentColor: '#0f766e',
-  accentHover: '#0d9488',
-  accentLight: '#5eead4',
+  accentColor: ACCENT_PADRAO.color,
+  accentHover: ACCENT_PADRAO.hover,
+  accentLight: ACCENT_PADRAO.light,
   logoPath: null,
   heroPath: null,
   ogPath: null,

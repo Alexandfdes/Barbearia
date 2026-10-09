@@ -48,6 +48,12 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   // Endereço que não é de barbearia nenhuma. 404 de propósito: servir o site da
   // barbearia errada é pior que não servir nada (`lib/tenant.ts`, passo 6).
   if (!tenant) return json({ error: 'Barbearia não encontrada' }, 404);
+  // Só JSON, pelo mesmo motivo do login do painel (`api/auth/login.ts`): esta rota
+  // abre sessão, e um formulário de outro site manda `text/plain` sem pré-voo.
+  // Faltava desde sempre; entrou em 09/10/2026 (`PENDENCIAS-ABERTAS.md` §2.23).
+  if (!(request.headers.get('content-type') ?? '').toLowerCase().startsWith('application/json')) {
+    return json({ error: 'Envie os dados como JSON.' }, 415);
+  }
   // Rate limit por IP — protege contra brute-force de números/datas
   const ip = getClientIp(request, clientAddress);
   const rl = checkRateLimit(`customer-login:${ip}`);

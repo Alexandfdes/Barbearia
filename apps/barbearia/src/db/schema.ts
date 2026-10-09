@@ -299,8 +299,10 @@ export const settings = pgTable('settings', {
   businessHours: text('business_hours').notNull().default('[]'),
   seoTitle: text('seo_title'),
   seoDescription: text('seo_description'),
+  // O par padrão é o `ACCENT_PADRAO` de `lib/accent.ts`. O hover era #0d9488 até a
+  // migration 0009 (09/10/2026): mais claro que o botão, reprovava com texto branco.
   accentColor: text('accent_color').notNull().default('#0f766e'),
-  accentHover: text('accent_hover').notNull().default('#0d9488'),
+  accentHover: text('accent_hover').notNull().default('#0b5f58'),
   accentLight: text('accent_light').notNull().default('#5eead4'),
   /** Caminhos de mídia no volume — preenchidos na Fase 2. Null = usa o asset do build. */
   logoPath: text('logo_path'),

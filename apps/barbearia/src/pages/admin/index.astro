@@ -12,6 +12,7 @@ import { calcularCompletude } from '../../lib/completude.js';
 import { quantasFotos } from '../../lib/galeria.js';
 import { parseBusinessHours } from '../../lib/settings.js';
 import { reais } from '../../lib/dinheiro.js';
+import { segundaFeiraDaSemana } from '../../lib/calendario.js';
 import { TZ } from '../../lib/timezone.js';
 
 
@@ -30,21 +31,20 @@ const todayStr = formatInTimeZone(nowUtc, TZ, 'yyyy-MM-dd');
 const todayStartUtc = fromZonedTime(`${todayStr}T00:00:00`, TZ).toISOString();
 const todayEndUtc   = fromZonedTime(`${todayStr}T23:59:59`, TZ).toISOString();
 
-// Início da semana (segunda) — domingo é folga, semana começa segunda
-function getMondayOf(date: Date): string {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  return formatInTimeZone(d, TZ, 'yyyy-MM-dd');
-}
 function addDaysStr(s: string, n: number): string {
   const [y, m, d] = s.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + n, 12));
   return dt.toISOString().slice(0, 10);
 }
 
-const mondayStr      = getMondayOf(nowUtc);
+// Início da semana (segunda) — domingo é folga, semana começa segunda. Sai de
+// `todayStr`, o dia DA BARBEARIA, com conta de calendário (`lib/calendario.ts`).
+//
+// ⚠️ Até 09/10/2026 era `getDay()` e `setDate()` sobre o instante — o fuso do
+// PROCESSO. Com o servidor em UTC, das 21h à meia-noite de Fortaleza o card "Esta
+// semana" e o gráfico erravam de semana: visto ao vivo em 25/09/2026, o gráfico
+// mostrou "SEG 20", e 20/09 foi domingo (`PENDENCIAS-ABERTAS.md` §2.22).
+const mondayStr      = segundaFeiraDaSemana(todayStr);
 const weekStartUtc   = fromZonedTime(`${mondayStr}T00:00:00`, TZ).toISOString();
 const weekEndStr     = addDaysStr(mondayStr, 7);
 const weekEndUtc     = fromZonedTime(`${weekEndStr}T00:00:00`, TZ).toISOString();
