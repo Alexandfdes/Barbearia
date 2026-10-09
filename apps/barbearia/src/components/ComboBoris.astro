@@ -1,13 +1,19 @@
 ---
 // Combo do Dia — dinâmico. Busca /api/combos e mostra os combos marcados para
 // o dia da semana de hoje (weekdays bitmask). Se não houver, a seção fica oculta.
+//
+// "Hoje" é o dia NA BARBEARIA: o fuso desce pela página, como no `/agendar`.
+// Até 09/10/2026 era `new Date().getDay()`, o relógio de quem abre o site.
+import { TZ } from '../lib/timezone.js';
 ---
 
-<section id="combo" class="py-12 md:py-20 relative" style="display:none">
+<section id="combo" class="py-12 md:py-20 relative" style="display:none" data-tz={TZ}>
   <div class="relative z-10 max-w-6xl mx-auto px-4 space-y-6" id="combo-list"></div>
 </section>
 
 <script>
+  import { comboValeNaData } from "../lib/combo";
+
   (async () => {
     const section = document.getElementById("combo");
     const listEl = document.getElementById("combo-list");
@@ -19,8 +25,12 @@
     try {
       const res = await fetch("/api/combos");
       const all = res.ok ? await res.json() : [];
-      const today = new Date().getDay(); // 0=dom … 6=sáb
-      const items = (all as any[]).filter((c) => (c.weekdays & (1 << today)) !== 0);
+      const partes = new Intl.DateTimeFormat("en-US", {
+        timeZone: section.dataset.tz, year: "numeric", month: "2-digit", day: "2-digit",
+      }).formatToParts(new Date());
+      const parte = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? "";
+      const hoje = `${parte("year")}-${parte("month")}-${parte("day")}`;
+      const items = (all as any[]).filter((c) => comboValeNaData(c.weekdays, hoje));
       if (items.length === 0) return; // seção continua oculta
 
       listEl.innerHTML = items.map((c) => {
@@ -47,7 +57,7 @@
                   <span class="text-neutral-600 line-through text-base tabular-nums">${fmt(c.totalFullCents)}</span>
                 </div>
                 <a href="/agendar?combo=${c.id}"
-                   class="inline-flex items-center justify-center gap-3 bg-[#0f766e] hover:bg-[#0d9488] text-white font-bold text-xs sm:text-sm uppercase tracking-widest px-5 py-3 sm:px-10 sm:py-4 rounded-sm transition-colors duration-300 w-full max-w-[280px] sm:w-auto">
+                   class="inline-flex items-center justify-center gap-3 bg-teal hover:bg-teal-hover text-white font-bold text-xs sm:text-sm uppercase tracking-widest px-5 py-3 sm:px-10 sm:py-4 rounded-sm transition-colors duration-300 w-full max-w-[280px] sm:w-auto">
                   Agendar Combo
                   <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
