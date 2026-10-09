@@ -52,6 +52,10 @@ pnpm-debug.log*
 # Uploads de imagens (conteúdo gerado pelo usuário)
 **/data/uploads/
 
+# E-mails do desenvolvimento (`apps/barbearia/src/lib/email.ts`, transporte
+# `arquivo`): têm o link de senha nova e o endereço de quem se cadastrou.
+**/data/emails/
+
 # Sobras do mount FUSE (arquivo apagado enquanto estava aberto)
 .fuse_hidden*
 **/.fuse_hidden*

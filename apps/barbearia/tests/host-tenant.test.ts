@@ -114,6 +114,12 @@ describe('nenhuma página pública serve barbearia sem perguntar de quem é o en
       'cria a barbearia: roda ANTES de existir host para perguntar. Nasce fechada por CADASTRO_ABERTO',
     'src/pages/cadastrar.astro':
       'a tela do cadastro; mesma razão da rota acima',
+    'src/pages/api/auth/esqueci.ts':
+      'a senha nova começa como o login: acha o barbeiro pelo telefone ANTES de saber a barbearia',
+    'src/pages/api/auth/nova-senha.ts':
+      'a barbearia sai do token do link do e-mail, não do endereço — lib/redefinicaoDeSenha.ts',
+    'src/pages/api/tarefas/avisos.ts':
+      'tarefa agendada, chamada pela porta local com token: olha todas as barbearias de propósito — lib/avisos.ts',
   };
 
   it('toda rota e página pública chama `tenantDoHost`', () => {

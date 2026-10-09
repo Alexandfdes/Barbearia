@@ -11,7 +11,7 @@
 //    produto e publica um site sob o nosso nome — e não existe cobrança
 //    (`PENDENCIAS-ABERTAS.md` §3.5) nem contrato (§1.2). O interruptor é o que
 //    impede a porta de subir aberta por esquecimento.
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import postgres from 'postgres';
 import { exigirBancoDeTeste } from './guardaBanco.js';
 import { recriarSchema } from './migrations.js';
@@ -381,6 +381,8 @@ describe('a rota, de ponta a ponta', () => {
     // Com domínio configurado, a resposta traz o endereço do site — é o que a
     // tela de fim mostra e manda no WhatsApp.
     process.env.DOMINIO_BASE = 'fadeline.com.br';
+    const { caixaDeSaida } = await import('../src/lib/email.js');
+    caixaDeSaida.length = 0;
     try {
       const mod = await import('../src/pages/api/cadastrar.js');
       const r = await mod.POST({
@@ -414,6 +416,18 @@ describe('a rota, de ponta a ponta', () => {
       const { getSession } = await import('../src/lib/session.js');
       const s = await getSession(new Request('http://x/admin', { headers: { cookie: setCookie.split(';')[0] } }));
       expect(s).toMatchObject({ barberId: Number(dono.id), tenantId: Number(t.id), role: 'admin' });
+
+      // O e-mail de boas-vindas sai DEPOIS da resposta, sem segurar a tela — e é o
+      // primeiro sinal de que o endereço digitado existe.
+      await vi.waitFor(() => expect(caixaDeSaida).toHaveLength(1));
+      const [boasVindas] = caixaDeSaida;
+      expect(boasVindas.para).toBe('ze@exemplo.com.br');
+      expect(boasVindas.assunto).toMatch(/^Barbearia Cortes do Zé está no ar — /);
+      expect(boasVindas.texto).toContain('Olá, José da Silva.');
+      expect(boasVindas.texto).toContain('https://salao-jovem.fadeline.com.br');
+      expect(boasVindas.texto).toContain('https://painel.fadeline.com.br/admin');
+      expect(boasVindas.texto).toMatch(/\(84\) 96658-9511/);
+      expect(boasVindas.texto).toMatch(/O teste grátis vai até \d{2}\/\d{2}\./);
     } finally {
       if (anterior === undefined) delete process.env.CADASTRO_ABERTO;
       else process.env.CADASTRO_ABERTO = anterior;

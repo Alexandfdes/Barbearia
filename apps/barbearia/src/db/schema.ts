@@ -50,8 +50,41 @@ export const barbers = pgTable('barbers', {
   email: text('email'),
   active: boolean('active').notNull().default(true),
   createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
+  /**
+   * Última troca de senha. Sessão emitida antes disto não vale — é o que faz
+   * trocar a senha tirar todo mundo de dentro (`lib/session.ts`, migration 0008).
+   */
+  senhaTrocadaEm: timestamp('senha_trocada_em', { withTimezone: true }),
 }, (t) => [
   unique('barbers_tenant_slug_uq').on(t.tenantId, t.slug),
+]);
+
+/**
+ * Os pedidos de "esqueci minha senha" (migration 0008). Guarda o HASH do token,
+ * nunca o token: quem lesse a tabela não trocaria a senha de ninguém.
+ */
+export const redefinicoesDeSenha = pgTable('redefinicoes_de_senha', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
+  barberId: integer('barber_id').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiraEm: timestamp('expira_em', { withTimezone: true }).notNull(),
+  usadaEm: timestamp('usada_em', { withTimezone: true }),
+  criadaEm: timestamp('criada_em', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Os avisos por e-mail já mandados — a trava que impede o mesmo aviso de sair a
+ * cada hora (`lib/avisos.ts`, migration 0008). Um por barbearia, tipo e prazo.
+ */
+export const avisosEnviados = pgTable('avisos_enviados', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
+  tipo: text('tipo').notNull(),
+  referencia: timestamp('referencia', { withTimezone: true }).notNull(),
+  enviadoEm: timestamp('enviado_em', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique('avisos_enviados_uma_vez').on(t.tenantId, t.tipo, t.referencia),
 ]);
 
 export const services = pgTable('services', {

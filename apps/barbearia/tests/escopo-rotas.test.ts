@@ -16,13 +16,16 @@ import { readFileSync } from 'node:fs';
 import { globSync } from 'node:fs';
 import { sep } from 'node:path';
 
-/** Tabelas com `tenant_id`: as doze da migration 0001 e a galeria (0005). */
+/**
+ * Tabelas com `tenant_id`: as doze da migration 0001, a galeria (0005) e as duas
+ * da senha nova e dos avisos (0008).
+ */
 const TABELAS = [
   'barbers', 'services', 'products', 'appointments', 'appointmentItems',
   'barberServices', 'workingHours', 'timeOff', 'productSales', 'reservations',
-  'combos', 'settings', 'galleryImages',
+  'combos', 'settings', 'galleryImages', 'redefinicoesDeSenha', 'avisosEnviados',
   'appointment_items', 'barber_services', 'working_hours', 'time_off', 'product_sales',
-  'gallery_images',
+  'gallery_images', 'redefinicoes_de_senha', 'avisos_enviados',
 ];
 
 /**
@@ -213,7 +216,7 @@ describe('escopo por tenant nas rotas de API', () => {
 const TABELAS_DRIZZLE = [
   'barbers', 'services', 'products', 'appointments', 'appointmentItems',
   'barberServices', 'workingHours', 'timeOff', 'productSales', 'reservations',
-  'combos', 'settings', 'galleryImages',
+  'combos', 'settings', 'galleryImages', 'redefinicoesDeSenha', 'avisosEnviados',
   // apelidos de importação (`import { services as servicesTable }`)
   'servicesTable', 'settingsTable',
 ];
@@ -225,6 +228,10 @@ const TABELAS_DRIZZLE = [
 const CONSULTAS_SEM_FILTRO: [string, string][] = [
   ['src/pages/api/auth/login.ts .from(barbers)', 'acha o barbeiro pelo TELEFONE antes de saber a barbearia (único no mundo), como dono'],
   ['src/pages/api/auth/login.ts .from(barbers)', 'idem, pelo slug legado — só enquanto houver uma barbearia'],
+  // A senha nova (09/10/2026) começa como o login: o pedido chega antes de se
+  // saber de qual barbearia ele é. As outras consultas do arquivo filtram.
+  ['src/lib/redefinicaoDeSenha.ts .from(barbers)', 'acha o barbeiro pelo TELEFONE do "esqueci minha senha", como o login'],
+  ['src/lib/redefinicaoDeSenha.ts .from(redefinicoesDeSenha)', 'acha o pedido pelo hash do TOKEN do link — o token é a identidade, e a barbearia sai dele'],
 ];
 
 const FILTRO = /tenantId|tenant\.id/;

@@ -39,7 +39,7 @@ const tenant = sessaoNoAr ? tenantDaSessao(sessaoNoAr) : fora!.tenant;
 const situacao = situacaoDe(tenant);
 const foraDoAr = situacao.fase === 'suspensa';
 
-const barberRow = (await db.select({ id: barbers.id, name: barbers.name })
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, email: barbers.email })
   .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
@@ -79,6 +79,16 @@ const titulo = foraDoAr ? 'O site está fora do ar' : 'Assinatura';
     <div>
       <h1 class="text-lg font-medium text-slate-900">{titulo}</h1>
       <p id="situacao" class="text-sm text-slate-600 mt-2 max-w-[65ch]">{explicacaoDaSituacao(situacao)}</p>
+      {/* Para onde vão os avisos por e-mail (`lib/avisos.ts`) — o dono precisa saber, e
+          o e-mail digitado errado no cadastro só aparece aqui ou no aviso que não chega. */}
+      {dono && (
+        <p id="email-dos-avisos" class="text-xs text-slate-500 mt-2">
+          {barberRow.email
+            ? <>Os avisos do teste e da cobrança vão para <strong class="font-medium text-slate-700">{barberRow.email}</strong>.</>
+            : <>Você está sem e-mail cadastrado: os avisos do teste e da cobrança não chegam até você.</>}
+          {!foraDoAr && <>{' '}<a href="/admin/barbeiros" class="underline underline-offset-2">{barberRow.email ? 'Trocar' : 'Cadastrar o e-mail'}</a></>}
+        </p>
+      )}
     </div>
 
     {!manual && situacao.fase !== 'ativa' && (
