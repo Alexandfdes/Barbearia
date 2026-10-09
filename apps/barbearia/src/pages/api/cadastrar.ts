@@ -40,7 +40,7 @@ import { CATALOGO_SUGERIDO } from '../../lib/catalogoSugerido.js';
 import { json } from '../../lib/api.js';
 import { checkRateLimit } from '../../lib/rateLimit.js';
 import { getClientIp } from '../../lib/clientIp.js';
-import { carregarTenants, invalidarTenants } from '../../lib/tenant.js';
+import { carregarTenants, invalidarTenants, resolverHost, urlDoSite } from '../../lib/tenant.js';
 import { makeSessionCookie } from '../../lib/session.js';
 
 export const CADASTRO_ABERTO = () => process.env.CADASTRO_ABERTO === '1';
@@ -71,6 +71,13 @@ const bodySchema = z.object({
   horarios: z.array(horarioSchema).max(7).optional(),
   instagram: z.string().max(120).optional(),
   sobre:     z.string().max(1000).optional(),
+  frase:     z.string().max(200).optional(),
+  /**
+   * Obrigatório pela web: é por ele que vão a recuperação de senha e os avisos do
+   * teste e da cobrança (decisão de 08/10/2026). A FORMA é conferida em
+   * `provisionarBarbearia`, a regra num lugar só — aqui só a presença.
+   */
+  email:     z.string().trim().min(3).max(254),
 });
 
 export const POST: APIRoute = async ({ request, clientAddress }) => {
@@ -117,9 +124,17 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   invalidarTenants();
   await carregarTenants(true);
 
+  // O endereço do site, para a tela de fim mostrar e mandar no WhatsApp. Passa
+  // pelo RESOLVEDOR de propósito: se ele não achar a barbearia pelo slug, o link
+  // daria 404 — e é melhor não mostrar link nenhum. Sem `DOMINIO_BASE`
+  // (desenvolvimento), `urlDoSite` devolve vazio, e a tela diz isso.
+  const recemCriada = resolverHost(r.slug);
+  const site = recemCriada ? urlDoSite(recemCriada) || null : null;
+
   const corpo = {
     ok: true,
     slug: r.slug,
+    site,
     telefoneLogin: r.telefoneLogin,
     servicosAtivos: r.servicosAtivos,
     /** O que ainda falta para o site ficar de pé, dito na hora. */

@@ -34,6 +34,12 @@ export const barbers = pgTable('barbers', {
    * Anulável porque os barbeiros que já existem não têm telefone cadastrado.
    */
   phone: text('phone'),
+  /**
+   * Para onde vão a recuperação de senha e os avisos do teste e da cobrança
+   * (decisão de 08/10/2026). Não é login — o login é o telefone. Anulável: quem
+   * entrou antes de o cadastro pedir não tem (migration 0006).
+   */
+  email: text('email'),
   active: boolean('active').notNull().default(true),
   createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
 }, (t) => [

@@ -17,6 +17,13 @@ export const prerender = false;
  */
 import { CATALOGO_SUGERIDO } from '../lib/catalogoSugerido.js';
 import { NOME_PRODUTO } from '../lib/produto.js';
+/**
+ * As cores prontas — e as regras que elas cumprem — moram em
+ * `lib/coresDoCadastro.ts`. Qualquer cor, pronta ou a "outra", passa pela mesma
+ * derivação do servidor (`lib/accent.ts`), e a prévia mostra o resultado antes de
+ * gravar.
+ */
+import { CORES_DO_CADASTRO as CORES } from '../lib/coresDoCadastro.js';
 
 if (process.env.CADASTRO_ABERTO !== '1') {
   return new Response('Not found', { status: 404 });
@@ -117,12 +124,56 @@ if (process.env.CADASTRO_ABERTO !== '1') {
     .dia.fechado .nome, .dia.fechado .ate { color: #5c6a7e; }
     .dia input[type=checkbox] { width: auto; accent-color: var(--brand); }
     .ate { text-align: center; color: var(--ink-fraco); font-size: 12px; }
+
+    /* ── A cor ──────────────────────────────────────────────────────────────
+       ⚠️ O `button` desta folha é largo e verde (a regra do site de vendas).
+       As amostras de cor também são botões: tudo aqui desfaz aquela regra. */
+    .cores { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 6px; }
+    .cores .cor { width: 36px; height: 36px; padding: 0; border-radius: 50%;
+                  border: 2px solid var(--line-forte); text-transform: none; letter-spacing: 0; }
+    .cores .cor:hover { border-color: var(--ink-suave); }
+    .cores .cor[aria-checked="true"] { border-color: var(--ink); box-shadow: 0 0 0 3px var(--ground), 0 0 0 5px var(--ink); }
+    .cores .cor:focus-visible { outline: 2px solid var(--brand-claro); outline-offset: 3px; }
+    .cor-outra { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: var(--ink-suave); }
+    .cor-outra input { width: 40px; height: 36px; padding: 2px; cursor: pointer; }
+
+    /* A prévia imita o topo do SITE DA BARBEARIA — escuro, com a cor dela —,
+       não esta tela, que é do produto. Os valores são os de
+       `src/styles/global.css` (--color-dark, --color-cream, --color-gray). */
+    .previa { margin-top: 14px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+    .previa-rotulo { margin: 0; padding: 6px 12px; font-size: 10px; letter-spacing: .12em;
+                     text-transform: uppercase; color: var(--ink-fraco); background: var(--ground); }
+    .previa-site { background: #0a0a0a; padding: 22px 18px 20px; }
+    .previa-nome { margin: 0 0 4px; font: italic 15px/1.3 Georgia, "Times New Roman", serif; }
+    .previa-frase { margin: 0 0 14px; font: 600 22px/1.2 Georgia, "Times New Roman", serif; color: #e8e0d4;
+                    overflow-wrap: anywhere; }
+    .previa-botao { display: inline-block; padding: 10px 18px; border-radius: 4px; color: #fff;
+                    font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+
+    /* ── O fim ────────────────────────────────────────────────────────────── */
+    .fim h2 { font-size: 22px; margin: 0 0 6px; }
+    .fim .endereco { display: block; margin: 10px 0 14px; padding: 10px 12px; border-radius: 6px;
+                     background: var(--ground); border: 1px solid var(--line); color: var(--brand-claro);
+                     font-size: 15px; overflow-wrap: anywhere; text-decoration: none; }
+    .fim .acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .fim .acoes a, .fim .acoes button { width: auto; flex: 1 1 160px; text-align: center; padding: 10px 12px;
+                     border-radius: 6px; font-family: inherit; font-size: 13px; font-weight: 600;
+                     text-transform: none; letter-spacing: 0;
+                     background: transparent; border: 1px solid var(--line-forte); color: var(--ink); text-decoration: none; }
+    .fim .acoes a:hover, .fim .acoes button:hover { border-color: var(--brand-claro); background: var(--card); }
+    .fim ol { margin: 6px 0 18px; padding-left: 20px; }
+    .fim li { margin: 6px 0; color: var(--ink-suave); }
+    .fim li a { color: var(--brand-claro); }
+    .fim .principal { display: block; text-align: center; padding: 14px; border-radius: 6px; background: var(--brand);
+                      color: var(--on-brand); font-weight: 700; font-size: 14px; letter-spacing: .08em;
+                      text-transform: uppercase; text-decoration: none; }
+    .fim .principal:hover { background: var(--brand-hover); }
   </style>
 </head>
 <body>
   <main class="env">
     <h1>Criar a sua barbearia</h1>
-    <p class="sub">Leva dois minutos. No fim o site já está no ar com os seus serviços.</p>
+    <p class="sub">No fim, o seu site já está no ar — com os seus serviços e a sua cor.</p>
 
     <div id="erro" class="erro" hidden></div>
 
@@ -152,6 +203,11 @@ if (process.env.CADASTRO_ABERTO !== '1') {
         <input id="telefone" type="tel" inputmode="tel" required placeholder="(84) 99999-0000" />
         <p class="dica">É com ele que você entra no painel, e é o que aparece no site para o cliente chamar.</p>
 
+        <label for="email">Seu e-mail</label>
+        <input id="email" type="email" inputmode="email" autocomplete="email" required maxlength="254"
+          placeholder="voce@gmail.com" />
+        <p class="dica">Para recuperar a senha e receber os avisos do teste. Não aparece no site.</p>
+
         <label for="senha">Senha do painel</label>
         <input id="senha" type="password" required minlength="8" autocomplete="new-password" />
         <p class="dica">Mínimo de 8 caracteres.</p>
@@ -159,6 +215,30 @@ if (process.env.CADASTRO_ABERTO !== '1') {
 
       <fieldset>
         <legend>Sua marca</legend>
+        <label for="frase">Frase do topo do site</label>
+        <input id="frase" maxlength="200" placeholder="Corte na régua, sem fila." />
+        <p class="dica">Opcional, e muda quando quiser. É a primeira coisa que o cliente lê; sem ela, o topo mostra o nome da barbearia.</p>
+
+        <label id="cor-rotulo">Cor da barbearia</label>
+        <div class="cores" role="radiogroup" aria-labelledby="cor-rotulo">
+          {CORES.map((c) => (
+            <button type="button" class="cor" role="radio" aria-checked="false"
+              data-cor={c.hex} aria-label={c.nome} title={c.nome} style={`background:${c.hex}`}></button>
+          ))}
+          <label class="cor-outra" for="cor-outra">Outra <input type="color" id="cor-outra" value="#0f766e" /></label>
+        </div>
+        <p class="dica">Vai nos botões e nos destaques do site.</p>
+
+        <div class="previa" aria-live="polite">
+          <p class="previa-rotulo">Como fica o topo do seu site</p>
+          <div class="previa-site">
+            <p class="previa-nome" id="previa-nome">Barbearia do Zé</p>
+            <p class="previa-frase" id="previa-frase">Barbearia do Zé</p>
+            <span class="previa-botao" id="previa-botao">Agendar horário</span>
+          </div>
+        </div>
+        <p class="dica" id="previa-aviso" hidden></p>
+
         <label for="instagram">Instagram</label>
         <input id="instagram" maxlength="120" placeholder="@suabarbearia" />
         <p class="dica">Opcional. Vira o link do site — pode colar a URL inteira.</p>
@@ -208,12 +288,72 @@ if (process.env.CADASTRO_ABERTO !== '1') {
       <button id="enviar" type="submit">Criar a minha barbearia</button>
     </form>
 
-    <div id="pronto" class="ok" hidden></div>
+    <div id="pronto" class="ok fim" hidden></div>
   </main>
 
   <script>
+    // Script PROCESSADO (sem atributo): pode importar. A prévia usa a MESMA
+    // derivação que o servidor usa ao gravar — o que aparece aqui é o que vai
+    // para o site, sem lógica duplicada.
+    import { derivarAccent, ACCENT_PADRAO } from '../lib/accent.js';
+
     const $ = (id) => document.getElementById(id);
     const form = $('form'), erro = $('erro'), botao = $('enviar');
+
+    /* ── A cor e a prévia do topo ───────────────────────────────────────────
+       Nenhuma cor vem marcada: sem escolha, o site nasce na cor padrão do
+       sistema — e o medidor do painel cobra a escolha depois. */
+    let corEscolhida: string | null = null;
+    const amostras = Array.from(document.querySelectorAll<HTMLButtonElement>('.cores .cor'));
+    const corOutra = $('cor-outra') as HTMLInputElement;
+
+    function pintarPrevia(): void {
+      const a = corEscolhida ? derivarAccent(corEscolhida) : ACCENT_PADRAO;
+      ($('previa-botao') as HTMLElement).style.backgroundColor = a.color;
+      ($('previa-nome') as HTMLElement).style.color = a.light;
+      const nome = ($('nome') as HTMLInputElement).value.trim() || 'Barbearia do Zé';
+      const frase = ($('frase') as HTMLInputElement).value.trim();
+      ($('previa-nome') as HTMLElement).textContent = nome;
+      ($('previa-frase') as HTMLElement).textContent = frase || nome;
+      // A derivação mudou a cor: dizer é melhor que mudar em silêncio. São dois
+      // casos, com motivos diferentes — cinza, preto e branco não têm tom para
+      // preservar e viram a cor PADRÃO (`derivarAccent`); a clara demais vira o
+      // mesmo tom, mais escuro.
+      const aviso = $('previa-aviso') as HTMLElement;
+      const pedida = (corEscolhida ?? '').toLowerCase();
+      const semTom = Boolean(corEscolhida) && pedida !== ACCENT_PADRAO.color
+        && a.color === ACCENT_PADRAO.color && a.light === ACCENT_PADRAO.light;
+      const ajustada = Boolean(corEscolhida) && !semTom && a.color.toLowerCase() !== pedida;
+      aviso.hidden = !(semTom || ajustada);
+      aviso.textContent = semTom
+        ? 'Essa cor não tem tom — é cinza, preto ou branco —, e o botão do site precisa de um. Fica a cor padrão, como na prévia. Escolha uma cor com tom para ser a sua.'
+        : ajustada
+          ? 'Essa cor é clara demais para o texto do botão ficar legível, então o site usa o mesmo tom um pouco mais escuro — como na prévia.'
+          : '';
+    }
+
+    function escolherCor(hex: string, origem: HTMLButtonElement | null): void {
+      corEscolhida = hex;
+      for (const b of amostras) b.setAttribute('aria-checked', String(b === origem));
+      pintarPrevia();
+    }
+
+    for (const b of amostras) {
+      b.addEventListener('click', () => escolherCor(b.dataset.cor as string, b));
+    }
+    corOutra.addEventListener('input', () => escolherCor(corOutra.value, null));
+    $('frase')?.addEventListener('input', pintarPrevia);
+    $('nome')?.addEventListener('input', pintarPrevia);
+    pintarPrevia();
+
+    /** O campo que a API recusou, dito do jeito que a pessoa entende. */
+    const ERRO_DO_CAMPO: Record<string, string> = {
+      email: 'Confira o e-mail — é por ele que você recupera a senha.',
+      slug: 'Confira o endereço do site: só letras minúsculas, números e hífen.',
+      senha: 'A senha precisa de pelo menos 8 caracteres.',
+      telefone: 'Confira o WhatsApp, com DDD.',
+      frase: 'A frase do topo passa de 200 caracteres.',
+    };
 
     /** Sugere o endereço a partir do nome, até a pessoa mexer no campo. */
     let slugTocado = false;
@@ -278,6 +418,76 @@ if (process.env.CADASTRO_ABERTO !== '1') {
       return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : NaN;
     }
 
+    /* ── O fim: "o seu site está no ar" ────────────────────────────────────
+       É o momento em que o dono mostra o produto para alguém — e quem mostra
+       convence a si mesmo a pagar no 8º dia (`docs/JORNADA-DO-BARBEIRO.md` §2.8).
+       Montado com DOM, não com innerHTML: o endereço vem do servidor, e texto
+       que vira HTML é a porta do XSS que já apareceu aqui
+       (`docs/PENDENCIAS-ABERTAS.md` §2.12). */
+    function el<K extends keyof HTMLElementTagNameMap>(
+      tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...filhos: (Node | string)[]
+    ): HTMLElementTagNameMap[K] {
+      const e = document.createElement(tag);
+      Object.assign(e, props);
+      e.append(...filhos);
+      return e;
+    }
+
+    function mostrarFim(dados: { site?: string | null; telefoneLogin?: string; servicosAtivos?: number }): void {
+      const pronto = $('pronto') as HTMLElement;
+      pronto.replaceChildren();
+      const site = dados.site || null;
+
+      pronto.append(el('h2', {}, site ? 'O seu site está no ar.' : 'A sua barbearia existe.'));
+      if (site) {
+        pronto.append(el('a', { href: site, target: '_blank', rel: 'noopener', className: 'endereco' },
+          site.replace(/^https?:\/\//, '')));
+        const copiar = el('button', { type: 'button' }, 'Copiar para a bio do Instagram');
+        copiar.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(`Agende pelo site: ${site}`);
+            copiar.textContent = 'Copiado';
+          } catch {
+            copiar.textContent = 'Não consegui copiar';
+          }
+        });
+        const mensagem = `Agora dá para marcar horário pelo site: ${site}`;
+        pronto.append(el('div', { className: 'acoes' },
+          el('a', { href: site, target: '_blank', rel: 'noopener' }, 'Abrir o meu site'),
+          el('a', { href: `https://wa.me/?text=${encodeURIComponent(mensagem)}`, target: '_blank', rel: 'noopener' },
+            'Mandar no WhatsApp'),
+          copiar,
+        ));
+      } else {
+        pronto.append(el('p', { className: 'dica' },
+          'O endereço do site aparece aqui quando o domínio do produto estiver configurado.'));
+      }
+
+      pronto.append(el('p', { className: 'dica' },
+        el('strong', {}, 'Próximos passos'), ' — cada um leva poucos minutos e muda muito o site:'));
+      const passos = el('ol');
+      if (!dados.servicosAtivos) {
+        passos.append(el('li', {}, el('a', { href: '/admin/servicos' }, 'Ponha preço em pelo menos um serviço'),
+          ' — sem isso, ninguém consegue agendar.'));
+      }
+      passos.append(
+        el('li', {}, el('a', { href: '/admin/galeria' }, 'Suba fotos dos seus cortes'),
+          ' — a galeria aparece no site a partir de 3.'),
+        el('li', {}, el('a', { href: '/admin/configuracoes' }, 'Suba a logo e uma foto de capa'), '.'),
+      );
+      pronto.append(passos);
+
+      // "84988887777" vira "(84) 98888-7777": é assim que ele vai digitar no login.
+      const d = String(dados.telefoneLogin ?? '');
+      const telefone = d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+        : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : d;
+      pronto.append(el('a', { href: '/admin', className: 'principal' }, 'Abrir o meu painel'));
+      pronto.append(el('p', { className: 'dica' },
+        `Você já está dentro do painel. Da próxima vez, entre com o WhatsApp ${telefone} e a senha que escolheu.`));
+      pronto.hidden = false;
+      pronto.scrollIntoView({ block: 'start' });
+    }
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       erro.hidden = true;
@@ -308,6 +518,9 @@ if (process.env.CADASTRO_ABERTO !== '1') {
             dono: $('dono').value.trim(), telefone: $('telefone').value.trim(),
             endereco: $('endereco').value.trim(), cidade: $('cidade').value.trim(),
             senha: $('senha').value, servicos,
+            email: ($('email') as HTMLInputElement).value.trim(),
+            frase: ($('frase') as HTMLInputElement).value.trim() || undefined,
+            cor: corEscolhida || undefined,
             instagram: $('instagram').value.trim() || undefined,
             sobre: $('sobre').value.trim() || undefined,
             horarios: ORDEM.map((d) => $(`hr-on-${d}`).checked
@@ -317,18 +530,18 @@ if (process.env.CADASTRO_ABERTO !== '1') {
         });
         const dados = await r.json().catch(() => ({}));
         if (!r.ok) {
-          erro.textContent = dados.error || 'Não consegui criar agora. Tente de novo.';
+          // O provisionador já devolve frase específica ("Já existe uma barbearia no
+          // endereço…"); o "Confira os campos." genérico da validação de forma
+          // ganha a explicação do campo.
+          const especifico = dados.error && dados.error !== 'Confira os campos.';
+          erro.textContent = especifico ? dados.error
+            : (ERRO_DO_CAMPO[dados.campo] || dados.error || 'Não consegui criar agora. Tente de novo.');
           erro.hidden = false;
+          erro?.scrollIntoView({ block: 'center' });
           return;
         }
         form.hidden = true;
-        const pronto = $('pronto');
-        pronto.innerHTML =
-          '<p style="margin:0 0 10px"><strong>Pronto. A sua barbearia existe.</strong></p>' +
-          `<p style="margin:0 0 10px">Você já está dentro do painel. Da próxima vez, entre com o WhatsApp <code>${dados.telefoneLogin}</code> e a senha que acabou de escolher.</p>` +
-          (dados.avisos?.length ? `<p style="margin:0 0 10px">⚠️ ${dados.avisos[0]}</p>` : '') +
-          '<p style="margin:0"><a href="/admin">Abrir o meu painel</a></p>';
-        pronto.hidden = false;
+        mostrarFim(dados);
       } catch {
         erro.textContent = 'Não consegui falar com o servidor.';
         erro.hidden = false;
