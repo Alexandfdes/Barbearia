@@ -131,6 +131,9 @@ CREATE TABLE tenants (
 );
 ```
 
+*Desde 08/10/2026, o status admite também `trial` e `past_due`, com `trial_ends_at` e
+`past_due_since` — migration 0007 e `ARQUITETURA-COBRANCA-V1.md` §5.2.*
+
 ### 5.2 As 12 tabelas ganham `tenant_id`
 
 `barbers`, `services`, `barber_services`, `working_hours`, `time_off`, `appointments`,

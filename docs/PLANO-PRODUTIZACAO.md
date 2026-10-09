@@ -538,8 +538,8 @@ Conferido em 24/09/2026, atualizado em 25/09/2026 e em 08/10/2026:
 | Cores do dono | ✅ **uma**, escolhida no cadastro com a prévia do topo do site desde 08/10, e trocada no painel; o contraste é garantido por derivação (`lib/accent.ts`, 13 testes) |
 | E-mail do dono | ✅ pedido no cadastro desde 08/10, para a senha e os avisos — que ainda não existem |
 | Cartão no cadastro | ❌ nenhuma linha de código — e, desde 08/10, pedido no fim do teste, não no cadastro |
-| Teste de 7 dias | ❌ nenhuma data de fim. O status da barbearia só admite `active`, `suspended` e `cancelled` — no tipo (`lib/tenant.ts:37`) e numa trava `CHECK` da migration 0001 |
-| Cobrança automática | ❌ nenhuma linha de código |
+| Teste de 7 dias | ✅ desde 08/10: nasce no teste, com a data de fim; 3 dias de carência; depois, o site fora do ar com o WhatsApp da barbearia e o painel só na tela de assinatura (`PENDENCIAS-ABERTAS.md` §4.14) |
+| Cobrança automática | ❌ nenhuma linha de código — e, sem ela, ninguém consegue pagar: o cadastro não abre antes |
 
 ### O que muda nos outros documentos
 
@@ -603,7 +603,18 @@ ele que vêm o aviso do fim do teste e o de cobrança.
 o site mostra "temporariamente indisponível", sem expor a dívida aos clientes da
 barbearia, e o painel só abre a tela de regularizar. Nada é apagado; pagou, volta na hora
 (`PENDENCIAS-ABERTAS.md` §1.3). Rejeitados: suspender na hora, e desligar só a agenda.
-**Proposto, a confirmar:** o teste que acaba sem cartão segue a mesma regra.
+**Confirmado no mesmo dia:** o teste que acaba sem cartão segue a mesma regra. E três
+detalhes decididos junto, com o custo de cada lado apresentado:
+
+- o site fora do ar mostra o **WhatsApp da barbearia**. Rejeitado: só o aviso — mais pressão
+  para pagar, mas quem paga o preço é ela, com os clientes dela;
+- o painel fora do ar mostra, além da tela de regularizar, **os próximos horários marcados,
+  só para consulta**. Rejeitado: só a tela de pagar — quem tem horário marcado ficaria
+  invisível para o barbeiro;
+- o teste vai **até o fim do 7º dia depois do cadastro**, no fuso da barbearia. Rejeitado:
+  exatamente 7×24h — mais preciso, mais difícil de dizer na tela e no e-mail.
+
+Feito no mesmo dia (`PENDENCIAS-ABERTAS.md` §4.14).
 
 **6. Só plano mensal no lançamento.** O anual vira oferta no painel depois do 8º dia, para
 quem já viu o produto funcionando.
@@ -622,5 +633,8 @@ marcados com um aviso até lá:
 
 **Reescritos em 08/10/2026, com o código do cadastro novo:** `JORNADA-DO-BARBEIRO.md` §2.4
 e `PENDENCIAS-ABERTAS.md` §4.13, e em parte `PENDENCIAS-ABERTAS.md` §4.17 — o e-mail é pedido;
-a recuperação não existe.
+a recuperação não existe. **Com o teste de 7 dias, no mesmo dia:** `JORNADA-DO-BARBEIRO.md`
+§2.6, `JORNADA-DO-BARBEIRO.md` §2.9 e `JORNADA-DO-BARBEIRO.md` §2.10,
+`PENDENCIAS-ABERTAS.md` §1.3, `PENDENCIAS-ABERTAS.md` §3.5 e `PENDENCIAS-ABERTAS.md` §4.14, e o
+`ARQUITETURA-COBRANCA-V1.md` §5.2.
 
