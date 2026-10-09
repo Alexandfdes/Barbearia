@@ -28,6 +28,14 @@ import { CORES_DO_CADASTRO as CORES } from '../lib/coresDoCadastro.js';
 if (process.env.CADASTRO_ABERTO !== '1') {
   return new Response('Not found', { status: 404 });
 }
+
+/**
+ * O resto do endereço, para a prévia mostrar o endereço INTEIRO que o barbeiro
+ * está escolhendo — `barbearia-do-ze.fadeline.com.br`, não só `barbearia-do-ze`.
+ * Vem da mesma variável que monta o link do site (`urlDoSite`, em `lib/tenant.ts`);
+ * sem ela (desenvolvimento sem `DOMINIO_BASE`), a prévia mostra só o começo.
+ */
+const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMINIO_BASE.trim()}` : '';
 ---
 
 <html lang="pt-BR">
@@ -188,7 +196,8 @@ if (process.env.CADASTRO_ABERTO !== '1') {
 
         <label for="slug">Endereço do site</label>
         <input id="slug" required maxlength="63" placeholder="barbearia-do-ze" />
-        <p class="dica">Vai ficar <code id="previa">barbearia-do-ze</code>. Só minúsculas, números e hífen.</p>
+        <p class="dica">Vai ficar <code><span id="previa">barbearia-do-ze</span>{restoDoEndereco}</code>. Só minúsculas, números e hífen.
+          <strong>Escolha com calma: o endereço não muda depois</strong> — é o link que você vai mandar para os clientes.</p>
 
         <label for="endereco">Rua e número</label>
         <input id="endereco" required maxlength="200" placeholder="R. das Flores, 42" />

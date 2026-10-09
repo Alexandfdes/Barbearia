@@ -6,6 +6,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
+    "predev": "node --env-file-if-exists=.env scripts/startup.mjs --so-migrations",
     "dev": "node --env-file-if-exists=.env node_modules/astro/bin/astro.mjs dev --port 4321 --strictPort",
     "build": "astro build",
     "preview": "node --env-file-if-exists=.env node_modules/astro/bin/astro.mjs preview",
