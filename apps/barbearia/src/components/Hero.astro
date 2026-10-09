@@ -72,12 +72,16 @@ const subtitulo = s.heroSubtitle;
       </div>
     </div>
   ) : (
-    <!--
-      Versão tipográfica. O brilho usa a cor de destaque do cliente por variável
-      CSS: `bg-teal` seria opaco demais atrás do texto, e hex cravado escaparia
-      do tema (ver a skill `barbearia-paleta`).
-    -->
     <div class="absolute inset-0 z-0 bg-dark" aria-hidden="true">
+      <!--
+        Versão tipográfica. O brilho usa a cor de destaque do cliente por variável
+        CSS: `bg-teal` seria opaco demais atrás do texto, e hex cravado escaparia
+        do tema (ver a skill `barbearia-paleta`).
+
+        ⚠️ O comentário mora DENTRO da div desde o Astro 7: o compilador novo exige
+        um elemento só em cada ramo do `? :`, e o comentário antes da div contava
+        como um segundo — o build parava com "Unexpected token".
+      -->
       <!-- Brilho principal, atrás do texto -->
       <div
         class="absolute left-[-10%] top-[35%] h-[85vmin] w-[85vmin] -translate-y-1/2 rounded-full blur-[80px] opacity-55"

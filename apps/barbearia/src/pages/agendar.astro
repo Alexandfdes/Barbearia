@@ -696,3 +696,7 @@ wizard.addEventListener('click', async (e) => {
 
 // ── Init ─────────────────────────
 initStep1();
+
+// ⚠️ Até o Astro 6 este bloco não tinha o fechamento, e o compilador antigo fechava
+// sozinho no fim do arquivo. O do Astro 7 recusa o build sem ele.
+</script>
