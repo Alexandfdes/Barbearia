@@ -3,14 +3,17 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { addMinutes } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import { and, eq } from 'drizzle-orm';
 import { db, first } from '../../../db/index.js';
 import { combos, products } from '../../../db/schema.js';
 import { json } from '../../../lib/api.js';
 import { bookAppointment } from '../../../lib/bookAppointment.js';
+import { comboValeNaData } from '../../../lib/combo.js';
 import { checkRateLimit } from '../../../lib/rateLimit.js';
 import { getClientIp } from '../../../lib/clientIp.js';
 import { tenantDoHost } from '../../../lib/tenant.js';
+import { TZ } from '../../../lib/timezone.js';
 
 // Idade mínima 5 anos, máxima 100 anos — só sanidade
 const MIN_BIRTH_AGE_YEARS = 5;
@@ -66,10 +69,11 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   // Combo do dia: resolve serviço, produto e desconto no servidor a partir do combo.
   // O serviço do agendamento passa a ser o do combo (ignora o serviceId do cliente).
   let combo: { productSlug: string; discountPct: number } | null = null;
+  let diasDoCombo: number | null = null;
   let effectiveServiceId = serviceId;
   if (parsed.data.comboId) {
     const c = await first(db
-      .select({ serviceId: combos.serviceId, productId: combos.productId, discountPct: combos.discountPct })
+      .select({ serviceId: combos.serviceId, productId: combos.productId, discountPct: combos.discountPct, weekdays: combos.weekdays })
       .from(combos)
       .where(and(eq(combos.id, parsed.data.comboId), eq(combos.active, true), eq(combos.tenantId, tenant.id))));
     if (!c) return json({ error: 'Combo indisponível' }, 400);
@@ -77,6 +81,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     if (!prod) return json({ error: 'Produto do combo indisponível' }, 400);
     effectiveServiceId = c.serviceId;
     combo = { productSlug: prod.slug, discountPct: c.discountPct };
+    diasDoCombo = c.weekdays;
   }
 
   // Camada 2: por telefone (mesmo IP) — barra abuso repetido com um número
@@ -99,6 +104,17 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   const maxDate = addMinutes(new Date(), 30 * 24 * 60);
   if (startsAt > maxDate) {
     return json({ error: 'Horário além do limite de 30 dias' }, 400);
+  }
+
+  // O combo vale nos dias que o dono marcou — o dia do HORÁRIO, na barbearia.
+  //
+  // ⚠️ Até 09/10/2026 só o id, o `active` e a barbearia eram conferidos: o
+  // "combo de segunda, 20% OFF" valia numa sexta para quem tivesse o link, sobre
+  // o serviço e o produto, e entrava no relatório como receita normal
+  // (`PENDENCIAS-ABERTAS.md` §2.16). O calendário do `/agendar` já fecha os
+  // outros dias; esta é a regra que o link editado à mão não contorna.
+  if (diasDoCombo !== null && !comboValeNaData(diasDoCombo, formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd'))) {
+    return json({ error: 'Este combo não vale neste dia da semana' }, 400);
   }
 
   try {

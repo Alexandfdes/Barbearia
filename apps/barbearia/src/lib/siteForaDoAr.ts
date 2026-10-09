@@ -19,22 +19,18 @@
  */
 import { numeroDaLojaInternacional, type Settings } from './settings.js';
 import { ACCENT_PADRAO, isHex } from './accent.js';
+// ⚠️ O nome vem do painel, escrito pelo dono, e o cadastro limita só o tamanho —
+// não os caracteres. Sem escapar, um nome com `<script>` rodaria no navegador de
+// todo cliente que abrisse o endereço. Desde 09/10/2026 o escape mora em
+// `lib/html.ts`, que o script do `/agendar` também usa.
+import { escaparHtml } from './html.js';
+
+export { escaparHtml };
 
 type Dados = Pick<Settings, 'businessName' | 'whatsappNumber' | 'accentColor'>;
 
 /** Um dia. Ninguém sabe quando ela paga; o número só diz "não é para sempre". */
 const VOLTE_EM_SEGUNDOS = 86_400;
-
-const ENTIDADES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-
-/**
- * ⚠️ O nome vem do painel, escrito pelo dono, e o cadastro limita só o tamanho —
- * não os caracteres. Sem escapar, um nome com `<script>` rodaria no navegador de
- * todo cliente que abrisse o endereço (skill `barbearia-vazamento-entre-clientes`).
- */
-export function escaparHtml(texto: string): string {
-  return texto.replace(/[&<>"']/g, (c) => ENTIDADES[c]);
-}
 
 export function paginaForaDoAr(s: Dados): string {
   const nome = escaparHtml(s.businessName?.trim() || 'Barbearia');

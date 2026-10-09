@@ -2,7 +2,7 @@
 // SSR: ver ARQUITETURA-PRODUTO-V1 D3.
 export const prerender = false;
 import Layout from '../layouts/Layout.astro';
-import { getSettings } from '../lib/settings';
+import { getSettings, waUrl } from '../lib/settings';
 
 import { tenantDoHost } from '../lib/tenant.js';
 import { TZ } from '../lib/timezone.js';
@@ -18,6 +18,10 @@ if (!tenantDoHost(Astro.request)) {
 
 
 const s = await getSettings();
+
+// A saída da tela quando não há serviço para agendar: o WhatsApp da barbearia,
+// com o mesmo texto do rodapé. Vazio quando ela não cadastrou número.
+const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário.', s);
 ---
 
 <Layout
@@ -44,19 +48,14 @@ const s = await getSettings();
 
     <main class="max-w-2xl mx-auto px-4 py-8">
 
-      <!-- Indicador de progresso -->
-      <div id="progress" class="flex items-center justify-center gap-0 mb-10 opacity-0 transition-opacity duration-300">
-        <div data-dot="1" class="w-8 h-8 rounded-full border-2 border-white/20 bg-dark-card flex items-center justify-center text-xs font-medium text-neutral-500 transition-all duration-300">1</div>
-        <div class="w-10 md:w-16 h-px bg-white/10"></div>
-        <div data-dot="2" class="w-8 h-8 rounded-full border-2 border-white/20 bg-dark-card flex items-center justify-center text-xs font-medium text-neutral-500 transition-all duration-300">2</div>
-        <div class="w-10 md:w-16 h-px bg-white/10"></div>
-        <div data-dot="3" class="w-8 h-8 rounded-full border-2 border-white/20 bg-dark-card flex items-center justify-center text-xs font-medium text-neutral-500 transition-all duration-300">3</div>
-        <div class="w-10 md:w-16 h-px bg-white/10"></div>
-        <div data-dot="4" class="w-8 h-8 rounded-full border-2 border-white/20 bg-dark-card flex items-center justify-center text-xs font-medium text-neutral-500 transition-all duration-300">4</div>
-      </div>
+      <!--
+        Indicador de progresso. Os pontos são montados pelo script: são três ou
+        quatro, conforme haja barbeiro para escolher (`lib/agendamento.ts`).
+      -->
+      <div id="progress" class="flex items-center justify-center gap-0 mb-10 opacity-0 transition-opacity duration-300"></div>
 
       <!-- Área do wizard -->
-      <div id="wizard" data-tz={TZ}>
+      <div id="wizard" data-tz={TZ} data-whatsapp={whatsappUrl}>
         <div class="flex items-center justify-center py-20 gap-3 text-neutral-500">
           <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -72,10 +71,13 @@ const s = await getSettings();
 
 <script>
 import { reais } from '../lib/dinheiro';
-import {
-
-  applyDiscountPct, type ComboProduct,
-} from '../lib/combo';
+import { applyDiscountPct, comboValeNaData, diasDoCombo, type ComboProduct } from '../lib/combo';
+import { passosDoAgendamento, rotuloDoPasso, type Passo } from '../lib/agendamento';
+// ⚠️ Todo nome que vai para o `innerHTML` passa por `esc`: serviço, barbeiro,
+// produto e combo são texto livre do painel (`lib/html.ts`). Até 09/10/2026 o
+// nome do produto entrava cru no resumo (`PENDENCIAS-ABERTAS.md` §2.24), e
+// `tests/agendar-primeiro-minuto.test.ts` reprova o nome sem escape.
+import { escaparHtml as esc } from '../lib/html';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 interface BarberOption { id: number; name: string; slug: string; durationMinutes: number; }
@@ -83,13 +85,14 @@ interface Service { id: number; name: string; slug: string; priceCents: number; 
 interface SlotInfo { utc: string; time: string; }
 
 // ── Estado ────────────────────────────────────────────────────────────────────
-// Modo combo: ativado por /agendar?combo=1. Mostra só os combos Cabelo+Barba
-// elegíveis e exige a escolha de um produto Boris (preço com 10% OFF).
+// Modo combo: /agendar?combo=<id>, o link do combo do dia no site. Serviço,
+// produto, desconto e dias vêm do combo (`/api/combos`); o servidor confere tudo
+// de novo ao gravar, o dia inclusive (`api/appointments/index.ts`).
 const comboParam = new URLSearchParams(location.search).get('combo');
 const comboId = comboParam && /^\d+$/.test(comboParam) ? parseInt(comboParam, 10) : null;
 const comboMode = comboId !== null;
-let comboData: any = null;   // combo carregado de /api/combos (serviço, produto, desconto)
-let comboPct = 10;           // desconto do combo (%)
+let comboData: any = null;   // combo carregado de /api/combos (serviço, produto, desconto, dias)
+let comboPct = 0;            // desconto do combo (%), o que o dono definiu
 let selProduct: ComboProduct | null = null;
 
 let services: Service[] = [];
@@ -118,28 +121,35 @@ const headerBackBtn = document.getElementById('header-back-btn')!;
 
 headerBackBtn.addEventListener('click', (e) => {
   e.preventDefault();
-  if (currentStep === 1) {
-    window.location.href = '/';
-  } else if (currentStep === 2) {
-    selService = null;
-    selBarber = null;
-    selDate = '';
-    loadedSlots = [];
-    selSlot = null;
-    setProgress(1);
+  // Do horário, volta ao serviço quando o barbeiro foi escolhido sozinho.
+  if (currentStep === 1) voltarPara(0);
+  else if (currentStep === 3 && !temPassoDoBarbeiro()) voltarPara(1);
+  else voltarPara(currentStep - 1);
+});
+
+/**
+ * Volta a um passo, limpando o que foi escolhido depois dele. Serve ao "Voltar"
+ * do topo e aos de cada tela.
+ *
+ * ⚠️ No modo combo o serviço é o do combo, e não se apaga: até 09/10/2026 o
+ * "Voltar" do topo o apagava, e a tela do combo respondia "Este combo não está
+ * mais disponível".
+ */
+function voltarPara(passo: number) {
+  if (passo === 0) { window.location.href = '/'; return; }
+  if (passo === 1) {
+    if (!comboMode) selService = null;
+    selBarber = null; selDate = ''; loadedSlots = []; selSlot = null;
     renderStep1();
-  } else if (currentStep === 3) {
-    selBarber = null;
-    selDate = '';
-    loadedSlots = [];
-    selSlot = null;
+  } else if (passo === 2) {
+    selBarber = null; selDate = ''; loadedSlots = []; selSlot = null;
     renderStep2();
-  } else if (currentStep === 4) {
+  } else if (passo === 3) {
     selSlot = null;
     renderStep3();
     if (selDate && loadedSlots.length) renderSlots();
   }
-});
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const DAYS  = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -173,25 +183,43 @@ function stepHeader(title: string, subtitle: string) {
 }
 
 // ── Progresso ─────────────────────────────────────────────────────────────────
+// `currentStep` numera as telas — 1 serviço, 2 barbeiro, 3 horário, 4 dados — e
+// não muda quando o barbeiro é escolhido sozinho. O que o cliente vê ("Passo 2 de
+// 3", os pontos) sai de `passosDoAgendamento`, que sabe se há escolha.
+const PASSO_DA_TELA: Passo[] = ['servico', 'servico', 'barbeiro', 'horario', 'dados'];
+
+function passosAgora(): Passo[] {
+  return passosDoAgendamento(services, selService);
+}
+
+function temPassoDoBarbeiro(): boolean {
+  return passosAgora().includes('barbeiro');
+}
+
+function rotulo(tela: number): string {
+  return rotuloDoPasso(PASSO_DA_TELA[tela], passosAgora());
+}
+
 function setProgress(step: number) {
   currentStep = step;
+  const passos = passosAgora();
+  const atual = passos.indexOf(PASSO_DA_TELA[step]);
+  progress.innerHTML = passos.map((_, i) => {
+    const estado = i < atual
+      ? 'border-teal bg-teal/20 text-teal-light'
+      : i === atual
+        ? 'border-teal bg-teal text-white'
+        : 'border-white/20 bg-dark-card text-neutral-500';
+    const traco = i > 0 ? '<div class="w-10 md:w-16 h-px bg-white/10"></div>' : '';
+    return `${traco}<div data-dot="${i + 1}" class="w-8 h-8 rounded-full border-2 ${estado} flex items-center justify-center text-xs font-medium transition-all duration-300">${i + 1}</div>`;
+  }).join('');
   progress.style.opacity = '1';
-  for (let i = 1; i <= 4; i++) {
-    const dot = progress.querySelector(`[data-dot="${i}"]`) as HTMLElement;
-    if (!dot) continue;
-    if (i < step) {
-      dot.className = 'w-8 h-8 rounded-full border-2 border-teal bg-teal/20 flex items-center justify-center text-xs font-medium text-teal-light transition-all duration-300';
-    } else if (i === step) {
-      dot.className = 'w-8 h-8 rounded-full border-2 border-teal bg-teal flex items-center justify-center text-xs font-medium text-white transition-all duration-300';
-    } else {
-      dot.className = 'w-8 h-8 rounded-full border-2 border-white/20 bg-dark-card flex items-center justify-center text-xs font-medium text-neutral-500 transition-all duration-300';
-    }
-  }
 }
 
 // ── Step 1: Serviços ──────────────────────────────────────────────────────────
 async function initStep1() {
-  setProgress(1);
+  // Sem `setProgress` aqui: quantos pontos há depende dos serviços, que ainda não
+  // chegaram. O indicador aparece com a primeira tela.
   try {
     const res = await fetch('/api/services');
     if (!res.ok) throw new Error('falha na API');
@@ -219,31 +247,78 @@ async function initStep1() {
 
 function renderStep1() {
   if (comboMode) return renderStep1Combo();
+  // `/api/services` só traz serviço ativo com barbeiro ativo: lista vazia é
+  // barbearia sem nada que o cliente consiga marcar.
+  if (services.length === 0) return renderSemServico();
+  setProgress(1);
   const cards = services.map(s => `
     <button data-action="select-service" data-id="${s.id}"
       class="text-left bg-dark-card border border-white/5 hover:border-teal/40 rounded-md p-5 transition-all duration-200 group w-full">
       <div class="flex items-start justify-between mb-1.5 pointer-events-none">
-        <span class="text-base font-medium text-neutral-200 group-hover:text-white leading-tight pr-2">${s.name}</span>
+        <span class="text-base font-medium text-neutral-200 group-hover:text-white leading-tight pr-2">${esc(s.name)}</span>
         <span class="text-teal-light font-semibold whitespace-nowrap text-sm">${fmt(s.priceCents)}</span>
       </div>
       <span class="text-xs text-neutral-500 pointer-events-none">
-        ${s.barbers.length} barbeiro${s.barbers.length > 1 ? 's' : ''}
+        ${detalheDoServico(s)}
       </span>
     </button>
   `).join('');
 
   wizard.innerHTML = `
     <div class="animate-fade-in">
-      ${stepHeader('Escolha o serviço', 'Passo 1 de 4')}
+      ${stepHeader('Escolha o serviço', rotulo(1))}
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${cards}</div>
     </div>`;
 }
 
-// ── Step 1 (modo combo): combo Cabelo+Barba + produto Boris ────────────────────
-function renderStep1Combo() {
-  setProgress(1);
+/**
+ * O que o cartão do serviço diz embaixo do nome. Com um barbeiro só, a duração:
+ * era a tela do barbeiro que a mostrava, e essa tela não aparece mais.
+ */
+function detalheDoServico(s: Service): string {
+  if (s.barbers.length === 1) return `Duração estimada: ${s.barbers[0].durationMinutes} min`;
+  return `${s.barbers.length} barbeiros`;
+}
 
-  if (!comboData || !selService || !selProduct) {
+// ── Sem serviço para agendar ──────────────────────────────────────────────────
+// ⚠️ Até 09/10/2026 esta tela era "Escolha o serviço — Passo 1 de 4" e mais nada:
+// barbearia recém-criada nasce sem serviço, e o botão "Reservar horário" do site
+// levava a uma página em branco, sem saída (`PENDENCIAS-ABERTAS.md` §4.9). Agora
+// diz o que acontece e oferece o WhatsApp da barbearia.
+function linkDoWhatsApp(): string {
+  const url = wizard.dataset.whatsapp ?? '';
+  return url.startsWith('https://wa.me/') ? url : '';
+}
+
+function renderSemServico() {
+  currentStep = 1;
+  progress.innerHTML = '';
+  progress.style.opacity = '0';
+  const whatsapp = linkDoWhatsApp();
+  wizard.innerHTML = whatsapp
+    ? `<div class="animate-fade-in max-w-md mx-auto text-center py-10" data-estado="sem-servico">
+        <h1 class="font-serif text-2xl md:text-3xl font-medium text-neutral-50 mb-3">Agende pelo WhatsApp</h1>
+        <p class="text-sm text-neutral-400 mb-8">No momento, os horários desta barbearia são marcados direto com ela.</p>
+        <a href="${esc(whatsapp)}" target="_blank" rel="noopener"
+          class="inline-flex items-center justify-center w-full sm:w-auto bg-teal hover:bg-teal-hover text-white font-bold tracking-widest uppercase text-sm px-8 py-4 rounded-md transition-colors duration-300">
+          Chamar no WhatsApp
+        </a>
+        <a href="/" class="block mt-6 text-sm text-neutral-400 hover:text-neutral-200 underline underline-offset-4">Voltar ao site</a>
+      </div>`
+    : `<div class="animate-fade-in max-w-md mx-auto text-center py-10" data-estado="sem-servico">
+        <h1 class="font-serif text-2xl md:text-3xl font-medium text-neutral-50 mb-3">Agendamento indisponível</h1>
+        <p class="text-sm text-neutral-400 mb-8">No momento, não há horários para marcar pelo site. Volte em breve.</p>
+        <a href="/" class="text-sm text-neutral-400 hover:text-neutral-200 underline underline-offset-4">Voltar ao site</a>
+      </div>`;
+}
+
+// ── Step 1 (modo combo): o serviço e o produto do combo, com o desconto ──────
+function renderStep1Combo() {
+  // Combo sem dia nenhum marcado não vale em dia nenhum: o servidor recusaria no
+  // fim, depois de o cliente preencher tudo.
+  if (!comboData || !selService || !selProduct || !comboData.weekdays) {
+    progress.innerHTML = '';
+    currentStep = 1;
     wizard.innerHTML = `
       <div class="animate-fade-in text-center py-10">
         <p class="text-neutral-400 text-sm mb-4">Este combo não está mais disponível.</p>
@@ -252,26 +327,30 @@ function renderStep1Combo() {
     return;
   }
 
+  setProgress(1);
   const svcD  = applyDiscountPct(selService.priceCents, comboPct);
   const prodD = applyDiscountPct(selProduct.priceCents, comboPct);
   const totalCents = svcD + prodD;
   const fullCents  = selService.priceCents + selProduct.priceCents;
   const economiaCents = fullCents - totalCents;
+  // O calendário só abre os dias do combo; aqui o cliente fica sabendo antes.
+  const dias = comboData.weekdays === 127 ? '' : `
+        <p class="text-xs text-neutral-400">Dias do combo: <span class="text-neutral-200">${esc(diasDoCombo(comboData.weekdays))}</span></p>`;
 
   wizard.innerHTML = `
     <div class="animate-fade-in">
-      ${stepHeader(comboData.name, 'Passo 1 de 4 · ' + comboPct + '% OFF no combo')}
+      ${stepHeader(esc(comboData.name), `${rotulo(1)} · ${comboPct}% OFF no combo`)}
 
       <div class="bg-dark-card border border-teal/30 rounded-md p-5 space-y-3">
         <div class="flex items-center justify-between">
-          <span class="text-sm text-neutral-200">${selService.name}</span>
+          <span class="text-sm text-neutral-200">${esc(selService.name)}</span>
           <span class="text-sm whitespace-nowrap">
             <span class="text-teal-light font-semibold">${fmt(svcD)}</span>
             <span class="text-neutral-600 line-through ml-1 text-xs">${fmt(selService.priceCents)}</span>
           </span>
         </div>
         <div class="flex items-center justify-between">
-          <span class="text-sm text-neutral-200">${selProduct.name} <span class="text-neutral-600 text-xs">(retira na barbearia)</span></span>
+          <span class="text-sm text-neutral-200">${esc(selProduct.name)} <span class="text-neutral-600 text-xs">(retira na barbearia)</span></span>
           <span class="text-sm whitespace-nowrap">
             <span class="text-teal-light font-semibold">${fmt(prodD)}</span>
             <span class="text-neutral-600 line-through ml-1 text-xs">${fmt(selProduct.priceCents)}</span>
@@ -284,7 +363,7 @@ function renderStep1Combo() {
             <span class="text-neutral-600 line-through ml-2 text-sm">${fmt(fullCents)}</span>
           </div>
         </div>
-        <p class="text-xs text-teal-light/80 text-right">Você economiza ${fmt(economiaCents)} (${comboPct}% OFF)</p>
+        <p class="text-xs text-teal-light/80 text-right">Você economiza ${fmt(economiaCents)} (${comboPct}% OFF)</p>${dias}
       </div>
 
       <button data-action="combo-continue"
@@ -310,9 +389,9 @@ function renderStep2() {
       class="text-left bg-dark-card border border-white/5 hover:border-teal/40 rounded-md p-5 transition-all duration-200 group w-full">
       <div class="flex items-center gap-3 mb-2 pointer-events-none">
         <div class="w-10 h-10 rounded-full bg-dark-surface border border-white/10 flex items-center justify-center text-base font-serif text-teal-light shrink-0">
-          ${b.name.charAt(0)}
+          ${esc(b.name.charAt(0))}
         </div>
-        <span class="text-base font-medium text-neutral-200 group-hover:text-white">${b.name}</span>
+        <span class="text-base font-medium text-neutral-200 group-hover:text-white">${esc(b.name)}</span>
       </div>
       <span class="text-xs text-neutral-500 pointer-events-none">Duração estimada: ${b.durationMinutes} min</span>
     </button>
@@ -320,10 +399,39 @@ function renderStep2() {
 
   wizard.innerHTML = `
     <div class="animate-fade-in">
-      ${stepHeader('Escolha o barbeiro', `Serviço: <span class="text-neutral-300">${selService.name}</span>`)}
+      ${stepHeader('Escolha o barbeiro', `Serviço: <span class="text-neutral-300">${esc(selService.name)}</span>`)}
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">${cards}</div>
-      ${backBtn(1, 'Alterar serviço')}
+      ${backBtn(1, comboMode ? 'Voltar ao combo' : 'Alterar serviço')}
     </div>`;
+}
+
+/**
+ * Depois do serviço (ou do combo): com um barbeiro só, ele é escolhido sozinho e
+ * o cliente vai direto ao horário (`PENDENCIAS-ABERTAS.md` §2.2).
+ */
+function avancarDoServico() {
+  if (!selService) return;
+  if (selService.barbers.length === 1) escolherBarbeiro(selService.barbers[0]);
+  else renderStep2();
+}
+
+async function escolherBarbeiro(b: BarberOption) {
+  selBarber = b;
+  selDate = ''; loadedSlots = []; selSlot = null;
+  barberWorkdays = null;
+  renderStep3();
+  // Carrega os dias que o barbeiro trabalha e re-renderiza o calendário.
+  try {
+    const res = await fetch(`/api/working-hours?barber=${b.id}`);
+    if (!res.ok) return;
+    const rows: { weekday: number }[] = await res.json();
+    // O cliente pode ter voltado, ou trocado de barbeiro, enquanto a resposta vinha.
+    if (selBarber !== b) return;
+    barberWorkdays = new Set(rows.map(r => r.weekday));
+    if (currentStep !== 3) return;
+    renderStep3();
+    if (selDate && loadedSlots.length) renderSlots();
+  } catch { /* mantém o calendário do fallback */ }
 }
 
 // ── Step 3: Data & Hora ───────────────────────────────────────────────────────
@@ -360,8 +468,14 @@ function renderStep3(slotsContent?: string) {
   setProgress(3);
 
   const dates = buildDates();
+  // Fechado: o barbeiro não trabalha naquele dia da semana, ou — no combo — o
+  // combo não vale nele. O servidor recusa os dois; aqui o cliente nem consegue
+  // escolher (`PENDENCIAS-ABERTAS.md` §2.16).
+  const fechado = (d: { weekday: number; dateStr: string }) =>
+    (barberWorkdays ? !barberWorkdays.has(d.weekday) : d.weekday === 0)
+    || (comboMode && !!comboData && !comboValeNaData(comboData.weekdays, d.dateStr));
   const datePicker = dates.map(d => {
-    const closed = barberWorkdays ? !barberWorkdays.has(d.weekday) : (d.weekday === 0);
+    const closed = fechado(d);
     const active = d.dateStr === selDate;
     let cls: string;
     if (closed)      cls = 'flex flex-col items-center py-3 px-2 rounded-md border border-white/5 min-w-[54px] opacity-30 cursor-not-allowed';
@@ -376,16 +490,25 @@ function renderStep3(slotsContent?: string) {
     </button>`;
   }).join('');
 
-  const defaultSlots = `<p class="text-neutral-500 text-sm text-center py-8">Selecione um dia acima para ver os horários</p>`;
+  // Com os dias do barbeiro já carregados e nenhum aberto, "selecione um dia" seria
+  // um pedido impossível.
+  const nenhumAberto = barberWorkdays !== null && dates.every(fechado);
+  const defaultSlots = nenhumAberto
+    ? `<p class="text-neutral-500 text-sm text-center py-8">Nenhum dia disponível nos próximos 30 dias</p>`
+    : `<p class="text-neutral-500 text-sm text-center py-8">Selecione um dia acima para ver os horários</p>`;
+  // Sem o passo do barbeiro, o "Voltar" daqui é o do serviço — ou o do combo.
+  const voltar = temPassoDoBarbeiro()
+    ? backBtn(2, 'Alterar barbeiro')
+    : backBtn(1, comboMode ? 'Voltar ao combo' : 'Alterar serviço');
 
   wizard.innerHTML = `
     <div class="animate-fade-in">
-      ${stepHeader('Escolha o dia e horário', `${selService.name} · ${selBarber.name}`)}
+      ${stepHeader('Escolha o dia e horário', `${esc(selService.name)} · ${esc(selBarber.name)}`)}
       <div class="overflow-x-auto no-scrollbar -mx-4 px-4 pb-2">
         <div id="date-row" class="flex gap-2 w-max">${datePicker}</div>
       </div>
       <div id="slots-area" class="mt-6">${slotsContent ?? defaultSlots}</div>
-      ${backBtn(2, 'Alterar barbeiro')}
+      ${voltar}
     </div>`;
 
   // Rola a data selecionada para o centro
@@ -429,7 +552,7 @@ async function loadSlots(date: string) {
     renderSlots();
   } catch (err: any) {
     const slotsArea2 = document.getElementById('slots-area');
-    if (slotsArea2) slotsArea2.innerHTML = `<p class="text-red-400 text-sm text-center py-6">${err.message || 'Erro ao carregar horários'}</p>`;
+    if (slotsArea2) slotsArea2.innerHTML = `<p class="text-red-400 text-sm text-center py-6">${esc(err.message || 'Erro ao carregar horários')}</p>`;
   }
 }
 
@@ -451,29 +574,32 @@ function renderStep4() {
   const prodCents  = isCombo ? applyDiscountPct(selProduct!.priceCents, comboPct) : 0;
   const totalCents = svcCents + prodCents;
 
+  // ⚠️ Até 09/10/2026 a linha do combo dizia "Combo Boris" — o combo do Bayron — em
+  // toda barbearia, e o nome do produto entrava sem escape (`PENDENCIAS-ABERTAS.md`
+  // §2.24). O nome é o do combo que o cliente abriu.
   const comboRows = isCombo ? `
         <div class="flex justify-between text-sm">
           <span class="text-neutral-400">Produto <span class="text-neutral-600">(retira na barbearia)</span></span>
-          <span class="text-neutral-200">${selProduct!.name}</span>
+          <span class="text-neutral-200">${esc(selProduct!.name)}</span>
         </div>
-        <div class="flex justify-between text-xs">
-          <span class="text-teal-light/80">Combo Boris</span>
-          <span class="text-teal-light/80">${comboPct}% OFF aplicado</span>
+        <div class="flex justify-between gap-3 text-xs">
+          <span class="text-teal-light/80">${esc(comboData?.name ?? 'Combo')}</span>
+          <span class="text-teal-light/80 whitespace-nowrap">${comboPct}% OFF aplicado</span>
         </div>` : '';
 
   wizard.innerHTML = `
     <div class="animate-fade-in">
-      ${stepHeader('Seus dados', 'Passo 4 de 4 · Quase lá!')}
+      ${stepHeader('Seus dados', `${rotulo(4)} · Quase lá!`)}
 
       <div class="bg-dark-card border border-white/5 rounded-md p-4 mb-6 space-y-2.5 text-sm">
         <div class="flex justify-between text-sm">
           <span class="text-neutral-400">Serviço</span>
-          <span class="text-neutral-200">${selService.name}</span>
+          <span class="text-neutral-200">${esc(selService.name)}</span>
         </div>
         ${comboRows}
         <div class="flex justify-between text-sm">
           <span class="text-neutral-400">Barbeiro</span>
-          <span class="text-neutral-200">${selBarber.name}</span>
+          <span class="text-neutral-200">${esc(selBarber.name)}</span>
         </div>
         <div class="flex justify-between text-sm">
           <span class="text-neutral-400">Data</span>
@@ -643,31 +769,19 @@ wizard.addEventListener('click', async (e) => {
       break;
 
     case 'combo-continue':
-      if (selService && selProduct) renderStep2();
+      if (selService && selProduct) avancarDoServico();
       break;
 
     case 'select-service':
       selService = services.find(s => s.id === id) ?? null;
-      if (selService) renderStep2();
+      if (selService) avancarDoServico();
       break;
 
-    case 'select-barber':
-      selBarber = selService!.barbers.find(b => b.id === id) ?? null;
-      if (selBarber) {
-        selDate = ''; loadedSlots = []; selSlot = null;
-        barberWorkdays = null;
-        renderStep3();
-        // Carrega os dias que o barbeiro trabalha e re-renderiza o calendário.
-        try {
-          const res = await fetch(`/api/working-hours?barber=${selBarber.id}`);
-          if (res.ok) {
-            const rows: { weekday: number }[] = await res.json();
-            barberWorkdays = new Set(rows.map(r => r.weekday));
-            renderStep3();
-          }
-        } catch { /* mantém o calendário do fallback */ }
-      }
+    case 'select-barber': {
+      const barbeiro = selService?.barbers.find(b => b.id === id);
+      if (barbeiro) await escolherBarbeiro(barbeiro);
       break;
+    }
 
     case 'select-date':
       selDate = val;
@@ -683,14 +797,9 @@ wizard.addEventListener('click', async (e) => {
       renderStep4();
       break;
 
-    case 'go-back': {
-      const step = parseInt(val);
-      if (step === 0) { window.location.href = '/'; }
-      else if (step === 1) { if (!comboMode) selService = null; selBarber = null; selDate = ''; loadedSlots = []; selSlot = null; setProgress(1); renderStep1(); }
-      else if (step === 2) { selBarber = null; selDate = ''; loadedSlots = []; selSlot = null; renderStep2(); }
-      else if (step === 3) { selSlot = null; renderStep3(); if (selDate && loadedSlots.length) renderSlots(); }
+    case 'go-back':
+      voltarPara(parseInt(val));
       break;
-    }
   }
 });
 
