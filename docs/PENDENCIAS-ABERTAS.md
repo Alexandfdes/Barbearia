@@ -29,7 +29,7 @@
 | **24/09** | **Fotos no painel, logo depois do cadastro** — galeria do site (o carrossel, a partir de 3 fotos) e foto de produto por barbearia; não no formulário do cadastro. Feito em 25/09 (§2.7) | `PLANO-PRODUTIZACAO.md` §13 |
 | **27/09** | **Layout e cores escolhidos no cadastro, antes do cartão** — o site já nasce com a cara que o dono escolheu. Rejeitado: escolher no painel, depois de entrar (§4.13) | `PLANO-PRODUTIZACAO.md` §13 e `JORNADA-DO-BARBEIRO.md` §2.4 |
 | **08/10** | **Nome provisório: Fadeline** — escolhido pelo dono entre 103 nomes conferidos no registro.br. Provisório tem prazo: vale até o cadastro abrir. Trocado no código no mesmo dia | `PENDENCIAS-ABERTAS.md` §0.1 |
-| **08/10** | **O desenho do cadastro e da cobrança:** um layout com a cor do dono; o cartão no fim do teste; a cobrança como módulo do app; e-mail para a senha e os avisos; 3 dias de carência; só mensal. **O cadastro, feito no mesmo dia** (§4.13, §4.16 e §4.17) | `PLANO-PRODUTIZACAO.md` §13 |
+| **08/10** | **O desenho do cadastro e da cobrança:** um layout com a cor do dono; o cartão no fim do teste; a cobrança como módulo do app; e-mail para a senha e os avisos; 3 dias de carência; só mensal. **Feitos no mesmo dia:** o cadastro (§4.13, §4.16 e §4.17) e o teste de 7 dias, com a carência e o site fora do ar (§1.3, §3.5 e §4.14) | `PLANO-PRODUTIZACAO.md` §13 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026, **não registrado**) e procurar o nome na busca de marcas do INPI — classes 42,
@@ -167,14 +167,18 @@ telefone. Os dois links saíram (`PENDENCIAS-ABERTAS.md` §2.28) e voltam quando
 existirem, cada um com endereço próprio. Link que não leva a lugar nenhum é pior que link
 nenhum: parece que a política existe.
 
-### 1.3 🔴 `[DECISÃO]` O que acontece quando não paga
+### 1.3 ✅ `[DECISÃO]` O que acontece quando não paga — DECIDIDO E FEITO em 08/10/2026
 
 > **Decidido em 08/10/2026** (`PLANO-PRODUTIZACAO.md` §13): cobrança que falha dá **3 dias de
 > carência** — o painel avisa e o site segue no ar; depois, o site mostra "temporariamente
 > indisponível", sem expor a dívida, e o painel só abre a tela de regularizar. Nada é
-> apagado. E o cartão deixou de ser pedido no cadastro: vem no fim do teste. **Proposto, a
-> confirmar:** o teste que acaba sem cartão segue a mesma regra. **Continua aberto:** quanto
-> tempo a barbearia suspensa guarda os dados e segura o endereço (§1.2).
+> apagado. E o cartão deixou de ser pedido no cadastro: vem no fim do teste. **Confirmado
+> no mesmo dia:** o teste que acaba sem cartão segue a mesma regra. **E decidido junto:** o
+> site fora do ar mostra o WhatsApp da barbearia; o painel fora do ar mostra também os
+> próximos horários, para consulta; e o teste vai até o fim do 7º dia depois do cadastro.
+> **Feito em 08/10/2026:** a regra roda no código (`apps/barbearia/src/lib/situacao.ts`); falta
+> a cobrança que a dispara (§4.14). **Continua aberto:** quanto tempo a barbearia suspensa
+> guarda os dados e segura o endereço (§1.2).
 
 O gateway está escolhido, mas a política não. Hoje **não existe nada que suspenda uma
 instância**. Se a regra for "site sai do ar após N dias", isso é feature a construir —
@@ -870,7 +874,7 @@ aparece como **R$ 40**. O site anuncia um preço que não é o cobrado.
 
 `api/appointments/index.ts:71` resolve o combo validando `id`, `active` e `tenantId` — e
 **não valida o bitmask `weekdays`**, que é justamente o que define em que dias o combo
-existe (`schema.ts:185`).
+existe (`schema.ts:193`).
 
 O dono cria "Combo de segunda, 20% OFF". Qualquer pessoa que abra `/agendar?combo=3` numa
 sexta recebe os 20%, sobre o serviço **e** sobre o produto. O link circula no WhatsApp e o
@@ -1017,7 +1021,7 @@ de dias em UTC ao meio-dia, como o `addDaysStr` duas linhas abaixo já faz.
 
 ### 2.23 🟡 `[TÉCNICO]` O login do painel aceita corpo que não é JSON
 
-`api/auth/login.ts:54` lê `request.json()` sem conferir o tipo do corpo, e abre sessão. Com o
+`api/auth/login.ts:55` lê `request.json()` sem conferir o tipo do corpo, e abre sessão. Com o
 `checkOrigin` do Astro desligado (`astro.config.mjs`), um formulário de outro site consegue
 mandar `text/plain` com o corpo em forma de JSON: a página maliciosa deixaria o visitante
 logado numa conta **dela** ("login CSRF"), e o que ele digitasse depois iria para lá.
@@ -1051,8 +1055,8 @@ próprio painel pede o número com o 55 (`admin/configuracoes.astro:51`, *"Ex: 5
 
 **O que mudou, dos dois lados:**
 
-- **Gravar:** o cadastro grava o número da loja com o 55 (`lib/provisionarBarbearia.ts:336`,
-  `:363`). O telefone de login continua sem ele — é outra regra (`PENDENCIAS-ABERTAS.md` §1.5).
+- **Gravar:** o cadastro grava o número da loja com o 55 (`lib/provisionarBarbearia.ts:347`,
+  `:384`). O telefone de login continua sem ele — é outra regra (`PENDENCIAS-ABERTAS.md` §1.5).
 - **Ler:** `numeroDaLojaInternacional()` (`lib/settings.ts:221`) completa o 55 de quem está
   gravado sem ele, e é por ela que passam o `waUrl()` (`lib/settings.ts:200-205`) e o
   `schema.org` (`layouts/Layout.astro:85`). **Isso conserta as barbearias que já existem, sem
@@ -1082,7 +1086,7 @@ endereço estavam **escritos**, sem comparação nenhuma:
 | Onde | O que saía em toda barbearia | Agora |
 |---|---|---|
 | Lembrete do WhatsApp na agenda do dia | *"aqui da Barbearia Bayron"* (`lib/whatsapp.ts:60`, na época) | assinado com o nome da barbearia da agenda (`lib/whatsapp.ts:57-65`, chamado em `admin/dia/[date].astro:1616`) |
-| Endereço canônico, `og:url`, e o `@id` e o `url` do `schema.org` | `https://bayron.alexandrefdev.tech`, a constante `SITE_URL` de `config.ts` | o endereço da barbearia servida (`lib/tenant.ts:249-253`): domínio próprio, subdomínio do produto ou, em desenvolvimento, o da requisição. Usado em `layouts/Layout.astro:27-28` e `components/Testimonials.astro:16` |
+| Endereço canônico, `og:url`, e o `@id` e o `url` do `schema.org` | `https://bayron.alexandrefdev.tech`, a constante `SITE_URL` de `config.ts` | o endereço da barbearia servida (`lib/tenant.ts:295-299`): domínio próprio, subdomínio do produto ou, em desenvolvimento, o da requisição. Usado em `layouts/Layout.astro:27-28` e `components/Testimonials.astro:16` |
 | Prévia do link (`og:image`) | a foto do Bayron (`/og.jpg`), no link de quem não subiu imagem | a imagem de compartilhamento da barbearia, senão a capa dela; sem nenhuma das duas, sem imagem. O `/og.jpg` só no site do Bayron (`layouts/Layout.astro:37-40`) |
 | Convite de calendário | link e identificador em `bayron.alexandrefdev.tech`, arquivo `bayron-….ics` | o endereço da barbearia (`api/appointments/by-token/[token]/ics.ts:69-70`), arquivo `agendamento-….ics` (`api/appointments/by-token/[token]/ics.ts:76`) |
 | `/portal`, `/cliente/entrar` e `/cliente` | *"Barbearia Bayron"* no título da aba, na descrição e no topo | o nome da barbearia (`portal.astro:21`, `cliente/entrar.astro:27`, `cliente/index.astro:26`) |
@@ -1216,10 +1220,16 @@ de ser por instância e virou um só, o que torna a decisão mais simples e a fa
 Se o site de um cliente cair sábado de manhã, hoje você descobre quando ele liga. Falta
 o mínimo: ping externo por instância e alerta no seu celular.
 
-### 3.5 🟡 `[TÉCNICO]` Suspensão por inadimplência
+### 3.5 ✅ `[TÉCNICO]` Suspensão por inadimplência — FEITA em 08/10/2026
 
-Depende da decisão §1.3. Se a política for cortar, precisa de um jeito de suspender a
-instância sem apagar dados e de religar em um clique.
+**Feita em 08/10/2026, sem tarefa agendada:** a suspensão sai do relógio — teste ou carência
+vencidos (`apps/barbearia/src/lib/situacao.ts`, migration 0007). O site responde 503 com o
+aviso e o WhatsApp da barbearia (`apps/barbearia/src/lib/siteForaDoAr.ts`), o painel abre só
+a tela de assinatura, e nada é apagado. Religar é o status voltar a `active` — o que o
+webhook da Asaas vai fazer (§4.14); até lá, à mão, no `psql`.
+
+*Como estava:* dependia da decisão §1.3. Se a política fosse cortar, precisava de um jeito
+de suspender a instância sem apagar dados e de religar em um clique.
 
 ### 3.6 🟡 `[TÉCNICO]` Exportação de dados do cliente
 
@@ -1743,7 +1753,14 @@ Desde 25/09/2026 o dono sobe galeria, logo, capa e fotos de produto no painel lo
 do cadastro — isso muda o segundo dia, não o primeiro minuto. E cada layout tem que tratar
 a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`).
 
-### 4.14 🔴 `[TÉCNICO]` O teste de 7 dias e a cobrança automática não existem
+### 4.14 🔴 `[TÉCNICO]` A cobrança automática não existe — o teste de 7 dias, FEITO em 08/10/2026
+
+> **Feito em 08/10/2026:** o teste de 7 dias, a carência de 3 dias e o site fora do ar (§1.3 e
+> §3.5), com a contagem no painel e a tela de assinatura (`JORNADA-DO-BARBEIRO.md` §2.9 e
+> `JORNADA-DO-BARBEIRO.md` §2.10). **Falta a cobrança:** a conta e o Checkout da Asaas, o
+> webhook idempotente gravando `active` e `past_due`, e o cancelar. ⚠️ **O cadastro não pode
+> abrir antes disso:** hoje ninguém consegue pagar, e toda barbearia que se cadastrasse
+> sairia do ar no 11º dia.
 
 > **08/10/2026** (`PLANO-PRODUTIZACAO.md` §13): o cartão é pedido **no fim do teste**, não no
 > cadastro; a cobrança mora num **módulo do app da barbearia** (`ARQUITETURA-COBRANCA-V1.md`
@@ -1751,9 +1768,8 @@ a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`
 
 Decidido em 24/09/2026 (`PLANO-PRODUTIZACAO.md` §13). Conferido no código no mesmo dia:
 
-- **Não há data de fim.** A barbearia nasce `active` e fica assim para sempre. O status só
-  admite `active`, `suspended` e `cancelled` — no tipo (`lib/tenant.ts:37`) e numa trava
-  `CHECK` da migration 0001. O teste precisa de migration.
+- ~~**Não há data de fim.**~~ ✅ desde 08/10: a barbearia nasce `trial`, com a data gravada;
+  a migration 0007 trouxe `trial` e `past_due` e as travas que recusam prazo faltando.
 - **Não há cobrança.** O desenho que existe contava com as primeiras assinaturas criadas
   à mão (`ARQUITETURA-COBRANCA-V1.md` §10); agora ela tem que nascer sozinha. A Asaas
   continua sendo o gateway (`ARQUITETURA-COBRANCA-V1.md` §4), e **exige CPF ou CNPJ** do
@@ -1765,8 +1781,8 @@ Decidido em 24/09/2026 (`PLANO-PRODUTIZACAO.md` §13). Conferido no código no m
   página de pagamento dela ou pela tokenização dela. **Conferir na documentação da Asaas
   qual das duas aceita cartão hoje e primeira cobrança daqui a 7 dias**, antes de
   desenhar a tela.
-- **Não há suspensão que se veja.** O status `suspended` já tira o site do ar, mas com
-  404; falta a página que diz o motivo (§3.5).
+- ~~**Não há suspensão que se veja.**~~ ✅ desde 08/10: o site fora do ar mostra o aviso com o
+  WhatsApp da barbearia, com 503 — não 404 (§3.5).
 
 Depende do que acontece no oitavo dia (§1.3).
 
@@ -1774,7 +1790,9 @@ Depende do que acontece no oitavo dia (§1.3).
 (`ARQUITETURA-COBRANCA-V1.md` §5.1). A Asaas reenvia o evento quando não recebe resposta,
 e processar o mesmo pagamento duas vezes pode reativar uma barbearia suspensa.
 
-⚠️ **Ninguém desenhou ainda onde o teste expira.** O desenho de dois aplicativos
+~~⚠️ **Ninguém desenhou ainda onde o teste expira.**~~ Resolvido em 08/10: a cobrança é módulo
+do app, e o teste expira no banco da barbearia, pelo relógio (`apps/barbearia/src/lib/situacao.ts`).
+*Como estava:* o desenho de dois aplicativos
 (`ARQUITETURA-COBRANCA-V1.md` §2) continua de pé — a barbearia nunca sabe que dinheiro
 existe —, mas quem sabe a data de fim do teste é o banco da barbearia, e quem sabe se
 pagou é o outro aplicativo. A costura entre os dois é o primeiro desenho a fazer.
@@ -1791,7 +1809,9 @@ pagou é o outro aplicativo. A costura entre os dois é o primeiro desenho a faz
   qualquer tela: que evento chega no dia do cadastro, se nada é cobrado nele; se o cartão
   é validado no cadastro; e quais dados a página pede ao titular.
 
-**A costura, proposta em 27/09/2026 e pendente de você** (`JORNADA-DO-BARBEIRO.md` §3.1
+~~**A costura, proposta em 27/09/2026 e pendente de você**~~ — superada em 08/10: com o cartão
+no fim do teste, não há `pending`; a contagem dos dias no painel existe, o botão de cancelar
+não. *Como estava* (`JORNADA-DO-BARBEIRO.md` §3.1
 e `JORNADA-DO-BARBEIRO.md` §3.2): a barbearia nasce `pending` antes do cartão, o webhook a
 passa para `trial` com a data de fim, e uma limpeza devolve o endereço das pendentes com
 mais de 24 horas. E a pergunta de onde mora o código da cobrança — o aplicativo separado
@@ -1841,15 +1861,15 @@ fotos por ali está esperando resposta.
 
 No autoatendimento, qualquer um escolhe o endereço e o que escreve, e vai ao ar na hora
 sob o seu domínio. Conferido em 24/09/2026: o provisionador só conferia se o endereço é um
-rótulo de DNS válido (hoje em `lib/provisionarBarbearia.ts:225`) e se já existe (hoje em
-`lib/provisionarBarbearia.ts:271`). Não havia lista de reservados.
+rótulo de DNS válido (hoje em `lib/provisionarBarbearia.ts:236`) e se já existe (hoje em
+`lib/provisionarBarbearia.ts:282`). Não havia lista de reservados.
 
 - ✅ **Reservar — feito em 08/10/2026.** `lib/enderecosReservados.ts` lista 39: as portas
   do produto (`painel`, `admin`, `www`, `api`, `login`…), os nomes de e-mail e de
   infraestrutura que o domínio vai precisar (`mail`, `postmaster`, `ns1`…), os da cobrança,
   do atendimento e dos ambientes, e o nome do produto — lido de `NOME_PRODUTO`, não escrito
   à mão — mais o antigo, `barbearianoar`. O provisionador recusa antes de tocar o banco
-  (`lib/provisionarBarbearia.ts:234`), com a mensagem no campo do endereço; vale para o
+  (`lib/provisionarBarbearia.ts:245`), com a mensagem no campo do endereço; vale para o
   `/cadastrar` e para o script, que usam a mesma função. `demo` ficou de fora de propósito:
   nome reservado fica proibido para você também. Vale para quem se cadastra daqui em diante
   — não confere as barbearias que já existem. Teste: `tests/enderecos-reservados.test.ts`.
@@ -1857,7 +1877,7 @@ rótulo de DNS válido (hoje em `lib/provisionarBarbearia.ts:225`) e se já exis
   Antes disso, sem a lista, o primeiro a se cadastrar como `painel` recebia o endereço do
   seu painel.
 
-  Conferido em 25/09/2026 como isso acontece: `resolverHost()` (`lib/tenant.ts:174-176`)
+  Conferido em 25/09/2026 como isso acontece: `resolverHost()` (`lib/tenant.ts:203-205`)
   usa o primeiro rótulo de qualquer endereço como slug, e o middleware embrulha toda
   requisição que resolve. Com uma barbearia `painel` ativa, **a raiz de `painel.<dominio>`
   passa a mostrar o site dela** — no endereço que o dono de cada barbearia digita todo dia.
@@ -1882,7 +1902,7 @@ Encontrado em 27/09/2026, desenhando a jornada do barbeiro (`JORNADA-DO-BARBEIRO
 **Não existe "esqueci minha senha".** Quem troca a senha de um dono hoje é você, rodando
 `scripts/set-admin-password.mjs` — o próprio script se apresenta como o caminho de suporte.
 ~~E o cadastro não pede e-mail~~ — ✅ pede desde 08/10/2026
-(`apps/barbearia/src/pages/api/cadastrar.ts:80`). Quem nasceu antes, e quem nasce pelo script
+(`apps/barbearia/src/pages/api/cadastrar.ts:81`). Quem nasceu antes, e quem nasce pelo script
 de linha de comando, fica sem: a coluna aceita vazio, e o dono do Bayron é um desses.
 
 No autoatendimento, a senha criada às pressas no cadastro é a que ele esquece, e cada
@@ -1995,9 +2015,9 @@ falta confirmar se o teste que acaba sem cartão segue os mesmos 3 dias.
 4. ~~Os três layouts, com as cores do dono (§4.13)~~ — ✅ feito em 08/10/2026, no desenho
    do mesmo dia: um layout, com a cor e a frase do topo escolhidas no cadastro e a tela
    "o seu site está no ar" no fim (`JORNADA-DO-BARBEIRO.md` §2.4 e `JORNADA-DO-BARBEIRO.md` §2.8).
-5. O teste de 7 dias, a cobrança e a página de suspensão (§4.14 e §3.5) — dependem do
-   §1.3 e da conta na Asaas. Com eles, no painel, a contagem dos dias e o botão de
-   cancelar.
+5. ~~O teste de 7 dias~~ e ~~a página de suspensão~~ — ✅ feitos em 08/10/2026, com a
+   contagem dos dias no painel —, a cobrança (§4.14 e §3.5) e o botão de cancelar. A
+   cobrança depende da conta na Asaas, e o cadastro não abre sem ela.
    - **5b.** A recuperação de senha (§4.17) e o aviso antes de cobrar (§1.3), que usam o
      mesmo canal — o e-mail, já pedido no cadastro desde 08/10.
 6. A landing, o `/acessar` e a aposentadoria do `/onboarding` (§4.15) — por último de

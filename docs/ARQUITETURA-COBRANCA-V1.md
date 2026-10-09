@@ -323,6 +323,34 @@ repositório para evitar duplo booking.
 
 ### 5.2 Estados do tenant
 
+> ⚠️ **Substituído em 08/10/2026, e implementado no mesmo dia** (`PLANO-PRODUTIZACAO.md` §13;
+> migration 0007; `apps/barbearia/src/lib/situacao.ts`). O desenho de 28/08, logo abaixo do
+> novo, ficou como registro: ele tinha instância por barbearia, onboarding e 15 dias para
+> suspender, e nenhum teste grátis.
+
+```mermaid
+stateDiagram-v2
+    [*] --> trial: cadastro, teste até o fim do 7º dia
+    trial --> active: cartão cadastrado
+    trial --> carencia: o teste venceu sem cartão
+    active --> past_due: a cobrança falhou
+    past_due --> active: pagou
+    past_due --> carencia
+    carencia --> active: pagou
+    carencia --> fora_do_ar: 3 dias inteiros
+    fora_do_ar --> active: pagou
+    active --> cancelled: cancelou
+```
+
+**Gravado** em `tenants.status`: `trial`, `active`, `past_due`, `suspended` — agora só a
+barbearia tirada do ar à mão — e `cancelled`, com as datas que começam os prazos,
+`trial_ends_at` e `past_due_since`. **Calculado** a cada requisição, sem tarefa agendada: a
+carência e o fora do ar (`situacaoDe`). Fora do ar, o site responde 503 com o aviso e o
+WhatsApp da barbearia, e o painel abre só a tela de assinatura. **O que ainda não existe:**
+quem grava `active` e `past_due` — o webhook da Asaas.
+
+*O desenho de 28/08:*
+
 ```mermaid
 stateDiagram-v2
     [*] --> pending: tenant criado
