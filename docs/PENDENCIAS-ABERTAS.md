@@ -32,8 +32,12 @@
 | **08/10** | **O desenho do cadastro e da cobrança:** um layout com a cor do dono; o cartão no fim do teste; a cobrança como módulo do app; e-mail para a senha e os avisos; 3 dias de carência; só mensal. **Feitos no mesmo dia:** o cadastro (§4.13, §4.16 e §4.17) e o teste de 7 dias, com a carência e o site fora do ar (§1.3, §3.5 e §4.14) | `PLANO-PRODUTIZACAO.md` §13 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
-08/10/2026, **não registrado**) e procurar o nome na busca de marcas do INPI — classes 42,
-35 e 44 — antes de gastar com logo. O código já usa o nome novo, desde 08/10: o
+08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
+INPI — classes 42, 35 e 44 — antes de gastar com logo. **E, descoberto em 09/10/2026:** para
+os subdomínios terem certificado sem trabalho por cliente, o DNS do domínio tem que morar na
+Cloudflare, não no registro.br — o certificado curinga só sai pelo desafio DNS-01, e o
+registro.br não tem a API que o Traefik usa (`ARQUITETURA-COBRANCA-V1.md` §7.4). O mesmo DNS
+recebe os registros do envio de e-mail (`PENDENCIAS-ABERTAS.md` §4.17). O código já usa o nome novo, desde 08/10: o
 `NOME_PRODUTO` de `apps/vendas/src/config.ts` e o de `apps/barbearia/src/lib/produto.ts`,
 que `tests/nome-do-produto.test.ts` mantém iguais; o `SITE_URL` é `https://fadeline.com.br`.
 O domínio dos subdomínios não precisa de código: vem de `DOMINIO_BASE`. *(Até 08/10, este item era registrar `barbearianoar.com.br` e, para SEO,
