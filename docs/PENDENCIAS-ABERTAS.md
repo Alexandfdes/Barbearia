@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-09-27.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-08.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -29,7 +29,7 @@
 | **24/09** | **Fotos no painel, logo depois do cadastro** — galeria do site (o carrossel, a partir de 3 fotos) e foto de produto por barbearia; não no formulário do cadastro. Feito em 25/09 (§2.7) | `PLANO-PRODUTIZACAO.md` §13 |
 | **27/09** | **Layout e cores escolhidos no cadastro, antes do cartão** — o site já nasce com a cara que o dono escolheu. Rejeitado: escolher no painel, depois de entrar (§4.13) | `PLANO-PRODUTIZACAO.md` §13 e `JORNADA-DO-BARBEIRO.md` §2.4 |
 | **08/10** | **Nome provisório: Fadeline** — escolhido pelo dono entre 103 nomes conferidos no registro.br. Provisório tem prazo: vale até o cadastro abrir. Trocado no código no mesmo dia | `PENDENCIAS-ABERTAS.md` §0.1 |
-| **08/10** | **O desenho do cadastro e da cobrança:** um layout com a cor do dono; o cartão no fim do teste; a cobrança como módulo do app; e-mail para a senha e os avisos; 3 dias de carência; só mensal | `PLANO-PRODUTIZACAO.md` §13 |
+| **08/10** | **O desenho do cadastro e da cobrança:** um layout com a cor do dono; o cartão no fim do teste; a cobrança como módulo do app; e-mail para a senha e os avisos; 3 dias de carência; só mensal. **O cadastro, feito no mesmo dia** (§4.13, §4.16 e §4.17) | `PLANO-PRODUTIZACAO.md` §13 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026, **não registrado**) e procurar o nome na busca de marcas do INPI — classes 42,
@@ -870,7 +870,7 @@ aparece como **R$ 40**. O site anuncia um preço que não é o cobrado.
 
 `api/appointments/index.ts:71` resolve o combo validando `id`, `active` e `tenantId` — e
 **não valida o bitmask `weekdays`**, que é justamente o que define em que dias o combo
-existe (`schema.ts:179`).
+existe (`schema.ts:185`).
 
 O dono cria "Combo de segunda, 20% OFF". Qualquer pessoa que abra `/agendar?combo=3` numa
 sexta recebe os 20%, sobre o serviço **e** sobre o produto. O link circula no WhatsApp e o
@@ -1051,8 +1051,8 @@ próprio painel pede o número com o 55 (`admin/configuracoes.astro:51`, *"Ex: 5
 
 **O que mudou, dos dois lados:**
 
-- **Gravar:** o cadastro grava o número da loja com o 55 (`lib/provisionarBarbearia.ts:303`,
-  `:330`). O telefone de login continua sem ele — é outra regra (`PENDENCIAS-ABERTAS.md` §1.5).
+- **Gravar:** o cadastro grava o número da loja com o 55 (`lib/provisionarBarbearia.ts:336`,
+  `:363`). O telefone de login continua sem ele — é outra regra (`PENDENCIAS-ABERTAS.md` §1.5).
 - **Ler:** `numeroDaLojaInternacional()` (`lib/settings.ts:221`) completa o 55 de quem está
   gravado sem ele, e é por ela que passam o `waUrl()` (`lib/settings.ts:200-205`) e o
   `schema.org` (`layouts/Layout.astro:85`). **Isso conserta as barbearias que já existem, sem
@@ -1685,12 +1685,16 @@ padrão**, usado por toda barbearia que ainda não escolheu cor — incluindo o 
 Correção: um `--color-teal-hover` mais escuro que `#0f766e`. Muda a cor de todos os botões
 do painel e do site padrão, então é decisão do dono.
 
-### 4.13 🔴 `[TÉCNICO]` Três layouts de site — hoje existe um
+### 4.13 ✅ `[TÉCNICO]` A cara do site no cadastro — um layout e a cor do dono, FEITO em 08/10/2026
 
 > **Decidido em 08/10/2026: um layout no lançamento**, com **uma** cor escolhida pelo dono no
 > cadastro e o fundo do layout (`PLANO-PRODUTIZACAO.md` §13). Os outros dois layouts ficam
 > para quando houver clientes pagando que peçam. O resto desta seção é o desenho de três,
 > mantido como registro.
+>
+> **Feito em 08/10/2026:** o `/cadastrar` pede a cor — oito prontas e uma livre — e a frase do
+> topo, com a prévia do topo do site na cor escolhida (`JORNADA-DO-BARBEIRO.md` §2.4). Os
+> outros dois layouts continuam fora, até haver cliente pagando que peça.
 
 Decidido em 24/09/2026 (`PLANO-PRODUTIZACAO.md` §13): o dono escolhe entre **três
 layouts**, e **as cores são dele**. Hoje o site tem **um** layout, a paleta "Dark
@@ -1713,7 +1717,8 @@ a paleta é do dono.
 `derivarAccent()` ajusta só a luminosidade até o texto passar no contraste, preservando a
 matiz (13 testes). Ele nunca consegue deixar o próprio site ilegível.
 
-**Ainda falta decidir — e muda o tamanho do trabalho:**
+~~**Ainda falta decidir — e muda o tamanho do trabalho:**~~ — decidido em 08/10/2026: uma
+cor, e o fundo do layout. As duas perguntas, como estavam:
 
 - **Quantas cores.** Hoje é **uma**: como cor, `api/admin/settings.ts` só aceita
   `accentColor`. Se o dono quiser a principal e uma de apoio, são duas — e o painel, o
@@ -1832,16 +1837,25 @@ fotos por ali está esperando resposta.
   diz que o painel mora nele — o modelo de um painel por barbearia. Com o painel central,
   vira redirecionamento (`ARQUITETURA-MULTI-TENANT-V1.md` §8).
 
-### 4.16 🔴 `[TÉCNICO]` Endereço escolhido e publicado sem revisão
+### 4.16 🟠 `[TÉCNICO]` Endereço escolhido e publicado sem revisão — os reservados, FEITOS em 08/10/2026
 
 No autoatendimento, qualquer um escolhe o endereço e o que escreve, e vai ao ar na hora
-sob o seu domínio. Conferido em 24/09/2026: o provisionador só confere se o endereço é um
-rótulo de DNS válido (`lib/provisionarBarbearia.ts:210`) e se já existe
-(`lib/provisionarBarbearia.ts:237`). **Não há lista de reservados.**
+sob o seu domínio. Conferido em 24/09/2026: o provisionador só conferia se o endereço é um
+rótulo de DNS válido (hoje em `lib/provisionarBarbearia.ts:225`) e se já existe (hoje em
+`lib/provisionarBarbearia.ts:271`). Não havia lista de reservados.
 
-- **Reservar** os nomes do próprio produto — `www`, `painel`, `admin`, `api`, `app`,
-  `mail` e o nome da marca. Sem isso, o primeiro a se cadastrar como `painel` recebe o
-  endereço do seu painel.
+- ✅ **Reservar — feito em 08/10/2026.** `lib/enderecosReservados.ts` lista 39: as portas
+  do produto (`painel`, `admin`, `www`, `api`, `login`…), os nomes de e-mail e de
+  infraestrutura que o domínio vai precisar (`mail`, `postmaster`, `ns1`…), os da cobrança,
+  do atendimento e dos ambientes, e o nome do produto — lido de `NOME_PRODUTO`, não escrito
+  à mão — mais o antigo, `barbearianoar`. O provisionador recusa antes de tocar o banco
+  (`lib/provisionarBarbearia.ts:234`), com a mensagem no campo do endereço; vale para o
+  `/cadastrar` e para o script, que usam a mesma função. `demo` ficou de fora de propósito:
+  nome reservado fica proibido para você também. Vale para quem se cadastra daqui em diante
+  — não confere as barbearias que já existem. Teste: `tests/enderecos-reservados.test.ts`.
+
+  Antes disso, sem a lista, o primeiro a se cadastrar como `painel` recebia o endereço do
+  seu painel.
 
   Conferido em 25/09/2026 como isso acontece: `resolverHost()` (`lib/tenant.ts:174-176`)
   usa o primeiro rótulo de qualquer endereço como slug, e o middleware embrulha toda
@@ -1854,17 +1868,22 @@ rótulo de DNS válido (`lib/provisionarBarbearia.ts:210`) e se já existe
 - O primeiro a pegar o nome de uma barbearia de verdade, que ainda nem é cliente, fica
   com ele. Não tem conserto técnico barato; tem que caber no termo de uso (§1.2).
 
-### 4.17 🟠 `[DECISÃO]` Recuperação de senha — e o e-mail que o cadastro não pede
+### 4.17 🟠 `[TÉCNICO]` Recuperação de senha — o e-mail já é pedido, a recuperação não existe
 
 > **Decidido em 08/10/2026: e-mail**, pedido no cadastro — um canal só, para a recuperação
 > de senha e para os avisos de fim de teste e de cobrança (`PLANO-PRODUTIZACAO.md` §13).
+>
+> **O e-mail é pedido desde 08/10/2026**, obrigatório pela web, e gravado em minúsculas em
+> `barbers.email` (migration 0006). O resto — o envio, a tela "esqueci minha senha" e a troca
+> derrubando as sessões abertas — ainda não existe.
 
 Encontrado em 27/09/2026, desenhando a jornada do barbeiro (`JORNADA-DO-BARBEIRO.md` §2.2).
 
 **Não existe "esqueci minha senha".** Quem troca a senha de um dono hoje é você, rodando
 `scripts/set-admin-password.mjs` — o próprio script se apresenta como o caminho de suporte.
-E o cadastro não pede e-mail (`apps/barbearia/src/pages/api/cadastrar.ts:61-74`): não há
-para onde mandar link de troca, recibo ou aviso de cobrança.
+~~E o cadastro não pede e-mail~~ — ✅ pede desde 08/10/2026
+(`apps/barbearia/src/pages/api/cadastrar.ts:80`). Quem nasceu antes, e quem nasce pelo script
+de linha de comando, fica sem: a coluna aceita vazio, e o dono do Bayron é um desses.
 
 No autoatendimento, a senha criada às pressas no cadastro é a que ele esquece, e cada
 esquecimento vira um chamado — com o suporte tendo que caber em meia hora por cliente
@@ -1875,7 +1894,8 @@ de login**. Qualquer um pode mandar WhatsApp dizendo ser dono de uma barbearia; 
 de login é a única prova que você tem. E trocar a senha **não derruba a sessão aberta** —
 a revogação ficou de sobra da onda 1 (§6).
 
-**Falta decidir o canal:**
+~~**Falta decidir o canal:**~~ — decidido em 08/10/2026: e-mail (o bloco no topo). As opções,
+como estavam:
 
 - **Código pelo WhatsApp** — é o login dele, e ele lê. Exige o serviço de envio que o
   aviso antes de cobrar também exige (§1.3).
@@ -1884,6 +1904,13 @@ a revogação ficou de sobra da onda 1 (§6).
 
 Recomendação: um canal só para as duas coisas, recuperação e aviso de cobrança — um para
 construir e manter, não dois.
+
+**O que falta construir, nesta ordem:** o envio de e-mail — o provedor depende do domínio
+(§0); a tela "esqueci minha senha", que pede o WhatsApp de login e manda o link ao e-mail
+gravado, sem dizer se o número existe; a troca de senha derrubando as sessões abertas; e um
+lugar no painel para ver e trocar o e-mail — hoje não há, nem para corrigir um digitado
+errado. Recomendo confirmar o e-mail por um link já no primeiro envio: a forma é conferida
+no cadastro, a existência não.
 
 ---
 
@@ -1944,11 +1971,12 @@ cliente (§2.11), e o ícone do Astro na aba de toda barbearia (`JORNADA-DO-BARB
 No autoatendimento a porta abre sem ninguém olhando, então nada aqui é opcional.
 
 *Decisões suas, que o código não substitui:* o termo aceito no cadastro, com a cláusula
-da cobrança do cartão (§1.2); o que acontece quando o cartão recusa (§1.3); a política de
-suporte escrita na tela (§1.4); o domínio (§0); quantas cores o dono escolhe, e se o
-fundo é dele ou do layout (§4.13); e o canal da recuperação de senha (§4.17). Propostas
-em 27/09, também suas: o cartão antes de a barbearia existir, e onde mora o código da
-cobrança (§4.14).
+da cobrança do cartão (§1.2); ~~o que acontece quando o cartão recusa (§1.3)~~; a política
+de suporte escrita na tela (§1.4); o domínio (§0); ~~quantas cores o dono escolhe, e se o
+fundo é dele ou do layout (§4.13)~~; e ~~o canal da recuperação de senha (§4.17)~~. Propostas
+em 27/09, também suas: ~~o cartão antes de a barbearia existir, e onde mora o código da
+cobrança (§4.14)~~. Os riscados foram decididos em 08/10/2026 (`PLANO-PRODUTIZACAO.md` §13);
+falta confirmar se o teste que acaba sem cartão segue os mesmos 3 dias.
 
 *Código, nesta ordem* — detalhada pelo caminho do barbeiro em
 `JORNADA-DO-BARBEIRO.md` §5:
@@ -1963,18 +1991,19 @@ cobrança (§4.14).
    resumo do combo (§2.24).
 2. O que todo cadastro encontra no primeiro minuto: a tela de agendar vazia (§4.9) e o
    passo inútil do barbeiro único (§2.2).
-3. Endereços reservados e um jeito de tirar do ar (§4.16).
-4. Os três layouts, com as cores do dono (§4.13) — escolhidos no cadastro, antes do
-   cartão (decisão de 27/09).
+3. ~~Endereços reservados~~ — ✅ feitos em 08/10/2026 — e um jeito de tirar do ar (§4.16).
+4. ~~Os três layouts, com as cores do dono (§4.13)~~ — ✅ feito em 08/10/2026, no desenho
+   do mesmo dia: um layout, com a cor e a frase do topo escolhidas no cadastro e a tela
+   "o seu site está no ar" no fim (`JORNADA-DO-BARBEIRO.md` §2.4 e `JORNADA-DO-BARBEIRO.md` §2.8).
 5. O teste de 7 dias, a cobrança e a página de suspensão (§4.14 e §3.5) — dependem do
    §1.3 e da conta na Asaas. Com eles, no painel, a contagem dos dias e o botão de
    cancelar.
    - **5b.** A recuperação de senha (§4.17) e o aviso antes de cobrar (§1.3), que usam o
-     mesmo canal.
+     mesmo canal — o e-mail, já pedido no cadastro desde 08/10.
 6. A landing, o `/acessar` e a aposentadoria do `/onboarding` (§4.15) — por último de
    propósito: ela descreve o produto pronto.
 7. A página "Como fica" (§4.10) — as imagens têm que mostrar os três layouts, então vem
-   depois deles.
+   depois deles. *Desde 08/10, um layout só: não espera mais nada.*
 
 **Onda 3 — antes do primeiro cliente fora do UTC-3.** *(Era a onda 2 em 15/09.)*
 ~~As contas de offset (§2.11) e o teste de fuso passando a pegá-las~~ — ✅ feitos em

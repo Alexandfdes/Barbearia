@@ -477,7 +477,8 @@ medidor de completude põe a galeria na lista. O primeiro minuto continua sem fo
 **6. Site publicado sem revisão é publicado sob o seu domínio.** Qualquer um escolhe o
 endereço e o que escreve, e vai ao ar na hora. Sem endereços reservados e sem um jeito
 de tirar do ar, o primeiro a pegar `bayron` fica com ele, e o conteúdo é problema seu
-perante o Google (`PENDENCIAS-ABERTAS.md` §4.16).
+perante o Google (`PENDENCIAS-ABERTAS.md` §4.16). *(Os reservados existem desde 08/10/2026;
+o jeito de tirar do ar, não.)*
 
 **7. O cartão tem regra própria, e tem quem fica de fora.** O número do cartão **não pode
 passar pelo seu servidor**: guardá-lo, ou só recebê-lo, põe você dentro das exigências de
@@ -526,16 +527,17 @@ ele.
 
 ### O que já existe no código
 
-Conferido em 24/09/2026, atualizado em 25/09/2026:
+Conferido em 24/09/2026, atualizado em 25/09/2026 e em 08/10/2026:
 
 | Parte | Estado |
 |---|---|
 | Cadastro sozinho, com serviços, preços e horário | ✅ `/cadastrar`, fechado atrás de `CADASTRO_ABERTO=1` |
 | Painel na hora | ✅ o dono sai do cadastro **já logado** no painel da barbearia nova (desde 25/09; antes entrava pelo login) |
 | Fotos — galeria do site e foto de produto | ✅ 25/09, no painel, depois do cadastro (ver *Fotos*, acima) |
-| Três layouts de site | ❌ existe **um**, escuro |
-| Cores do dono | ⚠️ existe **uma**: o dono escolhe a cor de destaque, e o contraste é garantido por derivação (`lib/accent.ts`, 13 testes) |
-| Cartão no cadastro | ❌ nenhuma linha de código |
+| Três layouts de site | ❌ existe **um**, escuro — e é o do lançamento, pela decisão de 08/10 (abaixo) |
+| Cores do dono | ✅ **uma**, escolhida no cadastro com a prévia do topo do site desde 08/10, e trocada no painel; o contraste é garantido por derivação (`lib/accent.ts`, 13 testes) |
+| E-mail do dono | ✅ pedido no cadastro desde 08/10, para a senha e os avisos — que ainda não existem |
+| Cartão no cadastro | ❌ nenhuma linha de código — e, desde 08/10, pedido no fim do teste, não no cadastro |
 | Teste de 7 dias | ❌ nenhuma data de fim. O status da barbearia só admite `active`, `suspended` e `cancelled` — no tipo (`lib/tenant.ts:37`) e numa trava `CHECK` da migration 0001 |
 | Cobrança automática | ❌ nenhuma linha de código |
 
@@ -617,4 +619,8 @@ marcados com um aviso até lá:
   `PENDENCIAS-ABERTAS.md` §4.14, `PENDENCIAS-ABERTAS.md` §4.17 e a ordem do
   `PENDENCIAS-ABERTAS.md` §6;
 - os estados do tenant: `ARQUITETURA-COBRANCA-V1.md` §5.2.
+
+**Reescritos em 08/10/2026, com o código do cadastro novo:** `JORNADA-DO-BARBEIRO.md` §2.4
+e `PENDENCIAS-ABERTAS.md` §4.13, e em parte `PENDENCIAS-ABERTAS.md` §4.17 — o e-mail é pedido;
+a recuperação não existe.
 
