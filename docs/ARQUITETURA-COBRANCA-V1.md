@@ -349,6 +349,11 @@ carência e o fora do ar (`situacaoDe`). Fora do ar, o site responde 503 com o a
 WhatsApp da barbearia, e o painel abre só a tela de assinatura. **O que ainda não existe:**
 quem grava `active` e `past_due` — o webhook da Asaas.
 
+**Os avisos por e-mail de cada passagem**, desde 09/10/2026 — 2 dias antes do fim do teste, no
+começo da carência e no fora do ar — saem de uma tarefa de hora em hora que só **lê** a fase:
+ela não muda status nenhum, e a regra continua sendo o relógio (`apps/barbearia/src/lib/avisos.ts`,
+`PENDENCIAS-ABERTAS.md` §4.17).
+
 *O desenho de 28/08:*
 
 ```mermaid

@@ -256,6 +256,12 @@ Dockerfile e mandaria as fotos para o lugar errado.
 ⚠️ **Não gere um `SESSION_SECRET` novo.** Ele não tem nada a ver com o banco, e trocar
 derruba a sessão de todo barbeiro que estiver logado.
 
+**O e-mail (desde 09/10/2026) pode ficar para depois:** `SMTP_URL`, `EMAIL_REMETENTE` e, se
+preciso, `PAINEL_URL` (`PENDENCIAS-ABERTAS.md` §4.17). Sem eles o app sobe igual; o boot mostra
+o quadro "E-MAIL DESLIGADO", o "Esqueci minha senha" responde que não está funcionando e o
+daemon dos avisos escreve uma vez no log que o envio não está configurado — tudo esperado. O
+dono do Bayron não tem e-mail cadastrado e a barbearia dele está `active`: para ele, nada muda.
+
 ### 3.2 O backup de antes
 
 ```bash
