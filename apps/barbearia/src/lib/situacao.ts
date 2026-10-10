@@ -12,6 +12,9 @@
  *  - **Depois, fora do ar:** o site mostra "temporariamente indisponível" com o
  *    WhatsApp da barbearia, sem falar em dívida; o painel abre só a tela de
  *    assinatura, com a agenda para consulta. Nada é apagado; pagou, volta.
+ *  - **Cancelou** (10/10/2026, `lib/cobranca.ts`): no ar até o fim do período
+ *    pago, e fora do ar depois — sem carência, porque foi escolha dele. Assinando
+ *    de novo, volta.
  *
  * ⚠️ A FASE É CALCULADA, NÃO GRAVADA. O banco guarda o começo de cada prazo
  * (`trial_ends_at`, `past_due_since`), e a fase sai daqui, a cada requisição —
@@ -36,19 +39,27 @@ export interface ComPrazos {
   testeAte?: Date | null;
   /** `past_due_since`. */
   atrasadaDesde?: Date | null;
+  /** `subscription_ends_at`: assinatura cancelada, no ar até aqui. */
+  encerraEm?: Date | null;
 }
 
 export type Situacao =
-  | { fase: 'ativa' }
+  | { fase: 'ativa'; encerraEm?: Date }
   | { fase: 'teste'; ate: Date }
   | { fase: 'carencia'; motivo: 'teste' | 'cobranca'; ate: Date }
-  | { fase: 'suspensa'; motivo: 'teste' | 'cobranca' | 'manual'; desde: Date | null }
+  | { fase: 'suspensa'; motivo: 'teste' | 'cobranca' | 'cancelada' | 'manual'; desde: Date | null }
   | { fase: 'cancelada' };
 
 export function situacaoDe(t: ComPrazos, agora: Date = new Date()): Situacao {
   const ms = agora.getTime();
   switch (t.status) {
     case 'active':
+      // Cancelou: no ar até o fim do período pago. A assinatura já não existe na
+      // Asaas — nada vai marcar a falta de pagamento —, então a saída é pelo relógio.
+      if (t.encerraEm) {
+        if (ms < t.encerraEm.getTime()) return { fase: 'ativa', encerraEm: t.encerraEm };
+        return { fase: 'suspensa', motivo: 'cancelada', desde: t.encerraEm };
+      }
       return { fase: 'ativa' };
 
     case 'trial': {

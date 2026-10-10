@@ -149,7 +149,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   // dono que deixou o teste vencer não tinha como ver o motivo nem como pagar.
   // ENCERRADA continua recusada.
   const barbearia = await first(
-    dbDono.select({ status: tenants.status, testeAte: tenants.trialEndsAt, atrasadaDesde: tenants.pastDueSince })
+    dbDono.select({ status: tenants.status, testeAte: tenants.trialEndsAt, atrasadaDesde: tenants.pastDueSince, encerraEm: tenants.subscriptionEndsAt })
       .from(tenants)
       .where(eq(tenants.id, barbeiro.tenantId))
   );

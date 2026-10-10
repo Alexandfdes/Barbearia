@@ -46,6 +46,8 @@ export interface Tenant {
   testeAte?: Date | null;
   /** Quando a cobrança falhou (`past_due_since`). */
   atrasadaDesde?: Date | null;
+  /** Assinatura cancelada: no ar até aqui (`subscription_ends_at`). */
+  encerraEm?: Date | null;
 }
 
 /** No ar AGORA: pagando, no teste ou na carência. */
@@ -92,6 +94,7 @@ export async function carregarTenants(forcar = false): Promise<void> {
     domain: tenantsTable.domain,
     testeAte: tenantsTable.trialEndsAt,
     atrasadaDesde: tenantsTable.pastDueSince,
+    encerraEm: tenantsTable.subscriptionEndsAt,
   }).from(tenantsTable);
 
   const id = new Map<number, Tenant>();
@@ -106,6 +109,7 @@ export async function carregarTenants(forcar = false): Promise<void> {
       domain: l.domain ?? null,
       testeAte: l.testeAte ?? null,
       atrasadaDesde: l.atrasadaDesde ?? null,
+      encerraEm: l.encerraEm ?? null,
     };
     id.set(t.id, t);
     slug.set(t.slug, t);

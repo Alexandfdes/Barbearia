@@ -38,7 +38,7 @@ import {
 } from './lib/tenant.js';
 import { getSettings } from './lib/settings.js';
 import { respostaForaDoAr } from './lib/siteForaDoAr.js';
-import { TELA_DE_ASSINATURA } from './lib/assinatura.js';
+import { ROTA_DO_CANCELAMENTO, ROTA_DO_CARTAO, TELA_DE_ASSINATURA } from './lib/assinatura.js';
 import { motivoDaRecusa, respostaDaRecusa } from './lib/origem.js';
 
 export const onRequest = defineMiddleware(async (contexto, next) => {
@@ -62,6 +62,11 @@ export const onRequest = defineMiddleware(async (contexto, next) => {
   // a página de "temporariamente indisponível" no lugar da resposta. Os avisos
   // parariam para todas as barbearias por causa de uma.
   if (caminho.startsWith('/api/tarefas/')) return next();
+
+  // O webhook da Asaas também não é de barbearia nenhuma: quem diz de quem é o
+  // evento é o próprio evento (`lib/cobranca.ts`), e o token dele é conferido na
+  // rota. Chega sem `Origin` — servidor para servidor —, e a conferência acima passa.
+  if (caminho.startsWith('/api/asaas/')) return next();
 
   const { tenant, daSessao } = await tenantDaRequisicao(contexto.request);
 
@@ -135,7 +140,12 @@ async function painelDeBarbeariaForaDoAr(
   const fora = await sessaoForaDoAr(request);
   if (!fora) return null;
 
-  if (caminho === TELA_DE_ASSINATURA) return servirComTenant(fora.tenant, next);
+  // A tela e o botão do cartão: é por eles que quem saiu do ar volta. E o
+  // cancelar: fora do ar pela cobrança, a assinatura segue viva na Asaas, e quem
+  // quer sair tem de poder parar a cobrança sozinho (`lib/cobranca.ts`).
+  if (caminho === TELA_DE_ASSINATURA || caminho === ROTA_DO_CARTAO || caminho === ROTA_DO_CANCELAMENTO) {
+    return servirComTenant(fora.tenant, next);
+  }
   if (caminho.startsWith('/api/')) {
     return new Response(JSON.stringify({ error: 'A barbearia está fora do ar.', assinatura: TELA_DE_ASSINATURA }), {
       status: 402, headers: { 'content-type': 'application/json; charset=utf-8' },
