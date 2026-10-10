@@ -56,3 +56,20 @@ describe('a agenda do dia concorda o plural', () => {
     expect((agenda.match(/'agendamento considerado' : 'agendamentos considerados'/g) ?? []).length).toBe(2);
   });
 });
+
+describe('a projeção do mês, no relatório', () => {
+  // A frase era montada em pedaços — `'supera' : 'fica abaixo d'` + `a meta` —, e o
+  // ramo de quem bate a meta saía "(superaa meta)": visto num print do relatório em
+  // 09/10/2026. Cada ramo agora é a frase inteira.
+  const relatorio = soCodigo(readFileSync('src/pages/admin/relatorios.astro', 'utf8'));
+
+  it('as duas frases saem inteiras', () => {
+    expect(relatorio).toMatch(/'supera a meta'/);
+    expect(relatorio).toMatch(/'fica abaixo da meta'/);
+  });
+
+  it('nenhum pedaço de frase colado depois da expressão', () => {
+    expect(relatorio).not.toMatch(/'supera'\s*:/);
+    expect(relatorio).not.toMatch(/\}a meta\)/);
+  });
+});
