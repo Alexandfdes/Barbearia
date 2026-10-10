@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-08.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-09.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -29,6 +29,7 @@
 | **24/09** | **Fotos no painel, logo depois do cadastro** — galeria do site (o carrossel, a partir de 3 fotos) e foto de produto por barbearia; não no formulário do cadastro. Feito em 25/09 (§2.7) | `PLANO-PRODUTIZACAO.md` §13 |
 | **27/09** | **Layout e cores escolhidos no cadastro, antes do cartão** — o site já nasce com a cara que o dono escolheu. Rejeitado: escolher no painel, depois de entrar (§4.13) | `PLANO-PRODUTIZACAO.md` §13 e `JORNADA-DO-BARBEIRO.md` §2.4 |
 | **08/10** | **Nome provisório: Fadeline** — escolhido pelo dono entre 103 nomes conferidos no registro.br. Provisório tem prazo: vale até o cadastro abrir. Trocado no código no mesmo dia | `PENDENCIAS-ABERTAS.md` §0.1 |
+| **09/10** | **O hover do par padrão escurece:** `#0b5f58`, o tom que o código já tinha como padrão — com os sete consertos do primeiro minuto do cliente, que você pediu. **E o combo vale no dia do HORÁRIO marcado, não no dia em que se agenda** — ⚠️ esta, decidida na implementação: falta você confirmar | `PENDENCIAS-ABERTAS.md` §4.12 e `PENDENCIAS-ABERTAS.md` §2.16 |
 | **08/10** | **O desenho do cadastro e da cobrança:** um layout com a cor do dono; o cartão no fim do teste; a cobrança como módulo do app; e-mail para a senha e os avisos; 3 dias de carência; só mensal. **Feitos no mesmo dia:** o cadastro (§4.13, §4.16 e §4.17) e o teste de 7 dias, com a carência e o site fora do ar (§1.3, §3.5 e §4.14). **Em 09/10:** o e-mail — a senha nova, os avisos do teste e da cobrança e a troca de senha derrubando as sessões (§4.17 e §2.13) | `PLANO-PRODUTIZACAO.md` §13 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
@@ -332,19 +333,28 @@ decidindo a hora do backup, não o horário da barbearia) e
 `scripts/seed-relatorio-demo.mjs` (gerador de dados de demonstração, com o offset
 UTC-3 fixo). Nenhum dos dois afeta agendamento; entram junto com a coluna por tenant.
 
-### 2.2 🟠 `[TÉCNICO]` Wizard obriga escolher barbeiro mesmo havendo um só
+### 2.2 ✅ `[TÉCNICO]` Wizard obriga escolher barbeiro mesmo havendo um só — RESOLVIDO em 09/10/2026
 
-`src/pages/agendar.astro:303` — "Escolha o barbeiro" é o passo 2 de 4, sempre.
-Verificado: **não existe lógica de pular** quando há um único barbeiro ativo.
+Era: "Escolha o barbeiro" sempre como passo 2 de 4, sem lógica de pular quando havia um
+barbeiro só. No autoatendimento, todo cadastro nasce exatamente nesse caso: o `/cadastrar`
+cria a barbearia com o dono e mais ninguém. O cliente dele passava por uma tela com um botão
+só, e o contador anunciava quatro passos quando eram três.
 
-O alvo é barbearia pequena sem sistema — boa parte é de um profissional só. Hoje o
-cliente dele faz um passo inútil e o wizard anuncia "4 passos" quando são 3. Atrito bobo
-no ponto mais sensível do funil.
+**Feito:** com um barbeiro só no serviço escolhido — ou no serviço do combo —, ele é escolhido
+sozinho e o cliente vai direto ao horário (`pages/agendar.astro:412-416`). O contador e os
+pontos saem de `passosDoAgendamento()` (`lib/agendamento.ts:26`): "Passo 1 de 3" na barbearia
+de um barbeiro só, "de 4" quando há escolha. A regra é por serviço — numa barbearia com dois
+barbeiros, o serviço que só um deles faz também pula a tela. O cartão do serviço mostra a
+duração no lugar de "1 barbeiro" (`pages/agendar.astro:278-281`): era a tela do barbeiro que a
+mostrava. Na tela do horário, o "Voltar" vira "Alterar serviço", e o do topo volta ao serviço.
 
-Correção: pular o passo e ajustar o contador quando `barbers.length === 1`.
+De carona, um defeito do mesmo "Voltar", que não estava registrado: no combo, o do topo apagava
+o serviço do combo, e a tela respondia *"Este combo não está mais disponível"* — visto no build
+anterior. Um lugar só limpa o serviço agora, e não no combo (`pages/agendar.astro:138`).
 
-⚠️ **Subiu em 24/09/2026.** No autoatendimento, o `/cadastrar` cria a barbearia com **um**
-barbeiro só — o dono. Todo cliente novo começa exatamente no caso em que o passo é inútil.
+Guarda: `tests/agendar-primeiro-minuto.test.ts` — a regra dos passos como função, e o fonte da
+página usando a regra em vez de reescrevê-la (o script da página não roda no vitest). Na tela,
+conferido num navegador contra o build (`ESTADO-ATUAL.md` §8, 09/10).
 
 ### 2.3 ✅ `[TÉCNICO]` Site do produto sem controle de versão — RESOLVIDO em 06/09/2026
 
@@ -676,7 +686,8 @@ seis lugares, cada um na linha certa; e não confunde a classe `h-3.5` do Tailwi
 de uma segunda, abriu em *"Ter 29 · Hoje"*. Depois: 16:00–17:00 UTC, e *"Seg 28 · Hoje"*.
 
 ⚠️ **O que a guarda ainda não pega:** a classe 3 da skill `barbearia-fuso` — o dia lido no
-fuso do processo com `getDay()`, que é o `PENDENCIAS-ABERTAS.md` §2.22, ainda aberto. A data
+fuso do processo com `getDay()`. O caso dela era o `PENDENCIAS-ABERTAS.md` §2.22, fechado em
+09/10/2026; a classe continua sem guarda geral — `tests/semana-do-painel.test.ts` olha o painel. A data
 lida em UTC com `toISOString().slice(0, 10)` tem a guarda dela (`tests/data-do-fuso.test.ts`).
 E o fuso continua um só por processo (§2.1).
 
@@ -881,15 +892,37 @@ aparece como **R$ 40**. O site anuncia um preço que não é o cobrado.
 
 </details>
 
-### 2.16 🟠 `[TÉCNICO]` O desconto do combo vale em qualquer dia da semana
+### 2.16 ✅ `[TÉCNICO]` O desconto do combo vale em qualquer dia da semana — RESOLVIDO em 09/10/2026
 
-`api/appointments/index.ts:71` resolve o combo validando `id`, `active` e `tenantId` — e
-**não valida o bitmask `weekdays`**, que é justamente o que define em que dias o combo
-existe (`schema.ts:193`).
+Era: `api/appointments/index.ts` resolvia o combo conferindo o `id`, o `active` e a barbearia,
+e não o bitmask `weekdays` (`db/schema.ts`) — justamente o que define em que dias o combo existe.
+O "Combo de segunda, 20% OFF" valia numa sexta para quem tivesse o link, sobre o serviço e o
+produto, e entrava no relatório como receita normal.
 
-O dono cria "Combo de segunda, 20% OFF". Qualquer pessoa que abra `/agendar?combo=3` numa
-sexta recebe os 20%, sobre o serviço **e** sobre o produto. O link circula no WhatsApp e o
-desconto de segunda vira permanente. No relatório, aparece como receita legítima.
+**A decisão que a correção exigia — qual dia conta:** o do **horário marcado**, na barbearia.
+"Combo de segunda" é desconto para encher a segunda: quem abre o link numa sexta pode marcar
+para segunda, e não para sexta. *Rejeitado: o dia em que o cliente agenda* — deixaria quem abre
+o link na segunda marcar com desconto para a sexta cheia. ⚠️ **Tomada na implementação, em
+09/10/2026, sem você.** Se a intenção é a outra, a troca está numa linha: a data que
+`api/appointments/index.ts:116` confere passa a ser a de hoje, e não a do horário.
+
+**Feito, nas três pontas, com uma regra só** — `comboValeNaData()` (`lib/combo.ts:34`):
+
+- **O servidor recusa** o horário fora dos dias do combo (`api/appointments/index.ts:116`),
+  com o dia lido no fuso da barbearia: segunda 21h30 em Fortaleza já é terça em UTC, e vale.
+  Combo sem dia nenhum marcado não vale em dia nenhum.
+- **O calendário do `/agendar`** só abre os dias do combo (`pages/agendar.astro:474-476`), e o
+  resumo diz quais são — *"Dias do combo: segunda"*. Quando nenhum dia dos próximos 30 abre —
+  combo de domingo numa barbearia que não abre no domingo —, a tela diz isso, em vez de pedir
+  que se escolha um dia (`pages/agendar.astro:495`).
+- **A seção do combo na página inicial** acha o dia de hoje no fuso da barbearia
+  (`components/ComboBoris.astro:28-33`). Era `new Date().getDay()`, o relógio de quem abre o
+  site: com o navegador num fuso em que já era sábado, o combo da sexta sumia — visto no build
+  anterior.
+
+Guarda: `tests/combo-do-dia.test.ts`, contra o banco — terça recusada sem gravar nada, segunda
+aceita com o desconto no serviço e no produto, os dois lados da virada do dia em UTC e o combo
+sem dia. E `tests/agendar-primeiro-minuto.test.ts`, para a regra e para as duas telas.
 
 ### 2.17 ✅ `[TÉCNICO]` O guarda de escopo por tenant era cego para metade das rotas — RESOLVIDO em 22/09/2026
 
@@ -1013,41 +1046,66 @@ O custo aceito: a foto é recomprimida (qualidade 88) e o "original" guardado de
 byte a byte do celular. ⚠️ **O que já está no volume não mudou:** fotos enviadas antes
 (logo, capa, produtos) continuam como estavam.
 
-### 2.22 🟠 `[TÉCNICO]` O gráfico da semana no painel depende do fuso do processo
+### 2.22 ✅ `[TÉCNICO]` O gráfico da semana no painel depende do fuso do processo — RESOLVIDO em 09/10/2026
 
-`admin/index.astro:33-37` acha a segunda-feira com `getDay()` e `setDate()` — que usam o
-fuso do **processo** — e formata o resultado com o da barbearia. É a regra 3 da skill
-`barbearia-fuso`, e não estava registrada aqui.
+Era: `admin/index.astro` achava a segunda-feira com `getDay()` e `setDate()` — que usam o fuso
+do **processo** — e formatava o resultado com o da barbearia. Visto ao vivo em 25/09/2026, com o
+processo em UTC às 21h29 de Fortaleza: o gráfico mostrou **"SEG 20"** — 20/09/2026 foi domingo
+—, e o card "Esta semana" e o gráfico erravam de semana das 21h à meia-noite. Só não aparecia em
+produção com `TZ=America/Fortaleza` no container, e com uma barbearia fora de UTC−3 (§2.1) não
+haveria `TZ` que servisse às duas.
 
-Visto ao vivo em 25/09/2026, com o processo em UTC às 21h29 de Fortaleza: o gráfico mostrou
-**"SEG 20"** — 20/09/2026 foi domingo — e a janela da semana foi de 20/09 a 26/09. Entre 21h
-e meia-noite, o card "Esta semana" e o gráfico erram de semana.
+**Feito:** a segunda-feira sai de `todayStr`, a data na barbearia, por conta de calendário em
+que o relógio do processo não entra (`admin/index.astro:47`, `lib/calendario.ts:42`).
 
-Em produção só não aparece se o container tiver `TZ=America/Fortaleza`: o `Dockerfile` não
-define, e o roteiro manda manter no `.env` (`ROTEIRO-MIGRACAO-PRODUCAO.md` §3.1). Com uma
-barbearia fora de UTC−3 (§2.1), não existe `TZ` que sirva às duas.
+**Conferido ao vivo em 09/10/2026**, os dois builds lado a lado contra o mesmo banco, o processo
+em UTC: às 21h01 de sexta, 09/10, em Fortaleza — já 00h01 de sábado em UTC —, o build anterior
+mostrou a semana **04/10 — 10/10, com "SEG 4" num domingo**, o mesmo sintoma de 25/09; o novo,
+05/10 — 11/10. Antes, às 20h28, com a barbearia em Tóquio, onde já era sábado: o anterior
+mostrou "SEG 6" numa terça; o novo, a semana certa.
 
-**Correção:** a segunda-feira sai de `todayStr` — a data no fuso da barbearia —, com a conta
-de dias em UTC ao meio-dia, como o `addDaysStr` duas linhas abaixo já faz.
+Guarda: `tests/semana-do-painel.test.ts` — a conta, o caso de 25/09 reproduzido (a conta antiga
+dá o domingo 20/09; a nova, a segunda 21/09) e o painel sem conta de dia no relógio do processo.
 
-### 2.23 🟡 `[TÉCNICO]` O login do painel aceita corpo que não é JSON
+### 2.23 ✅ `[TÉCNICO]` O login do painel aceita corpo que não é JSON — RESOLVIDO em 09/10/2026
 
-`api/auth/login.ts:55` lê `request.json()` sem conferir o tipo do corpo, e abre sessão. Com o
-`checkOrigin` do Astro desligado (`astro.config.mjs`), um formulário de outro site consegue
-mandar `text/plain` com o corpo em forma de JSON: a página maliciosa deixaria o visitante
-logado numa conta **dela** ("login CSRF"), e o que ele digitasse depois iria para lá.
+Era: `api/auth/login.ts` lia `request.json()` sem conferir o tipo do corpo, e abria sessão. Com
+o `checkOrigin` do Astro desligado (`astro.config.mjs`), um formulário de outro site manda
+`text/plain` com o corpo em forma de JSON, sem pré-voo de CORS, e o navegador guarda o cookie
+que volta: o visitante ficaria logado numa conta do atacante ("login CSRF"), e o que digitasse
+depois iria para lá.
 
-**Não reproduzido num navegador** — é o mecanismo, conferido no código. O `/api/cadastrar`,
-que passou a abrir sessão em 25/09/2026, já recusa o que não é `application/json` (415). O
-login precisa da mesma linha.
+**Feito:** o login do painel recusa com 415 o que não é `application/json`, antes de ler o
+corpo (`api/auth/login.ts:60`). O **login do cliente**, no portal de cada barbearia, tinha o
+mesmo buraco e não estava registrado — recusa igual (`api/customer/login.ts:54`). O
+`/api/cadastrar` já recusava desde 25/09.
 
-### 2.24 🟡 `[TÉCNICO]` O resumo do combo diz "Combo Boris" e põe o nome do produto no HTML sem escape
+Guarda: `tests/login-so-json.test.ts` — as duas rotas contra o banco (`text/plain` e formulário
+recusados, sem cookie; a mesma credencial em JSON entra) e uma varredura: toda rota que abre
+sessão pela credencial do corpo recusa antes de ler, com controle de que a varredura acha as
+três. Conferido no código e nesses casos — não com um site de fora de verdade.
 
-`agendar.astro:445` interpola o nome do produto direto num `innerHTML`, e a linha 448
-escreve **"Combo Boris"** — o nome do combo do Bayron — no resumo de toda barbearia que
-tiver combo. Nome de produto com `<` ou `&` quebra o resumo; com HTML, executa no site da
-própria barbearia (quem cadastra o produto é o dono dela). Correção: escapar e usar o nome
-do combo que a tela já carrega.
+⚠️ **Isto não fecha o CSRF do painel**: é outro caminho, e mais grave — `PENDENCIAS-ABERTAS.md`
+§2.30.
+
+### 2.24 ✅ `[TÉCNICO]` O resumo do combo diz "Combo Boris" e põe o nome do produto no HTML sem escape — RESOLVIDO em 09/10/2026
+
+Era: o `/agendar` escrevia **"Combo Boris"** — o combo do Bayron — no resumo de toda barbearia
+com combo, e montava o `innerHTML` com o nome do produto cru.
+
+**Era pior que o registrado:** não só o produto — o nome do serviço, o do barbeiro e o do combo
+também entravam sem escape no `innerHTML` do wizard inteiro. **Confirmado num navegador em
+09/10/2026, contra o build anterior:** um produto chamado `Pomada <img src=x onerror=…>`
+**executou o script** no `/agendar?combo=` da própria barbearia. Quem cadastra o produto é o
+dono dela — e, no autoatendimento, qualquer pessoa é dono de uma. É o caminho que tirava do
+papel o `PENDENCIAS-ABERTAS.md` §2.30.
+
+**Feito:** todo nome que vai para o `innerHTML` do wizard passa por `escaparHtml()`
+(`lib/html.ts:15`), e a linha do combo usa o nome do combo que o cliente abriu
+(`pages/agendar.astro:586`).
+
+Guarda: `tests/agendar-primeiro-minuto.test.ts` — o fonte do script sem nenhum nome fora de
+`esc(`, com controle de que o guarda pega o nome cru, e nenhum "Boris" no código.
 
 ### 2.25 ✅ `[TÉCNICO]` O WhatsApp de toda barbearia nova chamava um número do Vietnã — RESOLVIDO em 27/09/2026
 
@@ -1231,6 +1289,42 @@ com a mesma atualização na `main`, antes dela.
 **`astro check`:** com o `@types/node`, de 674 erros para 356, quase todos em dois arquivos — os
 scripts de `admin/dia/[date].astro` (264) e de `cadastrar.astro` (78). Erro novo em qualquer
 outro arquivo agora aparece.
+
+### 2.30 🔴 `[TÉCNICO]` Um script no site de uma barbearia age no painel de outra — o CSRF entre subdomínios
+
+**Reproduzido em 09/10/2026**, contra o build, com o domínio `*.fadeline.test` (que o
+navegador trata como trataria `*.fadeline.com.br`): logado no painel da Barbearia Solo, o
+mesmo navegador abriu o site de **outra** barbearia, e um script rodando ali — como rodaria por
+um XSS — **cancelou um agendamento da Solo** com um `fetch` simples. O mesmo script num site de
+fora não conseguiu nada: o cookie não foi.
+
+**O mecanismo**, conferido no código:
+
+- A sessão do painel é `SameSite=Lax` (`lib/session.ts:173`), e o `checkOrigin` do Astro está
+  desligado porque o proxy do EasyPanel troca o `Host`. O comentário do `astro.config.mjs` diz
+  que o `SameSite` basta — **basta contra outro site, não contra outro subdomínio.** Para o
+  navegador, `painel.fadeline.com.br` e `qualquer.fadeline.com.br` são o mesmo site, e o cookie
+  vai junto.
+- Os sites das barbearias são exatamente esses subdomínios — e, no autoatendimento, qualquer
+  pessoa cria o seu.
+- As 15 rotas `POST` do painel não conferem de onde vem a requisição. Quatro nem têm corpo
+  (cancelar, concluir, marcar falta, catálogo sugerido); as outras leem JSON sem olhar o tipo,
+  ou formulário. Nenhuma passa pelo pré-voo de CORS. Pelo mesmo caminho — conferido no código,
+  não reproduzido —: trocar a senha de um barbeiro (`api/admin/barbers/[id]/password.ts`), criar
+  e reagendar horário, mexer em serviço, produto e combo.
+
+**O que falta para virar ataque é rodar script num subdomínio.** O XSS do `/agendar`
+(`PENDENCIAS-ABERTAS.md` §2.24) era esse caminho até 09/10/2026, e foi confirmado num navegador.
+Fechado, sobra o próximo: qualquer XSS em qualquer site de barbearia — ou em qualquer outro site
+no mesmo domínio; enquanto o `DOMINIO_BASE` for `alexandrefdev.tech`, os seus outros projetos
+nele contam — vira o painel de toda barbearia cujo dono o abrir logado.
+
+**Correção proposta:** o `src/middleware.ts` recusa toda requisição que muda dado no painel cuja
+origem não seja o próprio painel — `Sec-Fetch-Site: same-origin`, ou o `Origin` igual ao do
+`PAINEL_URL`. Comparar com o `PAINEL_URL`, e não com o `Host`, é o que contorna o proxy que fez
+desligar o `checkOrigin`. Uma regra para todas as rotas, com teste de escopo. *Rejeitado:
+conferir o tipo do corpo rota a rota* — quinze lugares para esquecer, e as quatro sem corpo não
+teriam o que conferir.
 
 ---
 
@@ -1671,28 +1765,23 @@ precisam ser mantidos — e a landing precisa escolher uma história.
 
 </details>
 
-### 4.9 🔴 `[TÉCNICO]` A tela de agendar é branca quando não há serviço
+### 4.9 ✅ `[TÉCNICO]` A tela de agendar é branca quando não há serviço — RESOLVIDO em 09/10/2026
 
-Visto em 15/09/2026, servindo o site de uma barbearia recém-criada.
+Era (visto em 15/09/2026, no site de uma barbearia recém-criada): `/agendar` renderizava
+"Escolha o serviço — Passo 1 de 4" e nada embaixo — sem lista, sem aviso, sem saída. Barbearia
+nova nasce sem serviço quando o dono deixa os preços em branco no cadastro, e o botão "Reservar
+horário" do site levava a essa tela no primeiro minuto do teste grátis — quando o dono decide se
+vai pagar.
 
-`/agendar` renderiza "Escolha o serviço — Passo 1 de 4" e **nada embaixo**. A árvore da
-página tem três elementos: um `main`, um título e o contador. Sem lista, sem aviso, sem
-saída.
+**Feito:** sem serviço para agendar, a tela diz *"Agende pelo WhatsApp — No momento, os horários
+desta barbearia são marcados direto com ela"*, com o botão do WhatsApp da barbearia, montado
+pela mesma função do rodapé, com o 55 (`pages/agendar.astro:24`, `pages/agendar.astro:293`). Sem
+WhatsApp cadastrado: *"Agendamento indisponível — volte em breve"*, sem link quebrado. "Sem
+serviço" é o `/api/services` vazio: ele só traz serviço ativo com barbeiro ativo, então serviço
+que ninguém faz também conta como nenhum.
 
-**Não é caso raro.** O próprio provisionador diz que barbearia nova nasce sem serviço —
-então **todo cliente novo tem, desde o primeiro minuto, um site com um botão grande
-"RESERVAR HORÁRIO" que leva a uma tela em branco.**
-
-O §4.1 cuidou das seções do site (*ou tem conteúdo, ou não é renderizada*) e deixou o
-wizard de fora. A correção é um estado vazio que diga o que está acontecendo e ofereça o
-WhatsApp da barbearia.
-
-O `/cadastrar` reduz a janela — quem preenche preço no cadastro já nasce agendando — mas
-não fecha: quem deixar tudo em branco cai aqui.
-
-⚠️ **Subiu em 24/09/2026** (§4.8). Sem ninguém revisando antes de publicar, todo cadastro
-com preço em branco vai ao ar assim, no primeiro minuto do teste grátis — que é quando o
-dono decide se vai pagar.
+Guarda: `tests/agendar-primeiro-minuto.test.ts` (o fonte da página); na tela, conferido num
+navegador contra o build.
 
 ### 4.10 🔴 `[TÉCNICO]` A página "Como fica" do site de vendas não tem nenhuma imagem
 
@@ -1727,24 +1816,41 @@ cheias. No Bayron (5.0) parece certo por coincidência.
 Hoje nenhum dos dois está no ar, porque a seção inteira depende do `shortName === "Bayron"`
 (§4.7). Os dois acordam no dia em que a seção for generalizada.
 
-### 4.12 🟠 `[TÉCNICO]` O hover do botão padrão reprova no contraste
+### 4.12 ✅ `[TÉCNICO]` O hover do botão padrão reprova no contraste — RESOLVIDO em 09/10/2026
 
-Medido em 15/09/2026:
+Era: o `--color-teal-hover` padrão, `#0d9488`, é **mais claro** que o `--color-teal`
+`#0f766e`, e o texto branco em cima caía abaixo do piso de 4,5:1 — o botão ficava legível
+parado e piorava com o mouse em cima. Contradizia a regra da skill de paleta: no site da
+barbearia, o hover **escurece**. Valia para toda barbearia que não escolheu cor — o Bayron
+inclusive — e para o painel inteiro.
 
-| Token | Com branco |
+| Cor | Com branco — medido em 09/10/2026 com o `contraste()` de `lib/accent.ts` (WCAG 2.1) |
 |---|---|
-| `--color-teal` `#0f766e` | 5,24:1 ✓ |
-| `--color-teal-hover` `#0d9488` | **3,59:1** ✗ |
+| `#0f766e`, o botão | 5,47:1 ✓ |
+| `#0d9488`, o hover antigo | **3,74:1** ✗ |
+| `#0b5f58`, o hover novo | 7,52:1 ✓ |
 
-O `teal-hover` padrão é **mais claro** que o `teal`, e o texto branco em cima cai abaixo
-do piso de 4,5:1. O botão fica legível parado e **piora quando o mouse passa por cima**.
+*Os números registrados em 15/09 — 5,24 e 3,59 — não se reproduzem; a conclusão era a mesma.*
 
-Contradiz a regra da skill de paleta — *no site da barbearia o hover **escurece*** — que o
-`derivarAccent()` obedece (vinho `#6b1f2a` → hover `#4f171f`). Quem não obedece é o **par
-padrão**, usado por toda barbearia que ainda não escolheu cor — incluindo o Bayron.
+**O hover morava em quatro lugares, e só um estava certo:** o `ACCENT_PADRAO` de
+`lib/accent.ts` (`#0b5f58`), que o provisionamento de barbearia nova já usava. O token do
+`global.css` (o do painel), o padrão de `lib/settings.ts` e o padrão da coluna no banco tinham o
+antigo — e o site de quem não escolheu cor lê o do banco. A seção do combo na página inicial
+cravava os dois hex na classe, `bg-[#0f766e] hover:bg-[#0d9488]`: no site de quem escolheu
+vinho, o botão do combo continuava verde — visto no build anterior.
 
-Correção: um `--color-teal-hover` mais escuro que `#0f766e`. Muda a cor de todos os botões
-do painel e do site padrão, então é decisão do dono.
+**Feito,** com os sete consertos do primeiro minuto, que você pediu em 09/10/2026; o tom é o que
+o código já tinha como padrão. Os quatro lugares são o `ACCENT_PADRAO` (`styles/global.css:22`,
+`lib/settings.ts:92`, `db/schema.ts:305`), e o botão do combo usa as cores do tema
+(`components/ComboBoris.astro:60`). A **migration 0009** troca o padrão da coluna e conserta as
+linhas gravadas com o par antigo exato — quem escolheu cor não é tocado. ⚠️ **Na migração da
+produção ela roda depois da carga do SQLite, e é ela que conserta o Bayron**
+(`ROTEIRO-MIGRACAO-PRODUCAO.md` §4.4).
+
+Guarda: `tests/hover-padrao.test.ts` — o contraste e o "mais escuro", os quatro lugares iguais ao
+`ACCENT_PADRAO`, nenhuma cor cravada em classe de `.astro` (com controle) e a 0009 contra o banco:
+conserta o par antigo, em minúsculas e em maiúsculas, e a linha gravada pelo padrão antigo; não
+toca o vinho nem o hover próprio de quem tem o verde; roda duas vezes.
 
 ### 4.13 ✅ `[TÉCNICO]` A cara do site no cadastro — um layout e a cor do dono, FEITO em 08/10/2026
 
@@ -2105,7 +2211,8 @@ rotas que ele não enxergava. ~~Sobra do bloco: a revogação de sessão por tro
 **Achados de 25/09/2026, ✅ já consertados — eram da onda 0:** a transação dentro da
 requisição (§2.19) e a agenda do dia sem resposta (§2.20). Os dois derrubariam o dia da
 migração, e nenhum aparecia na suíte. Junto, o guarda de escopo por consulta (§2.18) e a
-foto de celular (§2.21). Abertos no mesmo dia, para as ondas abaixo: §2.22, §2.23 e §2.24.
+foto de celular (§2.21). Abertos no mesmo dia, para as ondas abaixo: §2.22, §2.23 e §2.24 —
+✅ os três feitos em 09/10/2026.
 
 **Achados de 27/09/2026, no primeiro teste de ponta a ponta na máquina do dono, ✅ já
 consertados:** o WhatsApp de toda barbearia nova (§2.25), o nome e o endereço do Bayron
@@ -2136,12 +2243,16 @@ o teste que acaba sem cartão segue os mesmos 3 dias — confirmado no mesmo dia
    qualquer código da onda. É o único ponto que pode desmentir o desenho do cartão
    (`JORNADA-DO-BARBEIRO.md` §2.5). E abrir a conta não depende de código: se exigir CNPJ,
    é prazo que corre por fora (`ARQUITETURA-COBRANCA-V1.md` §11) — melhor começar já.
-1. Os dois que já mordem hoje e tinham ficado fora de todas as ondas de 15/09:
-   ~~os centavos do preço (§2.15)~~ — ✅ feito em 27/09 — e o combo em qualquer dia (§2.16). Junto, os três de 25/09
-   que são uma linha cada: a semana do painel (§2.22), o login só com JSON (§2.23) e o
-   resumo do combo (§2.24).
-2. O que todo cadastro encontra no primeiro minuto: a tela de agendar vazia (§4.9) e o
-   passo inútil do barbeiro único (§2.2).
+1. ~~Os dois que já mordem hoje e tinham ficado fora de todas as ondas de 15/09: os centavos
+   do preço (§2.15) e o combo em qualquer dia (§2.16). Junto, os três de 25/09 que são uma
+   linha cada: a semana do painel (§2.22), o login só com JSON (§2.23) e o resumo do combo
+   (§2.24)~~ — ✅ os centavos em 27/09; o resto em 09/10/2026.
+2. ~~O que todo cadastro encontra no primeiro minuto: a tela de agendar vazia (§4.9) e o
+   passo inútil do barbeiro único (§2.2)~~ — ✅ feitos em 09/10/2026, com o hover do botão
+   padrão (§4.12).
+   - **2b. Acrescentado em 09/10/2026:** o CSRF entre subdomínios (§2.30). Com o cadastro
+     aberto, qualquer pessoa cria um subdomínio — e um XSS em qualquer um deles alcança o painel
+     de todas as barbearias.
 3. ~~Endereços reservados~~ — ✅ feitos em 08/10/2026 — e um jeito de tirar do ar (§4.16).
 4. ~~Os três layouts, com as cores do dono (§4.13)~~ — ✅ feito em 08/10/2026, no desenho
    do mesmo dia: um layout, com a cor e a frase do topo escolhidas no cadastro e a tela
@@ -2171,7 +2282,7 @@ o teste que acaba sem cartão segue os mesmos 3 dias — confirmado no mesmo dia
    Falta cadastrar o telefone dos barbeiros do Bayron antes do segundo cliente.
 2. ~~**As duas minas** (§2.1, §2.2)~~ — o fuso (§2.1) foi centralizado em 10/09 e
    está com guarda-corpo; sobrou o fuso por barbearia, que só morde no passo 6.
-   **Falta o wizard (§2.2)**: barato agora, caro com cliente pagando.
+   ~~**Falta o wizard (§2.2)**~~ — ✅ feito em 09/10/2026.
 3. ~~**Registrar o domínio** (`PENDENCIAS-ABERTAS.md` §0)~~ — **adiado em 11/09**
    (`PLANO-PRODUTIZACAO.md` §12): o nome ainda não está escolhido.
 4. ~~**Tela sem fotos** (§4.1)~~ — feita em 06/09/2026, topo e resto da página.

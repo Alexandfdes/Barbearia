@@ -281,9 +281,10 @@ Consequência prática: vinho `#6b1f2a` e marinho `#1b2a5a` passam de cara aqui
 (11,32:1 e 13,77:1 com branco) e reprovariam no site de vendas. Dourado `#c9a227` e
 laranja `#e8721c` são o contrário — reprovam aqui (2,42:1 e 3,06:1) e precisam escurecer.
 
-> ⚠️ O valor atual de `--color-teal-hover` (`#0d9488`) dá só **3,74:1** com branco:
+> ⚠️ O valor de `--color-teal-hover` era `#0d9488`, que dá só **3,74:1** com branco:
 > ele clareia, e clarear piora o contraste do texto branco. `src/lib/accent.ts`
-> corrige isso derivando o hover para baixo.
+> deriva o hover para baixo; o par padrão passou a ser `#0b5f58` (7,52:1) em todos os
+> lugares em 09/10/2026, com a migration 0009 do Postgres (`PENDENCIAS-ABERTAS.md` §4.12).
 
 #### D5.2 — A cor sai da logo, mas nunca é aplicada crua
 
@@ -348,7 +349,7 @@ CREATE TABLE `settings` (
   `seo_title` text,
   `seo_description` text,
   `accent_color` text NOT NULL DEFAULT '#0f766e',
-  `accent_hover` text NOT NULL DEFAULT '#0d9488',
+  `accent_hover` text NOT NULL DEFAULT '#0d9488',   -- #0b5f58 desde a 0009 do Postgres (09/10/2026)
   `accent_light` text NOT NULL DEFAULT '#5eead4',
   `logo_path` text,
   `hero_path` text,
@@ -530,14 +531,15 @@ respeita o ambiente. Funciona por coincidência enquanto o cliente for UTC-3 (No
 Sudeste, Sul); Manaus e Cuiabá são UTC-4 e o Acre é UTC-5. Vender para lá gera horário
 errado em silêncio. Corrigir antes de sair do UTC-3 — ver `PENDENCIAS-ABERTAS.md` §2.1.
 
-**🟠 O wizard obriga a escolher barbeiro mesmo com um só** (`src/pages/agendar.astro:303`;
-verificado: não há lógica de pular). O alvo comercial é barbearia pequena, boa parte com
-um profissional só — é atrito no ponto mais sensível do funil. Ver `PENDENCIAS-ABERTAS.md` §2.2.
+**✅ O wizard obrigava a escolher barbeiro mesmo com um só** — resolvido em 09/10/2026: com
+um barbeiro só, o agendamento tem três passos. Ver `PENDENCIAS-ABERTAS.md` §2.2.
 
 **🟡 Injeção de CSS pelo acento.** Validar hex com regex antes de interpolar (D5).
 
 **🟡 Migrations 0002/0003/0004 sem snapshot** em `drizzle/meta/`. Rodar `db:generate`
 para a 0009 e **conferir o SQL gerado** antes de commitar, em vez de confiar cegamente.
+*(Numeração do SQLite, que não existe mais. A `0009` do Postgres, de 09/10/2026, é outra: o
+hover do par padrão.)*
 
 **🟡 Textos institucionais são copy, não config.** `Footer.astro:39` e o parágrafo do
 Hero são texto de marketing por barbearia. Entram como campos de settings, não como
