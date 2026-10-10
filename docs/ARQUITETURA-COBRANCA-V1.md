@@ -3,6 +3,11 @@
 > Especificação técnica. Data: 2026-08-28. Números revisados em 06/09/2026.
 > Status: **especificado, não implementado.**
 >
+> ⚠️ **10/10/2026: implementado no app da barbearia — e não testado no sandbox da Asaas.** O
+> que o código faz está no §5.3, novo. As tabelas `subscriptions` e `payments` do §5 e as rotas
+> do §6 são do desenho de 28/08 e não existem; a prova que falta, e o roteiro dela, estão no
+> `PENDENCIAS-ABERTAS.md` §4.14.
+>
 > ⚠️ **Duas premissas deste documento mudaram depois de escrito.** As tarifas e a
 > escolha do gateway foram recalculadas em 06/09 e continuam valendo; o que ficou
 > desatualizado é o raciocínio que dependia delas:
@@ -260,6 +265,9 @@ o campo `subscription` ligando à assinatura pai. Eventos que este desenho usa:
 | `CHECKOUT_PAID` | *Acrescentado em 10/10/2026.* O Checkout foi concluído — é por ele, e nunca pela URL de retorno, que o cartão cadastrado se confirma. Pela documentação; se chega quando nada é cobrado no dia é pergunta aberta (`PENDENCIAS-ABERTAS.md` §4.14) |
 | `SUBSCRIPTION_CREATED` | *Acrescentado em 10/10/2026.* A assinatura nasceu do Checkout: é o que liga a assinatura à barbearia |
 
+> ⚠️ **10/10/2026: a tabela acima é do desenho de 28/08** — `overdue_since`, 15 dias,
+> onboarding. O que cada evento faz no código, com os 3 dias de carência, está no §5.3.
+
 > **10/10/2026 — o que mais a reconferência trouxe:**
 >
 > - **As notificações da Asaas nascem ligadas em cada cliente** — oito, inclusive ligação
@@ -372,15 +380,23 @@ stateDiagram-v2
     carencia --> active: pagou
     carencia --> fora_do_ar: 3 dias inteiros
     fora_do_ar --> active: pagou
-    active --> cancelled: cancelou
+    active --> cancelada: cancelou
+    carencia --> cancelada: cancelou, com a cobrança atrasada
+    cancelada --> fora_do_ar: fim do período pago — ou da carência
+    cancelada --> active: assinou de novo
 ```
+
+*Cancelada* (10/10/2026, §5.3) não é status: é `active` com `subscription_ends_at`, no ar até a
+data e fora do ar depois, pelo relógio. O status `cancelled` ficou para a barbearia encerrada à
+mão, que não volta pelo cartão.
 
 **Gravado** em `tenants.status`: `trial`, `active`, `past_due`, `suspended` — agora só a
 barbearia tirada do ar à mão — e `cancelled`, com as datas que começam os prazos,
 `trial_ends_at` e `past_due_since`. **Calculado** a cada requisição, sem tarefa agendada: a
 carência e o fora do ar (`situacaoDe`). Fora do ar, o site responde 503 com o aviso e o
-WhatsApp da barbearia, e o painel abre só a tela de assinatura. **O que ainda não existe:**
-quem grava `active` e `past_due` — o webhook da Asaas.
+WhatsApp da barbearia, e o painel abre só a tela de assinatura. ~~**O que ainda não existe:**
+quem grava `active` e `past_due` — o webhook da Asaas~~ — ✅ desde 10/10/2026, sem a prova no
+sandbox (§5.3).
 
 **Os avisos por e-mail de cada passagem**, desde 09/10/2026 — 2 dias antes do fim do teste, no
 começo da carência e no fora do ar — saem de uma tarefa de hora em hora que só **lê** a fase:
@@ -407,6 +423,72 @@ stateDiagram-v2
 Os prazos (15 dias para suspender, 30 dias de aviso prévio para cancelar) **não são invenção
 deste documento**: estão escritos na proposta que você já assinou como modelo,
 `orcamentos/entrega-bayron-v5.docx`. O código deve seguir o contrato, não o contrário.
+
+### 5.3 O que o código faz — 10/10/2026
+
+> Implementado no app da barbearia, como módulo (decisão de 08/10, `PLANO-PRODUTIZACAO.md` §13),
+> e **não testado no sandbox**: os eventos são os dos exemplos da documentação da Asaas,
+> conferida em 10/10. O roteiro da prova e as perguntas que ela tem de responder:
+> `PENDENCIAS-ABERTAS.md` §4.14. Código: `apps/barbearia/src/lib/cobranca.ts`.
+
+**No banco** (migration 0010): `tenants` ganhou o cliente da Asaas (`asaas_customer_id`), a
+assinatura em vigor (`asaas_subscription_id`, única), os últimos 20 Checkouts
+(`asaas_checkout_ids`) e a data de saída de quem cancelou (`subscription_ends_at`). E
+`webhook_events`: o evento cru, gravado antes de processar e na mesma transação — a `UNIQUE` em
+`(gateway, gateway_event_id)` é a idempotência do §5.1, e o 200 só sai depois do commit. É a
+única tabela com `tenant_id` que aceita nulo: o evento que não acha barbearia fica guardado. O
+papel do app não tem acesso a ela; só o webhook, como dono das tabelas.
+
+**As rotas:**
+
+| Rota | Quem | O que faz |
+|---|---|---|
+| `POST /api/admin/assinatura/cartao` | o dono, no ar ou fora do ar | Cria o Checkout e devolve o endereço da página de pagamento |
+| `POST /api/admin/assinatura/cancelar` | o dono, no ar ou fora do ar pela cobrança | Remove a assinatura na Asaas e grava até quando o site fica no ar |
+| `POST /api/asaas/webhook` | a Asaas, com o token no cabeçalho `asaas-access-token` | Grava o evento e muda a barbearia |
+
+**O Checkout:** cartão, recorrente, mensal, R$ 100, à vista. A primeira cobrança é no dia
+seguinte ao fim do teste; hoje, para quem está na carência ou fora do ar; e, para quem cancelou e
+reativa ainda no ar, no dia em que a antiga acabaria — o mesmo mês não é cobrado duas vezes. O
+número do cartão é digitado na página da Asaas e nunca passa pelo servidor. Cliente que já
+existe vai pelo id; novo, com o nome, o e-mail e o telefone do cadastro — o CPF, a página pede.
+
+**Como o evento acha a barbearia.** A Asaas não garante a ordem, e cada evento traz uma chave
+diferente. Na ordem: o Checkout (`checkout.id`, ou o `checkoutSession` da assinatura) entre os
+últimos 20 da barbearia; a referência `barbearia:N`, se a Asaas a repassar à assinatura; a
+assinatura; e, por último, o cliente — que pode ser de duas barbearias do mesmo dono, e aí o
+evento não escolhe nenhuma. Cada evento ensina as chaves que faltam.
+
+| Evento | Efeito |
+|---|---|
+| `CHECKOUT_PAID` | Em dia — inclusive quem estava fora do ar ou tinha cancelado. Guarda o cliente e desliga as notificações da Asaas para ele |
+| `SUBSCRIPTION_CREATED` | Liga a assinatura à barbearia. Se havia outra — o cartão trocado —, a antiga é removida na Asaas, com as cobranças em aberto dela, se ainda existir |
+| `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED` | Em dia |
+| `PAYMENT_OVERDUE`, `PAYMENT_CREDIT_CARD_CAPTURE_REFUSED` | Atrasada desde a PRIMEIRA falha: começam os 3 dias de carência (`apps/barbearia/src/lib/situacao.ts`) |
+| `SUBSCRIPTION_DELETED`, `SUBSCRIPTION_INACTIVATED` | A assinatura em vigor removida por fora do painel: no ar até o fim do período pago. Removida pelo cancelar do painel, a data já está gravada e não muda |
+| Estorno e contestação | Alerta no log; nada muda sozinho (§4) |
+| Qualquer outro | Guardado, e mais nada |
+
+Nenhum mexe em barbearia suspensa à mão. E só conta a cobrança da assinatura **em vigor**: a de
+uma antiga, removida quando o cartão foi trocado, não atrasa ninguém.
+
+**O cancelar:** em dia, no ar até o fim do período pago; com a cobrança atrasada — na carência
+ou fora do ar —, só o que restava da carência, e a mensalidade que falhou some com a assinatura.
+⚠️ As duas regras foram decididas na implementação e esperam a sua confirmação
+(`PENDENCIAS-ABERTAS.md` §4.14).
+
+**Quando o processamento falha.** O erro que é do próprio evento — um dado em conflito, um dado
+que o banco recusa — se repetiria em toda reentrega: fica guardado com o motivo e responde 200,
+porque 15 falhas seguidas interrompem a fila do webhook inteiro. O resto — o banco fora do ar, um
+erro de programa — responde 500 e volta para a fila: o erro de programa quebraria todos os
+eventos iguais, e aí a fila parar é o certo; conserta-se o programa e religa-se a fila. *Como se
+religa, no painel da Asaas, não foi conferido.*
+
+**O que roda fora do banco** — desligar as notificações, remover a assinatura antiga — roda
+depois do commit. Falha vira aviso no log, com o que fazer à mão, e não desfaz o evento.
+
+*Rejeitado:* conferir os IPs da Asaas (§4). Atrás do proxy, o IP que chega é o do proxy; a
+parede é o token, comparado em tempo constante — e sem `ASAAS_WEBHOOK_TOKEN` a rota recusa tudo.
 
 ---
 
@@ -492,8 +574,11 @@ O painel detecta os 15 dias e **avisa você**. Você clica. Não automatize aind
 > um clique — adicionar o endereço no serviço. **É verdade, e é a saída que esta seção rejeitou
 > em 09/10** (abaixo): o cadastro das 3 da manhã fica sem site até alguém clicar, e a tela *"o
 > seu site está no ar"* mente até lá. Sem o clique, continua valendo o certificado curinga, só
-> por DNS-01 (`PENDENCIAS-ABERTAS.md` §2.31). Voltar ao clique é decisão do dono — e, se for
-> tomada, a tela final do cadastro muda antes.
+> por DNS-01 (`PENDENCIAS-ABERTAS.md` §2.31). Voltar ao clique é decisão do dono — ~~e, se for
+> tomada, a tela final do cadastro muda antes~~ — ✅ *mudou em 10/10: a tela confere o endereço,
+> do navegador do dono, antes de dizer que está no ar; até abrir, diz "quase no ar" e não oferece
+> divulgar (`JORNADA-DO-BARBEIRO.md` §2.8). O clique continua deixando o cadastro das 3 da manhã
+> sem site; só deixou de mentir sobre isso.*
 >
 > Duas coisas novas. O DNS do domínio em uso hoje está na **Hostinger**, não no registro.br — se o
 > lego tiver a Hostinger entre os provedores, o DNS-01 sai sem Cloudflare (**não conferido**). E

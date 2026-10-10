@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-09.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-10.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -31,6 +31,7 @@
 | **08/10** | **Nome provisório: Fadeline** — escolhido pelo dono entre 103 nomes conferidos no registro.br. Provisório tem prazo: vale até o cadastro abrir. Trocado no código no mesmo dia | `PENDENCIAS-ABERTAS.md` §0.1 |
 | **09/10** | **O hover do par padrão escurece:** `#0b5f58`, o tom que o código já tinha como padrão — com os sete consertos do primeiro minuto do cliente, que você pediu. **E o combo vale no dia do HORÁRIO marcado, não no dia em que se agenda** — ⚠️ esta, decidida na implementação: falta você confirmar | `PENDENCIAS-ABERTAS.md` §4.12 e `PENDENCIAS-ABERTAS.md` §2.16 |
 | **08/10** | **O desenho do cadastro e da cobrança:** um layout com a cor do dono; o cartão no fim do teste; a cobrança como módulo do app; e-mail para a senha e os avisos; 3 dias de carência; só mensal. **Feitos no mesmo dia:** o cadastro (§4.13, §4.16 e §4.17) e o teste de 7 dias, com a carência e o site fora do ar (§1.3, §3.5 e §4.14). **Em 09/10:** o e-mail — a senha nova, os avisos do teste e da cobrança e a troca de senha derrubando as sessões (§4.17 e §2.13) | `PLANO-PRODUTIZACAO.md` §13 |
+| **10/10** | **A cobrança no código** — o cartão pelo Checkout da Asaas, o webhook e o cancelar —, **sem a prova no sandbox**. E duas regras ⚠️ decididas na implementação, que falta você confirmar: quem cancela em dia fica no ar até o fim do período pago, sem carência; quem cancela com a cobrança atrasada fica só o que restava da carência, e a mensalidade que falhou deixa de existir | `PENDENCIAS-ABERTAS.md` §4.14 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -1355,16 +1356,20 @@ cada item abaixo foi conferido no código ou nos documentos:
 1. **O site que nasce no cadastro não abre com cadeado.** O certificado sai por endereço,
    quando alguém o adiciona ao serviço no EasyPanel — foi assim com o do painel. O subdomínio
    que o cadastro cria ninguém adiciona. O DNS curinga já existe; falta o **certificado
-   curinga**, que só sai pelo desafio DNS-01 (`ARQUITETURA-COBRANCA-V1.md` §7.4). E a tela
-   final do cadastro diria *"o seu site está no ar"* assim mesmo (`JORNADA-DO-BARBEIRO.md`
-   §2.8). A sessão de 10/10 propôs o contrário: um clique no EasyPanel por barbearia nova, sem
-   Cloudflare. Funciona — e é o que o `ARQUITETURA-COBRANCA-V1.md` §7.4 rejeitou em 09/10: o
-   cadastro das 3 da manhã fica sem site até alguém clicar. Se for esse o caminho, a decisão é
-   sua, e a tela final do cadastro muda antes. *Não conferido abrindo um subdomínio novo — o acesso desta sessão ao domínio foi
+   curinga**, que só sai pelo desafio DNS-01 (`ARQUITETURA-COBRANCA-V1.md` §7.4). ~~E a tela
+   final do cadastro diria *"o seu site está no ar"* assim mesmo~~ — ✅ desde 10/10 ela confere
+   o endereço, do navegador do dono, antes de dizer; sem o certificado, diz *"quase no ar"* e
+   não oferece divulgar (`JORNADA-DO-BARBEIRO.md` §2.8). A sessão de 10/10 propôs um clique no
+   EasyPanel por barbearia nova, sem Cloudflare. Funciona — e é o que o
+   `ARQUITETURA-COBRANCA-V1.md` §7.4 rejeitou em 09/10: o cadastro das 3 da manhã fica sem site
+   até alguém clicar. Se for esse o caminho, a decisão é sua — e a tela final já não mente
+   enquanto ninguém clica. *Não conferido abrindo um subdomínio novo — o acesso desta sessão ao domínio foi
    bloqueado. O teste: abrir no navegador um subdomínio que ninguém adicionou. Se abrir com
    cadeado, este item está errado.*
-2. **Ninguém consegue pagar.** A tela de assinatura diz *"Ainda não dá para pagar por aqui"*
-   (`src/pages/admin/assinatura.astro`): toda barbearia que entrar sai do ar no 11º dia (§4.14).
+2. **Ninguém consegue pagar — ainda.** O código da cobrança existe desde 10/10 (§4.14), mas sem
+   a prova no sandbox e sem as variáveis `ASAAS_*` no app; sem elas, a tela de assinatura
+   continua dizendo *"Ainda não dá para pagar por aqui"* (`src/pages/admin/assinatura.astro`), e
+   toda barbearia que entrar sai do ar no 11º dia.
 3. **O e-mail não sai.** Sem `SMTP_URL`, o envio em produção recusa (`src/lib/email.ts`): a
    senha esquecida e os avisos do teste e da cobrança não chegam (§4.17).
 4. **O backup não sai da VPS.** O diário grava em `/data/backups`, no mesmo disco, e só sobe
@@ -1497,6 +1502,31 @@ arquivo mais recente até ele, e isso é complexidade num caminho que só é usa
 emergência. Foi deixado simples de propósito.
 
 ---
+
+### 3.8 🟠 `[TÉCNICO]` O CI — FEITO em 10/10/2026; falta ligar o deploy a ele
+
+Desde 10/10 a `main` vai para produção, e nada impedia um merge quebrado de derrubar o app no
+ar. Agora o GitHub roda a suíte inteira **com banco**, o build dos dois apps e — só na `main`,
+só com o app verde — o deploy (`.github/workflows/testes.yml`). Teste pulado conta como falha
+(`apps/barbearia/scripts/conferir-resultado-testes.mjs`): sem banco, os testes que tocam dado
+de cliente pulam em silêncio e o vitest sai verde. **Não rodou no GitHub ainda** — sobe com o
+seu push; o que rodou foi a suíte que ele chama, aqui, e os 11 casos de
+`apps/barbearia/tests/ci.test.ts`, que reprovam o arquivo se ele perder uma dessas garantias.
+
+**O verde só manda em alguma coisa depois de um destes dois, que são seus:**
+
+- **A branch protegida**, exigindo o job *"App da barbearia — suíte com banco e build"* antes
+  do merge na `main`. É de graça em repositório **público** e paga em privado (documentação do
+  GitHub, conferida em 10/10/2026). Hoje o repositório é público — e não deveria ser
+  (`CLAUDE.md`): fechado, sem plano pago, esta saída some.
+- **O deploy pelo CI:** no EasyPanel, desligar o *Auto Deploy* do app e copiar a URL do
+  *Deployment Trigger* para o segredo `EASYPANEL_DEPLOY_APP` do repositório. Funciona com o
+  repositório fechado. Sem o segredo, o job avisa e não faz nada — o deploy continua a cargo do
+  EasyPanel, como hoje.
+
+⚠️ **A primeira execução pode ficar vermelha por motivo que aqui não aparece:** o runner do
+GitHub não é este container. O `pg_dump` dos testes do backup é instalado pelo próprio job, e a
+imagem do Postgres é a do `docker-compose.test.yml` — mas é a primeira vez que roda lá.
 
 ## 4. Especificações que faltam escrever
 
@@ -1993,14 +2023,112 @@ Desde 25/09/2026 o dono sobe galeria, logo, capa e fotos de produto no painel lo
 do cadastro — isso muda o segundo dia, não o primeiro minuto. E cada layout tem que tratar
 a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`).
 
-### 4.14 🔴 `[TÉCNICO]` A cobrança automática não existe — o teste de 7 dias, FEITO em 08/10/2026
+### 4.14 🔴 `[TÉCNICO]` A cobrança — FEITA no código em 10/10/2026; falta a prova no sandbox
+
+> **10/10/2026 — feita no código, NÃO testada no sandbox.** O dono cadastra o cartão no
+> Checkout da Asaas pela tela de assinatura, o webhook mantém a barbearia em dia, e o cancelar
+> existe. As regras moram em `apps/barbearia/src/lib/cobranca.ts`; a API, em `src/lib/asaas.ts`;
+> as rotas, em `src/pages/api/asaas/webhook.ts` e `src/pages/api/admin/assinatura/`; o banco,
+> na migration 0010. O desenho como ficou: `ARQUITETURA-COBRANCA-V1.md` §5.3.
+>
+> ⚠️ **A ordem do §6 foi invertida, por escolha sua em 10/10:** o código veio antes da prova no
+> sandbox, que o §6 punha primeiro. Os eventos que o código lê são os dos exemplos da
+> documentação; o que o sandbox desmentir volta para o código. Provado sem ele: **65 casos, rodados
+> com banco** (`tests/cobranca.test.ts`), **19 defeitos reintroduzidos um por vez, os 19 pegos**, e
+> o caminho inteiro contra o build com uma Asaas de mentira que segue a documentação — **36
+> conferências**: cadastro, cartão, cancelar, reativar, fora do ar voltando pelo cartão, o
+> Checkout pago que não era o último, a cobrança atrasada cancelando. A migration 0010 foi
+> aplicada pelo `scripts/startup.mjs` sobre um banco parado na 0009, como o de produção: a
+> barbearia que já existia ganha os campos vazios, e rodar de novo não faz nada.
+>
+> **O ensaio contra o build achou três defeitos que a suíte não pegava** — consertados:
+>
+> 1. *O mesmo cliente da Asaas em duas barbearias* — o dono com duas, se a Asaas reaproveitar o
+>    cliente pelo CPF (não conferido) — quebrava o webhook a cada reentrega; e 15 falhas
+>    seguidas interrompem a fila **de todas as barbearias**. Agora o cliente pode repetir; o
+>    evento que só traz o cliente, nesse caso, não escolhe nenhuma e fica guardado para tratar à
+>    mão; e o erro que se repetiria em toda reentrega é guardado com o motivo e responde 200.
+> 2. *O Checkout pago não era o último aberto.* Quem clica duas vezes abre dois, e paga no da
+>    aba que ficou na frente: o cartão ficava cadastrado sem barbearia, e o site saía do ar no
+>    fim do teste com o dono pagando. A barbearia guarda os últimos 20.
+> 3. *Reativar removia de novo a assinatura já removida* no cancelar — erro na Asaas e um alarme
+>    falso de "faça no painel" a cada reativação. Agora lê antes, e só remove a que existe.
+>
+> E um que era regra: **com a cobrança atrasada não dava para cancelar** — a tela dizia que ela
+> "se encerra sozinha", e não se encerra: a assinatura atrasada continua viva na Asaas e tenta o
+> cartão de novo. Agora cancela, na carência e fora do ar.
+>
+> **⚠️ Decidido na implementação — falta você confirmar:**
+>
+> 1. *Quem cancela em dia* fica no ar até o fim do período pago — o dia da cobrança que não vai
+>    haver — e depois sai do ar como quem não pagou, sem carência. Nada é apagado; assinando de
+>    novo, volta, e a cobrança nova começa onde a antiga acabaria: o mesmo mês não é cobrado
+>    duas vezes.
+> 2. *Quem cancela com a cobrança atrasada* fica só o que restava da carência, e a mensalidade
+>    que falhou deixa de existir — remover a assinatura na Asaas leva junto as cobranças em
+>    aberto (documentação). A dívida não é cobrada.
+> 3. *Quem sai do ar pela cobrança e NÃO cancela* continua com a assinatura viva: a Asaas tenta o
+>    cartão de novo nos vencimentos seguintes, e se passar o site volta sozinho. É o "pagou,
+>    volta" do §1.3 — e também cobra quem foi embora sem avisar. **Proposta, não feita:** remover
+>    a assinatura depois de 30 dias fora do ar, com um e-mail antes.
+>
+> ⚠️ **As notificações da Asaas são desligadas a cada `CHECKOUT_PAID`** — a proposta 3 de
+> 10/10, abaixo: quem avisa é o app. Sem o `SMTP_URL` em produção (§4.17), então, ninguém avisa
+> o dono por e-mail de cobrança nenhuma; só a faixa do painel. Mais um motivo de o cadastro não
+> abrir sem ele (§2.31).
+>
+> **O que só você faz, nesta ordem — o roteiro da prova:**
+>
+> 1. **As variáveis**, no app que vai receber o webhook: `ASAAS_API_KEY` (a chave do sandbox),
+>    `ASAAS_WEBHOOK_TOKEN` (um segredo longo, inventado por você) e **nada** em
+>    `ASAAS_AMBIENTE` — vazio é sandbox, de propósito (`apps/barbearia/.env.example`).
+> 2. **Um endereço público para o webhook.** Duas saídas: o painel de produção — exige a
+>    `monorepo` na `main` e uma barbearia de teste criada pelo script, com o cadastro fechado —;
+>    ou a sua máquina, com `npm run dev` e um túnel (`cloudflared tunnel --url
+>    http://localhost:4321` dá um endereço público sem conta; **não testado aqui**). A segunda
+>    não mexe em produção. Na primeira, a barbearia de teste e o webhook apontado para a
+>    produção têm de sumir antes da migração do Bayron: ela apaga e recria o banco, e a
+>    barbearia 1 tem de ser o Bayron (`ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2).
+> 3. **O webhook no painel do sandbox** (Integrações → Webhooks): o endereço
+>    `<público>/api/asaas/webhook`; o token de autenticação igual ao `ASAAS_WEBHOOK_TOKEN`; envio
+>    **sequencial**; e os eventos `CHECKOUT_PAID`, `SUBSCRIPTION_CREATED`,
+>    `SUBSCRIPTION_DELETED`, `SUBSCRIPTION_INACTIVATED`, `PAYMENT_CONFIRMED`,
+>    `PAYMENT_RECEIVED`, `PAYMENT_OVERDUE`, `PAYMENT_CREDIT_CARD_CAPTURE_REFUSED` e os de estorno
+>    e contestação (`PAYMENT_REFUNDED`, `PAYMENT_PARTIALLY_REFUNDED`,
+>    `PAYMENT_CHARGEBACK_REQUESTED`, `PAYMENT_CHARGEBACK_DISPUTE`,
+>    `PAYMENT_AWAITING_CHARGEBACK_REVERSAL`).
+> 4. **O caminho:** uma barbearia no teste → *Cadastrar o cartão* → o cartão de teste da Asaas
+>    na página dela → a volta. Depois: cancelar; reativar; e, no painel da Asaas, uma cobrança
+>    vencida.
+> 5. **Ler o que chegou:** `SELECT event, outcome, payload FROM webhook_events ORDER BY id;` — o
+>    evento cru fica guardado, e é ele que responde as perguntas abaixo.
+>
+> **O que a prova tem de responder** — as três de 27/09, mais as que o código assumiu:
+>
+> - **Que evento chega no dia do cadastro, se nada é cobrado nele.** O código conta com o
+>   `CHECKOUT_PAID` para pôr a barbearia em dia. Se ele só vier no vencimento, a tela fica em
+>   *"a confirmação chega em instantes"*, e a barbearia segue no teste até a primeira cobrança.
+> - Se o cartão é validado no cadastro, e quais dados a página pede ao titular.
+> - Se o `SUBSCRIPTION_CREATED` traz o `checkoutSession` ou o `externalReference` — sem os dois,
+>   a assinatura de cliente novo só se liga à barbearia pelo cliente.
+> - Se o `CHECKOUT_PAID` traz o `customer`, e se a Asaas reaproveita o cliente pelo CPF.
+> - O que o `GET /subscriptions/{id}` devolve de uma assinatura removida — `deleted: true`, ou
+>   404: o reativar depende disso para não remover duas vezes.
+> - Se o `PUT /customers/{id}` só com `notificationDisabled` desliga as notificações.
+> - O endereço do Checkout do sandbox, quando a resposta não traz o `link`
+>   (`linkDoCheckout`, em `src/lib/asaas.ts`).
+>
+> **Vigiar, enquanto não houver alerta** (§3.4): o evento que falhou de vez e o que não achou
+> barbearia ficam guardados com o motivo e só aparecem no log —
+> `SELECT received_at, event, outcome FROM webhook_events WHERE outcome LIKE 'erro:%' OR outcome LIKE 'sem barbearia%' OR outcome LIKE 'alerta%' ORDER BY id DESC;`.
+> Cada linha é um pagamento que não mudou nada sozinho.
 
 > **Feito em 08/10/2026:** o teste de 7 dias, a carência de 3 dias e o site fora do ar (§1.3 e
 > §3.5), com a contagem no painel e a tela de assinatura (`JORNADA-DO-BARBEIRO.md` §2.9 e
-> `JORNADA-DO-BARBEIRO.md` §2.10). **Falta a cobrança:** a conta e o Checkout da Asaas, o
-> webhook idempotente gravando `active` e `past_due`, e o cancelar. ⚠️ **O cadastro não pode
-> abrir antes disso:** hoje ninguém consegue pagar, e toda barbearia que se cadastrasse
-> sairia do ar no 11º dia.
+> `JORNADA-DO-BARBEIRO.md` §2.10). ~~**Falta a cobrança:** a conta e o Checkout da Asaas, o
+> webhook idempotente gravando `active` e `past_due`, e o cancelar~~ — no código desde 10/10,
+> acima. ⚠️ **O cadastro não pode abrir antes da prova no sandbox:** sem ela, ninguém sabe se
+> alguém consegue pagar, e toda barbearia que se cadastrasse sairia do ar no 11º dia.
 
 > **10/10/2026 — reconferido por outra sessão, na documentação e na conta sandbox da Asaas:**
 >
@@ -2036,6 +2164,9 @@ a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`
 > 3. *Quem avisa o dono — o app ou a Asaas.* **Proposta: o app**, que tem os avisos do teste e
 >    da cobrança desde 09/10, com as notificações da Asaas desligadas na criação de cada
 >    cliente. Depende do e-mail em produção (§4.17).
+>
+> *10/10/2026: o código seguiu as propostas 1 e 3 — só cartão, e as notificações da Asaas
+> desligadas. Decidindo diferente, muda o `apps/barbearia/src/lib/cobranca.ts`.*
 
 > **08/10/2026** (`PLANO-PRODUTIZACAO.md` §13): o cartão é pedido **no fim do teste**, não no
 > cadastro; a cobrança mora num **módulo do app da barbearia** (`ARQUITETURA-COBRANCA-V1.md`
@@ -2364,7 +2495,9 @@ o teste que acaba sem cartão segue os mesmos 3 dias — confirmado no mesmo dia
    qualquer código da onda. É o único ponto que pode desmentir o desenho do cartão
    (`JORNADA-DO-BARBEIRO.md` §2.5). E abrir a conta não depende de código: se exigir CNPJ,
    é prazo que corre por fora (`ARQUITETURA-COBRANCA-V1.md` §11) — melhor começar já.
-   *10/10/2026: a chave do sandbox existe; a prova não foi feita (§4.14).*
+   *10/10/2026: a chave do sandbox existe; a prova não foi feita (§4.14). E o código da
+   cobrança veio antes dela, por escolha sua no mesmo dia — o que o sandbox desmentir volta
+   para o código.*
 1. ~~Os dois que já mordem hoje e tinham ficado fora de todas as ondas de 15/09: os centavos
    do preço (§2.15) e o combo em qualquer dia (§2.16). Junto, os três de 25/09 que são uma
    linha cada: a semana do painel (§2.22), o login só com JSON (§2.23) e o resumo do combo
@@ -2380,8 +2513,11 @@ o teste que acaba sem cartão segue os mesmos 3 dias — confirmado no mesmo dia
    do mesmo dia: um layout, com a cor e a frase do topo escolhidas no cadastro e a tela
    "o seu site está no ar" no fim (`JORNADA-DO-BARBEIRO.md` §2.4 e `JORNADA-DO-BARBEIRO.md` §2.8).
 5. ~~O teste de 7 dias~~ e ~~a página de suspensão~~ — ✅ feitos em 08/10/2026, com a
-   contagem dos dias no painel —, a cobrança (§4.14 e §3.5) e o botão de cancelar. A
-   cobrança depende da conta na Asaas, e o cadastro não abre sem ela.
+   contagem dos dias no painel —, ~~a cobrança (§4.14 e §3.5) e o botão de cancelar~~ — no
+   código em 10/10/2026, sem a prova no sandbox (§4.14). O cadastro não abre sem ela.
+   - **5c. Acrescentado em 10/10/2026:** a tela de fim do cadastro dizia *"o seu site está no
+     ar"* sem saber — ✅ agora confere antes (`JORNADA-DO-BARBEIRO.md` §2.8). E o CI, com a
+     `main` indo para produção (§3.8).
    - **5b.** ~~A recuperação de senha (§4.17) e o aviso antes de cobrar (§1.3), que usam o
      mesmo canal~~ — ✅ feitos em 09/10/2026, pelo e-mail. Falta o provedor de envio, que
      depende do domínio (§4.17).
