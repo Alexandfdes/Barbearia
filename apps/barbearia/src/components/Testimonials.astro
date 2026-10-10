@@ -2,7 +2,8 @@
 import depoimentos from '../data/depoimentos.json';
 import { getSettings } from '../lib/settings';
 import { jsonLdSeguro } from '../lib/jsonLd.js';
-import { enderecoPublico } from '../lib/tenant.js';
+import { enderecoPublico, tenantAtual } from '../lib/tenant.js';
+import { ehOBayron } from '../lib/bayron';
 
 const s = await getSettings();
 const GOOGLE_REVIEWS_URL = s.googleReviewsUrl;
@@ -40,7 +41,7 @@ const ldJson = {
  *
  * Para generalizar, cada barbearia precisa das próprias avaliações — hoje não há onde guardá-las.
  */
-const BAYRON = s.shortName === "Bayron";
+const BAYRON = ehOBayron(tenantAtual());
 // Arquivo vazio = seção vazia. Nem o Bayron mostra carrossel sem avaliação.
 const mostrar = BAYRON && depoimentos.length > 0;
 

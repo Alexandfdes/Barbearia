@@ -1,36 +1,15 @@
 // src/config.ts
+//
+// Sobrou só o destino do botão de agendar. Até 09/10/2026 moravam aqui o
+// WhatsApp, o Instagram, o endereço, o mapa e o horário do Bayron — o WhatsApp
+// com o número falso de teste, `15551547238` (`PENDENCIAS-ABERTAS.md` §2.6) —, que
+// nada mais importava desde que cada barbearia passou a ler os dela do banco
+// (`lib/settings.ts`). Constante de marca em código é o que a regra 2 do
+// `CLAUDE.md` proíbe; morta, ela só esperava alguém importar de novo.
+//
+// Antes, aqui ficava também o `SITE_URL`, o domínio do Bayron, usado como
+// canonical, og:url e imagem de prévia de TODO site. Removido em 27/09/2026: o
+// endereço de cada barbearia sai de `enderecoPublico()` (`src/lib/tenant.ts`).
 
-// Número oficial da Barbearia Bayron — formato wa.me (55 + DDD + número).
-// ⚠️ CONFIRME este número antes de publicar: veio do README do projeto
-// (+55 84 99905-1196). Era um número de teste (15551547238).
-export const WHATSAPP_NUMBER = "15551547238";
-
+/** Para onde vai o botão "Reservar horário" do site. */
 export const TOPSALAO_URL = '/agendar';
-
-// ⚠️ Aqui ficava `SITE_URL`, o domínio do Bayron, usado como canonical, og:url e
-// imagem de prévia de TODO site. Removido em 27/09/2026: o endereço de cada
-// barbearia sai de `enderecoPublico()` (`src/lib/tenant.ts`).
-
-// Link do Instagram
-export const INSTAGRAM_URL = "https://www.instagram.com/barbearia_bayron/";
-
-// Endereço da barbearia
-export const ADDRESS = {
-  street: "R. Jaen Menescal, 174",
-  city: "Mossoró/RN",
-};
-
-// Link direto para Google Maps (abre rota no Maps/Waze)
-export const GOOGLE_MAPS_URL = "https://www.google.com/maps/dir/?api=1&destination=R.+Jaen+Menescal,+174+-+Mossoró,+RN";
-
-// Horário de funcionamento — fonte única, consumida pelo Footer e pela Localização
-export const BUSINESS_HOURS = [
-  { label: "Segunda — Sexta", hours: "09:00 — 20:00", closed: false },
-  { label: "Sábado",          hours: "09:00 — 18:00", closed: false },
-  { label: "Domingo",         hours: "Fechado",       closed: true  },
-];
-
-// Função helper para gerar link do WhatsApp com mensagem
-export function getWhatsAppUrl(message: string): string {
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-}

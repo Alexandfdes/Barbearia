@@ -3,6 +3,8 @@ import { TOPSALAO_URL } from "../config";
 import { Image } from "astro:assets";
 import heroImg from "../assets/fotos-videos/foto-inicial5.png";
 import { getSettings } from "../lib/settings";
+import { tenantAtual } from "../lib/tenant";
+import { ehOBayron } from "../lib/bayron";
 import { srcsetDe } from "../lib/uploads";
 
 const s = await getSettings();
@@ -20,7 +22,7 @@ const s = await getSettings();
  * fachada de outra barbearia. `BAYRON` é o interruptor até a foto sair do
  * repositório e virar upload como todas as outras.
  */
-const BAYRON = s.shortName === "Bayron";
+const BAYRON = ehOBayron(tenantAtual());
 const comFoto = Boolean(s.heroPath) || BAYRON;
 
 /** Título: o do cliente quando existe; o do Bayron continua sendo o dele. */

@@ -3,7 +3,8 @@ import '../styles/global.css';
 import { getSettings, numeroDaLojaInternacional } from '../lib/settings';
 import { cssDoAccent } from '../lib/accent.js';
 import { jsonLdSeguro } from '../lib/jsonLd.js';
-import { enderecoPublico } from '../lib/tenant.js';
+import { enderecoPublico, tenantAtual } from '../lib/tenant.js';
+import { ehOBayron } from '../lib/bayron';
 import { iconeDaAba } from '../lib/iconeDaAba.js';
 
 interface Props {
@@ -35,7 +36,7 @@ const canonical = new URL(Astro.url.pathname, base).href;
 // até 27/09/2026 era o padrão de toda barbearia, e o link de um cliente novo
 // mandado no WhatsApp aparecia com a cara de outra barbearia. Continua valendo só
 // para o próprio Bayron, pelo mesmo interruptor dos componentes (`PENDENCIAS-ABERTAS.md` §4.7).
-const ogDoBayron = s.shortName === 'Bayron' ? '/og.jpg' : '';
+const ogDoBayron = ehOBayron(tenantAtual()) ? '/og.jpg' : '';
 const previaPropria = Boolean(s.ogPath) || Boolean(ogDoBayron && !s.heroPath);
 const imagemDaPrevia = s.ogPath || s.heroPath || ogDoBayron;
 const ogImage = imagemDaPrevia ? new URL(imagemDaPrevia, base).href : null;

@@ -1,6 +1,8 @@
 ---
 import { TOPSALAO_URL } from '../config';
 import { getSettings } from '../lib/settings';
+import { tenantAtual } from '../lib/tenant';
+import { ehOBayron } from '../lib/bayron';
 import { srcsetDe } from '../lib/uploads';
 import { Image } from 'astro:assets';
 import logoSrc from '../assets/Logo-Bayron3.png';
@@ -13,7 +15,7 @@ const s = await getSettings();
 
 // O logo em `assets/` é do Bayron e vai junto no build. Barbearia que ainda não
 // subiu logo mostra só o nome — nunca a marca de outra barbearia.
-const BAYRON = s.shortName === "Bayron";
+const BAYRON = ehOBayron(tenantAtual());
 ---
 
 <header
