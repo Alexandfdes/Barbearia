@@ -1,0 +1,135 @@
+# Os testes e o build, a cada PR para a main e a cada push — e o deploy só depois do verde.
+#
+# ── POR QUE ──────────────────────────────────────────────────────────────────
+#
+# Desde 10/10/2026 a `main` vai para produção: o EasyPanel constrói o app dela.
+# Até aqui, nada impedia um merge quebrado de derrubar o app no ar.
+#
+# Duas coisas que este arquivo faz e que não são óbvias:
+#
+# 1. A suíte roda COM banco, e teste pulado conta como falha
+#    (`apps/barbearia/scripts/conferir-resultado-testes.mjs`). Sem banco, os
+#    testes que tocam dado de cliente são pulados em silêncio e o vitest sai
+#    verde — no CI isso autorizaria um deploy sem nada de banco ter rodado.
+# 2. O deploy pelo CI. Exigir o CI verde antes do merge é branch protegida: de
+#    graça em repositório PÚBLICO, paga em privado (documentação do GitHub,
+#    10/10/2026). Hoje o repositório é público — e não deveria ser, enquanto
+#    houver o que esconder nos documentos (`CLAUDE.md`). Fechado e sem plano
+#    pago, o que faz o verde valer é o deploy: com o "Auto Deploy" do EasyPanel
+#    desligado e a URL do "Deployment Trigger" no segredo
+#    `EASYPANEL_DEPLOY_APP`, só a main verde vai para o ar. Sem o segredo, o job
+#    avisa e não faz nada — o deploy continua a cargo do EasyPanel, como hoje.
+#
+# ⚠️ O Postgres daqui é a mesma imagem de `apps/barbearia/docker-compose.test.yml`.
+# `apps/barbearia/tests/ci.test.ts` reprova se as duas se separarem.
+
+name: Testes
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore: ['docs/**', '*.md', '.claude/**']
+  push:
+    branches: [main, monorepo]
+    paths-ignore: ['docs/**', '*.md', '.claude/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  barbearia:
+    name: App da barbearia — suíte com banco e build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: barbearia
+          POSTGRES_PASSWORD: barbearia
+          POSTGRES_DB: barbearia_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U barbearia -d barbearia_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    defaults:
+      run:
+        working-directory: apps/barbearia
+    env:
+      # O nome termina em `_test` de propósito: `tests/guardaBanco.ts` recusa qualquer outro.
+      DATABASE_URL: postgres://barbearia:barbearia@127.0.0.1:5432/barbearia_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/barbearia/package-lock.json
+
+      - name: Dependências
+        run: npm ci
+
+      - name: pg_dump (os testes do backup chamam)
+        run: |
+          command -v pg_dump >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client; }
+          pg_dump --version
+
+      - name: Suíte inteira, com banco
+        run: npx vitest run --reporter=default --reporter=json --outputFile.json=resultado-testes.json
+
+      - name: Nenhum teste pulado
+        if: ${{ !cancelled() }}
+        run: node scripts/conferir-resultado-testes.mjs resultado-testes.json
+
+      - name: Build
+        run: npm run build
+
+  vendas:
+    name: Site de vendas — build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/vendas
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/vendas/package-lock.json
+
+      - name: Dependências
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  deploy:
+    name: Deploy do app no EasyPanel — só a main, só com o app verde
+    needs: [barbearia]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Dispara o Deployment Trigger do EasyPanel
+        env:
+          URL_DEPLOY: ${{ secrets.EASYPANEL_DEPLOY_APP }}
+        run: |
+          if [ -z "$URL_DEPLOY" ]; then
+            echo "::notice::Sem o segredo EASYPANEL_DEPLOY_APP: o deploy continua a cargo do EasyPanel."
+            exit 0
+          fi
+          # A documentação do EasyPanel diz "enviar uma requisição", sem dizer o método.
+          curl -fsS -X POST "$URL_DEPLOY" -o /dev/null || curl -fsS "$URL_DEPLOY" -o /dev/null
+          echo "Deploy disparado."
