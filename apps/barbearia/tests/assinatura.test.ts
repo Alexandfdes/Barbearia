@@ -54,3 +54,28 @@ describe('a explicação da tela de assinatura', () => {
       .toMatch(/^Hoje, 15\/10, é o último dia/);
   });
 });
+
+describe('quem cancelou (10/10/2026)', () => {
+  // Cancelou com o mês pago até 09/11: no ar até lá, fora do ar a partir de 10/11.
+  const FIM_DO_PERIODO = local('2026-11-10T00:00:00');
+
+  it('a faixa diz até quando o site fica no ar, e oferece reativar', () => {
+    expect(avisoDoPainel({ fase: 'ativa', encerraEm: FIM_DO_PERIODO }))
+      .toEqual({ tom: 'info', texto: 'Assinatura cancelada: o site fica no ar até 09/11.', acao: 'Reativar' });
+  });
+
+  it('a tela diz até quando, o que o cliente dele vai ver depois, e que dá para voltar atrás', () => {
+    const texto = explicacaoDaSituacao({ fase: 'ativa', encerraEm: FIM_DO_PERIODO });
+    expect(texto).toContain('até 09/11');
+    expect(texto).toMatch(/temporariamente indisponível/);
+    expect(texto).toMatch(/Reative antes disso/);
+    expect(texto).not.toMatch(/em dia/);
+  });
+
+  it('depois do fim: fora do ar desde o dia, nada apagado, e assinando de novo volta — sem falar em cobrança', () => {
+    const texto = explicacaoDaSituacao({ fase: 'suspensa', motivo: 'cancelada', desde: FIM_DO_PERIODO });
+    expect(texto).toMatch(/^A assinatura foi cancelada, e desde 10\/11/);
+    expect(texto).toMatch(/Nada foi apagado: assinando de novo/);
+    expect(texto).not.toMatch(/cobrança|cartão não passou|teste/);
+  });
+});

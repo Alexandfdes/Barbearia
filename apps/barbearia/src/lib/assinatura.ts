@@ -12,6 +12,18 @@ import { diaDe, diasAte, ultimoDia, type Situacao } from './situacao.js';
  */
 export const TELA_DE_ASSINATURA = '/admin/assinatura';
 
+/**
+ * Leva o dono ao Checkout da Asaas (`lib/cobranca.ts`). Abre também com a
+ * barbearia fora do ar — é por ela que quem saiu do ar volta (`src/middleware.ts`).
+ */
+export const ROTA_DO_CARTAO = '/api/admin/assinatura/cartao';
+
+/**
+ * Cancela a assinatura: o site fica no ar até o fim do período pago. Abre também
+ * fora do ar pela cobrança — é como quem quer sair para a cobrança (`src/middleware.ts`).
+ */
+export const ROTA_DO_CANCELAMENTO = '/api/admin/assinatura/cancelar';
+
 export interface AvisoDoPainel {
   /** `alerta` quando falta 1 dia ou menos, ou o prazo já venceu. */
   tom: 'info' | 'alerta';
@@ -25,6 +37,9 @@ export interface AvisoDoPainel {
  * pagando — ou quando o painel nem abre — fora do ar, encerrada.
  */
 export function avisoDoPainel(s: Situacao, agora: Date = new Date()): AvisoDoPainel | null {
+  if (s.fase === 'ativa' && s.encerraEm) {
+    return { tom: 'info', texto: `Assinatura cancelada: o site fica no ar até ${ultimoDia(s.encerraEm)}.`, acao: 'Reativar' };
+  }
   if (s.fase === 'teste') {
     const dias = diasAte(s.ate, agora);
     const ate = ultimoDia(s.ate);
@@ -49,6 +64,11 @@ export function avisoDoPainel(s: Situacao, agora: Date = new Date()): AvisoDoPai
 export function explicacaoDaSituacao(s: Situacao, agora: Date = new Date()): string {
   switch (s.fase) {
     case 'ativa':
+      if (s.encerraEm) {
+        return `Assinatura cancelada. O site e o painel funcionam até ${ultimoDia(s.encerraEm)}; depois disso, ` +
+          'quem abrir o seu site vai ver que o agendamento online está temporariamente indisponível, com o seu ' +
+          'WhatsApp para contato. Mudou de ideia? Reative antes disso e nada muda.';
+      }
       return 'Assinatura em dia. O site e o painel estão funcionando normalmente.';
     case 'teste':
       return (diasAte(s.ate, agora) > 0
@@ -62,6 +82,11 @@ export function explicacaoDaSituacao(s: Situacao, agora: Date = new Date()): str
     case 'suspensa':
       if (s.motivo === 'manual') {
         return 'A sua barbearia foi tirada do ar. Fale com o suporte para saber o motivo.';
+      }
+      if (s.motivo === 'cancelada') {
+        return 'A assinatura foi cancelada' + (s.desde ? `, e desde ${diaDe(s.desde)}` : ', e agora') +
+          ' quem abre o seu site vê que o agendamento online está temporariamente indisponível, com o seu ' +
+          'WhatsApp para contato. Nada foi apagado: assinando de novo, o site volta na hora.';
       }
       return (s.motivo === 'teste' ? 'O teste acabou sem o cartão cadastrado' : 'A cobrança do cartão não passou') +
         (s.desde ? `, e desde ${diaDe(s.desde)}` : ', e agora') +

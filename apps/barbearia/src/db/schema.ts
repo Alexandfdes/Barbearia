@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, boolean, unique, index, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, serial, integer, text, boolean, unique, index, timestamp, jsonb } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -22,8 +22,41 @@ export const tenants = pgTable('tenants', {
   trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
   /** Quando a cobrança falhou; a carência começa aqui. Obrigatório quando `past_due`. */
   pastDueSince: timestamp('past_due_since', { withTimezone: true }),
+  /**
+   * A cobrança na Asaas (migration 0010, `lib/cobranca.ts`): o cliente, a assinatura
+   * em vigor e os últimos 20 Checkouts. São as chaves com que os eventos do webhook
+   * acham a barbearia — cada evento traz uma diferente. A assinatura é única; o
+   * cliente não: o mesmo dono pode ter duas barbearias. Os Checkouts são lista: o
+   * dono pode pagar num que não é o último que abriu.
+   */
+  asaasCustomerId: text('asaas_customer_id'),
+  asaasSubscriptionId: text('asaas_subscription_id').unique(),
+  asaasCheckoutIds: text('asaas_checkout_ids').array().notNull().default(sql`'{}'::text[]`),
+  /** Assinatura cancelada: no ar até aqui, fora do ar depois. Nulo é o normal. */
+  subscriptionEndsAt: timestamp('subscription_ends_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Os eventos do webhook da Asaas, crus, gravados antes de processar (migration
+ * 0010). A `UNIQUE` em `(gateway, gatewayEventId)` é a idempotência.
+ *
+ * ⚠️ `tenantId` aceita nulo — a única tabela assim: o evento que não acha
+ * barbearia fica guardado para alguém olhar. O papel do app não tem acesso; quem
+ * lê e grava é o webhook, como dono (`lib/cobranca.ts`).
+ */
+export const webhookEvents = pgTable('webhook_events', {
+  tenantId: integer('tenant_id').references(() => tenants.id),
+  id: serial('id').primaryKey(),
+  gateway: text('gateway').notNull().default('asaas'),
+  gatewayEventId: text('gateway_event_id').notNull(),
+  event: text('event').notNull(),
+  payload: jsonb('payload').notNull(),
+  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  outcome: text('outcome'),
+}, (t) => [
+  unique('webhook_events_uma_vez').on(t.gateway, t.gatewayEventId),
+]);
 
 export const barbers = pgTable('barbers', {
   tenantId: integer('tenant_id').notNull().references(() => tenants.id),

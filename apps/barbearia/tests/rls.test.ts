@@ -278,6 +278,8 @@ describe('a rede não tem furo por descuido', () => {
       'src/pages/api/cadastrar.ts',       // cria a barbearia: ela ainda não existe para ter contexto
       'src/lib/redefinicaoDeSenha.ts',    // a senha nova: acha o barbeiro pelo telefone, como o login
       'src/lib/avisos.ts',                // a tarefa dos avisos: não vem de requisição de barbearia nenhuma
+      'src/lib/cobranca.ts',              // o webhook da Asaas acha a barbearia pelo evento, e a cobrança grava em
+                                          // `tenants`, que o papel do app só lê (0003)
     ];
 
     const arquivos = [...globSync('src/**/*.ts'), ...globSync('src/**/*.astro')]

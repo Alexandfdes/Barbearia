@@ -120,6 +120,8 @@ describe('nenhuma página pública serve barbearia sem perguntar de quem é o en
       'a barbearia sai do token do link do e-mail, não do endereço — lib/redefinicaoDeSenha.ts',
     'src/pages/api/tarefas/avisos.ts':
       'tarefa agendada, chamada pela porta local com token: olha todas as barbearias de propósito — lib/avisos.ts',
+    'src/pages/api/asaas/webhook.ts':
+      'chamada pela Asaas, com token: a barbearia sai das chaves do evento, não do endereço — lib/cobranca.ts',
   };
 
   it('toda rota e página pública chama `tenantDoHost`', () => {
