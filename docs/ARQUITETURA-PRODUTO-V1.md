@@ -58,6 +58,10 @@ Levantamento completo. Nada aqui é suposição.
 | `src/config.ts:23` | `GOOGLE_MAPS_URL` |
 | `src/config.ts:26-30` | `BUSINESS_HOURS` |
 
+> ✅ **09/10/2026:** as seis saíram do `src/config.ts` — o `SITE_URL` em 27/09, as outras
+> cinco em 09/10, quando nada mais as importava. Sobrou o `TOPSALAO_URL`, o destino do botão
+> de agendar (`PENDENCIAS-ABERTAS.md` §4.7).
+
 ### 3.2 Marca hardcoded fora do config
 
 | Local | Conteúdo |
@@ -422,6 +426,7 @@ export function waUrl(s: Settings, msg: string): string
 
 `src/config.ts` **não é deletado de imediato.** Vira o arquivo de *defaults do template*
 (valores usados ao provisionar uma barbearia nova) e some quando o último import cair.
+*(09/10/2026: os valores de marca saíram; sobrou o `TOPSALAO_URL`.)*
 Isso mantém o refactor incremental e a instância do Bayron no ar durante toda a transição.
 
 ## 7. Endpoints novos
@@ -449,7 +454,8 @@ Cada fase termina com a instância do Bayron funcionando. Ela é o demo de venda
 pode ficar quebrada entre fases.
 
 **Fase 0 — Destravar o demo (minutos)**
-Corrigir `config.ts:6` para `5584999051196`.
+Corrigir `config.ts:6` para `5584999051196`. *(Sem objeto desde 09/10/2026: a constante saiu, e o
+número que o site usa é o do banco — `PENDENCIAS-ABERTAS.md` §2.6.)*
 *Aceite:* clicar em qualquer CTA de WhatsApp abre a conversa certa.
 
 **Fase 1 — Settings sem mudança visível**
