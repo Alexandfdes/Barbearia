@@ -204,21 +204,40 @@ Isso resolve três problemas de uma vez:
 
 Verificado em 28/08/2026.
 
+> ⚠️ **Reconferido em 10/10/2026 — e a linha do cartão estava trocada.** Na tabela de taxas da
+> conta sandbox da Asaas, conferida por outra sessão nesta data; as do contrato da conta de
+> produção **não** foram conferidas:
+>
+> | | Tarifa | Promocional, até 09/01/2027 | Cai na conta em |
+> |---|---|---|---|
+> | Cartão à vista | **2,99% + R$ 0,49** | 1,99% + R$ 0,49 | **32 dias** |
+> | Pix | R$ 1,99 | R$ 0,99 | 1 dia útil |
+> | Boleto | R$ 1,99 | R$ 0,99 | 1 dia útil |
+>
+> **Numa mensalidade de R$ 100 no cartão, a taxa é R$ 3,48 — 3,48%, não 1,99%.** O 1,99% do
+> parágrafo *"Escolhido: Asaas"* é o do Pix, e o meio escolhido desde 24/09 é o cartão. Na
+> promoção, R$ 2,48. Na meta de 10 clientes, R$ 417,60 por ano no cartão contra R$ 238,80 no
+> Pix. Continua pouco — e a Stripe, a R$ 5,08 por mensalidade, continua mais cara.
+>
+> **O prazo é o que a tabela de 28/08 não tinha:** o dinheiro do cartão chega 32 dias depois da
+> cobrança. Atrasa o primeiro mês uma vez; não é custo de todo mês.
+
 | | Asaas | Stripe BR |
 |---|---|---|
-| Pix | **R$ 1,99 fixo** (R$ 0,99 nos 3 primeiros meses) | 1,19% — **só por convite** |
+| Pix | **R$ 1,99 fixo** (R$ 0,99 nos 3 primeiros meses; *em 10/10, R$ 0,99 até 09/01/2027*) | 1,19% — **só por convite** |
 | Boleto | R$ 1,99 fixo | R$ 3,45 |
-| Cartão à vista | R$ 0,49 + 1,99% (2,99% promocional) | 3,99% + R$ 0,39 |
+| Cartão à vista | ~~R$ 0,49 + 1,99% (2,99% promocional)~~ **R$ 0,49 + 2,99%** (1,99% promocional até 09/01/2027) — *trocado até 10/10* | 3,99% + R$ 0,39 |
 | Assinaturas | Incluso | +0,7% do volume (Billing) |
 | Mensalidade da conta | Nenhuma | Nenhuma |
-| **Custo numa mensalidade de R$ 100** | **R$ 1,99 no Pix (1,99%)** | **R$ 5,08 no cartão (5,08%)** |
+| **Custo numa mensalidade de R$ 100** | **R$ 1,99 no Pix (1,99%)** · **R$ 3,48 no cartão (3,48%)** | **R$ 5,08 no cartão (5,08%)** |
 
 > ⚠️ **24/09/2026: a cobrança recorrente passa a ser no cartão.** O dono cadastra o cartão
 > para entrar, e a primeira cobrança vem depois dos 7 dias grátis
 > (`PLANO-PRODUTIZACAO.md` §13). A comparação abaixo foi feita pensando em Pix; no cartão
 > vale a linha "cartão à vista" da tabela. As tarifas são de 28/08 — **reconferir na
 > página da Asaas antes de lançar**, e conferir também se ela aceita cartão hoje com
-> primeira cobrança daqui a 7 dias (`PENDENCIAS-ABERTAS.md` §4.14).
+> primeira cobrança daqui a 7 dias (`PENDENCIAS-ABERTAS.md` §4.14). *Reconferidas em 10/10 —
+> o quadro acima. A primeira cobrança futura, só na documentação: o sandbox não foi testado.*
 
 **Escolhido: Asaas.** Tarifa fixa em Pix e boleto é o que importa num ticket de R$ 100 — 1,99%
 contra 5,08%. (Recalculado em 06/09 com o preço novo; a R$ 180 era 1,1% contra 4,9%. A
@@ -238,6 +257,20 @@ o campo `subscription` ligando à assinatura pai. Eventos que este desenho usa:
 | `PAYMENT_RECEIVED` | Valor disponível na conta. Só registra. |
 | `PAYMENT_OVERDUE` | Marca `overdue_since`. Inicia a contagem dos 15 dias. |
 | `PAYMENT_REFUNDED` / `PAYMENT_CHARGEBACK_REQUESTED` | Alerta manual. Nunca automatizar reembolso. |
+| `CHECKOUT_PAID` | *Acrescentado em 10/10/2026.* O Checkout foi concluído — é por ele, e nunca pela URL de retorno, que o cartão cadastrado se confirma. Pela documentação; se chega quando nada é cobrado no dia é pergunta aberta (`PENDENCIAS-ABERTAS.md` §4.14) |
+| `SUBSCRIPTION_CREATED` | *Acrescentado em 10/10/2026.* A assinatura nasceu do Checkout: é o que liga a assinatura à barbearia |
+
+> **10/10/2026 — o que mais a reconferência trouxe:**
+>
+> - **As notificações da Asaas nascem ligadas em cada cliente** — oito, inclusive ligação
+>   telefônica na cobrança vencida —, e não há chave geral no painel: só por cliente, pela API.
+>   Se o app é quem avisa, o código que cria o cliente na Asaas as desliga
+>   (`PENDENCIAS-ABERTAS.md` §4.14).
+> - **Os IPs de onde a Asaas chama o webhook:** `52.67.12.206`, `18.230.8.159`,
+>   `54.94.136.112` e `54.94.183.101`. Hoje nada na frente do app filtra por IP — o DNS não
+>   passa pela Cloudflare —, então a lista é segunda camada. A primeira é conferir o token do
+>   webhook em toda chamada; a segunda, a idempotência (§5.1).
+> - **Chave de API morre sozinha:** desabilitada com 3 meses sem uso, expirada com 6.
 
 > ⚠️ **Não deixar o cliente pagar a mensalidade com cartão parcelado.** As tarifas do Asaas sobem
 > para 2,49%–3,29% em parcelamento, e assinatura parcelada não faz sentido. Fixar
@@ -451,6 +484,22 @@ O painel detecta os 15 dias e **avisa você**. Você clica. Não automatize aind
   inadimplência dele.
 
 ### 7.4 Subdomínio e SSL
+
+> **10/10/2026 — conferido em produção, e o que isso NÃO muda.** No EasyPanel, o certificado do
+> painel saiu sozinho, por HTTP-01, quando o endereço foi adicionado ao serviço. É o que esta
+> seção já dizia para endereço escrito à mão: o painel e o domínio próprio de cliente. Uma
+> sessão de 10/10 concluiu daí que *"não precisa de Cloudflare"*: cada barbearia nova custaria
+> um clique — adicionar o endereço no serviço. **É verdade, e é a saída que esta seção rejeitou
+> em 09/10** (abaixo): o cadastro das 3 da manhã fica sem site até alguém clicar, e a tela *"o
+> seu site está no ar"* mente até lá. Sem o clique, continua valendo o certificado curinga, só
+> por DNS-01 (`PENDENCIAS-ABERTAS.md` §2.31). Voltar ao clique é decisão do dono — e, se for
+> tomada, a tela final do cadastro muda antes.
+>
+> Duas coisas novas. O DNS do domínio em uso hoje está na **Hostinger**, não no registro.br — se o
+> lego tiver a Hostinger entre os provedores, o DNS-01 sai sem Cloudflare (**não conferido**). E
+> uma terceira saída, **rejeitada:** o cadastro chamar a API do EasyPanel para adicionar cada
+> endereço ao serviço. Funcionaria por HTTP-01, mas o app passaria a guardar uma credencial que
+> manda no servidor inteiro — um defeito no app entregaria o servidor a quem o achasse.
 
 > ⚠️ **Corrigido em 09/10/2026: o parágrafo abaixo não funciona como está escrito.**
 > Conferido na documentação do Traefik nesta data: ele pede certificado só para os endereços
