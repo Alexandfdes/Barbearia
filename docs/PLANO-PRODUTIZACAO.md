@@ -104,6 +104,11 @@ medida por cliente. Mais adiante, dois ou três templates. Nunca N.
 
 ### 3.1 Matar o `src/config.ts` — o refactor que destrava tudo
 
+> ✅ **Feito, por partes — a última em 09/10/2026:** cada barbearia lê o que é dela do banco
+> (`lib/settings.ts`), e as constantes do Bayron saíram do arquivo. Sobrou o `TOPSALAO_URL`, o
+> destino do botão de agendar. Os depoimentos, o FAQ e os assets continuam no repositório, só
+> para o Bayron, decididos pelo endereço (`PENDENCIAS-ABERTAS.md` §4.7).
+
 Hoje `WHATSAPP_NUMBER`, `SITE_URL`, `INSTAGRAM_URL`, `ADDRESS`, `GOOGLE_MAPS_URL` e
 `BUSINESS_HOURS` estão hardcoded em código. Somados a `src/data/depoimentos.json`,
 `src/data/faq.json` e aos assets em `src/assets/`, são eles que fazem o repositório ser
@@ -268,7 +273,8 @@ pagante, em vez de suposição.
    americano.** O próprio comentário no arquivo avisa. Alimenta todos os CTAs de
    WhatsApp: barra flutuante, rodapé, localização e tela de confirmação. O número real
    está no README (`+55 84 99905-1196` → `5584999051196`). Abrir o demo para um dono de
-   barbearia e ele cair num número americano encerra a conversa.
+   barbearia e ele cair num número americano encerra a conversa. *(A constante saiu em
+   09/10/2026; o número que o site usa é o do banco — `PENDENCIAS-ABERTAS.md` §2.6.)*
 2. **`src/config.ts` inteiro está hardcoded** — ver §3.1.
 
 ## 10. Armadilhas registradas

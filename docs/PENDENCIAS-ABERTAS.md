@@ -461,17 +461,17 @@ era constante de código, e o trabalho de multi-tenant o copiou para dentro do b
 
 `settings.whatsapp_number` é **`15551547238`**, exibido como `+1 (555) 154-7238`. É um
 número de área fictícia norte-americana — o `555` é o prefixo que Hollywood usa
-justamente para não existir. **O número real está no README e no próprio comentário do
-`src/config.ts:5`: `+55 84 99905-1196` → `5584999051196`.**
+justamente para não existir. **O número real está no README — e estava no comentário do
+`src/config.ts`, até a constante sair em 09/10/2026: `+55 84 99905-1196` → `5584999051196`.**
 
-Hoje o valor mora em dois lugares, e só um deles importa:
+O valor morava em dois lugares, e só um deles importa:
 
 | Onde | Estado |
 |---|---|
 | `settings.whatsapp_number`, no banco | **É o que o site usa** — `Layout.astro` e `lib/settings.ts` leem daí |
-| `src/config.ts:6`, `WHATSAPP_NUMBER` | Sobra morta: a `waLink()` daquele arquivo não é importada por ninguém; quem usa `waLink` importa de `lib/whatsapp.ts`, que recebe o telefone como argumento |
+| ~~`src/config.ts`, `WHATSAPP_NUMBER`~~ | Sobra morta, que ninguém importava — removida em 09/10/2026 (`PENDENCIAS-ABERTAS.md` §4.7) |
 
-Corrigir o `config.ts` **não conserta nada** — é a linha do banco que aparece no site. E
+Corrigir o `config.ts` **não consertava nada** — é a linha do banco que aparece no site. E
 essa linha, em produção, ainda não foi conferida.
 
 Duas consequências, se o banco de produção tiver o mesmo valor:
@@ -1166,7 +1166,7 @@ endereço estavam **escritos**, sem comparação nenhuma:
 entraram duas comparações novas com `"Bayron"` — `layouts/Layout.astro:37` e
 `admin/relatorios.astro:30`. É o padrão que o `PENDENCIAS-ABERTAS.md` §4.7 quer eliminar, e
 ele passou de oito para dez lugares. Quando o §4.7 for feito, estas duas entram na mesma
-função.
+função. ✅ *Entraram em 09/10/2026, com as outras oito (`PENDENCIAS-ABERTAS.md` §4.7).*
 
 Guarda: `tests/endereco-do-site.test.ts` — o endereço de cada caso (domínio próprio,
 subdomínio, desenvolvimento, sem barbearia) e varreduras que reprovam importar uma constante de
@@ -1491,8 +1491,9 @@ Lição em `ARQUITETURA-MULTI-TENANT-V1.md` §12.
 
 **Falta desta seção:** nada no código dos componentes. A ressalva que estava aqui — de
 que as migrations plantavam os dados do Bayron em qualquer banco novo e desarmavam tudo
-isto — caiu em 13/09/2026 com o §4.6. O que sobrou é o discriminador do §4.7: o portão
-continua sendo `shortName === "Bayron"`, texto que o próprio cliente edita.
+isto — caiu em 13/09/2026 com o §4.6. O que sobrava era o discriminador do §4.7: o portão
+era `shortName === "Bayron"`, texto que o próprio cliente edita. Desde 09/10/2026 é o endereço,
+`ehOBayron()` (`lib/bayron.ts`).
 
 ---
 
@@ -1683,35 +1684,38 @@ Coberto pelo teste *"banco novo NÃO nasce com o tenant do Bayron"*.
   mais dois patches de 388 KB e 196 KB. Eram entregas de passo. Hoje são a armadilha de
   alguém aplicar a cópia errada. Apagar, ou mover para `docs/historico/`.
 
-### 4.7 🟠 `[TÉCNICO]` `shortName === "Bayron"` decide o que aparece no site
+### 4.7 ✅ `[TÉCNICO]` `shortName === "Bayron"` decide o que aparece no site — RESOLVIDO em 09/10/2026
 
-Separado do §4.6 em 13/09/2026, quando aquele item fechou e este não.
+Era: dez lugares — oito componentes (`Header`, `Footer`, `Hero`, `FAQ`, `Gallery`,
+`Products`, `Services` e `Testimonials`), o `layouts/Layout.astro` e o relatório impresso —
+comparavam o nome curto da barbearia com o texto `"Bayron"` para decidir se mostravam o
+conteúdo dele cravado no repositório: o logo empacotado, a foto do topo, os depoimentos, o FAQ,
+o catálogo agrupado por categoria, a imagem de prévia (`public/og.jpg`) e a logo do relatório.
+O `short_name` é editável em `/admin/configuracoes`: quem digitasse "Bayron" ali herdava o
+conteúdo de outra barbearia, no site de quem está pagando. *(O título deste item dizia "oito
+componentes" desde 13/09; eram dez lugares desde 27/09.)*
 
-Oito componentes comparam o nome curto da barbearia com o texto `"Bayron"` para decidir o
-que renderizar: `Header.astro`, `Footer.astro`, `Hero.astro`, `FAQ.astro`, `Gallery.astro`,
-`Products.astro`, `Services.astro` e `Testimonials.astro`. Atrás da comparação está conteúdo
-do Bayron cravado no repositório — o logo empacotado em `assets/`, a foto do topo, os
-depoimentos, o FAQ, a galeria e o catálogo agrupado por categoria.
+**Visto num navegador em 09/10/2026, contra o build anterior:** uma barbearia de endereço
+`impostor`, com o nome curto "Bayron", servia o FAQ, os depoimentos, o logo, a foto do topo e a
+prévia do Bayron.
 
-**O problema é a natureza do campo.** `short_name` é editável pelo dono, em
-`/admin/configuracoes`. É comparação de texto contra dado que o próprio cliente controla:
-quem digitar "Bayron" ali herda depoimentos, FAQ, galeria e catálogo de outra barbearia. A
-probabilidade é baixa; a consequência é conteúdo de terceiro no site de quem está pagando.
+**Feito:** uma função só, `ehOBayron()` (`lib/bayron.ts:23`), pelo `slug` da barbearia — que o
+dono não edita e é único no banco —, chamada nos dez lugares. O cadastro passou a recusar o
+endereço `bayron` (`lib/enderecosReservados.ts`): nem num banco ainda sem o Bayron alguém o
+pega. O do Bayron nasce da migration 0001, não do cadastro, e não é afetado. Depois: o
+impostor não recebe nada; o Bayron continua com tudo.
 
-**Correção:** trocar por `tenant.slug === 'bayron'` — identidade que o cliente não edita e
-que o contexto do passo 6 já entrega em toda requisição — e **concentrar as oito comparações
-numa função só**, para a próxima troca ser um arquivo em vez de oito.
+De carona, saíram do `src/config.ts` as constantes do Bayron que nada importava — o WhatsApp
+com o número falso, o Instagram, o endereço, o mapa e o horário. Sobrou o `TOPSALAO_URL`, o
+destino do botão de agendar.
 
-⚠️ **Atualizado em 25/09/2026:** a galeria saiu da lista do que se herda. Em `Gallery.astro`
-a comparação decide agora só o avatar do cartão do Instagram (o logo empacotado, quando a
-barbearia não subiu o dela); as fotos vêm da tabela `gallery_images` de cada barbearia
-(migration 0005). Continuam oito componentes com a comparação.
+Guarda: `tests/bayron-pelo-endereco.test.ts` — a regra, o endereço reservado, nenhuma
+comparação de nome com "Bayron" em `src/` (com controle de que o padrão pega as formas antigas),
+os dez lugares chamando a função e o `config.ts` só com o `TOPSALAO_URL`.
 
-⚠️ **Atualizado em 27/09/2026: agora são dez lugares.** O conserto do
-`PENDENCIAS-ABERTAS.md` §2.26 tirou o nome e o endereço do Bayron de toda barbearia; para o
-Bayron continuar com a foto de prévia e a logo do relatório impresso, entraram duas
-comparações novas: `layouts/Layout.astro:37` e `admin/relatorios.astro:30`. Custo aceito de
-propósito — as duas entram na mesma função quando este item for feito.
+⚠️ **O conteúdo continua cravado no repositório.** O que mudou foi quem o recebe. Tirá-lo
+de lá — o Bayron com logo, depoimentos e FAQ no banco, como qualquer barbearia — é o que faz
+a função e as dez chamadas sumirem.
 
 ### 4.8 ✅ `[DECISÃO]` Dois caminhos para a barbearia nascer — DECIDIDO em 24/09/2026
 
@@ -1813,8 +1817,9 @@ seção cujo próprio comentário no código a cita.
 todas pintadas de `text-yellow-400`. Uma barbearia com 3,8 mostraria cinco estrelas
 cheias. No Bayron (5.0) parece certo por coincidência.
 
-Hoje nenhum dos dois está no ar, porque a seção inteira depende do `shortName === "Bayron"`
-(§4.7). Os dois acordam no dia em que a seção for generalizada.
+Hoje nenhum dos dois está no ar, porque a seção inteira só aparece no site do Bayron — desde
+09/10/2026 decidido pelo endereço, `ehOBayron()` (§4.7). Os dois acordam no dia em que a seção
+for generalizada.
 
 ### 4.12 ✅ `[TÉCNICO]` O hover do botão padrão reprova no contraste — RESOLVIDO em 09/10/2026
 
@@ -2277,7 +2282,7 @@ o teste que acaba sem cartão segue os mesmos 3 dias — confirmado no mesmo dia
    13/09/2026.** As migrations de SQLite que plantavam o nome, o endereço, os produtos e as
    227 avaliações do Bayron não existem mais no repositório; ver
    `PENDENCIAS-ABERTAS.md` §4.6. Sobrou o discriminador `shortName === "Bayron"`, que virou
-   `PENDENCIAS-ABERTAS.md` §4.7.
+   `PENDENCIAS-ABERTAS.md` §4.7 — ✅ trocado pelo endereço em 09/10/2026.
 1. ~~**Decidir o login do painel** (§1.5)~~ — decidido e implementado em 09/09.
    Falta cadastrar o telefone dos barbeiros do Bayron antes do segundo cliente.
 2. ~~**As duas minas** (§2.1, §2.2)~~ — o fuso (§2.1) foi centralizado em 10/09 e
