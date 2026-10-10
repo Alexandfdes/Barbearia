@@ -863,7 +863,7 @@ campo, as duas em `lib/dinheiro.ts`.
 - `reais(centavos)` (`lib/dinheiro.ts:16`) mostra **R$ 39,90** quando há centavos e **R$ 40**
   quando não há, como o site sempre mostrou. Passam por ela o site
   (`components/Services.astro`), o agendamento (`agendar.astro`), a confirmação
-  (`a/[token].astro:70-72`), a área do cliente (`cliente/index.astro:103`) e o painel — início,
+  (`a/[token].astro:72-74`), a área do cliente (`cliente/index.astro:103`) e o painel — início,
   reservas, agenda do dia, relatórios e a lista de agendamentos
   (`api/admin/appointments/index.ts:81`).
 - `centavosDoCampo(valor)` (`lib/dinheiro.ts:33`) aceita *"39,90"*, *"39.90"* e *"40"*; o que
@@ -1173,7 +1173,7 @@ endereço estavam **escritos**, sem comparação nenhuma:
 | Convite de calendário | link e identificador em `bayron.alexandrefdev.tech`, arquivo `bayron-….ics` | o endereço da barbearia (`api/appointments/by-token/[token]/ics.ts:69-70`), arquivo `agendamento-….ics` (`api/appointments/by-token/[token]/ics.ts:76`) |
 | `/portal`, `/cliente/entrar` e `/cliente` | *"Barbearia Bayron"* no título da aba, na descrição e no topo | o nome da barbearia (`portal.astro:21`, `cliente/entrar.astro:27`, `cliente/index.astro:26`) |
 | Relatório impresso | *"Barbearia Bayron — Relatório"*, com a logo dele | o nome e a logo da barbearia; a logo empacotada, só no Bayron (`admin/relatorios.astro:28-30`, `admin/relatorios.astro:335-337`) |
-| Rodapé do site | o slogan *"Respeito e precisão em cada detalhe."* | só no site do Bayron (`components/Footer.astro:196-198`) |
+| Rodapé do site | o slogan *"Respeito e precisão em cada detalhe."* | só no site do Bayron (`components/Footer.astro:211-216`) |
 
 ⚠️ **O custo aceito:** para o Bayron continuar com a foto de prévia e a logo do relatório,
 entraram duas comparações novas com `"Bayron"` — `layouts/Layout.astro:37` e
@@ -1256,7 +1256,7 @@ coisa falsa.
 2. **O rodapé tinha "Termos de Uso" e "Políticas de Privacidade" apontando para `#`**, num
    site que coleta nome e telefone. Saíram até os textos existirem
    (`PENDENCIAS-ABERTAS.md` §1.2); o comentário no lugar diz por quê
-   (`components/Footer.astro:189-192`).
+   (`components/Footer.astro:204-209`).
 3. **"1 agendamento considerados"** na agenda do dia — agora concorda
    (`admin/dia/[date].astro:575`, `:1528`).
 
@@ -1404,6 +1404,100 @@ restauração dele; o domínio definitivo; os termos na tela.
 *Rejeitado:* abrir agora e ir consertando. No autoatendimento ninguém olha a porta: quem entrar
 encontra o site sem cadeado no primeiro minuto e fora do ar no 11º dia — e a primeira
 impressão de um produto novo não se refaz.
+
+### 2.32 ✅ `[TÉCNICO]` O que o roteiro do dono achou na tela — RESOLVIDO em 10/10/2026
+
+Achado em 10/10/2026, com o dono abrindo cada tela na máquina dele e mandando print: uma
+barbearia nascida pelo cadastro só com o obrigatório — como faz quem tem pressa —, o site, um
+agendamento, o painel e o site fora do ar. Nenhum dos defeitos abaixo aparecia na suíte, e o
+guarda do rodapé que já existia (§2.28) procurava `href="#"`, não o link que fica vazio porque
+o dado nunca foi preenchido.
+
+1. **Três links de mapa vazios em toda barbearia do cadastro.** O "Traçar rota" do site, o
+   endereço do rodapé e o "Abrir no Maps" da confirmação do agendamento usavam o `mapsUrl`
+   direto. Só Configurações grava esse campo — o cadastro não —, então os três saíam com
+   `href=""`, e clicar abria o próprio site de novo. Desde que o cadastro existe (15/09): o
+   Bayron tinha o link preenchido. Agora os três saem de `apps/barbearia/src/lib/mapa.ts` — o
+   link do dono, se houver; senão a rota, ou o lugar, buscados pelo endereço; sem nada para
+   buscar, o botão some.
+   ⚠️ O mapa da página e a rota saem da **mesma** busca. No roteiro, *"nova betania, natal"*
+   caiu na Nova Betânia de **Mossoró**: endereço ambíguo erra os dois juntos, em vez de o mapa
+   mostrar um lugar e a rota levar a outro. Conferir o ponto continua sendo do dono (§2.33).
+2. **"Siga no Instagram" sem Instagram** — o link vazio também reabria o site. E **o texto
+   "sobre" vazio** deixava um buraco no rodapé, que o medidor do painel usava de argumento:
+   *"Vazio, sobra um buraco."* Agora os dois só aparecem preenchidos, e o medidor diz para que
+   serve o texto (`apps/barbearia/src/lib/completude.ts:124`).
+3. **"Agenda do dia" levava ao resumo.** O primeiro item do menu tinha o nome da agenda e o
+   endereço `/admin`, que é o resumo; a agenda de verdade ficava atrás de um botão dele. Agora
+   "Início" é o resumo, e "Agenda do dia" leva à agenda de hoje no dia da barbearia — o fuso
+   dela, não o do servidor (`apps/barbearia/src/layouts/AdminLayout.astro:28-29`).
+4. **"Reservas" eram de produto.** O botão do topo do site diz *"Reservar Horário"*, e o dono
+   procurou os agendamentos ali. Agora o menu diz "Reservas de produto".
+5. **O cadastro não falava do teste nem do cartão** — só a tela do fim. E quem tem medo de
+   cobrança pode desistir antes de enviar. Agora, embaixo do título: *"7 dias grátis, sem cartão: ele
+   só é pedido no fim do teste."* (`apps/barbearia/src/pages/cadastrar.astro:195`).
+6. **A tela de assinatura sem a Asaas dizia** *"o cartão entra na próxima etapa do sistema"*,
+   uma etapa feita no mesmo dia (§4.14). Agora: *"a cobrança pelo cartão ainda não foi
+   ligada."*
+7. **Configurações não dizia que os dois campos do mapa são opcionais**, nem que a "Busca do
+   mapa embutido" passou a valer também para a rota. Agora diz — e é por ela que o dono
+   conserta o ponto errado (`apps/barbearia/src/pages/admin/configuracoes.astro:64-65`).
+8. **No `npm run dev`, a tela final do cadastro diz sempre "quase no ar".** Não é defeito: o
+   servidor de desenvolvimento do Astro 7 recusa a imagem que ela pede ao endereço novo — um
+   403 *"Cross-origin request blocked"*, de `astro/dist/vite-plugin-astro-server/sec-fetch.js`
+   —, e no build ela confere de verdade. Visto na máquina do dono e reproduzido com o
+   `astro dev`. Anotado em `apps/barbearia/src/lib/noAr.ts` e no `CLAUDE.md`; a segurança do
+   Astro ficou como está.
+
+Guarda: `apps/barbearia/tests/roteiro-do-dono.test.ts`, 15 casos — os do mapa chamando a
+função, os das telas lendo o fonte, com controle. Desfeito cada conserto, 13 reintroduções,
+as 13 vermelhas. E contra o build, 22 conferências em duas barbearias — uma só com o
+obrigatório, outra com Instagram, texto e o link de rota do dono —, sem link vazio e sem erro
+de JavaScript.
+
+Vistos no mesmo roteiro e já registrados: a landing e o `/acessar` contando a história antiga
+(§4.15), e o termo que o cadastro não pede (§1.2).
+
+### 2.33 🟠 `[DECISÃO]` O que o roteiro do dono deixou para você decidir — achado em 10/10/2026
+
+Nenhum é defeito de código: cada um é uma escolha de produto, com custo. Achados no roteiro do
+§2.32 e conferidos no código.
+
+1. 🟠 **O barbeiro não fica sabendo de agendamento novo.** Com a agenda do dia aberta, ela se
+   atualiza sozinha a cada minuto (`apps/barbearia/src/pages/admin/dia/[date].astro:2703`);
+   fechada, nada avisa — nem e-mail, nem WhatsApp. O agendamento não chama envio nenhum: os
+   e-mails do sistema são a senha nova, as boas-vindas e os avisos do teste e da cobrança
+   (`apps/barbearia/src/lib/avisos.ts`). Num produto que vende agendamento, o dono que não abriu o
+   painel descobre o cliente novo quando ele chega na porta. Três caminhos:
+   - **e-mail a cada agendamento** — barato, o envio já existe; mas barbeiro vive no WhatsApp,
+     e em produção nada sai até existir o provedor (§4.17);
+   - **um resumo do dia, de manhã, por e-mail** — menos ruído, a mesma ressalva, e não avisa
+     o encaixe de última hora;
+   - **WhatsApp** — é onde ele está; a API oficial cobra por conversa e pede número
+     verificado. *Não orçado: a busca na web está desligada na organização.*
+
+   *Recomendação:* o e-mail a cada agendamento agora, com como desligar, e o WhatsApp orçado
+   antes de ser prometido na landing.
+2. 🟠 **A data de nascimento é a senha do cliente.** A área do cliente entra com telefone e
+   data de nascimento (`apps/barbearia/src/pages/api/customer/login.ts`) e lista os
+   agendamentos com o link de cada um, que cancela e remarca. Telefone e aniversário não são
+   segredo: quem sabe os dois de alguém vê onde e quando ele corta o cabelo, e desmarca. O
+   limite de tentativas é por endereço de rede, na memória do processo
+   (`apps/barbearia/src/lib/rateLimit.ts`). É dado pessoal sob a sua operação (§1.2). Caminhos:
+   um código de uso único pelo WhatsApp ou pelo e-mail — o mesmo canal do item 1 —; a área
+   mostrar menos, sem o link que cancela; ou aceitar e dizer no termo. *Recomendação:* decidir
+   junto com o termo (§1.2), antes de abrir o cadastro.
+3. 🟡 **O ponto do mapa ninguém confere.** Endereço ambíguo cai em outro lugar — no roteiro, em
+   outra cidade. O dono só descobre abrindo o próprio site, e o cliente descobre na rua. Desde
+   10/10 dá para consertar pela "Busca do mapa embutido" (§2.32, item 7), mas só conserta quem
+   percebeu. *Proposta:* o mapa no painel logo depois do cadastro, com *"o ponto está
+   certo?"*, e a busca à mão quando não estiver.
+4. 🟡 **Fora do ar, o e-mail não se troca.** A tela de assinatura mostra para onde vão os
+   avisos e esconde o "Trocar" quando o site está fora do ar
+   (`apps/barbearia/src/pages/admin/assinatura.astro:135`), porque nessa fase o painel só abre
+   a tela de assinatura. Quem digitou o e-mail errado no cadastro não recebeu os avisos que o
+   levaram até ali — e só corrige depois de pagar. *Proposta:* deixar a troca do próprio
+   e-mail aberta fora do ar, como o cartão.
 
 ---
 
@@ -2485,6 +2579,11 @@ Os três que ficaram registrados — o `+ 3` do bloqueio, o `-180` da ocupação
 hora do relatório — saíram no mesmo dia, à noite, junto com um sexto lugar da conta, o calendário do
 cliente (§2.11), e o ícone do Astro na aba de toda barbearia (`JORNADA-DO-BARBEIRO.md` §2.8).
 
+**Achados de 10/10/2026, no roteiro do dono na máquina dele, ✅ já consertados:** os três links
+de mapa vazios, o Instagram e o texto "sobre" sem conteúdo, o menu que levava a "Agenda do
+dia" ao resumo, as reservas que não diziam ser de produto e o cadastro sem o aviso do teste
+(§2.32). Ficaram quatro decisões suas (§2.33).
+
 **Onda 2 — antes de abrir o cadastro público.**
 
 > ⚠️ **10/10/2026:** o app está no ar, com o cadastro fechado. Abrir é o fim desta onda, não o
@@ -2501,6 +2600,8 @@ fundo é dele ou do layout (§4.13)~~; e ~~o canal da recuperação de senha (§
 em 27/09, também suas: ~~o cartão antes de a barbearia existir, e onde mora o código da
 cobrança (§4.14)~~. Os riscados foram decididos em 08/10/2026 (`PLANO-PRODUTIZACAO.md` §13);
 o teste que acaba sem cartão segue os mesmos 3 dias — confirmado no mesmo dia (§1.3).
+*Acrescentadas em 10/10/2026:* como o barbeiro fica sabendo de agendamento novo, e se a data
+de nascimento continua sendo a senha do cliente (§2.33).
 
 *Código, nesta ordem* — detalhada pelo caminho do barbeiro em
 `JORNADA-DO-BARBEIRO.md` §5:
