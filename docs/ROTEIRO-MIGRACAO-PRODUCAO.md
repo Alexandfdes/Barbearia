@@ -332,7 +332,9 @@ fazer. **Recusa não é problema — é o roteiro funcionando.**
 DATABASE_URL='postgres://...' node scripts/startup.mjs
 ```
 
-Confira: da `0001` à `0005` aplicadas, a linha do papel do app e a do `pg_dump`.
+Confira: da `0001` à última aplicadas, a linha do papel do app e a do `pg_dump`. A `0009`
+troca o hover do par padrão de cores na linha do Bayron, que chega da carga com o antigo — o
+botão passa a escurecer quando o mouse passa, em vez de clarear (`PENDENCIAS-ABERTAS.md` §4.12).
 
 ### 4.5 O endereço
 

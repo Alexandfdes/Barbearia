@@ -469,8 +469,9 @@ que estiver"*, que a landing atribui ao concorrente, passa a ser o que este prod
 `ARQUITETURA-COBRANCA-V1.md` §1.1, e ele enfraqueceu sem sumir. O `/cadastrar` já pede
 serviços, preços e horário, então o site nasce agendando, e os três layouts dão cara
 pronta. O que isso **não** resolve: o site nasce sem nenhuma foto — o `/cadastrar` continua sem
-campo de foto, por decisão (ver *Fotos*, abaixo) —, e quem deixar os preços em branco cai
-na tela de agendar vazia (`PENDENCIAS-ABERTAS.md` §4.9). Desde 25/09/2026 o dono sai do
+campo de foto, por decisão (ver *Fotos*, abaixo) —, e quem deixar os preços em branco fica
+sem agendamento pelo site — desde 09/10/2026 a tela oferece o WhatsApp da barbearia, em vez de
+ficar em branco (`PENDENCIAS-ABERTAS.md` §4.9). Desde 25/09/2026 o dono sai do
 cadastro já dentro do painel, onde sobe logo, capa, galeria e fotos de produto, e o
 medidor de completude põe a galeria na lista. O primeiro minuto continua sem foto.
 

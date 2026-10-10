@@ -177,13 +177,15 @@ saem as vagas do site.
 
 **O que pode dar errado:**
 
-- **Todos os preços em branco** = o site nasce com o botão "Reservar horário" levando a
-  uma tela em branco (`PENDENCIAS-ABERTAS.md` §4.9). O cadastro avisa, mas deixa passar.
+- ~~**Todos os preços em branco** = o botão "Reservar horário" leva a uma tela em branco~~ —
+  ✅ consertado em 09/10/2026: a tela oferece o WhatsApp da barbearia
+  (`PENDENCIAS-ABERTAS.md` §4.9). O site continua nascendo sem agendamento pelo site — o
+  cadastro avisa, mas deixa passar.
 - ~~**Os centavos somem**~~ — ✅ consertado em 27/09/2026: R$ 39,90 aparece R$ 39,90 no site,
   no agendamento e no painel, e editar o nome não mexe mais no preço
   (`PENDENCIAS-ABERTAS.md` §2.15).
-- **Barbearia de um barbeiro só** ainda obriga o cliente a escolher barbeiro no agendamento
-  (`PENDENCIAS-ABERTAS.md` §2.2) — e todo cadastro nasce com um barbeiro só, o dono.
+- ~~**Barbearia de um barbeiro só** obriga o cliente a escolher barbeiro~~ — ✅ consertado em
+  09/10/2026: com um barbeiro só, o agendamento tem três passos (`PENDENCIAS-ABERTAS.md` §2.2).
 
 ### 2.4 Passo 4 — A cara do site: a cor e a frase do topo
 
@@ -580,12 +582,13 @@ caminho do barbeiro. Muda uma coisa lá e encaixa o que a jornada achou sem luga
 
 0. **A conta na Asaas e a prova no sandbox**: as três perguntas do passo 5, a volta e o
    webhook.
-1. **Os pequenos que já mordem hoje:** ~~os centavos~~ (✅ 27/09), o combo em qualquer dia,
-   a semana do painel, o login só com JSON e o resumo do combo (`PENDENCIAS-ABERTAS.md` §6,
-   item 1).
-2. **O que todo cadastro encontra no primeiro minuto:** a tela de agendar vazia
-   (`PENDENCIAS-ABERTAS.md` §4.9) e o passo inútil do barbeiro único
-   (`PENDENCIAS-ABERTAS.md` §2.2).
+1. ~~**Os pequenos que já mordem hoje:** os centavos, o combo em qualquer dia, a semana do
+   painel, o login só com JSON e o resumo do combo~~ — ✅ os centavos em 27/09, o resto em
+   09/10 (`PENDENCIAS-ABERTAS.md` §6, item 1).
+2. ~~**O que todo cadastro encontra no primeiro minuto:** a tela de agendar vazia e o passo
+   inútil do barbeiro único~~ — ✅ 09/10 (`PENDENCIAS-ABERTAS.md` §4.9 e
+   `PENDENCIAS-ABERTAS.md` §2.2). **No lugar, o CSRF entre subdomínios**
+   (`PENDENCIAS-ABERTAS.md` §2.30): com o cadastro aberto, qualquer um cria um subdomínio.
 3. ~~**Endereços reservados**~~ (✅ 08/10) **e um jeito de tirar do ar**
    (`PENDENCIAS-ABERTAS.md` §4.16).
 4. ~~**O passo 4:** os três layouts, a cor e a frase do topo no cadastro, que vira telas
