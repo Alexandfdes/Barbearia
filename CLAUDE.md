@@ -113,6 +113,10 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **Dependências:** o npm 10 quebra ao mexer nelas (`edgesOut`). Gere o lock com
   `npx npm@11 install` e regrave com o npm 10 (`npm install`), que é o do Docker; o `npm ci`
   dos dois tem que passar (`docs/PENDENCIAS-ABERTAS.md` §2.29).
+- **Requisição que muda dado só passa vinda do próprio endereço:** o `src/middleware.ts`
+  confere a `Origin` antes de qualquer rota (`src/lib/origem.ts`). Rota nova não faz nada;
+  integração de fora, sem navegador, chega sem `Origin` e passa. Não afrouxe para aceitar
+  subdomínio: os sites das barbearias são subdomínios do painel (`docs/PENDENCIAS-ABERTAS.md` §2.30).
 - **O shell da máquina do usuário (`device_bash`) às vezes está fora.** Nesse caso:
   `device_stage_files` → editar no container → `device_commit_files`, sempre com
   `expectedMtimeMs` para não sobrescrever edição do usuário.

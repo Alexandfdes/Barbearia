@@ -1085,8 +1085,8 @@ recusados, sem cookie; a mesma credencial em JSON entra) e uma varredura: toda r
 sessão pela credencial do corpo recusa antes de ler, com controle de que a varredura acha as
 três. Conferido no código e nesses casos — não com um site de fora de verdade.
 
-⚠️ **Isto não fecha o CSRF do painel**: é outro caminho, e mais grave — `PENDENCIAS-ABERTAS.md`
-§2.30.
+⚠️ **Isto não fechava o CSRF do painel**: era outro caminho, e mais grave — fechado no mesmo
+dia (`PENDENCIAS-ABERTAS.md` §2.30).
 
 ### 2.24 ✅ `[TÉCNICO]` O resumo do combo diz "Combo Boris" e põe o nome do produto no HTML sem escape — RESOLVIDO em 09/10/2026
 
@@ -1290,41 +1290,53 @@ com a mesma atualização na `main`, antes dela.
 scripts de `admin/dia/[date].astro` (264) e de `cadastrar.astro` (78). Erro novo em qualquer
 outro arquivo agora aparece.
 
-### 2.30 🔴 `[TÉCNICO]` Um script no site de uma barbearia age no painel de outra — o CSRF entre subdomínios
+### 2.30 ✅ `[TÉCNICO]` Um script no site de uma barbearia age no painel de outra — o CSRF entre subdomínios — RESOLVIDO em 09/10/2026
 
-**Reproduzido em 09/10/2026**, contra o build, com o domínio `*.fadeline.test` (que o
-navegador trata como trataria `*.fadeline.com.br`): logado no painel da Barbearia Solo, o
-mesmo navegador abriu o site de **outra** barbearia, e um script rodando ali — como rodaria por
-um XSS — **cancelou um agendamento da Solo** com um `fetch` simples. O mesmo script num site de
-fora não conseguiu nada: o cookie não foi.
+Era: a sessão do painel é `SameSite=Lax` (`lib/session.ts:173`), e o `checkOrigin` do Astro
+está desligado porque, atrás do proxy do EasyPanel, a conta dele não batia. O `SameSite` segura
+o pedido de outro **site** — mas, para o navegador, `painel.fadeline.com.br` e
+`qualquer.fadeline.com.br` são o mesmo site, e os sites das barbearias são esses subdomínios.
+**Reproduzido em 09/10/2026, contra o build:** logado no painel da Barbearia Solo, o mesmo
+navegador abriu o site de outra barbearia, e um `fetch` simples rodando ali cancelou um
+agendamento da Solo. As 15 rotas `POST` do painel estavam no mesmo caminho — trocar a senha de um
+barbeiro, criar e reagendar horário, mexer em serviço, produto e combo. Faltava só rodar script
+num subdomínio, e o XSS do `/agendar` (§2.24) fazia isso.
 
-**O mecanismo**, conferido no código:
+**Feito:** o `src/middleware.ts`, antes de qualquer rota — antes do desvio das tarefas e de
+decidir a barbearia —, recusa com 403 toda requisição que muda dado (tudo que não é GET, HEAD ou
+OPTIONS) que não veio do próprio endereço (`lib/origem.ts`):
 
-- A sessão do painel é `SameSite=Lax` (`lib/session.ts:173`), e o `checkOrigin` do Astro está
-  desligado porque o proxy do EasyPanel troca o `Host`. O comentário do `astro.config.mjs` diz
-  que o `SameSite` basta — **basta contra outro site, não contra outro subdomínio.** Para o
-  navegador, `painel.fadeline.com.br` e `qualquer.fadeline.com.br` são o mesmo site, e o cookie
-  vai junto.
-- Os sites das barbearias são exatamente esses subdomínios — e, no autoatendimento, qualquer
-  pessoa cria o seu.
-- As 15 rotas `POST` do painel não conferem de onde vem a requisição. Quatro nem têm corpo
-  (cancelar, concluir, marcar falta, catálogo sugerido); as outras leem JSON sem olhar o tipo,
-  ou formulário. Nenhuma passa pelo pré-voo de CORS. Pelo mesmo caminho — conferido no código,
-  não reproduzido —: trocar a senha de um barbeiro (`api/admin/barbers/[id]/password.ts`), criar
-  e reagendar horário, mexer em serviço, produto e combo.
+- com `Origin`, que todo navegador manda num `POST`, o nome dela tem que ser o do `Host` — só o
+  nome: o esquema e a porta mudam atrás do proxy;
+- sem `Origin`, o `Sec-Fetch-Site` tem que ser `same-origin` (ou `none`);
+- sem nenhum dos dois não é navegador — o daemon dos avisos, um webhook — e passa: só o navegador
+  da vítima tem o cookie dela.
 
-**O que falta para virar ataque é rodar script num subdomínio.** O XSS do `/agendar`
-(`PENDENCIAS-ABERTAS.md` §2.24) era esse caminho até 09/10/2026, e foi confirmado num navegador.
-Fechado, sobra o próximo: qualquer XSS em qualquer site de barbearia — ou em qualquer outro site
-no mesmo domínio; enquanto o `DOMINIO_BASE` for `alexandrefdev.tech`, os seus outros projetos
-nele contam — vira o painel de toda barbearia cujo dono o abrir logado.
+A recusa sai no log com o motivo — *"[origem] recusado POST /api/admin/appointments/1/cancel: veio
+de vinho.fadeline.test, endereço painel.fadeline.test"* —, e quem chamou recebe só que a
+requisição não veio deste endereço.
 
-**Correção proposta:** o `src/middleware.ts` recusa toda requisição que muda dado no painel cuja
-origem não seja o próprio painel — `Sec-Fetch-Site: same-origin`, ou o `Origin` igual ao do
-`PAINEL_URL`. Comparar com o `PAINEL_URL`, e não com o `Host`, é o que contorna o proxy que fez
-desligar o `checkOrigin`. Uma regra para todas as rotas, com teste de escopo. *Rejeitado:
-conferir o tipo do corpo rota a rota* — quinze lugares para esquecer, e as quatro sem corpo não
-teriam o que conferir.
+**Conferido contra o build, em 09/10/2026:** o mesmo ataque, agora recusado, com o agendamento
+intacto — no build anterior, cancelado. O próprio painel cancelando continua passando, o envio de
+foto pelo painel (multipart) também, e os roteiros de ponta a ponta do e-mail (47 conferências) e
+do primeiro minuto (28) passam inteiros, sem nenhuma recusa no log.
+
+*Rejeitado:* religar o `checkOrigin` do Astro — ele monta a origem esperada com o esquema que o
+servidor enxerga, que atrás do proxy não é o do navegador, o motivo de ter sido desligado. E
+conferir rota a rota — quinze lugares para esquecer, e as quatro rotas sem corpo não teriam o que
+conferir.
+
+O site de vendas foi olhado também: a única escrita com sessão nele é um `PATCH`, que o navegador
+não manda de outro endereço sem o pré-voo de CORS. Ficou como está.
+
+⚠️ **O que continua valendo:** um XSS no site de uma barbearia ainda age naquele mesmo site — é
+o endereço dele. E o painel num subdomínio do mesmo domínio dos clientes continua pedindo
+cuidado: a defesa estrutural seria o painel num domínio só dele, o que mexe em DNS e certificado
+— fica registrado, não feito.
+
+Guarda: `tests/origem.test.ts` — o que passa e o que não passa, com o caso reproduzido, o
+`Origin: null`, o domínio de cima e o nome que só começa igual; e o lugar da conferência no
+middleware, antes do desvio e da barbearia.
 
 ---
 
@@ -2268,9 +2280,9 @@ o teste que acaba sem cartão segue os mesmos 3 dias — confirmado no mesmo dia
 2. ~~O que todo cadastro encontra no primeiro minuto: a tela de agendar vazia (§4.9) e o
    passo inútil do barbeiro único (§2.2)~~ — ✅ feitos em 09/10/2026, com o hover do botão
    padrão (§4.12).
-   - **2b. Acrescentado em 09/10/2026:** o CSRF entre subdomínios (§2.30). Com o cadastro
+   - ~~**2b. Acrescentado em 09/10/2026:** o CSRF entre subdomínios (§2.30). Com o cadastro
      aberto, qualquer pessoa cria um subdomínio — e um XSS em qualquer um deles alcança o painel
-     de todas as barbearias.
+     de todas as barbearias~~ — ✅ fechado no mesmo dia.
 3. ~~Endereços reservados~~ — ✅ feitos em 08/10/2026 — e um jeito de tirar do ar (§4.16).
 4. ~~Os três layouts, com as cores do dono (§4.13)~~ — ✅ feito em 08/10/2026, no desenho
    do mesmo dia: um layout, com a cor e a frase do topo escolhidas no cadastro e a tela

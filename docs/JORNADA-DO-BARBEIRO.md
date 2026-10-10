@@ -587,8 +587,8 @@ caminho do barbeiro. Muda uma coisa lá e encaixa o que a jornada achou sem luga
    09/10 (`PENDENCIAS-ABERTAS.md` §6, item 1).
 2. ~~**O que todo cadastro encontra no primeiro minuto:** a tela de agendar vazia e o passo
    inútil do barbeiro único~~ — ✅ 09/10 (`PENDENCIAS-ABERTAS.md` §4.9 e
-   `PENDENCIAS-ABERTAS.md` §2.2). **No lugar, o CSRF entre subdomínios**
-   (`PENDENCIAS-ABERTAS.md` §2.30): com o cadastro aberto, qualquer um cria um subdomínio.
+   `PENDENCIAS-ABERTAS.md` §2.2). ~~**No lugar, o CSRF entre subdomínios**~~
+   (`PENDENCIAS-ABERTAS.md` §2.30) — ✅ fechado no mesmo dia.
 3. ~~**Endereços reservados**~~ (✅ 08/10) **e um jeito de tirar do ar**
    (`PENDENCIAS-ABERTAS.md` §4.16).
 4. ~~**O passo 4:** os três layouts, a cor e a frase do topo no cadastro, que vira telas
