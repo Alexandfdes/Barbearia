@@ -10,7 +10,7 @@
  *
  * Uso:
  *   node scripts/set-admin-password.mjs <slug> <novaSenha>
- *   node scripts/set-admin-password.mjs bayron "Bayron@2026"
+ *   node scripts/set-admin-password.mjs bayron "<senha-nova>"
  *
  * Com várias barbearias no mesmo banco, o slug deixou de ser único no mundo
  * (`UNIQUE (tenant_id, slug)` na migration 0001). Quando o mesmo slug existir em
@@ -40,7 +40,7 @@ const slug = (args[0] ?? 'bayron').toLowerCase();
 const password = args[1] ?? process.env.ADMIN_NEW_PASSWORD;
 
 if (!password) {
-  console.error('ERRO: informe a senha. Ex: node scripts/set-admin-password.mjs bayron "Bayron@2026"');
+  console.error('ERRO: informe a senha. Ex: node scripts/set-admin-password.mjs bayron "<senha-nova>"');
   process.exit(1);
 }
 if (password.length < 6) {
