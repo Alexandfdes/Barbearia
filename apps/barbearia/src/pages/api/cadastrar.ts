@@ -169,7 +169,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   // O primeiro e-mail — e o único jeito de saber cedo que o endereço existe: se
   // ele não chegar, o dono descobre hoje, com o cadastro fresco, e não no dia em
   // que pedir a senha nova. Sem `await`: o cadastro já deu certo, e um provedor
-  // de e-mail lento não pode segurar a tela de "O seu site está no ar".
+  // de e-mail lento não pode segurar a tela de fim do cadastro.
   const email = normalizarEmail(parsed.data.email);
   if (email) {
     enviarEmail({
@@ -194,7 +194,15 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   });
 };
 
-/** O e-mail de boas-vindas. Exportado para o teste ler o que o dono vai ler. */
+/**
+ * O e-mail de boas-vindas. Exportado para o teste ler o que o dono vai ler.
+ *
+ * ⚠️ Não diz que o site "está no ar" — até 10/10/2026 dizia, no assunto e no
+ * corpo. O e-mail sai no segundo do cadastro, e o servidor não sabe se a internet
+ * já chega no endereço novo: o certificado do subdomínio pode ainda não existir
+ * (`docs/ARQUITETURA-COBRANCA-V1.md` §7.4). Quem confere é a tela de fim, do
+ * navegador do dono (`src/lib/noAr.ts`).
+ */
 export function emailDeBoasVindas(d: {
   dono: string;
   barbearia: string;
@@ -204,11 +212,11 @@ export function emailDeBoasVindas(d: {
   ultimoDiaDoTeste: string | null;
 }): { assunto: string; texto: string } {
   return {
-    assunto: `${d.barbearia} está no ar — ${NOME_PRODUTO}`,
+    assunto: `${d.barbearia}: o seu site no ${NOME_PRODUTO}`,
     texto: [
       `Olá, ${d.dono}.`,
       '',
-      ...(d.site ? [`O site da barbearia está no ar: ${d.site}`, ''] : []),
+      ...(d.site ? [`O endereço do site da barbearia: ${d.site}`, ''] : []),
       ...(d.painel ? [`O seu painel: ${d.painel}/admin`] : []),
       `Você entra com o seu WhatsApp, ${d.whatsapp}, e a senha que criou no cadastro.`,
       '',

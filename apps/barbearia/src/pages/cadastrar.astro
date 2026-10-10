@@ -172,6 +172,9 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     .fim ol { margin: 6px 0 18px; padding-left: 20px; }
     .fim li { margin: 6px 0; color: var(--ink-suave); }
     .fim li a { color: var(--brand-claro); }
+    .fim .aviso { margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--ink-suave); }
+    /* O endereço que ainda não abre vai em texto: na cor do link, pareceria clicável. */
+    .fim p.endereco { color: var(--ink); }
     .fim .teste { margin: 0 0 14px; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line);
                   font-size: 13px; color: var(--ink-suave); }
     .fim .teste strong { color: var(--ink); }
@@ -184,7 +187,8 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
 <body>
   <main class="env">
     <h1>Criar a sua barbearia</h1>
-    <p class="sub">No fim, o seu site já está no ar — com os seus serviços e a sua cor.</p>
+    {/* Não promete "no ar": quem confere é a tela do fim, do navegador do dono (`lib/noAr.ts`). */}
+    <p class="sub">No fim, o seu site nasce — com os seus serviços e a sua cor.</p>
 
     <div id="erro" class="erro" hidden></div>
 
@@ -308,6 +312,7 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     // derivação que o servidor usa ao gravar — o que aparece aqui é o que vai
     // para o site, sem lógica duplicada.
     import { derivarAccent, ACCENT_PADRAO } from '../lib/accent.js';
+    import { esperarNoAr } from '../lib/noAr.js';
 
     const $ = (id) => document.getElementById(id);
     const form = $('form'), erro = $('erro'), botao = $('enviar');
@@ -452,26 +457,39 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
       pronto.replaceChildren();
       const site = dados.site || null;
 
-      pronto.append(el('h2', {}, site ? 'O seu site está no ar.' : 'A sua barbearia existe.'));
+      const titulo = el('h2', {}, site ? 'Conferindo o seu endereço…' : 'A sua barbearia existe.');
+      pronto.append(titulo);
       if (site) {
-        pronto.append(el('a', { href: site, target: '_blank', rel: 'noopener', className: 'endereco' },
-          site.replace(/^https?:\/\//, '')));
-        const copiar = el('button', { type: 'button' }, 'Copiar para a bio do Instagram');
-        copiar.addEventListener('click', async () => {
-          try {
-            await navigator.clipboard.writeText(`Agende pelo site: ${site}`);
-            copiar.textContent = 'Copiado';
-          } catch {
-            copiar.textContent = 'Não consegui copiar';
-          }
+        // "No ar" só depois de conferido, do navegador do dono (`lib/noAr.ts`). Até
+        // abrir, o endereço vai em texto e sem botão de divulgar: link que não abre,
+        // mandado no WhatsApp no minuto mais animado, é o pior primeiro contato.
+        const bloco = el('div');
+        bloco.setAttribute('aria-live', 'polite');
+        bloco.append(el('p', { className: 'aviso' }, 'Um instante: abrindo o seu endereço para ver se ele já responde.'));
+        pronto.append(bloco);
+        let aviso: HTMLElement | null = null;
+        const espera = esperarNoAr(site, {
+          aoAbrir: () => {
+            titulo.textContent = 'O seu site está no ar.';
+            bloco.replaceChildren(...blocoNoAr(site));
+          },
+          aoFalhar: () => {
+            titulo.textContent = 'O seu site está quase no ar.';
+            const conferir = el('button', { type: 'button' }, 'Conferir agora');
+            conferir.addEventListener('click', () => espera.conferirAgora());
+            aviso = el('p', { className: 'aviso' },
+              'O endereço ainda não abre — na primeira vez, pode levar um tempo. Esta tela confere ' +
+              'sozinha e muda quando abrir. Até lá, não divulgue o link: quem clicar agora vê uma página de erro.');
+            bloco.replaceChildren(el('p', { className: 'endereco' }, semProtocolo(site)), aviso,
+              el('div', { className: 'acoes' }, conferir));
+          },
+          aoDesistir: () => {
+            if (aviso) {
+              aviso.textContent = 'O endereço ainda não abriu. Pode fechar esta tela: o endereço é o mesmo, e o ' +
+                '"Ver meu site" do painel leva até ele. O botão abaixo confere de novo.';
+            }
+          },
         });
-        const mensagem = `Agora dá para marcar horário pelo site: ${site}`;
-        pronto.append(el('div', { className: 'acoes' },
-          el('a', { href: site, target: '_blank', rel: 'noopener' }, 'Abrir o meu site'),
-          el('a', { href: `https://wa.me/?text=${encodeURIComponent(mensagem)}`, target: '_blank', rel: 'noopener' },
-            'Mandar no WhatsApp'),
-          copiar,
-        ));
       } else {
         pronto.append(el('p', { className: 'dica' },
           'O endereço do site aparece aqui quando o domínio do produto estiver configurado.'));
@@ -507,6 +525,31 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
         `Você já está dentro do painel. Da próxima vez, entre com o WhatsApp ${telefone} e a senha que escolheu.`));
       pronto.hidden = false;
       pronto.scrollIntoView({ block: 'start' });
+    }
+
+    const semProtocolo = (site: string) => site.replace(/^https?:\/\//, '');
+
+    /** O endereço que abre: o link e os botões de divulgar. Só depois de conferido. */
+    function blocoNoAr(site: string): Node[] {
+      const copiar = el('button', { type: 'button' }, 'Copiar para a bio do Instagram');
+      copiar.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(`Agende pelo site: ${site}`);
+          copiar.textContent = 'Copiado';
+        } catch {
+          copiar.textContent = 'Não consegui copiar';
+        }
+      });
+      const mensagem = `Agora dá para marcar horário pelo site: ${site}`;
+      return [
+        el('a', { href: site, target: '_blank', rel: 'noopener', className: 'endereco' }, semProtocolo(site)),
+        el('div', { className: 'acoes' },
+          el('a', { href: site, target: '_blank', rel: 'noopener' }, 'Abrir o meu site'),
+          el('a', { href: `https://wa.me/?text=${encodeURIComponent(mensagem)}`, target: '_blank', rel: 'noopener' },
+            'Mandar no WhatsApp'),
+          copiar,
+        ),
+      ];
     }
 
     form.addEventListener('submit', async (e) => {
