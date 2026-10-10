@@ -87,6 +87,11 @@ o registro.br não é um deles. O caminho é o DNS na Cloudflare (`ARQUITETURA-C
 §7.4). Para o domínio próprio do cliente, o certificado por endereço continua valendo: ali o
 endereço é escrito à mão.
 
+*10/10/2026: em produção, o certificado do painel saiu exatamente assim — por endereço, ao
+adicioná-lo no EasyPanel. Não desmente o parágrafo acima: o curinga dos subdomínios continua
+dependendo do DNS-01. E o domínio pai, por ora, é um domínio pessoal do dono, provisório
+(`PENDENCIAS-ABERTAS.md` §2.31).*
+
 - **Subdomínio nosso** — um registro DNS curinga `*.fadeline.com.br` aponta para o
   IP do VPS. Cliente novo não dá trabalho nenhum.
 - **Domínio próprio do cliente** — registrar, apontar, adicionar o host. ~15 minutos

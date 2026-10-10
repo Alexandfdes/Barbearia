@@ -1,6 +1,8 @@
 # Roteiro — pôr o Postgres no ar para o Bayron
 
 > Escrito em 13/09/2026. **Ainda não executado.**
+> ⚠️ **Atualizado em 10/10/2026: o app novo subiu ANTES da migração, com o banco vazio, e o
+> §4.2 não roda mais como está escrito. Leia o §0.2 antes de qualquer passo.**
 > Atualizado em 25/09/2026: as migrations 0004 e 0005, o passo 4.8 (a galeria do Bayron),
 > e dois defeitos que derrubariam o dia, já consertados (§0.1).
 > Companheiro de `ESTADO-ATUAL.md` §9 (a fila) e `PENDENCIAS-ABERTAS.md` §2.5 (o ensaio
@@ -35,6 +37,63 @@ mudam o que conferir no §5.
   barbeiro a tentar fechar uma comanda.
 
 ---
+
+### 0.2 ⚠️ O app novo subiu antes da migração — 10/10/2026
+
+Em 10/10/2026 o app novo foi para o ar no EasyPanel, construído da `main` — que recebeu a
+`monorepo` em 09/10 —, com um Postgres só dele e **o banco vazio**. No boot, o
+`scripts/startup.mjs` aplicou as dez migrations. Isso quebra a ordem do §4: a `0001` já rodou
+sem dados, e a carga **recusa** — *"a coluna tenant_id já existe, ou seja, a 0001 já rodou"*.
+
+**Ensaiado em 10/10/2026 contra PostgreSQL 16, pelos scripts de verdade** — não pelo atalho do
+teste de carga —, conectado como superusuário, como em produção:
+
+| Passo | Resultado |
+|---|---|
+| Banco vazio e boot completo — a produção de hoje | 10 migrations, nenhuma barbearia |
+| A carga nesse banco | **recusa**, com a explicação |
+| Apagar e recriar o banco, com o papel `barbearia_app` já existente no servidor | — |
+| `--ate=0000`, a carga, o boot completo | a barbearia 1 é o `bayron`, as linhas com `tenant_id`; pelo papel do app, a barbearia 1 vê os agendamentos e a 2 não vê nenhum |
+| A galeria, rodada duas vezes | 20 fotos na primeira; *"nada a fazer"* na segunda |
+
+A pergunta que a sessão de 10/10 deixou — se a `0003` aguenta o papel já existindo, já que
+papel é do servidor e sobrevive ao banco apagado — está respondida: aguenta (`IF NOT EXISTS`),
+e a `0004` também. O SQLite do ensaio é o mesmo de mentira do teste de carga: **dado torto do
+banco real só aparece com o banco real** — ensaie com uma cópia dele antes do dia (§2).
+
+**A ordem do dia, revista** — o resto do §4 continua valendo:
+
+1. **Antes do dia:** o backup do app novo saindo da VPS (`PENDENCIAS-ABERTAS.md` §3.3), e o
+   banco de produção conferido vazio — nenhuma barbearia de teste. A barbearia 1 tem de ser o
+   Bayron: é ela que guarda o caminho antigo das fotos (`src/lib/uploads.ts`).
+2. **Montar o volume do site antigo no app novo**, o que redeploya o app. Fica antes de tudo de
+   propósito: o boot reaplica o que faltar, e aqui nada falta.
+3. **Parar o site antigo** (§4.0). Daqui em diante o Bayron está fora do ar.
+4. **Apagar e recriar o banco do app**, conectado ao banco `postgres` do mesmo servidor
+   (`DROP DATABASE … WITH (FORCE)`, depois `CREATE DATABASE … OWNER …`).
+5. **No console do app:** §4.2, §4.3 — com o caminho do SQLite no volume montado — e §4.4.
+   ⚠️ **Sem reiniciar o app no meio:** o boot aplicaria todas as migrations, a carga recusaria
+   de novo, e volta-se ao passo 4.
+6. O §4.5 muda: o endereço sem `www` já resolve pelo slug, mas o com `www` não — o app tira o
+   slug do primeiro pedaço do endereço (`src/lib/tenant.ts`). O `UPDATE` do §4.5 passa a
+   apontar para o endereço com `www`.
+7. **Mover o endereço:** tirá-lo do serviço antigo e adicioná-lo ao app novo — o certificado
+   sai na hora (`ARQUITETURA-COBRANCA-V1.md` §7.4). Depois, do §4.6 ao §4.8. As fotos do volume
+   antigo vão para o novo com o mesmo caminho: a barbearia 1 mantém o caminho legado.
+
+*Ensaiada e não recomendada:* um banco novo ao lado, e o app trocando de banco no fim. Funciona
+igual — mas o banco está vazio, então apagá-lo não perde nada, e um banco com outro nome deixaria
+para trás o que estiver configurado com o nome antigo.
+
+**O serviço antigo do Bayron constrói de outro repositório** — o `Alexandfdes/Barbearia-Bayron`,
+com a `main` em `e50926a`, de 10/07 (visto no EasyPanel em 10/10/2026). Por isso o merge do
+monorepo na `main` daqui não o tocou (`ESTADO-ATUAL.md` §9.3), e reconstruí-lo continua
+possível: o caminho de volta tem código, não só imagem. Até a migração, nada novo naquele
+repositório.
+
+⚠️ **O caminho de volta encurta** (§6): até o primeiro agendamento feito no app novo, voltar é
+devolver o endereço e religar o site antigo. Depois dele, o que entrou no app novo não existe no
+SQLite.
 
 ## 1. O que muda, e o que NÃO muda
 
@@ -177,6 +236,8 @@ Confirme, **antes do dia**:
 - [ ] o container do app enxerga esse Postgres pelo nome do serviço na rede do EasyPanel;
 - [ ] a `DATABASE_URL` montada com esses dados conecta;
 - [ ] **esse usuário pode criar papel** (`CREATEROLE` ou superusuário) — ver abaixo.
+
+*10/10/2026: ✅ existe — um Postgres só do app, e o usuário dele cria papel (§0.2).*
 
 #### O item do `CREATEROLE`, e por que ele entrou aqui em 13/09/2026
 

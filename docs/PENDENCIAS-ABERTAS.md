@@ -1250,7 +1250,7 @@ coisa falsa.
 Guarda: `tests/textos-do-painel.test.ts`, com controle de que o topo do site lê os dois campos
 — sem ele, o caso do aviso passaria mesmo se o topo parasse de ler.
 
-### 2.29 ✅ `[TÉCNICO]` Dependências com falha de segurança conhecida — RESOLVIDO na `monorepo` em 09/10/2026; a `main` continua com elas
+### 2.29 ✅ `[TÉCNICO]` Dependências com falha de segurança conhecida — RESOLVIDO na `monorepo` em 09/10/2026 e na `main` no mesmo dia; o site do Bayron no ar continua com elas
 
 O `npm audit` de 09/10/2026 apontava, nos dois apps, falhas críticas e altas no que vai para
 produção: o Astro 6 (XSS, SSRF pelo cabeçalho `Host`, desvio de autorização, execução remota
@@ -1289,6 +1289,12 @@ com a mesma atualização na `main`, antes dela.
 **`astro check`:** com o `@types/node`, de 674 erros para 356, quase todos em dois arquivos — os
 scripts de `admin/dia/[date].astro` (264) e de `cadastrar.astro` (78). Erro novo em qualquer
 outro arquivo agora aparece.
+
+⚠️ **10/10/2026:** a `main` recebeu a correção com o merge do PR #1, em 09/10, e o app novo no
+ar roda dela. **O site do Bayron, não** — e nunca rodou da `main` deste repositório, ao
+contrário do que este item supunha: o serviço dele constrói do `Alexandfdes/Barbearia-Bayron`,
+parado em 10/07 com o Astro 6.3.7 (visto no EasyPanel em 10/10; `ROTEIRO-MIGRACAO-PRODUCAO.md`
+§0.2). Fecha com a migração, ou com a mesma atualização naquele repositório.
 
 ### 2.30 ✅ `[TÉCNICO]` Um script no site de uma barbearia age no painel de outra — o CSRF entre subdomínios — RESOLVIDO em 09/10/2026
 
@@ -1338,6 +1344,50 @@ Guarda: `tests/origem.test.ts` — o que passa e o que não passa, com o caso re
 `Origin: null`, o domínio de cima e o nome que só começa igual; e o lugar da conferência no
 middleware, antes do desvio e da barbearia.
 
+### 2.31 🔴 `[TÉCNICO]` O cadastro não pode abrir no ar de hoje — conferido em 10/10/2026
+
+Desde 10/10 o app está no ar no EasyPanel, com o cadastro fechado: sem `CADASTRO_ABERTO`, o
+`/cadastrar` responde 404, como deve. Uma sessão de 10/10 registrou a intenção de abri-lo mesmo
+com o §2.30 em aberto — mas o §2.30 já está fechado no ar: a `main` que o EasyPanel constrói
+contém o conserto (conferido no GitHub nesta data). O que impede de abrir é outra coisa, e
+cada item abaixo foi conferido no código ou nos documentos:
+
+1. **O site que nasce no cadastro não abre com cadeado.** O certificado sai por endereço,
+   quando alguém o adiciona ao serviço no EasyPanel — foi assim com o do painel. O subdomínio
+   que o cadastro cria ninguém adiciona. O DNS curinga já existe; falta o **certificado
+   curinga**, que só sai pelo desafio DNS-01 (`ARQUITETURA-COBRANCA-V1.md` §7.4). E a tela
+   final do cadastro diria *"o seu site está no ar"* assim mesmo (`JORNADA-DO-BARBEIRO.md`
+   §2.8). A sessão de 10/10 propôs o contrário: um clique no EasyPanel por barbearia nova, sem
+   Cloudflare. Funciona — e é o que o `ARQUITETURA-COBRANCA-V1.md` §7.4 rejeitou em 09/10: o
+   cadastro das 3 da manhã fica sem site até alguém clicar. Se for esse o caminho, a decisão é
+   sua, e a tela final do cadastro muda antes. *Não conferido abrindo um subdomínio novo — o acesso desta sessão ao domínio foi
+   bloqueado. O teste: abrir no navegador um subdomínio que ninguém adicionou. Se abrir com
+   cadeado, este item está errado.*
+2. **Ninguém consegue pagar.** A tela de assinatura diz *"Ainda não dá para pagar por aqui"*
+   (`src/pages/admin/assinatura.astro`): toda barbearia que entrar sai do ar no 11º dia (§4.14).
+3. **O e-mail não sai.** Sem `SMTP_URL`, o envio em produção recusa (`src/lib/email.ts`): a
+   senha esquecida e os avisos do teste e da cobrança não chegam (§4.17).
+4. **O backup não sai da VPS.** O diário grava em `/data/backups`, no mesmo disco, e só sobe
+   para fora com as variáveis `S3_*` (`scripts/backup.mjs`), que o app novo não tem. O backup
+   de volume do EasyPanel também grava na própria VPS. Perdido o disco, vai tudo (§3.3).
+
+E dois que não são código:
+
+- **O domínio é provisório.** O `DOMINIO_BASE` de produção é um domínio pessoal do dono, não o
+  `fadeline.com.br` — que continua sem registro, com o nome ainda provisório (§0.1). Barbearia
+  que entrar agora ganha um endereço que vai mudar, e endereço de barbearia vai para Instagram,
+  cartão de visita e Google: trocar depois quebra o que ela já divulgou.
+- **Os termos e o CNPJ** (§1.2 e `ARQUITETURA-COBRANCA-V1.md` §11).
+
+**Para ligar o `CADASTRO_ABERTO=1`:** o certificado curinga provado com um subdomínio que
+ninguém adicionou à mão; a cobrança de ponta a ponta no sandbox (§4.14); o `SMTP_URL`, com SPF
+e DKIM, e uma senha esquecida recuperada de verdade; o backup chegando fora da VPS, e uma
+restauração dele; o domínio definitivo; os termos na tela.
+
+*Rejeitado:* abrir agora e ir consertando. No autoatendimento ninguém olha a porta: quem entrar
+encontra o site sem cadeado no primeiro minuto e fora do ar no 11º dia — e a primeira
+impressão de um produto novo não se refaz.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -1358,6 +1408,9 @@ passa nos outros. Clicar dez vezes no EasyPanel não é processo.
 ### 3.3 🟠 `[TÉCNICO]` Backup por cliente — o teste de restauração já foi feito
 
 O backup diário com upload off-site já funciona por instância.
+
+⚠️ **10/10/2026: no app novo em produção, não.** As variáveis `S3_*` não foram configuradas,
+e o backup fica só no disco da VPS (§2.31).
 
 ⚠️ **Correção de 13/09/2026:** este item pedia "um teste de restauração de verdade, feito
 uma vez, antes do primeiro cliente pago". **Ele foi feito — duas vezes — e a seção não
@@ -1949,6 +2002,41 @@ a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`
 > abrir antes disso:** hoje ninguém consegue pagar, e toda barbearia que se cadastrasse
 > sairia do ar no 11º dia.
 
+> **10/10/2026 — reconferido por outra sessão, na documentação e na conta sandbox da Asaas:**
+>
+> - O **Checkout** aceita assinatura no cartão com a primeira cobrança numa data futura —
+>   `chargeTypes: RECURRENT` com `subscription.nextDueDate`, o cartão digitado na página da
+>   Asaas. É o que a leitura de 27/09 já dizia, de novo pela documentação: **o sandbox não foi
+>   testado**, e as três perguntas abaixo continuam abertas.
+> - A confirmação chega pelos eventos `CHECKOUT_PAID` e `SUBSCRIPTION_CREATED`, nunca pela URL
+>   de retorno. Se o `CHECKOUT_PAID` chega num cadastro em que nada é cobrado no dia é
+>   justamente a primeira das três perguntas.
+> - **O que falta para testar não é o domínio.** A chave do sandbox existe desde 10/10, sem
+>   permissão de saque, e já há endereço público com certificado — o do painel — para receber
+>   o webhook. Falta a rota do webhook, que não existe no código.
+> - O cartão cai na conta em **32 dias**; Pix e boleto, em 1 dia útil. E a taxa do cartão é
+>   R$ 3,48 numa mensalidade de R$ 100, não R$ 1,99 (`ARQUITETURA-COBRANCA-V1.md` §4).
+> - **A Asaas avisa o cliente sozinha:** oito notificações nascem ligadas em cada cliente,
+>   inclusive ligação telefônica na cobrança vencida, e não há chave geral — só por cliente,
+>   pela API. Se o app é quem avisa, o código que cria o cliente na Asaas tem que desligá-las;
+>   senão o dono recebe dois avisos de cada coisa.
+> - Chave de API morre sozinha: desabilitada com 3 meses sem uso, expirada com 6. A do sandbox
+>   vence antes de ser usada se o código demorar.
+>
+> **Três decisões suas, abertas em 10/10/2026 — com a proposta de cada uma:**
+>
+> 1. *Cartão ou Pix Automático.* Os 32 dias não decidem: atrasam o primeiro mês uma vez, não
+>    todo mês. A diferença de tarifa é de R$ 1,49 por cliente por mês. **Proposta: o cartão no
+>    lançamento**, como decidido em 24/09 — dois meios são duas costuras para provar, e se o
+>    Checkout aceita Pix Automático com a primeira cobrança futura ninguém conferiu.
+> 2. *CNPJ antes do primeiro pagante.* **Proposta: sim.** A conta PJ da Asaas exige
+>    (`ARQUITETURA-COBRANCA-V1.md` §11), os termos precisam dizer quem responde pelos dados
+>    (§1.2), e há a nota fiscal. É conversa com contador — inclusive sobre o MEI, que, pelo que
+>    se sabe, não cobre licença de software: confirmar com ele.
+> 3. *Quem avisa o dono — o app ou a Asaas.* **Proposta: o app**, que tem os avisos do teste e
+>    da cobrança desde 09/10, com as notificações da Asaas desligadas na criação de cada
+>    cliente. Depende do e-mail em produção (§4.17).
+
 > **08/10/2026** (`PLANO-PRODUTIZACAO.md` §13): o cartão é pedido **no fim do teste**, não no
 > cadastro; a cobrança mora num **módulo do app da barbearia** (`ARQUITETURA-COBRANCA-V1.md`
 > §2); e só há plano mensal no lançamento.
@@ -2254,6 +2342,9 @@ cliente (§2.11), e o ícone do Astro na aba de toda barbearia (`JORNADA-DO-BARB
 
 **Onda 2 — antes de abrir o cadastro público.**
 
+> ⚠️ **10/10/2026:** o app está no ar, com o cadastro fechado. Abrir é o fim desta onda, não o
+> começo — o que falta está no §2.31.
+
 > ⚠️ **08/10/2026:** o desenho mudou (`PLANO-PRODUTIZACAO.md` §13). Os itens 4 e 5 abaixo
 > valem com um layout, a cor e o e-mail no cadastro, e o cartão no fim do teste.
 No autoatendimento a porta abre sem ninguém olhando, então nada aqui é opcional.
@@ -2273,6 +2364,7 @@ o teste que acaba sem cartão segue os mesmos 3 dias — confirmado no mesmo dia
    qualquer código da onda. É o único ponto que pode desmentir o desenho do cartão
    (`JORNADA-DO-BARBEIRO.md` §2.5). E abrir a conta não depende de código: se exigir CNPJ,
    é prazo que corre por fora (`ARQUITETURA-COBRANCA-V1.md` §11) — melhor começar já.
+   *10/10/2026: a chave do sandbox existe; a prova não foi feita (§4.14).*
 1. ~~Os dois que já mordem hoje e tinham ficado fora de todas as ondas de 15/09: os centavos
    do preço (§2.15) e o combo em qualquer dia (§2.16). Junto, os três de 25/09 que são uma
    linha cada: a semana do painel (§2.22), o login só com JSON (§2.23) e o resumo do combo

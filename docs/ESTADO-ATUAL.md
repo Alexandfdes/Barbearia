@@ -16,12 +16,14 @@
 ## 1. O essencial em cinco linhas
 
 1. Os dois projetos viraram **um repositório** com dois aplicativos.
-2. Na branch `monorepo`, o código é **Postgres, multi-tenant e com RLS** — porte aplicado
-   em 06/09, RLS e endereço por barbearia em 11/09 (§4). **A produção não:** o site do
-   Bayron roda a `main`, ainda em SQLite, até o `ROTEIRO-MIGRACAO-PRODUCAO.md` ser
-   executado. *(Corrigido em 27/09/2026 — esta linha dizia que o porte não tinha sido
-   aplicado.)*
-3. Todo esse trabalho está na branch **`monorepo`**. A `main` não foi tocada.
+2. O código é **Postgres, multi-tenant e com RLS** — porte aplicado em 06/09, RLS e endereço
+   por barbearia em 11/09 (§4). **Desde 10/10/2026 o app novo está no ar no EasyPanel, com o
+   banco vazio.** O site do Bayron continua no serviço antigo, que constrói de outro
+   repositório — o `Alexandfdes/Barbearia-Bayron`, em SQLite —, até a migração; o que mudou nela
+   com o app já no ar está no `ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2. *(Corrigido em 27/09/2026 —
+   esta linha dizia que o porte não tinha sido aplicado.)*
+3. ~~Todo esse trabalho está na branch **`monorepo`**. A `main` não foi tocada.~~ A `main`
+   recebeu a `monorepo` em 09/10/2026 (PR #1) e é dela que o EasyPanel constrói.
 4. O site do Bayron está **no ar** e não foi afetado por nada disto.
 5. Antes de mexer, leia as três skills em `.claude/skills/` — são regras que já
    custaram erro aqui.
@@ -323,8 +325,9 @@ Lista completa e priorizada em `PENDENCIAS-ABERTAS.md`. Os que travam mais:
 | ✅ | ~~As migrations plantam os dados do Bayron em todo banco novo~~ — **sem objeto desde 13/09**: as migrations de SQLite saíram do repositório e as de Postgres não inserem dado de barbearia nenhum | `PENDENCIAS-ABERTAS.md` §4.6 |
 | ✅ | ~~**`shortName === "Bayron"` decide o que aparece no site**~~ — em dez lugares, não oito; desde 09/10 decide o **endereço**, que o dono não edita, numa função só (`lib/bayron.ts`). O conteúdo do Bayron continua cravado no repositório | `PENDENCIAS-ABERTAS.md` §4.7 |
 | 🟠 | **Não existe uma linha de código sobre cobrança.** Desde 08/10 existem o teste de 7 dias, a carência e o site fora do ar — com o aviso e o WhatsApp da barbearia, não 404 —, mas ninguém consegue pagar: falta a Asaas. O cadastro não abre antes | `PENDENCIAS-ABERTAS.md` §4.14 |
+| 🔴 | **O cadastro não pode abrir no ar de hoje** (conferido em 10/10): o subdomínio que nasce no cadastro não tem certificado, ninguém consegue pagar, o e-mail não sai e o backup não sai da VPS. E o domínio em uso é provisório | `PENDENCIAS-ABERTAS.md` §2.31 |
 | ✅ | ~~**Um script no site de uma barbearia age no painel de outra.**~~ Fechado em 09/10: o middleware recusa, antes de qualquer rota, a requisição que muda dado e não veio do próprio endereço. Sobra a defesa estrutural — o painel num domínio só dele —, registrada e não feita | `PENDENCIAS-ABERTAS.md` §2.30 |
-| 🔴 | **A produção roda o Astro 6.3.7, com falhas críticas conhecidas.** A `monorepo` foi para o Astro 7 em 09/10; a `main`, que é o site do Bayron no ar, trava as versões com falha. Fecha com a migração ou com a mesma atualização na `main` | `PENDENCIAS-ABERTAS.md` §2.29 |
+| 🔴 | **O site do Bayron no ar roda o Astro 6.3.7, com falhas críticas conhecidas.** A `main` deste repositório tem o Astro 7 desde 09/10 (PR #1), e o app novo, no ar desde 10/10, também. O site do Bayron constrói de outro repositório, o `Alexandfdes/Barbearia-Bayron`, parado em 10/07. Fecha com a migração do Bayron, ou com a mesma atualização naquele repositório | `PENDENCIAS-ABERTAS.md` §2.29 e `ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2 |
 | 🟠 | **O e-mail não sai em produção.** Desde 09/10 existem a senha nova por e-mail, os avisos do teste e da cobrança e o e-mail de boas-vindas — e falta o provedor de envio, que depende do domínio: o DNS na Cloudflare, com SPF e DKIM. Sem ele, o sistema diz que não está funcionando em vez de fingir | `PENDENCIAS-ABERTAS.md` §4.17 |
 | 🟠 | **Fuso por barbearia**: `TZ_BARBEARIA` vale para o processo inteiro, e o passo 6 já põe várias barbearias no mesmo processo. Trava vender fora do fuso de Fortaleza | `PENDENCIAS-ABERTAS.md` §2.1 |
 | ✅ | ~~Timezone escrito em 20 arquivos como constante~~ — centralizado em 10/09 em `src/lib/timezone.ts`, com teste-guarda. **Sobrou o fuso por barbearia**, que só morde no passo 6 | `PENDENCIAS-ABERTAS.md` §2.1 |
@@ -349,6 +352,7 @@ dono não reparou vira o preço no site dele.
 
 | Quando | O quê |
 |---|---|
+| 10/10 | **O app novo no ar, e o que isso mudou** — trazido de duas sessões de 10/10 e conferido nesta. A `main` recebeu a `monorepo` em 09/10 (PR #1; conferido no GitHub: contém o conserto do `PENDENCIAS-ABERTAS.md` §2.30), e o EasyPanel constrói dela, com o banco vazio. **O roteiro do Bayron deixou de rodar como estava escrito:** o boot aplicou as dez migrations, e a carga recusa depois da 0001. **Ensaiado contra PostgreSQL 16, pelos scripts de verdade:** apagar o banco e refazer 0000 → carga → resto funciona com o papel `barbearia_app` já existente, e a galeria é idempotente (`ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2). **A taxa da Asaas no cartão estava trocada** nestes documentos: 2,99% + R$ 0,49, não 1,99% — R$ 3,48 numa mensalidade de R$ 100 —, e o cartão cai na conta em 32 dias (`ARQUITETURA-COBRANCA-V1.md` §4). **O cadastro não pode abrir**, por quatro motivos conferidos no código (`PENDENCIAS-ABERTAS.md` §2.31). |
 | 09/10 | **Um script no site de uma barbearia não age mais no painel de outra** (`PENDENCIAS-ABERTAS.md` §2.30). O middleware recusa, antes de qualquer rota, a requisição que muda dado e não veio do próprio endereço — pela `Origin`, comparando só o nome, porque o esquema muda atrás do proxy (`src/lib/origem.ts`). **Verificado contra o build:** o ataque reproduzido mais cedo, agora recusado e registrado no log — no build anterior, o agendamento cancelado; o painel cancelando, enviando foto e os roteiros de ponta a ponta do e-mail (47) e do primeiro minuto (28) passando, sem nenhuma recusa. 63 arquivos, **639 de 639** contra PostgreSQL 16.13 (sem banco: 420 passam, 219 pulam); 8 reintroduções, as 8 vermelhas; o `astro check` com o mesmo conjunto de erros de antes |
 | 09/10 | **A página "Como fica" com as quatro telas** (`PENDENCIAS-ABERTAS.md` §4.10). No lugar dos recados *"Coloque a imagem em…"*, os prints de uma barbearia fictícia montada para isso — o site, o agendamento, a agenda do dia e o relatório —, tirados contra o build. ⚠️ O print do site sai sem foto, e o texto ao lado promete *"suas fotos"*. De carona, no relatório: a projeção do mês dizia *"(superaa meta)"* — a frase era montada em pedaços —, visto no print. **Verificado:** o `/demo` servido pelo build do site de vendas, as quatro imagens carregando e nenhum erro de JavaScript; 62 arquivos, **619 de 619** contra PostgreSQL 16.13 (sem banco: 400 passam, 219 pulam), e a frase em pedaços de volta deixa o teste vermelho |
 | 09/10 | **O conteúdo do Bayron pelo endereço, e não pelo nome** (`PENDENCIAS-ABERTAS.md` §4.7). Dez lugares comparavam o nome curto — que o dono edita em Configurações — com "Bayron": num navegador, contra o build anterior, uma barbearia `impostor` chamada "Bayron" servia o FAQ, os depoimentos, o logo, a foto do topo e a prévia dele. Agora `ehOBayron()`, pelo `slug`, nos dez; o cadastro recusa o endereço `bayron`; e o `src/config.ts` perdeu as constantes mortas do Bayron, o número falso inclusive. **Verificado:** 62 arquivos, **617 de 617** contra PostgreSQL 16.13 (sem banco: 398 passam, 219 pulam); 6 reintroduções, as 6 vermelhas; e servido o build: o Bayron com tudo, o impostor sem nada |
@@ -458,6 +462,11 @@ EasyPanel é o campo de caminho/contexto do build.
 **Esta é a única coisa que pode derrubar o site do Bayron.** Se a `main` receber
 o monorepo antes do ajuste, o próximo deploy falha por não achar `package.json`
 na raiz. Detalhe em `MONOREPO.md` §3.
+
+*10/10/2026: o risco deste item não existia como escrito. O serviço do Bayron no EasyPanel
+constrói de outro repositório, o `Alexandfdes/Barbearia-Bayron` (a `main` de lá em `e50926a`), e
+não da `main` deste — visto no painel em 10/10. A `main` daqui recebeu o monorepo em 09/10 sem
+tocar no site dele (`ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2).*
 
 ### 9.4 Só então, mesclar na `main`
 

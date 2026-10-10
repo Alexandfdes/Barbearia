@@ -40,10 +40,16 @@ estão aplicados: Postgres, a tabela `tenants` com `tenant_id` nas tabelas de da
 a sessão e o endereço decidindo a barbearia. Falta a exclusion constraint do passo 7. O
 estado de cada passo: `docs/ESTADO-ATUAL.md` §4.
 
-⚠️ **A produção não tem nada disso.** O site do Bayron roda a `main` — último commit em
-10/07/2026, anterior ao monorepo e ainda em SQLite. A `monorepo` tem tudo dela e mais, e
-nada foi mesclado (conferido em 27/09/2026). O caminho para o ar é
-`docs/ROTEIRO-MIGRACAO-PRODUCAO.md`, ainda não executado.
+⚠️ **A `main` recebeu a `monorepo` em 09/10/2026** (PR #1), e desde 10/10 o app novo roda
+dela no EasyPanel — com o banco vazio. **O site do Bayron, não:** o serviço dele constrói de
+outro repositório, o `Alexandfdes/Barbearia-Bayron` (a `main` de lá parou em `e50926a`, de
+10/07), em SQLite e Astro 6, até o `docs/ROTEIRO-MIGRACAO-PRODUCAO.md` ser executado — e o §0.2
+de lá diz o que mudou com o app já no ar.
+
+⚠️ **Os dois repositórios estão públicos**, este e o `Barbearia-Bayron` (conferido em
+10/10/2026: o clone sem credencial funciona). Enquanto estiverem, nada de credencial, endereço
+de servidor, usuário de banco ou configuração de produção em `docs/` — isso mora no projeto do
+claude.ai, em `claude/ESTADO-EASYPANEL-FADELINE.md`.
 
 ⚠️ **`migracao-postgres/` e `migracao-tenants/`, na raiz, são entregas antigas** — o
 conteúdo já está aplicado em `apps/barbearia/`, e a `0001` de lá diverge da de `drizzle/`
