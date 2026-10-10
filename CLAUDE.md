@@ -114,6 +114,13 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **Migrations:** `apps/barbearia/drizzle/NNNN_nome.sql`, escritas à mão e aplicadas por
   `scripts/startup.mjs`, que confere o hash de cada uma — e que o `npm run dev` roda antes de
   subir (`predev`). Não há journal do Drizzle, e `db:push` e `db:generate` recusam de propósito.
+- **CI:** `.github/workflows/testes.yml` roda a suíte com banco a cada push na `main` e na
+  `monorepo` — e teste pulado reprova. Ele só manda no deploy depois do que o
+  `docs/PENDENCIAS-ABERTAS.md` §3.8 pede.
+- **Cobrança:** `apps/barbearia/src/lib/cobranca.ts`. Sem `ASAAS_API_KEY`, desligada; sem
+  `ASAAS_AMBIENTE=producao`, sandbox. ⚠️ **Data em SQL cru vai como texto ISO e volta como
+  texto:** o Drizzle desliga a conversão de data do driver na conexão inteira — parâmetro `Date`
+  estoura, e `timestamptz` chega como string (`comoData`, no mesmo arquivo).
 - **E-mail no desenvolvimento** vai para `apps/barbearia/data/emails/`, um `.txt` por e-mail —
   é ali que está o link da senha nova. Com `SMTP_URL`, sai de verdade (`src/lib/email.ts`).
 - **Dependências:** o npm 10 quebra ao mexer nelas (`edgesOut`). Gere o lock com
