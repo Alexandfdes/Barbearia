@@ -1,5 +1,10 @@
 # Plano de mudanças — `/a/{token}` V2
 
+> <!-- STATUS-CONFERIDO-06/09 -->
+> **✅ IMPLANTADO.** Conferido em 06/09/2026: `apps/barbearia/src/pages/a/[token].astro`
+> existe. Documento histórico — descreve o plano, não o estado atual.
+> Onde o código está hoje: `ESTADO-ATUAL.md`.
+
 > Documento de planejamento das alterações na tela pública onde o cliente vê e gerencia o agendamento (`src/pages/a/[token].astro`). Versão atual em produção: V1 (deploy inicial).
 
 ## Objetivo

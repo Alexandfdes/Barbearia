@@ -1,0 +1,48 @@
+---
+/**
+ * O painel de uma barbearia FORA DO AR: uma tela só, sem a navegação.
+ *
+ * Com o teste ou a carência vencidos, o painel abre apenas a tela de assinatura
+ * (decisão de 08/10/2026, `docs/PLANO-PRODUTIZACAO.md` §13). A navegação do
+ * `AdminLayout` mostraria onze links que só levam de volta para cá — o dono
+ * clicaria em "Agenda do dia" e voltaria para a mesma tela, sem entender por quê.
+ */
+import '../styles/global.css';
+import { getSettings } from '../lib/settings';
+import { iconeDaAba } from '../lib/iconeDaAba.js';
+
+interface Props {
+  title?: string;
+  barberName: string;
+  /** Aceito para ter a mesma assinatura do `AdminLayout`; aqui não muda nada. */
+  role?: 'admin' | 'barber';
+}
+const { title = 'Assinatura', barberName } = Astro.props;
+const s = await getSettings();
+---
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href={iconeDaAba(s)} />
+    <title>{title} — {s.shortName}</title>
+  </head>
+  <body class="bg-slate-50 text-slate-800 min-h-screen font-sans">
+    <header class="h-16 bg-slate-900 text-slate-300 flex items-center gap-3 px-4 sm:px-6">
+      <span class="font-semibold text-white truncate">{s.shortName}</span>
+      <span class="ml-auto text-xs text-slate-400 truncate">{barberName}</span>
+      <button id="__logout" class="text-xs text-slate-400 hover:text-red-400 transition-colors">Sair</button>
+    </header>
+
+    <main><slot /></main>
+
+    <script>
+      document.getElementById('__logout')?.addEventListener('click', async () => {
+        await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        location.href = '/admin/login';
+      });
+    </script>
+  </body>
+</html>

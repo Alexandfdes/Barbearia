@@ -1,0 +1,576 @@
+---
+export const prerender = false;
+
+/**
+ * A tela de cadastro. Ver `api/cadastrar.ts` para o porquê de ela nascer
+ * fechada — e de morar aqui, e não no site de vendas.
+ *
+ * ⚠️ Os preços são perguntados AQUI, e essa é a decisão que mudou em 14/09/2026.
+ *
+ * O `PENDENCIAS-ABERTAS.md` §4.5 decidiu que serviço sugerido entra sem preço:
+ * "preço errado no ar é pior que preço faltando". A regra continua inteira — o
+ * que mudou foi o momento da pergunta. Antes o dono terminava o provisionamento
+ * com zero serviço e descobria depois, no painel, que precisava montar o
+ * catálogo. Agora ele preenche aqui e sai com o site funcionando.
+ *
+ * O que ele deixar em branco entra DESLIGADO. Nenhum "R$ 0,00" vai para o ar.
+ */
+import { CATALOGO_SUGERIDO } from '../lib/catalogoSugerido.js';
+import { NOME_PRODUTO } from '../lib/produto.js';
+/**
+ * As cores prontas — e as regras que elas cumprem — moram em
+ * `lib/coresDoCadastro.ts`. Qualquer cor, pronta ou a "outra", passa pela mesma
+ * derivação do servidor (`lib/accent.ts`), e a prévia mostra o resultado antes de
+ * gravar.
+ */
+import { CORES_DO_CADASTRO as CORES } from '../lib/coresDoCadastro.js';
+
+if (process.env.CADASTRO_ABERTO !== '1') {
+  return new Response('Not found', { status: 404 });
+}
+
+/**
+ * O resto do endereço, para a prévia mostrar o endereço INTEIRO que o barbeiro
+ * está escolhendo — `barbearia-do-ze.fadeline.com.br`, não só `barbearia-do-ze`.
+ * Vem da mesma variável que monta o link do site (`urlDoSite`, em `lib/tenant.ts`);
+ * sem ela (desenvolvimento sem `DOMINIO_BASE`), a prévia mostra só o começo.
+ */
+const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMINIO_BASE.trim()}` : '';
+---
+
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Criar a sua barbearia — {NOME_PRODUTO}</title>
+  <style is:global>
+    /*
+     * Escura, e com a paleta do SITE DE VENDAS — não a da barbearia.
+     *
+     * ⚠️ As regras de botão dos dois aplicativos são INVERTIDAS, e copiar a de
+     * um para o outro produz botão ilegível (`.claude/skills/barbearia-paleta`).
+     * Esta tela mora no app da barbearia mas é a porta do funil do produto: quem
+     * chega aqui veio da landing e vê a marca do produto, não a da
+     * barbearia dele — que nem existe ainda.
+     *
+     * Daí o botão ser verde CLARO com texto GRAFITE, e clarear no hover.
+     * Texto branco sobre #16a34a dá 3,30:1 e é proibido; o grafite #111827 dá
+     * 5,38:1, e o hover #22c55e sobe para 7,79:1.
+     *
+     * Os valores são cópia dos tokens de `apps/vendas/src/styles`. Não dá para
+     * importar: são dois aplicativos e dois builds de Tailwind.
+     */
+    :root {
+      color-scheme: dark;
+      --ground: #12161f;
+      --card: #1b2330;
+      --line: #2b3750;
+      --line-forte: #3c4a63;
+      --ink: #f5efe6;
+      --ink-suave: #c3ccd9;
+      --ink-fraco: #a8b3c2;
+      --brand: #16a34a;
+      --brand-hover: #22c55e;
+      --brand-claro: #4ade80;
+      --on-brand: #111827;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--ground); color: var(--ink);
+           font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .env { max-width: 640px; margin: 0 auto; padding: 32px 16px 64px; }
+    h1 { font-size: 26px; margin: 0 0 4px; font-weight: 600; color: var(--ink); }
+    .sub { color: var(--ink-fraco); margin: 0 0 28px; }
+    fieldset { border: 1px solid var(--line); background: var(--card); border-radius: 8px;
+               padding: 18px; margin: 0 0 16px; }
+    legend { font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+             color: var(--ink-fraco); padding: 0 6px; }
+    label { display: block; font-size: 12px; color: var(--ink-suave); margin: 12px 0 4px; }
+    input, textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--line-forte); border-radius: 6px;
+      font-size: 15px; background: var(--ground); color: var(--ink); font-family: inherit;
+    }
+    textarea { resize: vertical; }
+    input::placeholder, textarea::placeholder { color: #7b8798; }
+    input:focus, textarea:focus { outline: 2px solid var(--brand-claro); outline-offset: 1px;
+                                  border-color: var(--brand-claro); }
+    input:disabled { opacity: .45; }
+    .dica { font-size: 11px; color: var(--ink-fraco); margin-top: 4px; }
+    .linha { display: grid; grid-template-columns: 1fr 108px 92px; gap: 8px; align-items: end; }
+    .linha label { margin-top: 10px; }
+    @media (max-width: 520px) { .linha { grid-template-columns: 1fr 1fr; } .linha .nome { grid-column: 1 / -1; } }
+    /* ⚠️ Preenchimento CLARO com texto grafite. O oposto do app da barbearia. */
+    button { width: 100%; padding: 14px; border: 0; border-radius: 6px;
+             background: var(--brand); color: var(--on-brand); font-weight: 700; font-size: 14px;
+             letter-spacing: .08em; text-transform: uppercase; cursor: pointer;
+             transition: background-color .15s; }
+    button:hover { background: var(--brand-hover); }
+    button:disabled { opacity: .6; cursor: progress; }
+    .secundario { width: auto; margin-top: 10px; padding: 8px 14px; background: transparent;
+                  border: 1px solid var(--line-forte); color: var(--ink-suave); font-weight: 600;
+                  text-transform: none; letter-spacing: 0; font-size: 13px; }
+    .secundario:hover { background: var(--card); border-color: var(--brand-claro); color: var(--ink); }
+    .erro { background: #2a1414; border: 1px solid #7f1d1d; color: #fca5a5;
+            padding: 10px 12px; border-radius: 6px; margin-bottom: 14px; font-size: 14px; }
+    .ok { background: var(--card); border: 1px solid var(--brand); color: var(--ink);
+          padding: 16px; border-radius: 8px; }
+    .ok a { color: var(--brand-claro); }
+    code { background: var(--ground); border: 1px solid var(--line);
+           padding: 1px 5px; border-radius: 4px; font-size: 13px; color: var(--brand-claro); }
+    textarea:focus { outline: 2px solid var(--brand-claro); }
+    /* 112px e não 84: o seletor de hora do Chrome desenha um relógio dentro do
+       campo, e em 84px ele come o último dígito — "09:0(relógio)". */
+    .dia { display: grid; grid-template-columns: 22px 1fr 112px 20px 112px; gap: 8px;
+           align-items: center; padding: 6px 0; }
+    @media (max-width: 420px) {
+      .dia { grid-template-columns: 22px 1fr; row-gap: 4px; }
+      .dia input[type=time] { grid-column: 2; }
+      .dia .ate { display: none; }
+    }
+    .dia input[type=time] { padding: 7px 8px; }
+    .dia .nome { font-size: 14px; color: var(--ink-suave); }
+    .dia.fechado .nome, .dia.fechado .ate { color: #5c6a7e; }
+    .dia input[type=checkbox] { width: auto; accent-color: var(--brand); }
+    .ate { text-align: center; color: var(--ink-fraco); font-size: 12px; }
+
+    /* ── A cor ──────────────────────────────────────────────────────────────
+       ⚠️ O `button` desta folha é largo e verde (a regra do site de vendas).
+       As amostras de cor também são botões: tudo aqui desfaz aquela regra. */
+    .cores { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 6px; }
+    .cores .cor { width: 36px; height: 36px; padding: 0; border-radius: 50%;
+                  border: 2px solid var(--line-forte); text-transform: none; letter-spacing: 0; }
+    .cores .cor:hover { border-color: var(--ink-suave); }
+    .cores .cor[aria-checked="true"] { border-color: var(--ink); box-shadow: 0 0 0 3px var(--ground), 0 0 0 5px var(--ink); }
+    .cores .cor:focus-visible { outline: 2px solid var(--brand-claro); outline-offset: 3px; }
+    .cor-outra { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: var(--ink-suave); }
+    .cor-outra input { width: 40px; height: 36px; padding: 2px; cursor: pointer; }
+
+    /* A prévia imita o topo do SITE DA BARBEARIA — escuro, com a cor dela —,
+       não esta tela, que é do produto. Os valores são os de
+       `src/styles/global.css` (--color-dark, --color-cream, --color-gray). */
+    .previa { margin-top: 14px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+    .previa-rotulo { margin: 0; padding: 6px 12px; font-size: 10px; letter-spacing: .12em;
+                     text-transform: uppercase; color: var(--ink-fraco); background: var(--ground); }
+    .previa-site { background: #0a0a0a; padding: 22px 18px 20px; }
+    .previa-nome { margin: 0 0 4px; font: italic 15px/1.3 Georgia, "Times New Roman", serif; }
+    .previa-frase { margin: 0 0 14px; font: 600 22px/1.2 Georgia, "Times New Roman", serif; color: #e8e0d4;
+                    overflow-wrap: anywhere; }
+    .previa-botao { display: inline-block; padding: 10px 18px; border-radius: 4px; color: #fff;
+                    font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+
+    /* ── O fim ────────────────────────────────────────────────────────────── */
+    .fim h2 { font-size: 22px; margin: 0 0 6px; }
+    .fim .endereco { display: block; margin: 10px 0 14px; padding: 10px 12px; border-radius: 6px;
+                     background: var(--ground); border: 1px solid var(--line); color: var(--brand-claro);
+                     font-size: 15px; overflow-wrap: anywhere; text-decoration: none; }
+    .fim .acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .fim .acoes a, .fim .acoes button { width: auto; flex: 1 1 160px; text-align: center; padding: 10px 12px;
+                     border-radius: 6px; font-family: inherit; font-size: 13px; font-weight: 600;
+                     text-transform: none; letter-spacing: 0;
+                     background: transparent; border: 1px solid var(--line-forte); color: var(--ink); text-decoration: none; }
+    .fim .acoes a:hover, .fim .acoes button:hover { border-color: var(--brand-claro); background: var(--card); }
+    .fim ol { margin: 6px 0 18px; padding-left: 20px; }
+    .fim li { margin: 6px 0; color: var(--ink-suave); }
+    .fim li a { color: var(--brand-claro); }
+    .fim .teste { margin: 0 0 14px; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line);
+                  font-size: 13px; color: var(--ink-suave); }
+    .fim .teste strong { color: var(--ink); }
+    .fim .principal { display: block; text-align: center; padding: 14px; border-radius: 6px; background: var(--brand);
+                      color: var(--on-brand); font-weight: 700; font-size: 14px; letter-spacing: .08em;
+                      text-transform: uppercase; text-decoration: none; }
+    .fim .principal:hover { background: var(--brand-hover); }
+  </style>
+</head>
+<body>
+  <main class="env">
+    <h1>Criar a sua barbearia</h1>
+    <p class="sub">No fim, o seu site já está no ar — com os seus serviços e a sua cor.</p>
+
+    <div id="erro" class="erro" hidden></div>
+
+    <form id="form">
+      <fieldset>
+        <legend>A barbearia</legend>
+        <label for="nome">Nome da barbearia</label>
+        <input id="nome" required maxlength="120" placeholder="Barbearia do Zé" />
+
+        <label for="slug">Endereço do site</label>
+        <input id="slug" required maxlength="63" placeholder="barbearia-do-ze" />
+        <p class="dica">Vai ficar <code><span id="previa">barbearia-do-ze</span>{restoDoEndereco}</code>. Só minúsculas, números e hífen.
+          <strong>Escolha com calma: o endereço não muda depois</strong> — é o link que você vai mandar para os clientes.</p>
+
+        <label for="endereco">Rua e número</label>
+        <input id="endereco" required maxlength="200" placeholder="R. das Flores, 42" />
+
+        <label for="cidade">Cidade</label>
+        <input id="cidade" required maxlength="120" placeholder="Mossoró/RN" />
+      </fieldset>
+
+      <fieldset>
+        <legend>Você</legend>
+        <label for="dono">Seu nome</label>
+        <input id="dono" required maxlength="120" placeholder="José da Silva" />
+
+        <label for="telefone">Seu WhatsApp</label>
+        <input id="telefone" type="tel" inputmode="tel" required placeholder="(84) 99999-0000" />
+        <p class="dica">É com ele que você entra no painel, e é o que aparece no site para o cliente chamar.</p>
+
+        <label for="email">Seu e-mail</label>
+        <input id="email" type="email" inputmode="email" autocomplete="email" required maxlength="254"
+          placeholder="voce@gmail.com" />
+        <p class="dica">Para recuperar a senha e receber os avisos do teste. Não aparece no site.</p>
+
+        <label for="senha">Senha do painel</label>
+        <input id="senha" type="password" required minlength="8" autocomplete="new-password" />
+        <p class="dica">Mínimo de 8 caracteres.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Sua marca</legend>
+        <label for="frase">Frase do topo do site</label>
+        <input id="frase" maxlength="200" placeholder="Corte na régua, sem fila." />
+        <p class="dica">Opcional, e muda quando quiser. É a primeira coisa que o cliente lê; sem ela, o topo mostra o nome da barbearia.</p>
+
+        <label id="cor-rotulo">Cor da barbearia</label>
+        <div class="cores" role="radiogroup" aria-labelledby="cor-rotulo">
+          {CORES.map((c) => (
+            <button type="button" class="cor" role="radio" aria-checked="false"
+              data-cor={c.hex} aria-label={c.nome} title={c.nome} style={`background:${c.hex}`}></button>
+          ))}
+          <label class="cor-outra" for="cor-outra">Outra <input type="color" id="cor-outra" value="#0f766e" /></label>
+        </div>
+        <p class="dica">Vai nos botões e nos destaques do site.</p>
+
+        <div class="previa" aria-live="polite">
+          <p class="previa-rotulo">Como fica o topo do seu site</p>
+          <div class="previa-site">
+            <p class="previa-nome" id="previa-nome">Barbearia do Zé</p>
+            <p class="previa-frase" id="previa-frase">Barbearia do Zé</p>
+            <span class="previa-botao" id="previa-botao">Agendar horário</span>
+          </div>
+        </div>
+        <p class="dica" id="previa-aviso" hidden></p>
+
+        <label for="instagram">Instagram</label>
+        <input id="instagram" maxlength="120" placeholder="@suabarbearia" />
+        <p class="dica">Opcional. Vira o link do site — pode colar a URL inteira.</p>
+
+        <label for="sobre">Como você descreveria a sua barbearia?</label>
+        <textarea id="sobre" rows="3" maxlength="1000"
+          placeholder="Escreva do seu jeito, sem se preocupar com português."></textarea>
+        <p class="dica">Opcional. É o texto que o cliente lê antes de marcar.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Horário de funcionamento</legend>
+        <p class="dica" style="margin:0 0 6px">
+          ⚠️ Não é só texto do site: é daqui que saem os horários que o cliente
+          consegue escolher. Dia desmarcado não gera vaga nenhuma.
+        </p>
+        <div id="horarios"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Seus serviços e preços</legend>
+        <p class="dica" style="margin:0 0 4px">
+          Preencha o preço dos que você faz. O que ficar em branco não vai para o ar —
+          você liga depois no painel. Pode editar tudo quando quiser.
+        </p>
+        <div id="servicos">
+          {CATALOGO_SUGERIDO.map((s, i) => (
+            <div class="linha">
+              <div class="nome">
+                <label for={`sv-nome-${i}`}>Serviço</label>
+                <input id={`sv-nome-${i}`} value={s.nome} maxlength="80" />
+              </div>
+              <div>
+                <label for={`sv-preco-${i}`}>Preço R$</label>
+                <input id={`sv-preco-${i}`} inputmode="decimal" placeholder="—" />
+              </div>
+              <div>
+                <label for={`sv-min-${i}`}>Minutos</label>
+                <input id={`sv-min-${i}`} inputmode="numeric" value={String(s.minutos)} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <button type="button" id="mais-servico" class="secundario">+ outro serviço</button>
+      </fieldset>
+
+      <button id="enviar" type="submit">Criar a minha barbearia</button>
+    </form>
+
+    <div id="pronto" class="ok fim" hidden></div>
+  </main>
+
+  <script>
+    // Script PROCESSADO (sem atributo): pode importar. A prévia usa a MESMA
+    // derivação que o servidor usa ao gravar — o que aparece aqui é o que vai
+    // para o site, sem lógica duplicada.
+    import { derivarAccent, ACCENT_PADRAO } from '../lib/accent.js';
+
+    const $ = (id) => document.getElementById(id);
+    const form = $('form'), erro = $('erro'), botao = $('enviar');
+
+    /* ── A cor e a prévia do topo ───────────────────────────────────────────
+       Nenhuma cor vem marcada: sem escolha, o site nasce na cor padrão do
+       sistema — e o medidor do painel cobra a escolha depois. */
+    let corEscolhida: string | null = null;
+    const amostras = Array.from(document.querySelectorAll<HTMLButtonElement>('.cores .cor'));
+    const corOutra = $('cor-outra') as HTMLInputElement;
+
+    function pintarPrevia(): void {
+      const a = corEscolhida ? derivarAccent(corEscolhida) : ACCENT_PADRAO;
+      ($('previa-botao') as HTMLElement).style.backgroundColor = a.color;
+      ($('previa-nome') as HTMLElement).style.color = a.light;
+      const nome = ($('nome') as HTMLInputElement).value.trim() || 'Barbearia do Zé';
+      const frase = ($('frase') as HTMLInputElement).value.trim();
+      ($('previa-nome') as HTMLElement).textContent = nome;
+      ($('previa-frase') as HTMLElement).textContent = frase || nome;
+      // A derivação mudou a cor: dizer é melhor que mudar em silêncio. São dois
+      // casos, com motivos diferentes — cinza, preto e branco não têm tom para
+      // preservar e viram a cor PADRÃO (`derivarAccent`); a clara demais vira o
+      // mesmo tom, mais escuro.
+      const aviso = $('previa-aviso') as HTMLElement;
+      const pedida = (corEscolhida ?? '').toLowerCase();
+      const semTom = Boolean(corEscolhida) && pedida !== ACCENT_PADRAO.color
+        && a.color === ACCENT_PADRAO.color && a.light === ACCENT_PADRAO.light;
+      const ajustada = Boolean(corEscolhida) && !semTom && a.color.toLowerCase() !== pedida;
+      aviso.hidden = !(semTom || ajustada);
+      aviso.textContent = semTom
+        ? 'Essa cor não tem tom — é cinza, preto ou branco —, e o botão do site precisa de um. Fica a cor padrão, como na prévia. Escolha uma cor com tom para ser a sua.'
+        : ajustada
+          ? 'Essa cor é clara demais para o texto do botão ficar legível, então o site usa o mesmo tom um pouco mais escuro — como na prévia.'
+          : '';
+    }
+
+    function escolherCor(hex: string, origem: HTMLButtonElement | null): void {
+      corEscolhida = hex;
+      for (const b of amostras) b.setAttribute('aria-checked', String(b === origem));
+      pintarPrevia();
+    }
+
+    for (const b of amostras) {
+      b.addEventListener('click', () => escolherCor(b.dataset.cor as string, b));
+    }
+    corOutra.addEventListener('input', () => escolherCor(corOutra.value, null));
+    $('frase')?.addEventListener('input', pintarPrevia);
+    $('nome')?.addEventListener('input', pintarPrevia);
+    pintarPrevia();
+
+    /** O campo que a API recusou, dito do jeito que a pessoa entende. */
+    const ERRO_DO_CAMPO: Record<string, string> = {
+      email: 'Confira o e-mail — é por ele que você recupera a senha.',
+      slug: 'Confira o endereço do site: só letras minúsculas, números e hífen.',
+      senha: 'A senha precisa de pelo menos 8 caracteres.',
+      telefone: 'Confira o WhatsApp, com DDD.',
+      frase: 'A frase do topo passa de 200 caracteres.',
+    };
+
+    /** Sugere o endereço a partir do nome, até a pessoa mexer no campo. */
+    let slugTocado = false;
+    const aSlug = (v) => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 63);
+    $('slug').addEventListener('input', () => { slugTocado = true; $('previa').textContent = $('slug').value; });
+    $('nome').addEventListener('input', () => {
+      if (slugTocado) return;
+      $('slug').value = aSlug($('nome').value);
+      $('previa').textContent = $('slug').value || 'seuendereco';
+    });
+
+    /* ── A semana ────────────────────────────────────────────────────────────
+       Domingo já vem desmarcado porque é a folga da esmagadora maioria das
+       barbearias — mas é uma marca, não uma regra: basta clicar. */
+    const DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+    const ORDEM = [1, 2, 3, 4, 5, 6, 0];
+    const PADRAO = { 1:['09:00','19:00'], 2:['09:00','19:00'], 3:['09:00','19:00'],
+                     4:['09:00','19:00'], 5:['09:00','19:00'], 6:['09:00','18:00'] };
+
+    $('horarios').innerHTML = ORDEM.map((d) => {
+      const p = PADRAO[d];
+      return `<div class="dia${p ? '' : ' fechado'}" data-dia="${d}">
+        <input type="checkbox" id="hr-on-${d}" ${p ? 'checked' : ''} aria-label="Abre ${DIAS[d]}" />
+        <label class="nome" for="hr-on-${d}" style="margin:0">${DIAS[d]}</label>
+        <input type="time" id="hr-de-${d}" value="${p ? p[0] : '09:00'}" ${p ? '' : 'disabled'} />
+        <span class="ate">às</span>
+        <input type="time" id="hr-ate-${d}" value="${p ? p[1] : '18:00'}" ${p ? '' : 'disabled'} />
+      </div>`;
+    }).join('');
+
+    $('horarios').addEventListener('change', (ev) => {
+      const alvo = ev.target;
+      if (alvo.type !== 'checkbox') return;
+      const d = alvo.closest('.dia').dataset.dia;
+      const aberto = alvo.checked;
+      alvo.closest('.dia').classList.toggle('fechado', !aberto);
+      $(`hr-de-${d}`).disabled = !aberto;
+      $(`hr-ate-${d}`).disabled = !aberto;
+    });
+
+    /* ── Serviço extra ───────────────────────────────────────────────────── */
+    let proximoServico = document.querySelectorAll('#servicos .linha').length;
+    $('mais-servico').addEventListener('click', () => {
+      const i = proximoServico++;
+      const div = document.createElement('div');
+      div.className = 'linha';
+      div.innerHTML =
+        `<div class="nome"><label for="sv-nome-${i}">Serviço</label>` +
+        `<input id="sv-nome-${i}" maxlength="80" placeholder="Nome do serviço" /></div>` +
+        `<div><label for="sv-preco-${i}">Preço R$</label><input id="sv-preco-${i}" inputmode="decimal" placeholder="—" /></div>` +
+        `<div><label for="sv-min-${i}">Minutos</label><input id="sv-min-${i}" inputmode="numeric" value="30" /></div>`;
+      $('servicos').appendChild(div);
+      $(`sv-nome-${i}`).focus();
+    });
+
+    /** "45", "45,50" e "R$ 45,50" viram centavos. Vazio vira 0 (= desligado). */
+    function centavos(bruto) {
+      const limpo = String(bruto || '').replace(/[^\d,.]/g, '').replace(',', '.');
+      if (!limpo) return 0;
+      const n = Number(limpo);
+      return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : NaN;
+    }
+
+    /* ── O fim: "o seu site está no ar" ────────────────────────────────────
+       É o momento em que o dono mostra o produto para alguém — e quem mostra
+       convence a si mesmo a pagar no 8º dia (`docs/JORNADA-DO-BARBEIRO.md` §2.8).
+       Montado com DOM, não com innerHTML: o endereço vem do servidor, e texto
+       que vira HTML é a porta do XSS que já apareceu aqui
+       (`docs/PENDENCIAS-ABERTAS.md` §2.12). */
+    function el<K extends keyof HTMLElementTagNameMap>(
+      tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...filhos: (Node | string)[]
+    ): HTMLElementTagNameMap[K] {
+      const e = document.createElement(tag);
+      Object.assign(e, props);
+      e.append(...filhos);
+      return e;
+    }
+
+    function mostrarFim(dados: {
+      site?: string | null; telefoneLogin?: string; servicosAtivos?: number; ultimoDiaDoTeste?: string | null;
+    }): void {
+      const pronto = $('pronto') as HTMLElement;
+      pronto.replaceChildren();
+      const site = dados.site || null;
+
+      pronto.append(el('h2', {}, site ? 'O seu site está no ar.' : 'A sua barbearia existe.'));
+      if (site) {
+        pronto.append(el('a', { href: site, target: '_blank', rel: 'noopener', className: 'endereco' },
+          site.replace(/^https?:\/\//, '')));
+        const copiar = el('button', { type: 'button' }, 'Copiar para a bio do Instagram');
+        copiar.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(`Agende pelo site: ${site}`);
+            copiar.textContent = 'Copiado';
+          } catch {
+            copiar.textContent = 'Não consegui copiar';
+          }
+        });
+        const mensagem = `Agora dá para marcar horário pelo site: ${site}`;
+        pronto.append(el('div', { className: 'acoes' },
+          el('a', { href: site, target: '_blank', rel: 'noopener' }, 'Abrir o meu site'),
+          el('a', { href: `https://wa.me/?text=${encodeURIComponent(mensagem)}`, target: '_blank', rel: 'noopener' },
+            'Mandar no WhatsApp'),
+          copiar,
+        ));
+      } else {
+        pronto.append(el('p', { className: 'dica' },
+          'O endereço do site aparece aqui quando o domínio do produto estiver configurado.'));
+      }
+
+      pronto.append(el('p', { className: 'dica' },
+        el('strong', {}, 'Próximos passos'), ' — cada um leva poucos minutos e muda muito o site:'));
+      const passos = el('ol');
+      if (!dados.servicosAtivos) {
+        passos.append(el('li', {}, el('a', { href: '/admin/servicos' }, 'Ponha preço em pelo menos um serviço'),
+          ' — sem isso, ninguém consegue agendar.'));
+      }
+      passos.append(
+        el('li', {}, el('a', { href: '/admin/galeria' }, 'Suba fotos dos seus cortes'),
+          ' — a galeria aparece no site a partir de 3.'),
+        el('li', {}, el('a', { href: '/admin/configuracoes' }, 'Suba a logo e uma foto de capa'), '.'),
+      );
+      pronto.append(passos);
+
+      // "84988887777" vira "(84) 98888-7777": é assim que ele vai digitar no login.
+      const d = String(dados.telefoneLogin ?? '');
+      const telefone = d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+        : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : d;
+      // O prazo, dito na hora: o cartão só é pedido no fim do teste (decisão de
+      // 08/10/2026), e quem não sabe a data não se prepara para ela.
+      if (dados.ultimoDiaDoTeste) {
+        pronto.append(el('p', { className: 'teste' },
+          el('strong', {}, `7 dias grátis, até ${dados.ultimoDiaDoTeste}.`),
+          ' O cartão só é pedido no fim do teste — o painel avisa antes.'));
+      }
+      pronto.append(el('a', { href: '/admin', className: 'principal' }, 'Abrir o meu painel'));
+      pronto.append(el('p', { className: 'dica' },
+        `Você já está dentro do painel. Da próxima vez, entre com o WhatsApp ${telefone} e a senha que escolheu.`));
+      pronto.hidden = false;
+      pronto.scrollIntoView({ block: 'start' });
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      erro.hidden = true;
+
+      const servicos = [];
+      let i = 0;
+      while ($(`sv-nome-${i}`)) {
+        const nome = $(`sv-nome-${i}`).value.trim();
+        const preco = centavos($(`sv-preco-${i}`).value);
+        const minutos = parseInt($(`sv-min-${i}`).value, 10);
+        if (nome) {
+          if (Number.isNaN(preco)) {
+            erro.textContent = `Preço inválido em "${nome}".`; erro.hidden = false; return;
+          }
+          servicos.push({ nome, precoCentavos: preco, minutos: Number.isFinite(minutos) ? minutos : 30 });
+        }
+        i++;
+      }
+
+      botao.disabled = true;
+      botao.textContent = 'Criando...';
+      try {
+        const r = await fetch('/api/cadastrar', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            slug: $('slug').value.trim(), nome: $('nome').value.trim(),
+            dono: $('dono').value.trim(), telefone: $('telefone').value.trim(),
+            endereco: $('endereco').value.trim(), cidade: $('cidade').value.trim(),
+            senha: $('senha').value, servicos,
+            email: ($('email') as HTMLInputElement).value.trim(),
+            frase: ($('frase') as HTMLInputElement).value.trim() || undefined,
+            cor: corEscolhida || undefined,
+            instagram: $('instagram').value.trim() || undefined,
+            sobre: $('sobre').value.trim() || undefined,
+            horarios: ORDEM.map((d) => $(`hr-on-${d}`).checked
+              ? { weekday: d, abre: $(`hr-de-${d}`).value, fecha: $(`hr-ate-${d}`).value }
+              : { weekday: d, fechado: true }),
+          }),
+        });
+        const dados = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          // O provisionador já devolve frase específica ("Já existe uma barbearia no
+          // endereço…"); o "Confira os campos." genérico da validação de forma
+          // ganha a explicação do campo.
+          const especifico = dados.error && dados.error !== 'Confira os campos.';
+          erro.textContent = especifico ? dados.error
+            : (ERRO_DO_CAMPO[dados.campo] || dados.error || 'Não consegui criar agora. Tente de novo.');
+          erro.hidden = false;
+          erro?.scrollIntoView({ block: 'center' });
+          return;
+        }
+        form.hidden = true;
+        mostrarFim(dados);
+      } catch {
+        erro.textContent = 'Não consegui falar com o servidor.';
+        erro.hidden = false;
+      } finally {
+        botao.disabled = false;
+        botao.textContent = 'Criar a minha barbearia';
+      }
+    });
+  </script>
+</body>
+</html>

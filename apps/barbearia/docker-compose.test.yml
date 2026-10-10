@@ -1,0 +1,35 @@
+# Postgres descartável para rodar a suíte inteira na máquina de desenvolvimento.
+#
+# ── POR QUE ISTO EXISTE ──────────────────────────────────────────────────────
+#
+# 84 dos 212 casos da suíte precisam de banco: login, agendamento, settings,
+# tenants, RLS, a carga da migração e o backup das fotos. Sem `DATABASE_URL`
+# eles são PULADOS — `npm test` fica verde tendo conferido pouco mais da metade,
+# e a metade de fora é justamente a que mexe com dado de cliente.
+#
+# Verde que não olhou o que importa é pior que vermelho: ele autoriza o commit.
+#
+# ⚠️ Este banco é DESCARTÁVEL de propósito. Não tem volume: `docker compose down`
+# leva tudo junto. A suíte roda `DROP SCHEMA public CASCADE` a cada arquivo, e
+# `tests/guardaBanco.ts` recusa qualquer banco cujo nome não termine em `_test`.
+services:
+  banco-de-teste:
+    image: postgres:16-alpine
+    container_name: barbearia_postgres_teste
+    environment:
+      POSTGRES_USER: barbearia
+      POSTGRES_PASSWORD: barbearia
+      POSTGRES_DB: barbearia_test
+    ports:
+      # 5434 de propósito: 5432 e 5433 costumam estar ocupados nesta máquina
+      # (o Postgres do Protheus mora num deles). Trocável por PORTA_TESTE.
+      - "${PORTA_TESTE:-5434}:5432"
+    # Sem `volumes:`. Banco de teste que sobrevive ao `down` é banco sujo, e
+    # teste que depende do estado de ontem falha na terça sem ter mudado nada.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barbearia -d barbearia_test"]
+      interval: 1s
+      timeout: 3s
+      retries: 30

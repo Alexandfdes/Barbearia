@@ -1,0 +1,562 @@
+---
+export const prerender = false;
+
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { and, sql, eq, gte, lt, desc } from 'drizzle-orm';
+import { getSession } from '../../lib/session.js';
+import { db, first } from '../../db/index.js';
+import { barbers, appointments, services, settings, workingHours } from '../../db/schema.js';
+import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
+import { tenantDaSessao } from '../../lib/tenant.js';
+import { calcularCompletude } from '../../lib/completude.js';
+import { quantasFotos } from '../../lib/galeria.js';
+import { parseBusinessHours } from '../../lib/settings.js';
+import { reais } from '../../lib/dinheiro.js';
+import { segundaFeiraDaSemana } from '../../lib/calendario.js';
+import { TZ } from '../../lib/timezone.js';
+
+
+const session = await getSession(Astro.request);
+if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
+
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+if (!barberRow) return Astro.redirect('/admin/login');
+
+const nowUtc = new Date();
+const todayStr = formatInTimeZone(nowUtc, TZ, 'yyyy-MM-dd');
+
+// ─── Janelas de tempo ──────────────────────────────────────────────────────
+const todayStartUtc = fromZonedTime(`${todayStr}T00:00:00`, TZ).toISOString();
+const todayEndUtc   = fromZonedTime(`${todayStr}T23:59:59`, TZ).toISOString();
+
+function addDaysStr(s: string, n: number): string {
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + n, 12));
+  return dt.toISOString().slice(0, 10);
+}
+
+// Início da semana (segunda) — domingo é folga, semana começa segunda. Sai de
+// `todayStr`, o dia DA BARBEARIA, com conta de calendário (`lib/calendario.ts`).
+//
+// ⚠️ Até 09/10/2026 era `getDay()` e `setDate()` sobre o instante — o fuso do
+// PROCESSO. Com o servidor em UTC, das 21h à meia-noite de Fortaleza o card "Esta
+// semana" e o gráfico erravam de semana: visto ao vivo em 25/09/2026, o gráfico
+// mostrou "SEG 20", e 20/09 foi domingo (`PENDENCIAS-ABERTAS.md` §2.22).
+const mondayStr      = segundaFeiraDaSemana(todayStr);
+const weekStartUtc   = fromZonedTime(`${mondayStr}T00:00:00`, TZ).toISOString();
+const weekEndStr     = addDaysStr(mondayStr, 7);
+const weekEndUtc     = fromZonedTime(`${weekEndStr}T00:00:00`, TZ).toISOString();
+
+const monthStr       = todayStr.slice(0, 7); // YYYY-MM
+const monthStartUtc  = fromZonedTime(`${monthStr}-01T00:00:00`, TZ).toISOString();
+const [my, mm] = monthStr.split('-').map(Number);
+const nextMonthStr   = mm === 12 ? `${my + 1}-01` : `${my}-${String(mm + 1).padStart(2, '0')}`;
+const monthEndUtc    = fromZonedTime(`${nextMonthStr}-01T00:00:00`, TZ).toISOString();
+
+const sevenDaysAgo   = new Date(nowUtc.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+// ─── Helpers de query ─────────────────────────────────────────────────────
+// Pra barbeiro comum, sempre filtra pelos próprios. Admin vê todos.
+const barberFilter = session.role === 'admin' ? null : session.barberId;
+
+// SUM e COUNT voltam do Postgres como bigint, que o driver entrega em string
+// pra não perder precisão. Sem o Number() o painel somaria texto: "1500" + "800"
+// viraria "1500800" na tela, sem erro nenhum no caminho.
+const num = (v: unknown): number => Number(v ?? 0);
+
+// `${barberFilter}::int IS NULL OR ...` no lugar de montar duas consultas
+// diferentes: as duas versões precisavam ser editadas em par, e uma delas ia
+// acabar ficando pra trás.
+//
+// `statuses` entra por `sql.join`, não por placeholders concatenados à mão.
+//
+// ⚠️ NÃO trocar por `= ANY(${statuses})`: o template do Drizzle expande um array
+// JS como TUPLA — vira `($1, $2)` — e `= ANY` exige um array de verdade do lado
+// direito. O erro só aparece em tempo de execução (42809), com o painel em
+// branco; nem o tsc nem o `astro check` pegam.
+
+// Receita num intervalo (confirmed + completed)
+async function sumRevenue(startIso: string, endIso: string): Promise<number> {
+  const r = await first(db.execute<{ s: string }>(sql`
+    SELECT COALESCE(SUM(price_cents),0) AS s FROM appointments
+     WHERE tenant_id = ${tenant.id}
+       AND status IN ('confirmed','completed')
+       AND starts_at >= ${startIso} AND starts_at < ${endIso}
+       AND (${barberFilter}::int IS NULL OR barber_id = ${barberFilter}::int)
+  `));
+  return num(r?.s);
+}
+
+async function countAppts(startIso: string, endIso: string, statuses: string[]): Promise<number> {
+  const r = await first(db.execute<{ c: string }>(sql`
+    SELECT COUNT(*) AS c FROM appointments
+     WHERE tenant_id = ${tenant.id}
+       AND status IN (${sql.join(statuses.map(st => sql`${st}`), sql`, `)})
+       AND starts_at >= ${startIso} AND starts_at < ${endIso}
+       AND (${barberFilter}::int IS NULL OR barber_id = ${barberFilter}::int)
+  `));
+  return num(r?.c);
+}
+
+// Seis agregados independentes: em rede, um de cada vez seriam seis idas ao
+// banco antes de a página começar a renderizar.
+const ATIVOS = ['confirmed', 'completed'];
+const [revenueToday, revenueWeek, revenueMonth, countToday, countWeek, countMonth] =
+  await Promise.all([
+    sumRevenue(todayStartUtc, todayEndUtc),
+    sumRevenue(weekStartUtc,  weekEndUtc),
+    sumRevenue(monthStartUtc, monthEndUtc),
+    countAppts(todayStartUtc, todayEndUtc, ATIVOS),
+    countAppts(weekStartUtc,  weekEndUtc,  ATIVOS),
+    countAppts(monthStartUtc, monthEndUtc, ATIVOS),
+  ]);
+
+// ─── Próximos agendamentos (próximas 48h, confirmed) ──────────────────────
+const next48hEndUtc = new Date(nowUtc.getTime() + 48 * 60 * 60 * 1000).toISOString();
+const upcomingRows = (barberFilter !== null
+  ? (await db.select({
+      id: appointments.id, startsAt: appointments.startsAt, customerName: appointments.customerName,
+      serviceName: services.name, barberName: barbers.name, priceCents: appointments.priceCents,
+    })
+    .from(appointments)
+    .innerJoin(services, eq(services.id, appointments.serviceId))
+    .innerJoin(barbers,  eq(barbers.id,  appointments.barberId))
+    .where(and(
+      eq(appointments.status, 'confirmed'),
+      eq(appointments.barberId, barberFilter),
+      gte(appointments.startsAt, nowUtc.toISOString()),
+      lt(appointments.startsAt, next48hEndUtc),
+      eq(appointments.tenantId, tenant.id)))
+    .orderBy(appointments.startsAt)
+    .limit(8)
+    )
+  : (await db.select({
+      id: appointments.id, startsAt: appointments.startsAt, customerName: appointments.customerName,
+      serviceName: services.name, barberName: barbers.name, priceCents: appointments.priceCents,
+    })
+    .from(appointments)
+    .innerJoin(services, eq(services.id, appointments.serviceId))
+    .innerJoin(barbers,  eq(barbers.id,  appointments.barberId))
+    .where(and(
+      eq(appointments.status, 'confirmed'),
+      gte(appointments.startsAt, nowUtc.toISOString()),
+      lt(appointments.startsAt, next48hEndUtc),
+      eq(appointments.tenantId, tenant.id)))
+    .orderBy(appointments.startsAt)
+    .limit(8)
+    ));
+
+// ─── Alertas: atrasados (passou da hora, ainda confirmed, é hoje) ──────────
+const lateRows = (barberFilter !== null
+  ? (await db.select({
+      id: appointments.id, startsAt: appointments.startsAt, customerName: appointments.customerName,
+      serviceName: services.name, barberName: barbers.name,
+    })
+    .from(appointments)
+    .innerJoin(services, eq(services.id, appointments.serviceId))
+    .innerJoin(barbers,  eq(barbers.id,  appointments.barberId))
+    .where(and(
+      eq(appointments.status, 'confirmed'),
+      eq(appointments.barberId, barberFilter),
+      gte(appointments.startsAt, todayStartUtc),
+      lt(appointments.startsAt, nowUtc.toISOString()),
+      eq(appointments.tenantId, tenant.id)))
+    .orderBy(appointments.startsAt)
+    )
+  : (await db.select({
+      id: appointments.id, startsAt: appointments.startsAt, customerName: appointments.customerName,
+      serviceName: services.name, barberName: barbers.name,
+    })
+    .from(appointments)
+    .innerJoin(services, eq(services.id, appointments.serviceId))
+    .innerJoin(barbers,  eq(barbers.id,  appointments.barberId))
+    .where(and(
+      eq(appointments.status, 'confirmed'),
+      gte(appointments.startsAt, todayStartUtc),
+      lt(appointments.startsAt, nowUtc.toISOString()),
+      eq(appointments.tenantId, tenant.id)))
+    .orderBy(appointments.startsAt)
+    ));
+
+// ─── No-shows nos últimos 7 dias ──────────────────────────────────────────
+const noShowRows = (barberFilter !== null
+  ? (await db.select({
+      id: appointments.id, startsAt: appointments.startsAt, customerName: appointments.customerName,
+      serviceName: services.name, priceCents: appointments.priceCents,
+    })
+    .from(appointments)
+    .innerJoin(services, eq(services.id, appointments.serviceId))
+    .where(and(
+      eq(appointments.status, 'no_show'),
+      eq(appointments.barberId, barberFilter),
+      gte(appointments.startsAt, sevenDaysAgo),
+      eq(appointments.tenantId, tenant.id)))
+    .orderBy(desc(appointments.startsAt))
+    .limit(5)
+    )
+  : (await db.select({
+      id: appointments.id, startsAt: appointments.startsAt, customerName: appointments.customerName,
+      serviceName: services.name, priceCents: appointments.priceCents,
+    })
+    .from(appointments)
+    .innerJoin(services, eq(services.id, appointments.serviceId))
+    .where(and(
+      eq(appointments.status, 'no_show'),
+      gte(appointments.startsAt, sevenDaysAgo),
+      eq(appointments.tenantId, tenant.id)))
+    .orderBy(desc(appointments.startsAt))
+    .limit(5)
+    ));
+
+// ─── Receita por dia da semana atual (pra gráfico) ────────────────────────
+interface DayBar { day: string; label: string; weekday: string; revenue: number; isToday: boolean; }
+const WEEKDAYS_SHORT = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const weekDays: DayBar[] = [];
+// Os sete dias são independentes: em série seriam sete idas ao banco em fila.
+const semana = await Promise.all(
+  Array.from({ length: 7 }, async (_, i) => {
+    const dayStr = addDaysStr(mondayStr, i);
+    const dayStartUtc = fromZonedTime(`${dayStr}T00:00:00`, TZ).toISOString();
+    const dayEndUtc   = fromZonedTime(`${addDaysStr(dayStr, 1)}T00:00:00`, TZ).toISOString();
+    return {
+      day:     dayStr,
+      label:   String(parseInt(dayStr.slice(-2), 10)),
+      weekday: WEEKDAYS_SHORT[i],
+      revenue: await sumRevenue(dayStartUtc, dayEndUtc),
+      isToday: dayStr === todayStr,
+    };
+  }),
+);
+weekDays.push(...semana);
+const maxRevenue = Math.max(...weekDays.map(d => d.revenue), 1);
+
+// ─── Helpers de display ───────────────────────────────────────────────────
+const fmtMoney = reais;
+const fmtTime  = (iso: string) => formatInTimeZone(new Date(iso), TZ, 'HH:mm');
+const fmtDate  = (iso: string) => formatInTimeZone(new Date(iso), TZ, "dd 'de' MMM");
+
+const upcomingFmt = upcomingRows.map(a => ({
+  ...a,
+  timeLabel:  fmtTime(a.startsAt),
+  dateLabel:  fmtDate(a.startsAt),
+  isToday:    a.startsAt >= todayStartUtc && a.startsAt < todayEndUtc,
+  price:      fmtMoney(a.priceCents),
+}));
+const lateFmt = lateRows.map(a => ({
+  ...a,
+  timeLabel: fmtTime(a.startsAt),
+  minutesLate: Math.floor((nowUtc.getTime() - new Date(a.startsAt).getTime()) / 60000),
+}));
+const noShowFmt = noShowRows.map(a => ({
+  ...a,
+  timeLabel: fmtTime(a.startsAt),
+  dateLabel: fmtDate(a.startsAt),
+  price:     fmtMoney(a.priceCents),
+}));
+
+const lostToNoShow = noShowFmt.reduce((s, a) => s + a.priceCents, 0);
+// ── Medidor de completude (`PENDENCIAS-ABERTAS.md` §4.4) ────────────────────
+// Só o admin vê: barbeiro comum não mexe na marca da loja, e o card viraria
+// ruído numa tela que ele abre todo dia.
+const cfg = session.role === 'admin'
+  ? await first(db.select().from(settings).where(eq(settings.tenantId, tenant.id)))
+  : null;
+
+const completude = cfg ? calcularCompletude({
+  logoPath: cfg.logoPath, heroPath: cfg.heroPath,
+  tagline: cfg.tagline, aboutText: cfg.aboutText,
+  whatsappNumber: cfg.whatsappNumber,
+  addressStreet: cfg.addressStreet, addressCity: cfg.addressCity,
+  instagramUrl: cfg.instagramUrl, googleReviewsUrl: cfg.googleReviewsUrl,
+  seoTitle: cfg.seoTitle, seoDescription: cfg.seoDescription,
+  accentColor: cfg.accentColor,
+  horariosPublicados: parseBusinessHours(cfg.businessHours).length,
+  servicosAtivos: Number((await first(db.select({ n: sql<number>`count(*)::int` })
+    .from(services).where(and(eq(services.tenantId, tenant.id), eq(services.active, true)))))?.n ?? 0),
+  // Barbeiro ATIVO que tem expediente: sem uma das duas coisas não há vaga.
+  barbeirosComAgenda: Number((await first(db.select({ n: sql<number>`count(DISTINCT ${barbers.id})::int` })
+    .from(barbers)
+    .innerJoin(workingHours, eq(workingHours.barberId, barbers.id))
+    .where(and(eq(barbers.tenantId, tenant.id), eq(barbers.active, true)))))?.n ?? 0),
+  fotosNaGaleria: await quantasFotos(tenant),
+}) : null;
+
+---
+
+<AdminLayout title="Início" barberName={barberRow.name} role={session.role}>
+
+  <main class="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-20">
+
+    {/* Medidor de completude — some sozinho quando não há nada a fazer, para
+        não virar ruído permanente para quem já preencheu tudo. */}
+    {completude && !completude.completo && (
+      <section class:list={["rounded-lg border p-5 sm:p-6",
+        completude.bloqueios.length > 0
+          ? "border-red-200 bg-red-50/60"
+          : "border-amber-200 bg-amber-50/50"]}>
+
+        {completude.bloqueios.length > 0 ? (
+          <Fragment>
+            {/* Enquanto falta o essencial não se fala em porcentagem: dizer
+                "80% completo" a quem não recebe agendamento é mentira útil
+                para ninguém. */}
+            <h2 class="text-sm font-semibold text-red-900 flex items-center gap-2">
+              <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              Seu site ainda não recebe agendamento
+            </h2>
+            <p class="text-xs text-red-800/80 mt-1">
+              {completude.bloqueios.length === 1
+                ? 'Falta uma coisa para o cliente conseguir marcar horário:'
+                : `Faltam ${completude.bloqueios.length} coisas para o cliente conseguir marcar horário:`}
+            </p>
+            <ul class="mt-4 space-y-2.5">
+              {completude.bloqueios.map((b) => (
+                <li>
+                  <a href={b.href} class="flex items-start gap-3 group">
+                    <span class="shrink-0 mt-0.5 w-5 h-5 rounded-full border-2 border-red-300"></span>
+                    <span class="min-w-0">
+                      <span class="block text-sm font-medium text-red-900 group-hover:underline">{b.titulo}</span>
+                      <span class="block text-xs text-red-800/70">{b.porque}</span>
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </Fragment>
+        ) : (
+          <Fragment>
+            <div class="flex items-baseline justify-between gap-3">
+              <h2 class="text-sm font-semibold text-amber-900">Seu site está {completude.percentual}% completo</h2>
+              <span class="text-xs text-amber-800/70 tabular-nums">{completude.percentual}/100</span>
+            </div>
+            <div class="mt-2 h-2 rounded-full bg-amber-200/60 overflow-hidden">
+              <div class="h-full rounded-full bg-amber-500 transition-all" style={`width: ${completude.percentual}%`}></div>
+            </div>
+            {/* ⚠️ Só os 3 mais pesados. Uma lista de 8 itens paralisa: o dono
+                olha, não sabe por onde começar e não faz nenhum. Três valem
+                metade dos pontos e cabem numa tarde. O resto fica atrás de um
+                clique, para quem quiser seguir. */}
+            <p class="text-xs text-amber-900/80 mt-3">
+              {completude.pendencias.length === 1 ? 'Falta 1 item:' : 'Comece por estes:'}
+            </p>
+            <ul class="mt-3 space-y-2.5">
+              {completude.pendencias.slice(0, 3).map((p) => (
+                <li>
+                  <a href={p.href} class="flex items-start gap-3 group">
+                    <span class="shrink-0 mt-0.5 w-5 h-5 rounded-full border-2 border-amber-300"></span>
+                    <span class="min-w-0">
+                      <span class="block text-sm font-medium text-amber-900 group-hover:underline">{p.titulo}</span>
+                      <span class="block text-xs text-amber-900/60">{p.porque}</span>
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            {completude.pendencias.length > 3 && (
+              <details class="mt-3 group/d">
+                <summary class="text-xs text-amber-900/70 cursor-pointer hover:text-amber-900 list-none">
+                  <span class="underline underline-offset-2">
+                    e mais {completude.pendencias.length - 3} {completude.pendencias.length - 3 === 1 ? 'item' : 'itens'}
+                  </span>
+                </summary>
+                <ul class="mt-3 space-y-2.5">
+                  {completude.pendencias.slice(3).map((p) => (
+                    <li>
+                      <a href={p.href} class="flex items-start gap-3 group">
+                        <span class="shrink-0 mt-0.5 w-5 h-5 rounded-full border-2 border-amber-200"></span>
+                        <span class="min-w-0">
+                          <span class="block text-sm font-medium text-amber-900/80 group-hover:underline">{p.titulo}</span>
+                          <span class="block text-xs text-amber-900/50">{p.porque}</span>
+                        </span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </Fragment>
+        )}
+      </section>
+    )}
+
+    <!-- Header / atalho agenda -->
+    <section class="bg-gradient-to-br from-teal/8 via-white to-white border border-teal/15 rounded-lg p-5 sm:p-6">
+      <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <p class="text-xs text-slate-500 uppercase tracking-widest">Olá, {barberRow.name.split(' ')[0]}</p>
+          <h1 class="font-serif text-2xl sm:text-3xl font-medium text-slate-900 mt-1">
+            {countToday === 0 ? 'Sem agendamentos hoje' :
+             countToday === 1 ? '1 agendamento hoje' :
+             `${countToday} agendamentos hoje`}
+          </h1>
+          <p class="text-sm text-slate-500 mt-1">
+            Receita prevista: <span class="text-teal font-medium">{fmtMoney(revenueToday)}</span>
+          </p>
+        </div>
+        <a href={`/admin/dia/${todayStr}`}
+           class="inline-flex items-center gap-2 bg-teal hover:bg-teal-hover text-white text-sm font-bold uppercase tracking-widest px-5 py-3 rounded-md transition-colors shrink-0">
+          Ver agenda de hoje
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+          </svg>
+        </a>
+      </div>
+    </section>
+
+    <!-- Cards receita semana/mês -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="bg-white border border-slate-200 rounded-lg p-4">
+        <p class="text-[10px] text-slate-500 uppercase tracking-widest">Esta semana</p>
+        <p class="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{fmtMoney(revenueWeek)}</p>
+        <p class="text-xs text-slate-500 mt-0.5">
+          {countWeek} {countWeek === 1 ? 'agendamento' : 'agendamentos'}
+        </p>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-lg p-4">
+        <p class="text-[10px] text-slate-500 uppercase tracking-widest">Este mês</p>
+        <p class="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{fmtMoney(revenueMonth)}</p>
+        <p class="text-xs text-slate-500 mt-0.5">
+          {countMonth} {countMonth === 1 ? 'agendamento' : 'agendamentos'}
+        </p>
+      </div>
+    </section>
+
+    <!-- Gráfico semana -->
+    <section class="bg-white border border-slate-200 rounded-lg p-5">
+      <div class="flex items-center justify-between mb-4">
+        <p class="text-xs text-slate-500 uppercase tracking-widest">Receita esta semana</p>
+        <p class="text-[10px] text-slate-400">
+          {mondayStr.split('-').reverse().slice(0, 2).join('/')} — {addDaysStr(mondayStr, 6).split('-').reverse().slice(0, 2).join('/')}
+        </p>
+      </div>
+      <div class="flex items-end gap-2 h-32">
+        {weekDays.map(d => {
+          const heightPct = d.revenue > 0 ? Math.max(8, (d.revenue / maxRevenue) * 100) : 2;
+          return (
+            <div class="flex-1 flex flex-col items-center gap-2 group">
+              <div class="relative w-full flex items-end" style="height: 100%;">
+                <div class:list={[
+                  'w-full rounded-t transition-all',
+                  d.revenue > 0 ? (d.isToday ? 'bg-teal' : 'bg-teal/40') : 'bg-slate-200',
+                  d.isToday && 'ring-1 ring-teal/50'
+                ]} style={`height: ${heightPct}%`}>
+                  {d.revenue > 0 && (
+                    <span class="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] text-slate-500 tabular-nums whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                      {fmtMoney(d.revenue)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div class="text-center">
+                <p class:list={['text-[10px] uppercase tracking-wider',
+                  d.isToday ? 'text-teal font-bold' : 'text-slate-500']}>{d.weekday}</p>
+                <p class:list={['text-[10px] tabular-nums',
+                  d.isToday ? 'text-teal' : 'text-slate-400']}>{d.label}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+
+    <!-- Alertas -->
+    {(lateFmt.length > 0 || noShowFmt.length > 0) && (
+      <section class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {lateFmt.length > 0 && (
+          <div class="bg-red-50 border border-red-500/20 rounded-lg p-4">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse"></span>
+              <p class="text-[10px] text-red-700 uppercase tracking-widest font-medium">
+                {lateFmt.length} {lateFmt.length === 1 ? 'atrasado' : 'atrasados'}
+              </p>
+            </div>
+            <div class="space-y-2">
+              {lateFmt.map(l => (
+                <a href={`/admin/dia/${todayStr}#appt-${l.id}`}
+                   class="block bg-slate-1000 hover:bg-white border border-slate-200 rounded p-2 text-xs transition-colors">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="text-slate-800 font-medium truncate">{l.customerName}</p>
+                      <p class="text-slate-500 text-[10px] truncate">{l.serviceName} · {l.barberName.split(' ')[0]}</p>
+                    </div>
+                    <div class="text-right shrink-0">
+                      <p class="text-red-600 font-bold tabular-nums">{l.timeLabel}</p>
+                      <p class="text-slate-400 text-[10px]">+{l.minutesLate}min</p>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+        {noShowFmt.length > 0 && (
+          <div class="bg-amber-50 border border-amber-500/20 rounded-lg p-4">
+            <div class="flex items-center justify-between gap-2 mb-3">
+              <p class="text-[10px] text-amber-700 uppercase tracking-widest font-medium">
+                No-shows · últimos 7 dias
+              </p>
+              <p class="text-[10px] text-amber-700/70 tabular-nums">{fmtMoney(lostToNoShow)} perdidos</p>
+            </div>
+            <div class="space-y-2">
+              {noShowFmt.map(n => (
+                <div class="bg-slate-1000 border border-slate-200 rounded p-2 text-xs">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="text-slate-700 truncate">{n.customerName}</p>
+                      <p class="text-slate-400 text-[10px] truncate">{n.serviceName}</p>
+                    </div>
+                    <div class="text-right shrink-0">
+                      <p class="text-slate-500 tabular-nums">{n.dateLabel}</p>
+                      <p class="text-slate-400 text-[10px]">{n.price}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+    )}
+
+    <!-- Próximos -->
+    <section>
+      <p class="text-xs text-slate-500 uppercase tracking-widest mb-3">
+        Próximos {upcomingFmt.length > 0 && `(${upcomingFmt.length})`}
+      </p>
+      {upcomingFmt.length === 0 ? (
+        <div class="bg-white border border-slate-200 rounded-lg p-8 text-center">
+          <p class="text-slate-500 text-sm">Nenhum agendamento nas próximas 48h.</p>
+        </div>
+      ) : (
+        <div class="space-y-2">
+          {upcomingFmt.map(a => {
+            const path = formatInTimeZone(new Date(a.startsAt), TZ, 'yyyy-MM-dd');
+            return (
+              <a href={`/admin/dia/${path}#appt-${a.id}`}
+                 class="block bg-white border border-slate-200 hover:border-teal/30 rounded-md p-3 transition-colors">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <div class="text-center min-w-[3rem] shrink-0">
+                      <p class="text-base font-bold text-teal tabular-nums leading-none">{a.timeLabel}</p>
+                      <p class="text-[10px] text-slate-400 mt-0.5">{a.isToday ? 'Hoje' : a.dateLabel}</p>
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-sm font-medium text-slate-900 truncate">{a.customerName}</p>
+                      <p class="text-xs text-slate-500 truncate">{a.serviceName} · {a.barberName.split(' ')[0]}</p>
+                    </div>
+                  </div>
+                  <span class="text-sm font-semibold text-slate-500 tabular-nums shrink-0">{a.price}</span>
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </section>
+
+  </main>
+</AdminLayout>

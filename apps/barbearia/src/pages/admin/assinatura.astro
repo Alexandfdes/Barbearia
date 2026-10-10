@@ -1,0 +1,148 @@
+---
+export const prerender = false;
+
+/**
+ * A tela de assinatura: o teste, a carência, a suspensão — e o cartão.
+ *
+ * É a ÚNICA tela do painel que abre com a barbearia fora do ar (decisões de
+ * 08/10/2026, `docs/PLANO-PRODUTIZACAO.md` §13). Nesse caso ela vem sem a
+ * navegação (`layouts/MolduraForaDoAr.astro`) e com a agenda dos próximos dias,
+ * só para consulta: quem tem horário marcado não pode ficar invisível para o
+ * barbeiro porque a assinatura venceu.
+ *
+ * ⚠️ O cartão ainda não se cadastra: a cobrança entra com a Asaas, na etapa
+ * seguinte (`PENDENCIAS-ABERTAS.md` §4.14). Até lá a tela diz isso com todas as
+ * letras — e o cadastro continua fechado em produção, atrás de `CADASTRO_ABERTO`.
+ */
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import MolduraForaDoAr from '../../layouts/MolduraForaDoAr.astro';
+import { and, asc, eq, gte } from 'drizzle-orm';
+import { formatInTimeZone } from 'date-fns-tz';
+import { ptBR } from 'date-fns/locale';
+import { getSession, sessaoForaDoAr } from '../../lib/session.js';
+import { tenantDaSessao } from '../../lib/tenant.js';
+import { db } from '../../db/index.js';
+import { appointments, barbers, services } from '../../db/schema.js';
+import { situacaoDe } from '../../lib/situacao.js';
+import { explicacaoDaSituacao } from '../../lib/assinatura.js';
+import { PRECO_MENSAL } from '../../lib/produto.js';
+import { TZ } from '../../lib/timezone.js';
+import { waPhone, waLink } from '../../lib/whatsapp.js';
+
+// No ar, a sessão de sempre; fora do ar, a única que abre esta tela.
+const sessaoNoAr = await getSession(Astro.request);
+const fora = sessaoNoAr ? null : await sessaoForaDoAr(Astro.request);
+if (!sessaoNoAr && !fora) return Astro.redirect('/admin/login');
+
+const session = sessaoNoAr ?? fora!.sessao;
+const tenant = sessaoNoAr ? tenantDaSessao(sessaoNoAr) : fora!.tenant;
+const situacao = situacaoDe(tenant);
+const foraDoAr = situacao.fase === 'suspensa';
+
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, email: barbers.email })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+if (!barberRow) return Astro.redirect('/admin/login');
+
+const dono = session.role === 'admin';
+const manual = situacao.fase === 'suspensa' && situacao.motivo === 'manual';
+
+// A agenda só aparece fora do ar: no ar, ela está a um clique, na "Agenda do dia".
+// O barbeiro que não é dono vê só os horários dele, como no resto do painel.
+const proximos = foraDoAr
+  ? await db.select({
+      inicio:   appointments.startsAt,
+      cliente:  appointments.customerName,
+      telefone: appointments.customerPhone,
+      servico:  services.name,
+      barbeiro: barbers.name,
+    })
+      .from(appointments)
+      .innerJoin(services, and(eq(services.id, appointments.serviceId), eq(services.tenantId, tenant.id)))
+      .innerJoin(barbers, and(eq(barbers.id, appointments.barberId), eq(barbers.tenantId, tenant.id)))
+      .where(and(
+        eq(appointments.tenantId, tenant.id),
+        eq(appointments.status, 'confirmed'),
+        gte(appointments.startsAt, new Date().toISOString()),
+        dono ? undefined : eq(appointments.barberId, session.barberId),
+      ))
+      .orderBy(asc(appointments.startsAt))
+      .limit(100)
+  : [];
+
+const Moldura = foraDoAr ? MolduraForaDoAr : AdminLayout;
+const titulo = foraDoAr ? 'O site está fora do ar' : 'Assinatura';
+---
+
+<Moldura title="Assinatura" barberName={barberRow.name} role={session.role}>
+  <div class="max-w-3xl mx-auto px-4 py-6 space-y-5 pb-24">
+
+    <div>
+      <h1 class="text-lg font-medium text-slate-900">{titulo}</h1>
+      <p id="situacao" class="text-sm text-slate-600 mt-2 max-w-[65ch]">{explicacaoDaSituacao(situacao)}</p>
+      {/* Para onde vão os avisos por e-mail (`lib/avisos.ts`) — o dono precisa saber, e
+          o e-mail digitado errado no cadastro só aparece aqui ou no aviso que não chega. */}
+      {dono && (
+        <p id="email-dos-avisos" class="text-xs text-slate-500 mt-2">
+          {barberRow.email
+            ? <>Os avisos do teste e da cobrança vão para <strong class="font-medium text-slate-700">{barberRow.email}</strong>.</>
+            : <>Você está sem e-mail cadastrado: os avisos do teste e da cobrança não chegam até você.</>}
+          {!foraDoAr && <>{' '}<a href="/admin/barbeiros" class="underline underline-offset-2">{barberRow.email ? 'Trocar' : 'Cadastrar o e-mail'}</a></>}
+        </p>
+      )}
+    </div>
+
+    {!manual && situacao.fase !== 'ativa' && (
+      <section class="rounded-lg border border-slate-200 bg-white px-5 py-4 space-y-3">
+        <p class="text-sm text-slate-700">
+          <span class="font-semibold text-slate-900">R$ {PRECO_MENSAL} por mês</span>, no cartão de crédito.
+        </p>
+        {dono ? (
+          <>
+            <button type="button" disabled
+              class="text-white font-bold uppercase tracking-widest text-xs px-4 py-2.5 rounded bg-slate-300 cursor-not-allowed">
+              Cadastrar o cartão
+            </button>
+            <p class="text-xs text-slate-500">
+              Ainda não dá para pagar por aqui: o cartão entra na próxima etapa do sistema, com a Asaas.
+            </p>
+          </>
+        ) : (
+          <p class="text-xs text-slate-500">Só o dono da barbearia cadastra o cartão.</p>
+        )}
+      </section>
+    )}
+
+    {foraDoAr && (
+      <section class="space-y-3" aria-labelledby="proximos-titulo">
+        <div>
+          <h2 id="proximos-titulo" class="text-sm font-semibold text-slate-900">Próximos horários marcados</h2>
+          <p class="text-xs text-slate-500 mt-1">
+            Continuam marcados. O cliente não consegue desmarcar pelo site enquanto ele estiver fora do ar —
+            para remarcar ou avisar, fale com ele pelo WhatsApp.
+          </p>
+        </div>
+        {proximos.length === 0 ? (
+          <p class="text-sm text-slate-500 bg-white border border-dashed border-slate-300 rounded-lg px-4 py-6 text-center">
+            Nenhum horário marcado daqui para a frente.
+          </p>
+        ) : (
+          <ul id="proximos" class="bg-white border border-slate-200 rounded-lg divide-y divide-slate-100">
+            {proximos.map((p) => (
+              <li class="px-4 py-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
+                <span class="tabular-nums font-medium text-slate-900 whitespace-nowrap">
+                  {formatInTimeZone(new Date(p.inicio), TZ, "EEE dd/MM 'às' HH:mm", { locale: ptBR })}
+                </span>
+                <span class="text-slate-700">{p.cliente}</span>
+                <span class="text-slate-500">{p.servico}{dono ? ` · com ${p.barbeiro}` : ''}</span>
+                {waPhone(p.telefone) && (
+                  <a href={waLink(waPhone(p.telefone)!)} target="_blank" rel="noopener"
+                    class="ml-auto text-xs font-medium text-teal underline underline-offset-2 whitespace-nowrap">WhatsApp</a>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    )}
+  </div>
+</Moldura>

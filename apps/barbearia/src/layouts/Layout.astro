@@ -1,0 +1,122 @@
+---
+import '../styles/global.css';
+import { getSettings, numeroDaLojaInternacional } from '../lib/settings';
+import { cssDoAccent } from '../lib/accent.js';
+import { jsonLdSeguro } from '../lib/jsonLd.js';
+import { enderecoPublico, tenantAtual } from '../lib/tenant.js';
+import { ehOBayron } from '../lib/bayron';
+import { iconeDaAba } from '../lib/iconeDaAba.js';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+// SSR obrigatório em toda página que renderiza este layout — ver ARQUITETURA-PRODUTO-V1 D3.
+// Com prerender = true, estes valores congelam no build e o painel vira decoração.
+const s = await getSettings();
+
+// O endereço é guardado como "Cidade/UF" numa string só (é assim que aparece no
+// site). O schema.org quer os dois separados, então dividimos aqui.
+const [addressLocality, addressRegion] = s.addressCity.split('/');
+
+const {
+  title = s.seoTitle,
+  description = s.seoDescription
+} = Astro.props;
+
+// O endereço DESTA barbearia — nunca uma constante (ver `enderecoPublico`).
+const base = enderecoPublico(Astro.request, Astro.url);
+const canonical = new URL(Astro.url.pathname, base).href;
+// A imagem de compartilhamento e o ícone da aba saem do banco quando existirem.
+// URL absoluta no og:image porque WhatsApp e redes sociais exigem.
+//
+// ⚠️ Sem a prévia que o dono sobe, vale a CAPA dele; sem capa, imagem nenhuma.
+// O `public/og.jpg` do repositório é a foto do Bayron, com o nome e o arroba dele:
+// até 27/09/2026 era o padrão de toda barbearia, e o link de um cliente novo
+// mandado no WhatsApp aparecia com a cara de outra barbearia. Continua valendo só
+// para o próprio Bayron, pelo mesmo interruptor dos componentes (`PENDENCIAS-ABERTAS.md` §4.7).
+const ogDoBayron = ehOBayron(tenantAtual()) ? '/og.jpg' : '';
+const previaPropria = Boolean(s.ogPath) || Boolean(ogDoBayron && !s.heroPath);
+const imagemDaPrevia = s.ogPath || s.heroPath || ogDoBayron;
+const ogImage = imagemDaPrevia ? new URL(imagemDaPrevia, base).href : null;
+// Sem ícone enviado, a inicial da barbearia na cor dela — até 27/09/2026 caía no
+// `public/favicon.svg`, o ícone do Astro (ver `lib/iconeDaAba.ts`).
+const favicon = iconeDaAba(s);
+
+// Cor de destaque da barbearia (Fase 5 / D5). O Tailwind v4 compila `bg-teal`
+// para `background-color: var(--color-teal)`, então sobrescrever a variável aqui
+// retinge tudo que deriva dela — sem rebuild, sem tocar em componente.
+// cssDoAccent descarta qualquer valor fora do formato hex: é o que impede o
+// campo do painel de virar injeção de CSS.
+const estiloAccent = cssDoAccent({
+  color: s.accentColor,
+  hover: s.accentHover,
+  light: s.accentLight,
+});
+---
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content={s.businessName} />
+    <meta property="og:url" content={canonical} />
+    {ogImage && <meta property="og:image" content={ogImage} />}
+    {ogImage && previaPropria && <meta property="og:image:width" content="1200" />}
+    {ogImage && previaPropria && <meta property="og:image:height" content="630" />}
+    {ogImage && <meta property="og:image:alt" content={`${s.businessName} — ${s.addressCity}`} />}
+    <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    {ogImage && <meta name="twitter:image" content={ogImage} />}
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href={favicon} />
+    <title>{title}</title>
+    <script type="application/ld+json" set:html={jsonLdSeguro({
+      "@context": "https://schema.org",
+      "@type": "HairSalon",
+      "@id": `${base}/#business`,
+      "name": s.businessName,
+      "image": ogImage ?? undefined,
+      "url": base,
+      "telephone": numeroDaLojaInternacional(s) ? `+${numeroDaLojaInternacional(s)}` : undefined,
+      "priceRange": "$$",
+      "sameAs": s.instagramUrl ? [s.instagramUrl] : [],
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": s.addressStreet,
+        "addressLocality": addressLocality,
+        "addressRegion": addressRegion,
+        "addressCountry": "BR"
+      },
+      // TODO Fase 3: o horário de vitrine é texto livre ("Segunda — Sexta",
+      // "09:00 — 20:00") e não dá para virar schema.org sem um modelo estruturado.
+      // Fica fixo até a Fase 3 dar estrutura a `business_hours`.
+      "openingHoursSpecification": [
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"],
+          "opens": "09:00",
+          "closes": "20:00"
+        },
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": "Saturday",
+          "opens": "09:00",
+          "closes": "18:00"
+        }
+      ]
+    })} />
+    <style set:html={estiloAccent}></style>
+  </head>
+  <body class="font-sans pb-24 md:pb-0">
+    <slot />
+  </body>
+</html>

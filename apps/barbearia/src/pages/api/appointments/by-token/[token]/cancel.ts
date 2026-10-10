@@ -1,0 +1,52 @@
+export const prerender = false;
+
+import type { APIRoute } from 'astro';
+import { eq, and } from 'drizzle-orm';
+import { db } from '../../../../../db/index.js';
+import { appointments } from '../../../../../db/schema.js';
+import { json } from '../../../../../lib/api.js';
+import { tenantDoHost } from '../../../../../lib/tenant.js';
+
+export const POST: APIRoute = async ({ params, request }) => {
+  const tenant = tenantDoHost(request);
+  // Endereço que não é de barbearia nenhuma. 404 de propósito: servir o site da
+  // barbearia errada é pior que não servir nada (`lib/tenant.ts`, passo 6).
+  if (!tenant) return json({ error: 'Barbearia não encontrada' }, 404);
+  const { token } = params;
+  if (!token) return json({ error: 'Token inválido' }, 400);
+
+  try {
+    // Busca o agendamento pelo token
+    const apptRows = await db
+      .select({ id: appointments.id, status: appointments.status })
+      .from(appointments)
+      .where(and(eq(appointments.manageToken, token), eq(appointments.tenantId, tenant.id)));
+
+    if (apptRows.length === 0) {
+      return json({ error: 'Agendamento não encontrado' }, 404);
+    }
+
+    const appt = apptRows[0];
+
+    if (appt.status !== 'confirmed') {
+      return json({ error: `Agendamento não pode ser cancelado (status: ${appt.status})` }, 409);
+    }
+
+    await db.update(appointments)
+      .set({
+        status:      'cancelled',
+        cancelledAt: new Date().toISOString(),
+        cancelledBy: 'customer',
+      })
+      .where(and(     and(
+          eq(appointments.manageToken, token),
+          eq(appointments.status, 'confirmed')
+        )
+     , eq(appointments.tenantId, tenant.id)));
+
+    return json({ ok: true, message: 'Agendamento cancelado' });
+  } catch (err) {
+    console.error('[api/appointments/by-token/cancel POST]', err);
+    return json({ error: 'Erro interno ao cancelar' }, 500);
+  }
+};

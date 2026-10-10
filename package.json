@@ -1,48 +1,32 @@
 {
-  "name": "barbearia-bayron",
+  "name": "barbearia-no-ar",
+  "private": true,
+  "version": "0.0.0",
   "type": "module",
-  "version": "0.0.1",
   "engines": {
     "node": ">=22.12.0"
   },
+  "comentario": [
+    "Raiz do monorepo. NÃO usa npm workspaces ainda, de propósito.",
+    "Cada app mantém o próprio package-lock.json e o próprio node_modules, e por",
+    "isso o Dockerfile de apps/barbearia continua funcionando exatamente como",
+    "antes — só precisa que o build aponte para apps/barbearia em vez da raiz.",
+    "Workspaces entram junto com packages/core (passo 6 da arquitetura), quando",
+    "houver código de verdade para compartilhar e o Dockerfile for ajustado no",
+    "mesmo commit. Ver docs/MONOREPO.md."
+  ],
   "scripts": {
-    "dev": "node --env-file-if-exists=.env node_modules/astro/bin/astro.mjs dev",
-    "build": "astro build",
-    "preview": "node --env-file-if-exists=.env node_modules/astro/bin/astro.mjs preview",
-    "astro": "astro",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
-    "db:seed": "node --env-file-if-exists=.env scripts/seed.mjs",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "dependencies": {
-    "@astrojs/node": "^10.1.1",
-    "@aws-sdk/client-s3": "^3.750.0",
-    "@fontsource-variable/inter": "^5.2.8",
-    "@fontsource-variable/playfair-display": "^5.2.8",
-    "@tailwindcss/vite": "^4.2.4",
-    "astro": "^6.2.1",
-    "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.10.0",
-    "date-fns": "^4.2.1",
-    "date-fns-tz": "^3.2.0",
-    "drizzle-orm": "^0.45.2",
-    "iron-session": "^8.0.4",
-    "pino": "^10.3.1",
-    "tailwindcss": "^4.2.4",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@astrojs/check": "^0.9.9",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/better-sqlite3": "^7.6.13",
-    "drizzle-kit": "^0.31.10",
-    "sharp": "^0.34.5",
-    "tsx": "^4.22.3",
-    "typescript": "^6.0.3",
-    "vitest": "^3.2.4"
+    "dev": "npm run dev --prefix apps/barbearia",
+    "dev:vendas": "npm run dev --prefix apps/vendas",
+    "build": "npm run build --prefix apps/barbearia && npm run build --prefix apps/vendas",
+    "test": "npm run test --prefix apps/barbearia",
+    "db:migrate": "npm run db:migrate --prefix apps/barbearia --",
+    "db:provisionar": "npm run db:provisionar --prefix apps/barbearia --",
+    "db:seed-bayron": "npm run db:seed-bayron --prefix apps/barbearia --",
+    "db:galeria-bayron": "npm run db:galeria-bayron --prefix apps/barbearia --",
+    "test:db": "npm run test:db --prefix apps/barbearia --",
+    "test:watch": "npm run test:watch --prefix apps/barbearia --",
+    "check": "npm run astro --prefix apps/barbearia -- check",
+    "instalar": "npm install --prefix apps/barbearia && npm install --prefix apps/vendas"
   }
 }

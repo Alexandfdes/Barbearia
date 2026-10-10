@@ -1,5 +1,11 @@
 # Plano — Portal do cliente V3: telefone + data de nascimento
 
+> <!-- STATUS-CONFERIDO-06/09 -->
+> **✅ IMPLANTADO.** Conferido em 06/09/2026: `apps/barbearia/src/pages/portal.astro`,
+> `src/pages/api/customer/login.ts` e a coluna `customer_birthdate`
+> (`src/db/schema.ts:57`) existem. Documento histórico.
+> Onde o código está hoje: `ESTADO-ATUAL.md`.
+
 Data: 2026-05-22
 Status: implementado, aguardando deploy
 

@@ -1,0 +1,446 @@
+---
+export const prerender = false;
+
+import { tenantDaSessao } from '../../lib/tenant.js';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getSession } from '../../lib/session.js';
+import { db, first } from '../../db/index.js';
+import { barbers, settings } from '../../db/schema.js';
+import { and, eq } from 'drizzle-orm';
+import { parseBusinessHours } from '../../lib/settings.js';
+
+const session = await getSession(Astro.request);
+if (!session) return Astro.redirect('/admin/login');
+// A marca da loja é do dono. Barbeiro comum vai para a tela dele.
+if (session.role !== 'admin') return Astro.redirect('/admin/servicos');
+
+const tenant = tenantDaSessao(session);
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+if (!barberRow) return Astro.redirect('/admin/login');
+
+const cfg = (await first(db.select().from(settings).where(eq(settings.tenantId, tenant.id))));
+const horarios = parseBusinessHours(cfg?.businessHours);
+
+type Campo = {
+  id: string;
+  label: string;
+  hint?: string;
+  tipo?: 'text' | 'textarea' | 'number';
+  placeholder?: string;
+};
+
+const secoes: { titulo: string; nota?: string; campos: Campo[] }[] = [
+  {
+    titulo: 'Identidade',
+    campos: [
+      { id: 'businessName', label: 'Nome da barbearia', hint: 'Aparece no rodapé, no título da aba e nos dados que o Google lê.' },
+      { id: 'shortName', label: 'Nome curto', hint: 'O que aparece no topo do site, ao lado do logo. Ex: "Cortes do Zé".' },
+      // ⚠️ Até 27/09/2026 os dois avisos abaixo diziam que o topo do site não lia
+      // estes campos. Lia: a frase É o título grande do topo (`components/Hero.astro`),
+      // e o medidor do painel cobra ela com o nome "frase do topo". O dono
+      // acreditava no aviso e deixava o topo genérico.
+      { id: 'tagline', label: 'Frase do topo', hint: 'O título grande do topo do site — a primeira coisa que o cliente lê. Em branco, o topo mostra o nome da barbearia.' },
+      { id: 'heroSubtitle', label: 'Texto abaixo da frase', tipo: 'textarea', hint: 'Aparece logo abaixo da frase do topo. Opcional.' },
+      { id: 'aboutText', label: 'Sobre a barbearia', tipo: 'textarea', hint: 'O parágrafo do rodapé.' },
+    ],
+  },
+  {
+    titulo: 'Contato',
+    campos: [
+      { id: 'whatsappNumber', label: 'WhatsApp (só números)', hint: 'DDI + DDD + número, sem espaços nem sinais. Ex: 5584999051196. É para onde vão todos os botões de WhatsApp.', placeholder: '5584999051196' },
+      { id: 'whatsappDisplay', label: 'WhatsApp como aparece escrito', hint: 'Só o texto exibido no rodapé. Ex: +55 84 99905-1196.', placeholder: '+55 84 99905-1196' },
+      { id: 'instagramUrl', label: 'Link do Instagram', placeholder: 'https://www.instagram.com/sua_barbearia/' },
+      { id: 'instagramHandle', label: 'Arroba do Instagram', placeholder: '@sua_barbearia' },
+    ],
+  },
+  {
+    titulo: 'Endereço',
+    campos: [
+      { id: 'addressStreet', label: 'Rua e número', placeholder: 'R. Exemplo, 123' },
+      { id: 'addressCity', label: 'Cidade/UF', hint: 'Escreva no formato Cidade/UF — o site divide os dois para o Google.', placeholder: 'Mossoró/RN' },
+      { id: 'mapsUrl', label: 'Link "traçar rota"', hint: 'O link que abre a rota no Google Maps ou Waze.' },
+      { id: 'mapsEmbedQuery', label: 'Busca do mapa embutido', hint: 'O texto que o mapa da página usa para se localizar. Ex: nome da barbearia + rua + cidade.' },
+    ],
+  },
+  {
+    titulo: 'Avaliações do Google',
+    campos: [
+      { id: 'googleReviewsUrl', label: 'Link das avaliações' },
+      { id: 'googleRating', label: 'Nota', hint: 'De 0 a 5, com uma casa decimal. Ex: 4.8', placeholder: '5.0' },
+      { id: 'googleReviewCount', label: 'Quantidade de avaliações', tipo: 'number' },
+    ],
+  },
+  {
+    titulo: 'Busca e compartilhamento',
+    nota: 'É o que aparece no Google e na prévia quando alguém manda o link no WhatsApp.',
+    campos: [
+      { id: 'seoTitle', label: 'Título da página', hint: 'Até uns 60 caracteres aparecem no Google.' },
+      { id: 'seoDescription', label: 'Descrição', tipo: 'textarea', hint: 'Até uns 155 caracteres aparecem no Google.' },
+      { id: 'productsSectionTitle', label: 'Título da seção de produtos' },
+    ],
+  },
+];
+
+const valor = (id: string): string => {
+  const v = (cfg as Record<string, unknown> | undefined)?.[id];
+  return v === null || v === undefined ? '' : String(v);
+};
+---
+
+<AdminLayout title="Configurações" barberName={barberRow.name} role="admin">
+  <main class="max-w-3xl mx-auto px-4 py-6 pb-24">
+
+    <div class="mb-6">
+      <h1 class="text-lg font-medium text-slate-900">Configurações da barbearia</h1>
+      <p class="text-sm text-slate-500 mt-1">
+        O que você muda aqui aparece no site na hora, sem precisar reiniciar nada.
+      </p>
+    </div>
+
+    {!cfg && (
+      <div class="mb-6 border border-red-500/30 bg-red-500/10 rounded p-4 text-sm text-red-700">
+        A configuração não foi encontrada no banco. Rode <code class="font-mono">npm run db:migrate</code> e recarregue.
+      </div>
+    )}
+
+    <form id="form-cfg" class="space-y-8">
+
+      {secoes.map((secao) => (
+        <section class="border border-slate-200 rounded-lg p-4 sm:p-5 bg-slate-50">
+          <h2 class="text-sm font-bold uppercase tracking-[0.15em] text-slate-700 mb-1">{secao.titulo}</h2>
+          {secao.nota && <p class="text-xs text-slate-500 mb-4">{secao.nota}</p>}
+          <div class:list={['space-y-4', !secao.nota && 'mt-4']}>
+            {secao.campos.map((campo) => (
+              <div>
+                <label for={campo.id} class="block text-xs font-medium text-slate-500 mb-1.5">{campo.label}</label>
+                {campo.tipo === 'textarea' ? (
+                  <textarea
+                    id={campo.id}
+                    data-campo={campo.id}
+                    rows="3"
+                    placeholder={campo.placeholder}
+                    class="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-sm text-slate-900 placeholder:text-slate-300 focus:border-teal/50 focus:outline-none transition-colors resize-y"
+                  >{valor(campo.id)}</textarea>
+                ) : (
+                  <input
+                    id={campo.id}
+                    data-campo={campo.id}
+                    data-tipo={campo.tipo ?? 'text'}
+                    type={campo.tipo === 'number' ? 'number' : 'text'}
+                    value={valor(campo.id)}
+                    placeholder={campo.placeholder}
+                    class="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-sm text-slate-900 placeholder:text-slate-300 focus:border-teal/50 focus:outline-none transition-colors"
+                  />
+                )}
+                {campo.hint && <p class="text-[11px] text-slate-400 mt-1.5 leading-relaxed">{campo.hint}</p>}
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+
+      <!-- Imagens da marca -->
+      <section class="border border-slate-200 rounded-lg p-4 sm:p-5 bg-slate-50">
+        <h2 class="text-sm font-bold uppercase tracking-[0.15em] text-slate-700 mb-1">Imagens</h2>
+        <p class="text-xs text-slate-500 mb-5">
+          Trocar aqui muda o site na hora. Cada envio gera um arquivo novo, então o
+          navegador de quem já visitou também vê a imagem nova.
+        </p>
+
+        <div class="grid sm:grid-cols-2 gap-4">
+          {[
+            { tipo: 'logo',    titulo: 'Logo',           dica: 'Aparece no topo e no rodapé. PNG com fundo transparente fica melhor.', valor: cfg?.logoPath },
+            { tipo: 'hero',    titulo: 'Foto de capa',   dica: 'A foto grande do topo. Horizontal, no mínimo 1600px de largura.',      valor: cfg?.heroPath },
+            { tipo: 'og',      titulo: 'Prévia de link', dica: 'A imagem que aparece quando alguém manda o link no WhatsApp. 1200×630.', valor: cfg?.ogPath },
+            { tipo: 'favicon', titulo: 'Ícone da aba',   dica: 'O quadradinho na aba do navegador. Quadrado, a partir de 64px.',       valor: cfg?.faviconPath },
+          ].map((img) => (
+            <div class="border border-slate-200 rounded p-3 bg-slate-50">
+              <div class="flex items-start justify-between gap-2 mb-2">
+                <p class="text-xs font-medium text-slate-700">{img.titulo}</p>
+                {img.valor && (
+                  <button type="button" data-remover={img.tipo}
+                    class="text-[11px] text-slate-400 hover:text-red-600 transition-colors">remover</button>
+                )}
+              </div>
+
+              <div class="h-24 rounded border border-slate-200 bg-black/40 flex items-center justify-center overflow-hidden mb-2">
+                {img.valor
+                  ? <img src={img.valor} alt={img.titulo} class="max-h-full max-w-full object-contain" />
+                  : <span class="text-[11px] text-slate-300">usando a imagem padrão</span>}
+              </div>
+
+              <label class="block text-center text-[11px] text-teal hover:text-teal border border-slate-200 hover:border-teal/40 rounded py-1.5 cursor-pointer transition-colors">
+                {img.valor ? 'Trocar' : 'Escolher arquivo'}
+                <input type="file" accept="image/*" data-upload={img.tipo} class="hidden" />
+              </label>
+              <p class="text-[10px] text-slate-400 mt-1.5 leading-relaxed">{img.dica}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <!-- Cor do site -->
+      <section class="border border-slate-200 rounded-lg p-4 sm:p-5 bg-slate-50">
+        <h2 class="text-sm font-bold uppercase tracking-[0.15em] text-slate-700 mb-1">Cor do site</h2>
+        <p class="text-xs text-slate-500 mb-4">
+          A cor da sua marca, usada nos botões e destaques do site. O painel continua
+          neutro de propósito — a cor é a sua, a ferramenta é a mesma para todo mundo.
+        </p>
+
+        <div class="flex flex-wrap items-end gap-4">
+          <div>
+            <label for="accentColor" class="block text-xs font-medium text-slate-500 mb-1.5">Escolher</label>
+            <input
+              type="color"
+              id="accentColor"
+              data-campo="accentColor"
+              value={cfg?.accentColor ?? '#0f766e'}
+              class="h-10 w-16 rounded border border-slate-200 bg-white p-1 cursor-pointer" />
+          </div>
+          <div>
+            <label for="accentHex" class="block text-xs font-medium text-slate-500 mb-1.5">Código</label>
+            <input
+              type="text"
+              id="accentHex"
+              spellcheck="false"
+              value={cfg?.accentColor ?? '#0f766e'}
+              class="w-28 bg-white border border-slate-200 rounded px-3 py-2 text-sm font-mono text-slate-900 focus:border-teal focus:outline-none" />
+          </div>
+          <button type="button" id="accentPadrao"
+            class="text-xs text-slate-500 hover:text-teal underline underline-offset-2 pb-2.5">
+            voltar ao padrão
+          </button>
+        </div>
+
+        <!-- Prévia: mostra a cor que o site VAI usar, não a que foi escolhida. -->
+        <div class="mt-5 rounded-lg border border-slate-200 bg-slate-900 p-4">
+          <p class="text-[11px] uppercase tracking-wider text-slate-500 mb-3">Como fica no site</p>
+          <div class="flex flex-wrap items-center gap-4">
+            <span id="accentBotao" class="inline-flex items-center justify-center rounded px-5 py-2.5 text-sm font-bold text-white">
+              Reservar horário
+            </span>
+            <span id="accentTexto" class="text-sm font-medium">texto em destaque</span>
+          </div>
+        </div>
+
+        <p id="accentAviso" class="hidden mt-3 text-[11px] leading-relaxed text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2"></p>
+      </section>
+
+      <!-- Horário de vitrine -->
+      <section class="border border-slate-200 rounded-lg p-4 sm:p-5 bg-slate-50">
+        <h2 class="text-sm font-bold uppercase tracking-[0.15em] text-slate-700 mb-1">Horário exibido no site</h2>
+        <p class="text-xs text-slate-500 mb-1">
+          É só o texto que aparece no rodapé e na seção de localização.
+        </p>
+        <p class="text-[11px] text-amber-600/80 mb-4 leading-relaxed">
+          Isto <strong>não</strong> muda a agenda. Os horários que o cliente consegue reservar
+          continuam sendo os da aba <a href="/admin/horarios" class="underline hover:text-amber-700">Horários</a>.
+        </p>
+
+        <div id="horarios" class="space-y-2"></div>
+
+        <button type="button" id="add-horario"
+          class="mt-3 text-xs text-teal hover:text-teal border border-teal/30 hover:border-teal/50 px-3 py-1.5 rounded transition-colors">
+          + Adicionar linha
+        </button>
+      </section>
+
+      <section class="border border-slate-200 rounded-lg p-4 text-xs text-slate-400 leading-relaxed">
+        <p class="font-medium text-slate-500 mb-1.5">Ainda não dá para editar por aqui:</p>
+        <p>A galeria de fotos da página inicial continua vindo do código, junto com os
+        depoimentos, as perguntas frequentes e o catálogo de serviços — é a próxima fase.
+        A cor de destaque já existe no banco, mas o site ainda não a lê, então não a coloquei
+        aqui para não dar um botão que não faz nada.</p>
+      </section>
+
+      <div id="cfg-msg" class="hidden text-sm rounded px-3 py-2"></div>
+    </form>
+  </main>
+
+  <!-- Barra de salvar fixa: o formulário é longo e o botão não pode sumir no fim da rolagem -->
+  <div class="fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-slate-50/95 backdrop-blur px-4 py-3 z-30">
+    <div class="max-w-3xl mx-auto flex items-center justify-between gap-4">
+      <span id="cfg-status" class="text-xs text-slate-400"></span>
+      <button id="btn-salvar"
+        class="shrink-0 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest px-8 py-2.5 rounded transition-colors text-xs disabled:opacity-50">
+        Salvar
+      </button>
+    </div>
+  </div>
+</AdminLayout>
+
+<script>
+  // Prévia da cor. Usa a MESMA função que o servidor usa ao gravar, para o que
+  // aparece aqui ser exatamente o que vai para o site — sem lógica duplicada.
+  import { derivarAccent, ACCENT_PADRAO } from '../../lib/accent.js';
+
+  const entrada = document.getElementById('accentColor') as HTMLInputElement | null;
+  const hex     = document.getElementById('accentHex') as HTMLInputElement | null;
+  const botao   = document.getElementById('accentBotao') as HTMLElement | null;
+  const texto   = document.getElementById('accentTexto') as HTMLElement | null;
+  const aviso   = document.getElementById('accentAviso') as HTMLElement | null;
+  const padrao  = document.getElementById('accentPadrao');
+
+  if (entrada && hex && botao && texto && aviso) {
+    const pintar = (escolhida: string) => {
+      const a = derivarAccent(escolhida);
+      botao.style.backgroundColor = a.color;
+      texto.style.color = a.light;
+
+      // A cor gravada difere da escolhida quando a marca é clara demais para
+      // segurar texto branco. Dizer isso é melhor do que mudar em silêncio.
+      if (a.color.toLowerCase() !== escolhida.toLowerCase()) {
+        aviso.textContent =
+          `Essa cor é clara demais para o texto branco do botão ficar legível, então o site vai usar ${a.color}, ` +
+          `que é o mesmo tom um pouco mais escuro. A prévia acima já mostra o resultado real.`;
+        aviso.classList.remove('hidden');
+      } else {
+        aviso.classList.add('hidden');
+      }
+    };
+
+    const sincronizar = (valor: string, vindoDoTexto: boolean) => {
+      const v = valor.trim().toLowerCase();
+      if (!/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/.test(v)) return;   // texto pela metade: espera
+      if (vindoDoTexto) entrada.value = v.length === 4
+        ? '#' + v[1] + v[1] + v[2] + v[2] + v[3] + v[3]
+        : v;
+      else hex.value = v;
+      pintar(entrada.value);
+    };
+
+    entrada.addEventListener('input', () => sincronizar(entrada.value, false));
+    hex.addEventListener('input', () => sincronizar(hex.value, true));
+    padrao?.addEventListener('click', () => {
+      entrada.value = ACCENT_PADRAO.color;
+      hex.value = ACCENT_PADRAO.color;
+      pintar(ACCENT_PADRAO.color);
+    });
+
+    pintar(entrada.value);
+  }
+</script>
+
+<script is:inline define:vars={{ horariosIniciais: horarios }}>
+  const wrap = document.getElementById('horarios');
+
+  function linhaHorario(h) {
+    const div = document.createElement('div');
+    div.className = 'flex flex-wrap items-center gap-2';
+    div.innerHTML = `
+      <input data-h-label placeholder="Segunda — Sexta"
+        class="flex-1 min-w-[120px] bg-slate-50 border border-slate-200 rounded px-3 py-2 text-sm text-slate-900 placeholder:text-slate-300 focus:border-teal/50 focus:outline-none">
+      <input data-h-hours placeholder="09:00 — 20:00"
+        class="flex-1 min-w-[100px] bg-slate-50 border border-slate-200 rounded px-3 py-2 text-sm text-slate-900 placeholder:text-slate-300 focus:border-teal/50 focus:outline-none">
+      <div class="flex items-center gap-2 ml-auto">
+        <label class="flex items-center gap-1.5 text-xs text-slate-500 whitespace-nowrap">
+          <input type="checkbox" data-h-closed class="accent-teal"> fechado
+        </label>
+        <button type="button" data-h-remove
+          class="text-slate-400 hover:text-red-600 px-2 py-1 text-lg leading-none transition-colors" aria-label="Remover linha">&times;</button>
+      </div>`;
+    div.querySelector('[data-h-label]').value = h?.label ?? '';
+    div.querySelector('[data-h-hours]').value = h?.hours ?? '';
+    div.querySelector('[data-h-closed]').checked = Boolean(h?.closed);
+    div.querySelector('[data-h-remove]').addEventListener('click', () => div.remove());
+    return div;
+  }
+
+  (horariosIniciais.length ? horariosIniciais : [null]).forEach((h) => wrap.appendChild(linhaHorario(h)));
+  document.getElementById('add-horario').addEventListener('click', () => wrap.appendChild(linhaHorario(null)));
+
+  const msg = document.getElementById('cfg-msg');
+  const status = document.getElementById('cfg-status');
+  const btn = document.getElementById('btn-salvar');
+
+  function mostrar(texto, erro) {
+    msg.textContent = texto;
+    msg.className = erro
+      ? 'text-sm rounded px-3 py-2 bg-red-500/10 border border-red-500/30 text-red-700'
+      : 'text-sm rounded px-3 py-2 bg-teal/10 border border-teal/30 text-teal';
+    msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // ── Imagens ────────────────────────────────────────────────────────────────
+  // Sobem na hora em que o arquivo é escolhido, e não no "Salvar": upload é uma
+  // operação com resultado visível, e misturar com o formulário faria o usuário
+  // esperar sem entender o quê.
+  document.querySelectorAll('[data-upload]').forEach((input) => {
+    input.addEventListener('change', async () => {
+      const arquivo = input.files?.[0];
+      if (!arquivo) return;
+      const fd = new FormData();
+      fd.append('tipo', input.dataset.upload);
+      fd.append('arquivo', arquivo);
+      status.textContent = 'Enviando imagem…';
+      try {
+        const res = await fetch('/api/admin/settings/media', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (res.ok) { location.reload(); return; }
+        mostrar(data.error ?? 'Não consegui enviar a imagem', true);
+      } catch { mostrar('Erro de conexão ao enviar a imagem', true); }
+      status.textContent = '';
+      input.value = '';
+    });
+  });
+
+  document.querySelectorAll('[data-remover]').forEach((b) => {
+    b.addEventListener('click', async () => {
+      status.textContent = 'Removendo…';
+      try {
+        const res = await fetch('/api/admin/settings/media', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tipo: b.dataset.remover }),
+        });
+        if (res.ok) { location.reload(); return; }
+        const d = await res.json();
+        mostrar(d.error ?? 'Não consegui remover', true);
+      } catch { mostrar('Erro de conexão', true); }
+      status.textContent = '';
+    });
+  });
+
+  btn.addEventListener('click', async () => {
+    msg.className = 'hidden';
+    const payload = {};
+
+    document.querySelectorAll('[data-campo]').forEach((el) => {
+      const chave = el.dataset.campo;
+      payload[chave] = el.dataset.tipo === 'number'
+        ? Number(el.value || 0)
+        : el.value.trim();
+    });
+
+    payload.businessHours = [...wrap.children]
+      .map((linha) => ({
+        label: linha.querySelector('[data-h-label]').value.trim(),
+        hours: linha.querySelector('[data-h-hours]').value.trim(),
+        closed: linha.querySelector('[data-h-closed]').checked,
+      }))
+      .filter((h) => h.label || h.hours);
+
+    btn.disabled = true;
+    status.textContent = 'Salvando…';
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        mostrar('Salvo. Abra o site numa outra aba para conferir.', false);
+        status.textContent = 'Salvo às ' + new Date().toLocaleTimeString('pt-BR');
+      } else {
+        mostrar(data.error ?? 'Erro ao salvar', true);
+        status.textContent = '';
+      }
+    } catch {
+      mostrar('Erro de conexão', true);
+      status.textContent = '';
+    }
+    btn.disabled = false;
+  });
+</script>

@@ -1,0 +1,30 @@
+---
+import '../styles/global.css';
+import { NOME_PRODUTO, SUBTITULO, SITE_URL } from '../config';
+
+interface Props { title?: string; description?: string; }
+const {
+  title = `${NOME_PRODUTO} — ${SUBTITULO}`,
+  description = 'O site da sua barbearia, no seu domínio, com agendamento online e controle de faturamento. Montado por quem entende, entregue pronto.',
+} = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, SITE_URL).href;
+---
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content={NOME_PRODUTO} />
+    <link rel="canonical" href={canonical} />
+  </head>
+  <body class="font-sans antialiased">
+    <slot />
+  </body>
+</html>

@@ -1,0 +1,160 @@
+---
+export const prerender = false;
+import '../../styles/global.css';
+import { iconeComLetra } from '../../lib/iconeDaAba.js';
+import { ACCENT_PADRAO } from '../../lib/accent.js';
+import { NOME_PRODUTO } from '../../lib/produto.js';
+import { pedidoValido, SENHA_MINIMA } from '../../lib/redefinicaoDeSenha.js';
+
+/**
+ * Onde o link do e-mail leva (`lib/redefinicaoDeSenha.ts`). Pública: o middleware
+ * a deixa abrir sem sessão.
+ *
+ * O link é conferido ANTES de mostrar o formulário: vencido ou usado, a tela diz
+ * na hora — e não depois de a pessoa digitar a senha duas vezes.
+ *
+ * ⚠️ O token está no endereço. Três cuidados com isso, todos aqui:
+ *  - `Referrer-Policy: no-referrer` — nada nesta página manda o endereço para fora;
+ *  - `Cache-Control: no-store` — o navegador não guarda a página com o token;
+ *  - o script tira o token da barra de endereço assim que a página abre.
+ * Abrir a página NÃO gasta o link: antivírus de e-mail abre todo link que chega, e
+ * gastar na abertura entregaria ao dono um link já morto.
+ */
+const token = Astro.url.searchParams.get('token') ?? '';
+const pedido = token ? await pedidoValido(token) : null;
+
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+Astro.response.headers.set('Cache-Control', 'no-store');
+---
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="icon" type="image/svg+xml" href={iconeComLetra(NOME_PRODUTO, ACCENT_PADRAO.color)} />
+    <title>Criar a senha nova — {NOME_PRODUTO}</title>
+  </head>
+  <body class="bg-dark text-cream min-h-screen flex items-center justify-center px-4">
+    <div class="w-full max-w-sm">
+
+      <div class="text-center mb-8">
+        <p class="text-xs text-gray uppercase tracking-widest mb-1">{NOME_PRODUTO}</p>
+        <h1 class="font-serif text-2xl font-medium text-white">Senha nova</h1>
+      </div>
+
+      {pedido ? (
+        <form id="senha-form" data-token={token} class="bg-dark-card border border-white/10 rounded-md p-6 space-y-4">
+          <p class="text-sm text-gray-light">Olá, {pedido.nome}. Escolha a senha nova do painel.</p>
+          <div>
+            <label for="senha" class="block text-xs text-gray-light uppercase tracking-widest mb-2">Senha nova</label>
+            <input
+              id="senha"
+              type="password"
+              autocomplete="new-password"
+              minlength={SENHA_MINIMA}
+              autofocus
+              class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2.5 text-sm text-cream placeholder-gray focus:outline-none focus:border-teal-light/60 transition-colors"
+            />
+            <p class="mt-1.5 text-[11px] text-gray">Ao menos {SENHA_MINIMA} caracteres.</p>
+          </div>
+          <div>
+            <label for="repetir" class="block text-xs text-gray-light uppercase tracking-widest mb-2">Repita a senha</label>
+            <input
+              id="repetir"
+              type="password"
+              autocomplete="new-password"
+              class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2.5 text-sm text-cream placeholder-gray focus:outline-none focus:border-teal-light/60 transition-colors"
+            />
+          </div>
+          <label class="flex items-center gap-2 text-xs text-gray-light select-none">
+            <input id="mostrar" type="checkbox" class="accent-teal" />
+            Mostrar a senha
+          </label>
+
+          <div id="senha-erro" class="hidden text-red-400 text-sm text-center py-1" role="alert"></div>
+
+          <button
+            type="submit"
+            id="senha-btn"
+            data-minimo={String(SENHA_MINIMA)}
+            class="w-full bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest px-6 py-3 rounded transition-colors duration-300 text-sm"
+          >
+            Trocar a senha
+          </button>
+          <p class="text-[11px] text-gray text-center">
+            Todo aparelho que estiver com o painel aberto vai pedir login de novo.
+          </p>
+        </form>
+      ) : (
+        <div id="link-invalido" class="bg-dark-card border border-white/10 rounded-md p-6 space-y-4 text-center">
+          <p class="text-sm text-cream">Este link expirou ou já foi usado.</p>
+          <p class="text-xs text-gray">O link vale por 1 hora e funciona uma vez só. Peça outro — é rápido.</p>
+          <a href="/admin/esqueci"
+            class="block w-full bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest px-6 py-3 rounded transition-colors duration-300 text-sm">
+            Pedir outro link
+          </a>
+        </div>
+      )}
+
+      <p class="text-center mt-6">
+        <a href="/admin/login" class="text-xs text-gray hover:text-cream underline underline-offset-4">Voltar para o login</a>
+      </p>
+    </div>
+
+    <script>
+      const form = document.getElementById('senha-form') as HTMLFormElement | null;
+      if (form) {
+        const token   = form.dataset.token ?? '';
+        const senha   = document.getElementById('senha') as HTMLInputElement;
+        const repetir = document.getElementById('repetir') as HTMLInputElement;
+        const mostrar = document.getElementById('mostrar') as HTMLInputElement;
+        const erro    = document.getElementById('senha-erro') as HTMLDivElement;
+        const botao   = document.getElementById('senha-btn') as HTMLButtonElement;
+        const minimo  = Number(botao.dataset.minimo ?? '8');
+
+        // O token sai da barra de endereço — e do histórico — assim que a página abre.
+        history.replaceState(null, '', location.pathname);
+
+        mostrar.addEventListener('change', () => {
+          const tipo = mostrar.checked ? 'text' : 'password';
+          senha.type = tipo;
+          repetir.type = tipo;
+        });
+
+        const falhar = (texto: string) => {
+          erro.textContent = texto;
+          erro.classList.remove('hidden');
+        };
+
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          erro.classList.add('hidden');
+
+          if (senha.value.length < minimo) return falhar(`A senha precisa ter ao menos ${minimo} caracteres.`);
+          if (senha.value !== repetir.value) return falhar('As duas senhas não são iguais.');
+
+          botao.disabled = true;
+          botao.textContent = 'Trocando...';
+          try {
+            const res = await fetch('/api/auth/nova-senha', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token, senha: senha.value }),
+            });
+            if (res.ok) {
+              location.replace('/admin/login?senha=trocada');
+              return;
+            }
+            const dados = await res.json().catch(() => ({}));
+            falhar(dados.error ?? 'Não deu para trocar a senha. Tente de novo.');
+          } catch {
+            falhar('Erro de conexão. Tente novamente.');
+          }
+          botao.disabled = false;
+          botao.textContent = 'Trocar a senha';
+        });
+      }
+    </script>
+  </body>
+</html>
