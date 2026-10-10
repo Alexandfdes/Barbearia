@@ -422,7 +422,9 @@ describe('a rota, de ponta a ponta', () => {
       await vi.waitFor(() => expect(caixaDeSaida).toHaveLength(1));
       const [boasVindas] = caixaDeSaida;
       expect(boasVindas.para).toBe('ze@exemplo.com.br');
-      expect(boasVindas.assunto).toMatch(/^Barbearia Cortes do Zé está no ar — /);
+      expect(boasVindas.assunto).toMatch(/^Barbearia Cortes do Zé: o seu site no /);
+      // Nem o assunto nem o corpo afirmam "no ar": o servidor não sabe (`src/lib/noAr.ts`).
+      expect(`${boasVindas.assunto}\n${boasVindas.texto}`).not.toMatch(/no ar/i);
       expect(boasVindas.texto).toContain('Olá, José da Silva.');
       expect(boasVindas.texto).toContain('https://salao-jovem.fadeline.com.br');
       expect(boasVindas.texto).toContain('https://painel.fadeline.com.br/admin');
