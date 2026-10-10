@@ -108,6 +108,8 @@ cliente por mês isso resolve; quando incomodar, o próximo passo é e-mail.
 Não use as fotos da Barbearia Bayron ali: são a marca dele, os depoimentos são de
 clientes reais com nome e sobrenome, e mostrar isso para barbearias concorrentes da
 mesma cidade é indefensável. As saídas estão no `README.md` do projeto.
+*✅ 09/10/2026: os quatro arquivos existem — prints de uma barbearia fictícia, sem nada do
+Bayron (`PENDENCIAS-ABERTAS.md` §4.10).*
 
 ---
 

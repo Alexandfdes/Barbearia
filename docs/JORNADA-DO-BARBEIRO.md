@@ -607,8 +607,8 @@ caminho do barbeiro. Muda uma coisa lá e encaixa o que a jornada achou sem luga
      `PENDENCIAS-ABERTAS.md` §1.3).
 6. **A landing, o `/acessar` e a aposentadoria do `/onboarding` e do `/envios`**
    (`PENDENCIAS-ABERTAS.md` §4.15) — por último de propósito: ela descreve o produto pronto.
-7. **A página "Como fica"** (`PENDENCIAS-ABERTAS.md` §4.10) — mostra os três layouts, então
-   vem depois deles.
+7. ~~**A página "Como fica"** (`PENDENCIAS-ABERTAS.md` §4.10) — mostra os três layouts, então
+   vem depois deles~~ — ✅ 09/10, com os prints de uma barbearia fictícia.
 
 Fora do código, e travando a abertura do mesmo jeito: **o termo aceito no cadastro**, com a
 versão gravada, quando o advogado entregar (`PENDENCIAS-ABERTAS.md` §1.2); a política de
