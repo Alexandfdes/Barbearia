@@ -1787,22 +1787,35 @@ que ninguém faz também conta como nenhum.
 Guarda: `tests/agendar-primeiro-minuto.test.ts` (o fonte da página); na tela, conferido num
 navegador contra o build.
 
-### 4.10 🔴 `[TÉCNICO]` A página "Como fica" do site de vendas não tem nenhuma imagem
+### 4.10 ✅ `[TÉCNICO]` A página "Como fica" do site de vendas não tem nenhuma imagem — RESOLVIDO em 09/10/2026
 
-`/demo`, no site de vendas, é o destino do link do menu **e** do botão secundário do topo
-("Ver como fica"). O que o visitante lê, quatro vezes:
+Era: `/demo`, o destino do link do menu e do botão "Ver como fica" do topo, mostrava quatro
+recados para o desenvolvedor — *"Coloque a imagem em `public/demo/site.png`"* — no lugar das
+quatro telas. Um dono de barbearia que clicasse ali fechava a aba.
 
-> 01 O site — *Coloque a imagem em `public/demo/site.png`*
-> 02 O agendamento — *Coloque a imagem em `public/demo/agendamento.png`*
-> 03 Sua agenda do dia — *Coloque a imagem em `public/demo/agenda.png`*
-> 04 Seu faturamento — *Coloque a imagem em `public/demo/relatorio.png`*
+**Feito:** os quatro prints, tirados em 09/10/2026 contra o build da `monorepo`, de uma
+barbearia **fictícia** montada para isso — a *Barbearia Exemplo*, de Natal: três barbeiros,
+sete serviços, três produtos e três meses de agenda gerados, cerca de 2 mil agendamentos entre
+concluídos, faltas, cancelados e confirmados à frente. Nada do Bayron: a marca é dele, e os
+depoimentos são de clientes reais (`FLUXO-COMPLETO.md`).
 
-A página existe para mostrar como o produto fica, e mostra um recado para o
-desenvolvedor. **Um dono de barbearia que clicar ali fecha a aba.**
+| Arquivo, em `apps/vendas/public/demo/` | O que mostra |
+|---|---|
+| `site.png` | o topo e os serviços com preço |
+| `agendamento.png` | o passo do dia e do horário, só com os horários livres |
+| `agenda.png` | a agenda de uma segunda cheia, no painel |
+| `relatorio.png` | o relatório de setembro, um mês fechado |
 
-As quatro imagens são print do sistema funcionando: site, wizard de agendar, agenda do
-dia e relatório. Precisa de uma barbearia com serviços, agendamentos e faturamento —
-senão são quatro telas vazias, o que é pior que o placeholder.
+Conferido servindo o build do site de vendas: as quatro carregam, nenhum recado, nenhum erro de
+JavaScript. As quatro somam 206 KB, em PNG de paleta.
+
+⚠️ **O print do site não tem foto.** A barbearia de exemplo não tem foto que se possa usar, e o
+site dela sai na versão tipográfica (`PENDENCIAS-ABERTAS.md` §4.1) — enquanto o texto ao lado
+promete *"suas fotos"*. Fica para a landing nova (`PENDENCIAS-ABERTAS.md` §4.15): ou muda o
+texto, ou entra o print de um cliente com foto, com a autorização dele.
+
+⚠️ **Refazer os prints** — o layout mudou, o painel ganhou tela — é remontar a barbearia de
+exemplo. O que a montou e tirou os prints ficou na sessão de 09/10, fora do repositório.
 
 ### 4.11 🟠 `[TÉCNICO]` A avaliação publica "0,0" e as estrelas são enfeite
 
@@ -2270,8 +2283,9 @@ o teste que acaba sem cartão segue os mesmos 3 dias — confirmado no mesmo dia
      depende do domínio (§4.17).
 6. A landing, o `/acessar` e a aposentadoria do `/onboarding` (§4.15) — por último de
    propósito: ela descreve o produto pronto.
-7. A página "Como fica" (§4.10) — as imagens têm que mostrar os três layouts, então vem
-   depois deles. *Desde 08/10, um layout só: não espera mais nada.*
+7. ~~A página "Como fica" (§4.10) — as imagens têm que mostrar os três layouts, então vem
+   depois deles~~ — ✅ feita em 09/10/2026, com um layout só. O print do site sai sem foto, e
+   o texto ao lado promete fotos: entra na landing nova (item 6).
 
 **Onda 3 — antes do primeiro cliente fora do UTC-3.** *(Era a onda 2 em 15/09.)*
 ~~As contas de offset (§2.11) e o teste de fuso passando a pegá-las~~ — ✅ feitos em
