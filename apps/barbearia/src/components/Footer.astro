@@ -1,5 +1,6 @@
 ---
 import { getSettings, waUrl } from '../lib/settings';
+import { linkDoMapa } from '../lib/mapa';
 import { tenantAtual } from '../lib/tenant';
 import { ehOBayron } from '../lib/bayron';
 import { srcsetDe } from '../lib/uploads';
@@ -13,6 +14,11 @@ const temHorario = s.businessHours.length > 0;
 const temLogo = Boolean(s.logoPath) || BAYRON;
 const currentYear = new Date().getFullYear();
 const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário.', s);
+// O que a barbearia não preencheu não aparece — nem como espaço vazio, nem como
+// link que abre o próprio site de novo (achados do roteiro de 10/10/2026).
+const sobre = s.aboutText.trim();
+const instagram = s.instagramUrl.trim() || null;
+const mapa = linkDoMapa(s);
 ---
 
 <footer id="contato" class="bg-dark relative overflow-hidden">
@@ -62,13 +68,16 @@ const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário
           </div>
         </div>
         
+        {sobre && (
         <p class="text-xs text-neutral-400 leading-relaxed max-w-xs">
-          {s.aboutText}
+          {sobre}
         </p>
+        )}
 
         <!-- Botão Instagram Premium -->
+        {instagram && (
         <a
-          href={s.instagramUrl}
+          href={instagram}
           target="_blank"
           rel="noopener"
           class="inline-flex items-center gap-2.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-300 hover:text-white bg-white/[0.02] hover:bg-white/[0.06] border border-white/10 hover:border-teal/40 px-4 py-2.5 rounded-md transition-all duration-300 hover:shadow-[0_0_20px_rgba(94,234,212,0.1)] group/btn self-start"
@@ -78,6 +87,7 @@ const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário
           </svg>
           Siga no Instagram
         </a>
+        )}
       </div>
 
       {/* Coluna 2: Horários — some inteira se a barbearia ainda não cadastrou. */}
@@ -119,15 +129,19 @@ const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
               </svg>
             </div>
-            <a 
-              href={s.mapsUrl} 
-              target="_blank" 
-              rel="noopener" 
+            {mapa ? (
+            <a
+              href={mapa}
+              target="_blank"
+              rel="noopener"
               class="hover:text-white transition-colors leading-relaxed pt-0.5"
             >
               {s.addressStreet}<br/>
               {s.addressCity}
             </a>
+            ) : (
+            <p class="leading-relaxed pt-0.5">{s.addressStreet}<br/>{s.addressCity}</p>
+            )}
           </div>
 
           <!-- WhatsApp -->

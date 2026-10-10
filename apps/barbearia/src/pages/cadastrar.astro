@@ -17,6 +17,7 @@ export const prerender = false;
  */
 import { CATALOGO_SUGERIDO } from '../lib/catalogoSugerido.js';
 import { NOME_PRODUTO } from '../lib/produto.js';
+import { DIAS_DE_TESTE } from '../lib/situacao.js';
 /**
  * As cores prontas — e as regras que elas cumprem — moram em
  * `lib/coresDoCadastro.ts`. Qualquer cor, pronta ou a "outra", passa pela mesma
@@ -189,6 +190,9 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     <h1>Criar a sua barbearia</h1>
     {/* Não promete "no ar": quem confere é a tela do fim, do navegador do dono (`lib/noAr.ts`). */}
     <p class="sub">No fim, o seu site nasce — com os seus serviços e a sua cor.</p>
+    {/* Antes de ele gastar cinco minutos no formulário: quem tem medo de cobrança
+        desiste antes de enviar, e só a tela do fim falava do teste (roteiro de 10/10/2026). */}
+    <p class="sub" id="teste-gratis">{DIAS_DE_TESTE} dias grátis, sem cartão: ele só é pedido no fim do teste.</p>
 
     <div id="erro" class="erro" hidden></div>
 
