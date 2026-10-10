@@ -23,6 +23,15 @@
  * resposta, e a página de 404 do proxy passaria por site no ar. E conferir no
  * servidor: o servidor enxerga a própria rede, não a do dono.
  *
+ * ⚠️ NO DESENVOLVIMENTO (`npm run dev`) A TELA DIZ SEMPRE "QUASE NO AR". O
+ * servidor de desenvolvimento do Astro 7 recusa, com 403, todo pedido de imagem ou
+ * script de outro site (`astro/dist/vite-plugin-astro-server/sec-fetch.js`), e
+ * `localhost` e `<barbearia>.localhost` são sites diferentes para o navegador.
+ * Abrir o endereço na aba funciona — navegação passa. No build não existe esse
+ * bloqueio, e o E2E contra ele vira "no ar"; em produção o painel e as barbearias
+ * ainda são o mesmo site (`painel.dominio` e `barbearia.dominio`). Visto na
+ * máquina do dono em 10/10/2026, e reproduzido com o `astro dev` no mesmo dia.
+ *
  * ⚠️ Se o painel ganhar uma `Content-Security-Policy`, o `img-src` dela tem de
  * aceitar os endereços das barbearias — os subdomínios de `DOMINIO_BASE` e os
  * domínios próprios. Senão a imagem nunca carrega, e a tela diz "quase no ar"

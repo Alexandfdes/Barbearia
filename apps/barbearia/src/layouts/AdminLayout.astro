@@ -5,6 +5,8 @@ import { tenantAtual, urlDoSite } from '../lib/tenant.js';
 import { iconeDaAba } from '../lib/iconeDaAba.js';
 import { situacaoDe } from '../lib/situacao.js';
 import { avisoDoPainel, TELA_DE_ASSINATURA } from '../lib/assinatura.js';
+import { formatInTimeZone } from 'date-fns-tz';
+import { TZ } from '../lib/timezone.js';
 
 const s = await getSettings();
 const barbearia = tenantAtual();
@@ -23,6 +25,8 @@ interface Props {
 const { title = 'Painel', barberName, role } = Astro.props;
 const path = Astro.url.pathname;
 const norm = path.endsWith('/') && path.length > 1 ? path.slice(0, -1) : path;
+// A agenda de hoje é a do dia da barbearia, não a do servidor (regra 5 do `CLAUDE.md`).
+const hoje = formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
 
 /**
  * Navegação em grupos, não em fila de abas.
@@ -35,9 +39,14 @@ const grupos: { titulo: string; itens: { href: string; label: string; ativo: boo
   {
     titulo: 'Atendimento',
     itens: [
-      { href: '/admin',          label: 'Agenda do dia', ativo: norm === '/admin' || norm.startsWith('/admin/dia'), icone: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+      // Até 10/10/2026, "Agenda do dia" levava a esta tela de resumo, que se chama
+      // Início — e a agenda de verdade ficava atrás de um botão dela.
+      { href: '/admin',          label: 'Início',        ativo: norm === '/admin', icone: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+      { href: `/admin/dia/${hoje}`, label: 'Agenda do dia', ativo: norm.startsWith('/admin/dia'), icone: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
       { href: '/admin/buscar',   label: 'Buscar cliente', ativo: norm === '/admin/buscar', icone: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
-      { href: '/admin/reservas', label: 'Reservas',      ativo: norm === '/admin/reservas', icone: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
+      // De PRODUTO: o site chama o agendamento de "Reservar horário", e o barbeiro
+      // procurava o agendamento aqui (roteiro de 10/10/2026).
+      { href: '/admin/reservas', label: 'Reservas de produto', ativo: norm === '/admin/reservas', icone: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
     ],
   },
   {

@@ -121,7 +121,7 @@ function pendenciasDe(e: EstadoDaBarbearia): { faltando: Item[]; total: number }
 
     { id: 'sobre', peso: 15, ok: !vazio(e.aboutText),
       titulo: 'Escreva o texto sobre a barbearia',
-      porque: 'É o que aparece no rodapé. Vazio, sobra um buraco.',
+      porque: 'É o que aparece no rodapé, para o cliente conhecer a barbearia antes de ir.',
       href: '/admin/configuracoes' },
 
     { id: 'tagline', peso: 15, ok: !vazio(e.tagline),

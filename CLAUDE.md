@@ -121,6 +121,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   `ASAAS_AMBIENTE=producao`, sandbox. ⚠️ **Data em SQL cru vai como texto ISO e volta como
   texto:** o Drizzle desliga a conversão de data do driver na conexão inteira — parâmetro `Date`
   estoura, e `timestamptz` chega como string (`comoData`, no mesmo arquivo).
+- **No `npm run dev`, a tela final do cadastro diz sempre "quase no ar":** o servidor de
+  desenvolvimento do Astro recusa a imagem que ela pede ao endereço novo. Não é defeito — no build
+  e em produção ela confere de verdade (`apps/barbearia/src/lib/noAr.ts`).
 - **E-mail no desenvolvimento** vai para `apps/barbearia/data/emails/`, um `.txt` por e-mail —
   é ali que está o link da senha nova. Com `SMTP_URL`, sai de verdade (`src/lib/email.ts`).
 - **Dependências:** o npm 10 quebra ao mexer nelas (`edgesOut`). Gere o lock com

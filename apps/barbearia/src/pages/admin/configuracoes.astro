@@ -59,8 +59,10 @@ const secoes: { titulo: string; nota?: string; campos: Campo[] }[] = [
     campos: [
       { id: 'addressStreet', label: 'Rua e número', placeholder: 'R. Exemplo, 123' },
       { id: 'addressCity', label: 'Cidade/UF', hint: 'Escreva no formato Cidade/UF — o site divide os dois para o Google.', placeholder: 'Mossoró/RN' },
-      { id: 'mapsUrl', label: 'Link "traçar rota"', hint: 'O link que abre a rota no Google Maps ou Waze.' },
-      { id: 'mapsEmbedQuery', label: 'Busca do mapa embutido', hint: 'O texto que o mapa da página usa para se localizar. Ex: nome da barbearia + rua + cidade.' },
+      // Desde 10/10/2026 os dois são opcionais: em branco, o mapa e a rota saem do endereço
+      // (`lib/mapa.ts`). Antes, sem o link, o "Traçar rota" abria o próprio site.
+      { id: 'mapsUrl', label: 'Link "traçar rota"', hint: 'Opcional. Em branco, o site monta a rota pelo endereço. Preenchido, é ele que todo botão de mapa do site abre — pode ser do Google Maps ou do Waze.' },
+      { id: 'mapsEmbedQuery', label: 'Busca do mapa embutido', hint: 'O texto que o mapa da página usa para achar a barbearia — e a rota também, se o link acima estiver em branco. Em branco, vale a rua e a cidade. Se o mapa mostrar outro lugar, escreva o nome da barbearia + rua + bairro + cidade.' },
     ],
   },
   {

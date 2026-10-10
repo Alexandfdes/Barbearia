@@ -1,5 +1,6 @@
 ---
 import { getSettings, waUrl } from '../lib/settings';
+import { buscaDoMapa, linkDaRota } from '../lib/mapa';
 
 const s = await getSettings();
 const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário.', s);
@@ -8,7 +9,9 @@ const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário
 // vez do %20 do encodeURIComponent para o HTML sair idêntico ao que já estava.
 // Sem query configurada o embed cairia num mapa em branco. Caímos no endereço
 // e, se nem isso houver, a caixa do mapa não aparece.
-const queryMapa = s.mapsEmbedQuery || [s.addressStreet, s.addressCity].filter(Boolean).join(', ');
+// O mesmo texto da rota (`lib/mapa.ts`): o ponto do mapa e o da rota não podem discordar.
+const queryMapa = buscaDoMapa(s);
+const rota = linkDaRota(s);
 const temMapa = queryMapa.length > 0;
 const mapsEmbedSrc = `https://www.google.com/maps?q=${encodeURIComponent(queryMapa).replace(/%20/g, '+')}&output=embed`;
 const temHorario = s.businessHours.length > 0;
@@ -68,8 +71,9 @@ const temHorario = s.businessHours.length > 0;
 
         <!-- Ações -->
         <div class="flex flex-col sm:flex-row gap-3 mt-2">
+          {rota && (
           <a
-            href={s.mapsUrl}
+            href={rota}
             target="_blank"
             rel="noopener"
             class="flex-1 w-full inline-flex items-center justify-center gap-2 bg-teal hover:bg-teal-hover text-white font-bold tracking-widest uppercase text-sm px-6 py-3.5 rounded-md transition-colors duration-300"
@@ -79,6 +83,7 @@ const temHorario = s.businessHours.length > 0;
             </svg>
             Traçar rota
           </a>
+          )}
           <a
             href={whatsappUrl}
             target="_blank"

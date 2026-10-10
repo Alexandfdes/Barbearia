@@ -8,6 +8,7 @@ import { and, eq } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
 import { ptBR } from 'date-fns/locale';
 import { getSettings, waUrl } from '../../lib/settings';
+import { linkDoMapa } from '../../lib/mapa';
 import { tenantDoHost } from '../../lib/tenant.js';
 import { reais } from '../../lib/dinheiro.js';
 import { TZ } from '../../lib/timezone.js';
@@ -21,6 +22,7 @@ const tenant = tenantDoHost(Astro.request);
 if (!tenant) return new Response('Barbearia não encontrada', { status: 404 });
 
 const s = await getSettings();
+const mapa = linkDoMapa(s);
 
 const { token } = Astro.params;
 if (!token) return Astro.redirect('/agendar');
@@ -203,14 +205,16 @@ const apptDateStr   = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
             <p class="text-sm text-neutral-200">{s.addressStreet}</p>
             <p class="text-xs text-neutral-500 mt-0.5">{s.addressCity}</p>
           </div>
+          {mapa && (
           <a
-            href={s.mapsUrl}
+            href={mapa}
             target="_blank"
             rel="noopener"
             class="text-xs text-neutral-500 hover:text-teal-light border border-white/10 hover:border-teal/30 px-3 py-1.5 rounded transition-colors shrink-0 whitespace-nowrap"
           >
             Abrir no Maps
           </a>
+          )}
         </div>
       </div>
 
