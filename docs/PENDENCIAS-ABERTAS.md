@@ -31,7 +31,7 @@
 | **08/10** | **Nome provisório: Fadeline** — escolhido pelo dono entre 103 nomes conferidos no registro.br. Provisório tem prazo: vale até o cadastro abrir. Trocado no código no mesmo dia | `PENDENCIAS-ABERTAS.md` §0.1 |
 | **09/10** | **O hover do par padrão escurece:** `#0b5f58`, o tom que o código já tinha como padrão — com os sete consertos do primeiro minuto do cliente, que você pediu. **E o combo vale no dia do HORÁRIO marcado, não no dia em que se agenda** — ⚠️ esta, decidida na implementação: falta você confirmar | `PENDENCIAS-ABERTAS.md` §4.12 e `PENDENCIAS-ABERTAS.md` §2.16 |
 | **08/10** | **O desenho do cadastro e da cobrança:** um layout com a cor do dono; o cartão no fim do teste; a cobrança como módulo do app; e-mail para a senha e os avisos; 3 dias de carência; só mensal. **Feitos no mesmo dia:** o cadastro (§4.13, §4.16 e §4.17) e o teste de 7 dias, com a carência e o site fora do ar (§1.3, §3.5 e §4.14). **Em 09/10:** o e-mail — a senha nova, os avisos do teste e da cobrança e a troca de senha derrubando as sessões (§4.17 e §2.13) | `PLANO-PRODUTIZACAO.md` §13 |
-| **10/10** | **A cobrança no código** — o cartão pelo Checkout da Asaas, o webhook e o cancelar —, **sem a prova no sandbox**. E duas regras ⚠️ decididas na implementação, que falta você confirmar: quem cancela em dia fica no ar até o fim do período pago, sem carência; quem cancela com a cobrança atrasada fica só o que restava da carência, e a mensalidade que falhou deixa de existir | `PENDENCIAS-ABERTAS.md` §4.14 |
+| **10/10** | **A cobrança no código** — o cartão pelo Checkout da Asaas, o webhook e o cancelar —, **sem a prova no sandbox**. E três regras decididas na implementação e **confirmadas por você no mesmo dia**: quem cancela em dia fica no ar até o fim do período pago, sem carência; quem cancela com a cobrança atrasada fica só o que restava da carência, e a mensalidade que falhou deixa de existir; e quem sai do ar pela cobrança sem cancelar continua com a assinatura viva — a Asaas tenta o cartão de novo, e o pagamento que passar traz o site de volta. Rejeitado: remover a assinatura depois de 30 dias fora do ar | `PENDENCIAS-ABERTAS.md` §4.14 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -162,6 +162,14 @@ sem letra miúda, **quando** o cartão vai ser cobrado e **como cancelar** antes
 Cobrança automática depois de teste grátis é exatamente o que vira reclamação quando não
 está dito com clareza — é ponto para o advogado, não para improviso.
 
+**10/10/2026 — as regras do cancelamento, para o termo** (confirmadas por você;
+`PENDENCIAS-ABERTAS.md` §4.14): cancela-se pelo painel, a qualquer hora, inclusive com o site fora
+do ar; em dia, o site fica até o fim do período pago; com a cobrança atrasada, só o que restava
+da carência, e a mensalidade que falhou não é cobrada. E **sair do ar por falta de pagamento
+não cancela a assinatura**: a Asaas tenta o cartão nos vencimentos seguintes, e o pagamento que
+passar traz o site de volta. Esta é a que mais precisa estar escrita — é a que cobra quem achou
+que tinha ido embora.
+
 Pergunta nova, que o teste grátis cria: **o que acontece com os dados de quem testou e
 não pagou?** Nome, telefone e data de nascimento de clientes de terceiro, guardados sem
 contrato vigente. Guardar para sempre é exposição; apagar cedo demais perde quem só
@@ -186,6 +194,10 @@ nenhum: parece que a política existe.
 > a cobrança que a dispara (§4.14). **Feito em 09/10/2026:** os avisos por e-mail — 2 dias
 > antes do fim do teste, no começo da carência e quando o site sai do ar (§4.17). **Continua
 > aberto:** quanto tempo a barbearia suspensa guarda os dados e segura o endereço (§1.2).
+> **10/10/2026:** a cobrança que a dispara existe no código, sem a prova no sandbox (§4.14). E
+> decidido: sair do ar pela cobrança **não cancela** a assinatura — a Asaas tenta o cartão nos
+> vencimentos seguintes, e o pagamento que passar traz o site de volta; o termo tem de dizer
+> (§1.2).
 
 O gateway está escolhido, mas a política não. Hoje **não existe nada que suspenda uma
 instância**. Se a regra for "site sai do ar após N dias", isso é feature a construir —
@@ -2058,7 +2070,7 @@ a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`
 > "se encerra sozinha", e não se encerra: a assinatura atrasada continua viva na Asaas e tenta o
 > cartão de novo. Agora cancela, na carência e fora do ar.
 >
-> **⚠️ Decidido na implementação — falta você confirmar:**
+> **Decidido na implementação — ✅ confirmado por você no mesmo dia, 10/10/2026:**
 >
 > 1. *Quem cancela em dia* fica no ar até o fim do período pago — o dia da cobrança que não vai
 >    haver — e depois sai do ar como quem não pagou, sem carência. Nada é apagado; assinando de
@@ -2069,8 +2081,10 @@ a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`
 >    aberto (documentação). A dívida não é cobrada.
 > 3. *Quem sai do ar pela cobrança e NÃO cancela* continua com a assinatura viva: a Asaas tenta o
 >    cartão de novo nos vencimentos seguintes, e se passar o site volta sozinho. É o "pagou,
->    volta" do §1.3 — e também cobra quem foi embora sem avisar. **Proposta, não feita:** remover
->    a assinatura depois de 30 dias fora do ar, com um e-mail antes.
+>    volta" do §1.3 — e também cobra quem foi embora sem avisar. *Rejeitado por você em 10/10:*
+>    remover a assinatura depois de 30 dias fora do ar, com um e-mail antes. Fica como está —
+>    então o termo tem de dizer, com todas as letras, que sair do ar não cancela (§1.2); e o
+>    cancelar abre também fora do ar, para quem quiser parar.
 >
 > ⚠️ **As notificações da Asaas são desligadas a cada `CHECKOUT_PAID`** — a proposta 3 de
 > 10/10, abaixo: quem avisa é o app. Sem o `SMTP_URL` em produção (§4.17), então, ninguém avisa

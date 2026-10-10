@@ -5,8 +5,8 @@ export const prerender = false;
  * no ar até o fim do período pago. Depois, sai do ar como quem não pagou — nada é
  * apagado, e assinando de novo volta.
  *
- * ⚠️ A regra do "até o fim do período pago" foi decidida na implementação, em
- * 10/10/2026 — falta o dono confirmar (`docs/PENDENCIAS-ABERTAS.md` §4.14).
+ * A regra do "até o fim do período pago" foi decidida na implementação e
+ * confirmada pelo dono em 10/10/2026 (`docs/PENDENCIAS-ABERTAS.md` §4.14).
  *
  * Só o dono. Abre também com a barbearia FORA DO AR pela cobrança que falhou: a
  * assinatura atrasada continua viva na Asaas, e quem quer sair tem de poder
