@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/* Fontes self-hosted (variáveis: um arquivo cobre todos os pesos 400–900).
+   Itálico só do Playfair — usado no Hero; itálico do Inter é sintetizado. */
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/playfair-display";
+@import "@fontsource-variable/playfair-display/wght-italic.css";
+
+/* src/styles/global.css */
+@theme {
+  /* Paleta Dark Industrial */
+  --color-dark: #0a0a0a;
+  --color-dark-alt: #141414;
+  --color-dark-card: #1a1a1a;
+  --color-dark-surface: #222222;
+
+  /* Verde industrial — o par padrão, igual a ACCENT_PADRAO (`lib/accent.ts`).
+     O hover ESCURECE: o texto do botão é branco. Até 09/10/2026 era #0d9488,
+     mais claro que o próprio botão — 3,74:1 com branco, abaixo do piso de 4,5:1
+     (`PENDENCIAS-ABERTAS.md` §4.12). #0b5f58 dá 7,52:1. */
+  --color-teal: #0f766e;
+  --color-teal-hover: #0b5f58;
+  --color-teal-light: #5eead4;
+  --color-teal-muted: #4a7a64;
+
+  /* Verde profundo para glow de fundo */
+  --color-forest-glow: #14321b;
+
+  --color-cream: #e8e0d4;
+  --color-white: #fafaf9;
+  --color-gray: #8a8a8a;
+  --color-gray-light: #a3a3a3;
+
+  --font-sans: 'Inter Variable', 'Inter', system-ui, sans-serif;
+  --font-serif: 'Playfair Display Variable', 'Playfair Display', Georgia, serif;
+}
+
+@layer base {
+  body {
+    @apply bg-dark text-neutral-200 antialiased;
+    scroll-behavior: smooth;
+  }
+
+  ::selection {
+    background-color: var(--color-teal);
+    color: var(--color-white);
+  }
+
+  /* Edge/IE adicionam um "olho" e um "x" nativos em campos de senha.
+     Escondemos pra não duplicar com o nosso toggle (#toggle-password). */
+  input[type="password"]::-ms-reveal,
+  input[type="password"]::-ms-clear {
+    display: none;
+  }
+}
+
+@utility no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+  &::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+}

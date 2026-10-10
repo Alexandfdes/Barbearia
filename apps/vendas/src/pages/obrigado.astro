@@ -1,0 +1,81 @@
+---
+export const prerender = false;
+
+import Layout from '../layouts/Layout.astro';
+import { NOME_PRODUTO, whatsappUrl } from '../config';
+
+const wa = whatsappUrl('Olá! Acabei de fechar e queria confirmar os próximos passos.');
+
+const passos = [
+  { titulo: 'Preencha as informações da sua barbearia', texto: 'É o próximo botão desta página. Leva uns 10 minutos e é onde você manda o logo, as fotos e a lista de serviços.', destaque: true },
+  { titulo: 'Eu monto o seu site', texto: 'Escolho as melhores fotos, trato as imagens, escrevo os textos e cadastro tudo. Se faltar alguma coisa, eu te chamo no WhatsApp.' },
+  { titulo: 'Você confere antes de publicar', texto: 'Te mando um link para revisar. Se quiser trocar uma foto ou um texto, a gente ajusta.' },
+  { titulo: 'Seu site entra no ar', texto: 'Você recebe o endereço final e a senha do painel para mexer no que quiser, quando quiser.' },
+];
+---
+
+<Layout title={`Pagamento confirmado — ${NOME_PRODUTO}`}>
+  <main class="min-h-screen flex flex-col">
+    <header class="border-b border-line/60">
+      <div class="max-w-3xl mx-auto px-5 h-16 flex items-center">
+        <a href="/" class="font-serif text-lg tracking-wide text-cream">{NOME_PRODUTO}</a>
+      </div>
+    </header>
+
+    <div class="flex-1 max-w-3xl mx-auto px-5 py-14 sm:py-20 w-full">
+
+      <div class="flex items-start gap-4 mb-10">
+        <div class="shrink-0 w-11 h-11 rounded-full bg-brand/15 border border-brand/40 flex items-center justify-center">
+          <svg class="w-5 h-5 text-brand-light" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-serif text-3xl sm:text-4xl text-cream leading-tight">Pagamento confirmado</h1>
+          <p class="mt-2 text-cream/55 leading-relaxed">
+            Recebido. Agora falta só você me contar como é a sua barbearia — e o resto é comigo.
+          </p>
+        </div>
+      </div>
+
+      <div class="border border-brand/30 bg-card rounded-lg p-6 sm:p-7 mb-10">
+        <p class="text-xs uppercase tracking-[0.2em] text-cream/40 mb-2">Próximo passo</p>
+        <h2 class="text-cream text-lg font-semibold mb-2">Preencher as informações da barbearia</h2>
+        <p class="text-sm text-cream/55 leading-relaxed mb-5">
+          São umas 10 perguntas e o envio das fotos. Pode fazer pelo celular, e não precisa
+          terminar de uma vez — se faltar alguma foto, me manda depois pelo WhatsApp.
+        </p>
+        <a href="/onboarding"
+          class="inline-flex items-center justify-center bg-brand hover:bg-brand-hover text-on-brand font-bold uppercase tracking-widest text-sm px-8 py-3.5 rounded-sm transition-colors">
+          Começar agora
+        </a>
+      </div>
+
+      <h2 class="font-serif text-xl text-cream mb-6">Como vai ser daqui pra frente</h2>
+      <ol class="space-y-5 mb-12">
+        {passos.map((p, i) => (
+          <li class="flex gap-4">
+            <span class:list={[
+              'shrink-0 w-7 h-7 rounded-full border flex items-center justify-center text-xs font-semibold mt-0.5',
+              p.destaque ? 'border-brand/50 text-brand-light' : 'border-line text-cream/40'
+            ]}>{i + 1}</span>
+            <div>
+              <h3 class="text-cream font-medium text-[15px] leading-snug">{p.titulo}</h3>
+              <p class="text-sm text-cream/50 mt-1 leading-relaxed">{p.texto}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      <div class="border-t border-line/60 pt-8">
+        <p class="text-sm text-cream/50 leading-relaxed">
+          Prazo médio: <strong class="text-cream/80">uma semana</strong> do envio das fotos até o site no ar.
+          O que mais atrasa é foto — quanto antes você mandar, antes fica pronto.
+        </p>
+        <p class="mt-4 text-sm text-cream/50">
+          Qualquer dúvida, <a href={wa} target="_blank" rel="noopener" class="text-brand-light underline underline-offset-2 hover:text-brand">me chama no WhatsApp</a>.
+        </p>
+      </div>
+    </div>
+  </main>
+</Layout>

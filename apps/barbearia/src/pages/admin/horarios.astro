@@ -1,0 +1,431 @@
+---
+export const prerender = false;
+
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getSession } from '../../lib/session.js';
+import { db } from '../../db/index.js';
+import { barbers, workingHours } from '../../db/schema.js';
+import { and, eq } from 'drizzle-orm';
+import { tenantDaSessao } from '../../lib/tenant.js';
+
+const session = await getSession(Astro.request);
+if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
+
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+if (!barberRow) return Astro.redirect('/admin/login');
+
+const isAdmin = session.role === 'admin';
+
+// Lista de barbeiros ativos (admin vê todos, barbeiro vê só o próprio)
+const allBarbers = isAdmin
+  ? (await db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(and(eq(barbers.active, true), eq(barbers.tenantId, tenant.id))).orderBy(barbers.name))
+  : [{ id: session.barberId, name: barberRow.name }];
+
+// Barbeiro selecionado na aba (param ?barber=N)
+const barberParam = Astro.url.searchParams.get('barber');
+let selectedBarberId = isAdmin
+  ? (barberParam ? parseInt(barberParam, 10) : allBarbers[0]?.id ?? session.barberId)
+  : session.barberId;
+
+if (!allBarbers.some(b => b.id === selectedBarberId)) {
+  selectedBarberId = allBarbers[0]?.id ?? session.barberId;
+}
+
+const selectedBarber = allBarbers.find(b => b.id === selectedBarberId);
+
+// Carrega todas as janelas do barbeiro (pode haver mais de uma por dia: manhã + tarde)
+const currentHours = (await db.select({
+  weekday:   workingHours.weekday,
+  startTime: workingHours.startTime,
+  endTime:   workingHours.endTime,
+})
+  .from(workingHours)
+  .where(and(eq(workingHours.barberId, selectedBarberId), eq(workingHours.tenantId, tenant.id)))
+  );
+
+const WEEKDAY_LABELS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+const WEEKDAY_SHORT  = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+// Padrões dos turnos quando o dia ainda não tem horário configurado.
+const DEFAULT_MANHA = { start: '08:00', end: '11:00' };
+const DEFAULT_TARDE = { start: '14:00', end: '19:00' };
+
+interface Shift { enabled: boolean; start: string; end: string; }
+interface DayConfig {
+  weekday: number;
+  label: string;
+  short: string;
+  manha: Shift;
+  tarde: Shift;
+  /** Janela única atravessando o almoço (ex: 09:00–19:00) → dia contínuo, sem pausa */
+  continuous: boolean;
+}
+
+// Agrupa janelas por dia, ordenadas por horário de início.
+const windowsByDay = new Map<number, { start: string; end: string }[]>();
+for (const h of currentHours) {
+  const arr = windowsByDay.get(h.weekday) ?? [];
+  arr.push({ start: h.startTime, end: h.endTime });
+  windowsByDay.set(h.weekday, arr);
+}
+for (const arr of windowsByDay.values()) arr.sort((a, b) => a.start.localeCompare(b.start));
+
+// 1ª janela do dia → manhã; 2ª janela → tarde. Quem não tem janela usa o padrão (desligado).
+function buildDay(i: number): DayConfig {
+  const wins = windowsByDay.get(i) ?? [];
+  const manha: Shift = wins[0]
+    ? { enabled: true, start: wins[0].start, end: wins[0].end }
+    : { enabled: false, ...DEFAULT_MANHA };
+  const tarde: Shift = wins[1]
+    ? { enabled: true, start: wins[1].start, end: wins[1].end }
+    : { enabled: false, ...DEFAULT_TARDE };
+  // Dia contínuo: janela única que começa de manhã e atravessa o horário de almoço.
+  const continuous = manha.enabled && !tarde.enabled && manha.start < '12:00' && manha.end > '13:00';
+  return { weekday: i, label: WEEKDAY_LABELS[i], short: WEEKDAY_SHORT[i], manha, tarde, continuous };
+}
+
+const weekGrid: DayConfig[] = Array.from({ length: 7 }, (_, i) => buildDay(i));
+// Reordena pra começar na segunda (1..6, 0)
+const orderedGrid = [...weekGrid.slice(1), weekGrid[0]];
+
+function summaryText(day: DayConfig): string {
+  const parts: string[] = [];
+  if (day.manha.enabled) parts.push(`${day.manha.start}–${day.manha.end}`);
+  if (day.tarde.enabled) parts.push(`${day.tarde.start}–${day.tarde.end}`);
+  return parts.length ? parts.join(' · ') : 'Folga';
+}
+
+const configuredDays = weekGrid.filter(d => d.manha.enabled || d.tarde.enabled).length;
+
+const clientData = { selectedBarberId, isAdmin };
+---
+
+<AdminLayout title="Horários" barberName={barberRow.name} role={session.role}>
+  <main class="max-w-3xl mx-auto px-4 py-6 space-y-6">
+
+    <div>
+      <h1 class="text-lg font-medium text-slate-900">Horários de Expediente</h1>
+      <p class="text-sm text-slate-500 mt-1">
+        {isAdmin
+          ? 'Defina os turnos de cada barbeiro por dia. Manhã e tarde com intervalo, ou marque "Sem pausa" pra trabalhar direto.'
+          : 'Configure seus turnos por dia. Manhã e tarde com intervalo, ou marque "Sem pausa" pra trabalhar direto.'}
+      </p>
+    </div>
+
+    <!-- Tabs de barbeiro (admin only) -->
+    {isAdmin && allBarbers.length > 1 && (
+      <div class="flex gap-2 overflow-x-auto pb-1">
+        {allBarbers.map(b => (
+          <a href={`/admin/horarios?barber=${b.id}`}
+             class:list={[
+               'text-xs px-3 py-1.5 rounded-full border transition-colors whitespace-nowrap',
+               selectedBarberId === b.id
+                 ? 'bg-teal/20 border-teal/40 text-teal'
+                 : 'border-slate-200 text-slate-500 hover:text-slate-800'
+             ]}>
+            {b.name.split(' ')[0]}
+          </a>
+        ))}
+      </div>
+    )}
+
+    <!-- Cabeçalho do barbeiro selecionado -->
+    <div class="bg-white border border-slate-200 rounded-lg p-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-teal/15 border border-teal/30 rounded-full flex items-center justify-center text-teal text-sm font-bold">
+          {(selectedBarber?.name ?? '?')[0].toUpperCase()}
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-slate-900">{selectedBarber?.name ?? 'Barbeiro'}</p>
+          <p class="text-xs text-slate-500" id="configured-count">
+            {configuredDays} {configuredDays === 1 ? 'dia configurado' : 'dias configurados'}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid de horários -->
+    <form id="hours-form" class="space-y-2">
+      <div class="space-y-2">
+        {orderedGrid.map(day => {
+          const anyOn = day.manha.enabled || day.tarde.enabled;
+          const shifts = [
+            { period: 'manha', label: 'Manhã', shift: day.manha },
+            { period: 'tarde', label: 'Tarde', shift: day.tarde },
+          ];
+          return (
+            <div class:list={[
+              'bg-white border rounded-lg transition-colors',
+              anyOn ? 'border-slate-200' : 'border-white/[0.03] opacity-60'
+            ]} data-day={String(day.weekday)}>
+
+              <div class="flex items-center justify-between px-4 pt-3 pb-1 gap-3">
+                <p class="text-sm font-medium text-slate-900">{day.label}</p>
+                <p class="text-[11px] text-slate-500 tabular-nums truncate" data-summary={String(day.weekday)}>
+                  {summaryText(day)}
+                </p>
+              </div>
+
+              <div class="px-4 pb-3 space-y-2">
+                {shifts.map(s => (
+                  <div
+                    class:list={[
+                      'flex items-center gap-2.5',
+                      s.period === 'tarde' && day.continuous ? 'hidden' : ''
+                    ]}
+                    data-shift-row
+                    data-weekday={String(day.weekday)}
+                    data-period={s.period}
+                  >
+                    <button
+                      type="button"
+                      data-shift-toggle
+                      data-weekday={String(day.weekday)}
+                      data-period={s.period}
+                      aria-pressed={String(s.shift.enabled)}
+                      aria-label={`${s.label} ${day.label}`}
+                      class:list={[
+                        'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
+                        s.shift.enabled ? 'bg-teal' : 'bg-slate-200'
+                      ]}
+                    >
+                      <span class:list={[
+                        'pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform',
+                        s.shift.enabled ? 'translate-x-4' : 'translate-x-0.5'
+                      ]} />
+                    </button>
+
+                    <span
+                      class="w-12 shrink-0 text-xs text-slate-500"
+                      data-shift-label
+                      data-weekday={String(day.weekday)}
+                      data-period={s.period}
+                    >{s.period === 'manha' && day.continuous ? 'Dia todo' : s.label}</span>
+
+                    <input
+                      type="time"
+                      data-shift-start
+                      data-weekday={String(day.weekday)}
+                      data-period={s.period}
+                      value={s.shift.start}
+                      disabled={!s.shift.enabled}
+                      class="w-28 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 text-center focus:outline-none focus:border-teal/50 disabled:opacity-40 disabled:cursor-not-allowed tabular-nums"
+                    />
+                    <span class="text-slate-400 text-xs">→</span>
+                    <input
+                      type="time"
+                      data-shift-end
+                      data-weekday={String(day.weekday)}
+                      data-period={s.period}
+                      value={s.shift.end}
+                      disabled={!s.shift.enabled}
+                      class="w-28 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 text-xs text-slate-800 text-center focus:outline-none focus:border-teal/50 disabled:opacity-40 disabled:cursor-not-allowed tabular-nums"
+                    />
+                  </div>
+                ))}
+
+                <label class="flex items-center gap-2 pt-1 cursor-pointer select-none w-fit">
+                  <input
+                    type="checkbox"
+                    data-continuous
+                    data-weekday={String(day.weekday)}
+                    checked={day.continuous}
+                    class="w-3.5 h-3.5 rounded border-slate-300 bg-slate-100 accent-teal cursor-pointer"
+                  />
+                  <span class="text-[11px] text-slate-500">Sem pausa (dia contínuo)</span>
+                </label>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <!-- Feedback + botão salvar -->
+      <div class="flex items-center justify-between gap-3 pt-3">
+        <span id="save-feedback" class="text-xs text-slate-400"></span>
+        <button
+          type="submit"
+          id="save-btn"
+          class="flex items-center gap-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest text-xs px-6 py-3 rounded transition-colors disabled:opacity-50"
+        >
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+          </svg>
+          Salvar alterações
+        </button>
+      </div>
+    </form>
+
+  </main>
+</AdminLayout>
+
+<script define:vars={{ clientData }}>
+  const { selectedBarberId } = clientData;
+  const WD = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  const PERIODS = ['manha', 'tarde'];
+
+  function shiftEls(weekday, period) {
+    const sel = `[data-weekday="${weekday}"][data-period="${period}"]`;
+    return {
+      toggle: document.querySelector(`[data-shift-toggle]${sel}`),
+      start:  document.querySelector(`[data-shift-start]${sel}`),
+      end:    document.querySelector(`[data-shift-end]${sel}`),
+    };
+  }
+
+  function isOn(toggle) {
+    return toggle?.getAttribute('aria-pressed') === 'true';
+  }
+
+  function setShift(weekday, period, on) {
+    const { toggle, start, end } = shiftEls(weekday, period);
+    if (!toggle) return;
+    toggle.setAttribute('aria-pressed', String(on));
+    toggle.classList.toggle('bg-teal', on);
+    toggle.classList.toggle('bg-slate-200', !on);
+    const thumb = toggle.querySelector('span');
+    thumb?.classList.toggle('translate-x-4', on);
+    thumb?.classList.toggle('translate-x-0.5', !on);
+    if (start) start.disabled = !on;
+    if (end) end.disabled = !on;
+    refreshDay(weekday);
+  }
+
+  function refreshDay(weekday) {
+    const card = document.querySelector(`[data-day="${weekday}"]`);
+    if (!card) return;
+    const m = shiftEls(weekday, 'manha');
+    const t = shiftEls(weekday, 'tarde');
+    const mOn = isOn(m.toggle);
+    const tOn = isOn(t.toggle);
+    const anyOn = mOn || tOn;
+
+    card.classList.toggle('opacity-60', !anyOn);
+    card.classList.toggle('border-slate-200', anyOn);
+    card.classList.toggle('border-white/[0.03]', !anyOn);
+
+    const summary = card.querySelector(`[data-summary="${weekday}"]`);
+    if (summary) {
+      const parts = [];
+      if (mOn && m.start && m.end) parts.push(`${m.start.value}–${m.end.value}`);
+      if (tOn && t.start && t.end) parts.push(`${t.start.value}–${t.end.value}`);
+      summary.textContent = parts.length ? parts.join(' · ') : 'Folga';
+    }
+    updateConfiguredCount();
+  }
+
+  function updateConfiguredCount() {
+    let n = 0;
+    for (let wd = 0; wd <= 6; wd++) {
+      if (isOn(shiftEls(wd, 'manha').toggle) || isOn(shiftEls(wd, 'tarde').toggle)) n++;
+    }
+    const el = document.getElementById('configured-count');
+    if (el) el.textContent = `${n} ${n === 1 ? 'dia configurado' : 'dias configurados'}`;
+  }
+
+  // Dia contínuo (sem pausa): colapsa pra uma janela única usando a linha da manhã
+  function setContinuous(weekday, on) {
+    const box = document.querySelector(`[data-continuous][data-weekday="${weekday}"]`);
+    if (box) box.checked = on;
+    const tardeRow = document.querySelector(`[data-shift-row][data-weekday="${weekday}"][data-period="tarde"]`);
+    const manhaLabel = document.querySelector(`[data-shift-label][data-weekday="${weekday}"][data-period="manha"]`);
+    if (tardeRow) tardeRow.classList.toggle('hidden', on);
+    if (manhaLabel) manhaLabel.textContent = on ? 'Dia todo' : 'Manhã';
+  }
+
+  document.querySelectorAll('[data-continuous]').forEach(box => {
+    box.addEventListener('change', () => {
+      const wd = box.dataset.weekday;
+      const on = box.checked;
+      if (on) {
+        const m = shiftEls(wd, 'manha');
+        const t = shiftEls(wd, 'tarde');
+        // Mescla os turnos numa janela só: início da manhã → fim da tarde
+        if (isOn(t.toggle) && t.end?.value && m.end && t.end.value > m.end.value) {
+          m.end.value = t.end.value;
+        }
+        setShift(wd, 'tarde', false);
+        setShift(wd, 'manha', true);
+      }
+      setContinuous(wd, on);
+      refreshDay(wd);
+    });
+  });
+
+  // Toggles dos turnos
+  document.querySelectorAll('[data-shift-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setShift(btn.dataset.weekday, btn.dataset.period, !isOn(btn));
+    });
+  });
+
+  // Mudou um horário → atualiza o resumo do dia
+  document.querySelectorAll('[data-shift-start], [data-shift-end]').forEach(inp => {
+    inp.addEventListener('change', () => refreshDay(inp.dataset.weekday));
+  });
+
+  // Salvar
+  const form     = document.getElementById('hours-form');
+  const saveBtn  = document.getElementById('save-btn');
+  const feedback = document.getElementById('save-feedback');
+
+  function fail(msg) {
+    feedback.textContent = `✕ ${msg}`;
+    feedback.className = 'text-xs text-red-600';
+  }
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    feedback.textContent = '';
+
+    const hours = [];
+    for (let wd = 0; wd <= 6; wd++) {
+      const dayWindows = [];
+      for (const period of PERIODS) {
+        const { toggle, start, end } = shiftEls(wd, period);
+        if (!isOn(toggle)) continue;
+        const s = start?.value, en = end?.value;
+        if (!s || !en) continue;
+        if (s >= en) {
+          return fail(`${WD[wd]} (${period === 'manha' ? 'manhã' : 'tarde'}): início deve ser antes do fim`);
+        }
+        dayWindows.push({ weekday: wd, startTime: s, endTime: en });
+      }
+      // Turnos do mesmo dia não podem se sobrepor
+      if (dayWindows.length === 2) {
+        const sorted = [...dayWindows].sort((a, b) => a.startTime.localeCompare(b.startTime));
+        if (sorted[0].endTime > sorted[1].startTime) {
+          return fail(`${WD[wd]}: manhã e tarde não podem se sobrepor`);
+        }
+      }
+      hours.push(...dayWindows);
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Salvando...';
+
+    try {
+      const res = await fetch('/api/admin/working-hours', {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ barberId: selectedBarberId, hours }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        feedback.textContent = '✓ Horários salvos';
+        feedback.className = 'text-xs text-teal';
+        setTimeout(() => location.reload(), 700);
+      } else {
+        fail(data.error ?? 'Erro ao salvar');
+      }
+    } catch {
+      fail('Erro de conexão');
+    }
+
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Salvar alterações';
+  });
+</script>

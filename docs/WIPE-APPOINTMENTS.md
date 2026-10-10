@@ -1,5 +1,13 @@
 # Wipe de appointments — procedimento
 
+> <!-- STATUS-CONFERIDO-06/09 -->
+> **Procedimento operacional, ainda válido.** Conferido em 06/09/2026.
+>
+> ⚠️ Os caminhos deste documento são anteriores ao monorepo: o script vive hoje em
+> `apps/barbearia/scripts/`, e o banco em `apps/barbearia/data/`.
+>
+> ⚠️ **Apaga agendamentos reais de clientes reais.** Confira o backup antes.
+
 Script: `scripts/wipe-appointments.mjs`
 
 ## O que ele faz

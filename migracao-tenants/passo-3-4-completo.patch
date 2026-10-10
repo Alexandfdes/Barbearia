@@ -1,0 +1,4007 @@
+diff --git a/apps/barbearia/drizzle/0001_tenants.sql b/apps/barbearia/drizzle/0001_tenants.sql
+new file mode 100644
+index 0000000..e444bbe
+--- /dev/null
++++ b/apps/barbearia/drizzle/0001_tenants.sql
+@@ -0,0 +1,158 @@
++-- Passo 3 de docs/ARQUITETURA-MULTI-TENANT-V1.md §9:
++-- introduzir `tenants`, dar `tenant_id` às 12 tabelas e recompor as constraints.
++--
++-- Esta migration NÃO liga RLS. A ordem do §9 é deliberada: escopar as rotas
++-- (passo 4) vem ANTES de ligar o RLS (passo 5), porque com RLS ligado antes uma
++-- consulta sem filtro devolve zero linhas em silêncio e o erro passa
++-- despercebido no desenvolvimento.
++--
++-- Idempotente: pode rodar duas vezes sem erro.
++
++BEGIN;
++
++-- ---------------------------------------------------------------- 1. tenants
++CREATE TABLE IF NOT EXISTS tenants (
++  id            serial PRIMARY KEY,
++  slug          text NOT NULL UNIQUE,          -- barbeariax.barbearianoar.com.br
++  domain        text UNIQUE,                   -- domínio próprio, quando houver
++  business_name text NOT NULL,
++  status        text NOT NULL DEFAULT 'active',
++  created_at    timestamptz NOT NULL DEFAULT now(),
++  CONSTRAINT tenants_status_valido CHECK (status IN ('active','suspended','cancelled'))
++);
++
++COMMENT ON COLUMN tenants.domain IS
++  'Domínio próprio do cliente. NULL = usa só o subdomínio (o padrão; ver PRECIFICACAO.md §6).';
++COMMENT ON COLUMN tenants.status IS
++  'suspended = inadimplente, dados preservados. cancelled = saiu.';
++
++-- Tenant de backfill: os dados que já existem no banco são todos da Bayron.
++--
++-- ⚠️ Só é criado quando HÁ dados para backfillar. Num banco novo — barbearia
++-- recém-provisionada — criar 'bayron' faria o cliente nascer com o subdomínio
++-- e o nome de outra barbearia (`PENDENCIAS-ABERTAS.md` §4.6). Banco vazio sai
++-- daqui sem nenhum tenant, e quem cria o dele é o provisionamento.
++INSERT INTO tenants (slug, business_name)
++SELECT 'bayron', 'Barbearia Bayron'
++WHERE EXISTS (SELECT 1 FROM barbers)
++   OR EXISTS (SELECT 1 FROM settings)
++   OR EXISTS (SELECT 1 FROM appointments)
++ON CONFLICT (slug) DO NOTHING;
++
++-- ------------------------------------------- 2. tenant_id nas 12 tabelas
++DO $$
++DECLARE
++  t text;
++  tid int;
++  tabelas text[] := ARRAY[
++    'barbers','services','products','barber_services','combos','working_hours',
++    'time_off','appointments','appointment_items','product_sales','reservations','settings'
++  ];
++BEGIN
++  SELECT id INTO tid FROM tenants WHERE slug = 'bayron';
++
++  FOREACH t IN ARRAY tabelas LOOP
++    -- nullable primeiro, para poder preencher o que já existe
++    EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS tenant_id integer', t);
++    -- `tid` é NULL em banco novo: não há dados nem tenant de backfill. O UPDATE
++    -- é pulado, e o SET NOT NULL passa porque a tabela está vazia.
++    IF tid IS NOT NULL THEN
++      EXECUTE format('UPDATE %I SET tenant_id = %s WHERE tenant_id IS NULL', t, tid);
++    END IF;
++    EXECUTE format('ALTER TABLE %I ALTER COLUMN tenant_id SET NOT NULL', t);
++
++    -- a chave estrangeira e o índice, se ainda não existirem
++    IF NOT EXISTS (
++      SELECT 1 FROM pg_constraint
++      WHERE conname = format('%s_tenant_id_fkey', t) AND conrelid = t::regclass
++    ) THEN
++      EXECUTE format(
++        'ALTER TABLE %I ADD CONSTRAINT %I FOREIGN KEY (tenant_id) REFERENCES tenants(id)',
++        t, format('%s_tenant_id_fkey', t));
++    END IF;
++
++    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I (tenant_id)',
++                   format('%s_tenant_id_idx', t), t);
++  END LOOP;
++END $$;
++
++-- --------------------------- 3. UNIQUE de slug vira composta com tenant_id
++-- Sem isso, duas barbearias não podem ter um barbeiro "bayron" nem um serviço
++-- "corte-social". Verificado no banco em 06/09: são exatamente estas três.
++ALTER TABLE barbers  DROP CONSTRAINT IF EXISTS barbers_slug_unique;
++ALTER TABLE barbers  DROP CONSTRAINT IF EXISTS barbers_slug_key;
++ALTER TABLE services DROP CONSTRAINT IF EXISTS services_slug_unique;
++ALTER TABLE services DROP CONSTRAINT IF EXISTS services_slug_key;
++ALTER TABLE products DROP CONSTRAINT IF EXISTS products_slug_unique;
++ALTER TABLE products DROP CONSTRAINT IF EXISTS products_slug_key;
++
++CREATE UNIQUE INDEX IF NOT EXISTS barbers_tenant_slug_uq  ON barbers  (tenant_id, slug);
++CREATE UNIQUE INDEX IF NOT EXISTS services_tenant_slug_uq ON services (tenant_id, slug);
++CREATE UNIQUE INDEX IF NOT EXISTS products_tenant_slug_uq ON products (tenant_id, slug);
++
++-- appointments.manage_token CONTINUA único global, de propósito: é o token
++-- anônimo do link /a/{token} e precisa ser único no mundo.
++
++-- settings deixa de ser linha única (id = 1) e passa a ser uma por tenant.
++CREATE UNIQUE INDEX IF NOT EXISTS settings_tenant_uq ON settings (tenant_id);
++
++-- ⚠️ E o `id` precisa de sequência. No SQLite settings era a linha fixa id = 1,
++-- então a coluna nasceu `integer NOT NULL` sem default. Com uma linha por tenant,
++-- o INSERT do segundo tenant falharia com "null value in column id".
++-- Verificado em 06/09/2026 contra o banco: era exatamente esse o erro.
++CREATE SEQUENCE IF NOT EXISTS settings_id_seq OWNED BY settings.id;
++SELECT setval('settings_id_seq', GREATEST((SELECT COALESCE(MAX(id), 0) FROM settings), 1));
++ALTER TABLE settings ALTER COLUMN id SET DEFAULT nextval('settings_id_seq');
++
++-- ------------------- 4. Chaves estrangeiras compostas: a parede de verdade
++-- Sem isto, nada impede um agendamento do tenant 1 apontar para um barbeiro do
++-- tenant 2. O RLS não pega: ele filtra pelo tenant_id da própria linha, que está
++-- certo — o que está errado é para quem ela aponta. Com a FK composta o banco
++-- recusa sozinho, sem depender de o código lembrar.
++--
++-- Os nomes das constraints antigas são DESCOBERTOS no catálogo, não escritos à
++-- mão: o Drizzle nomeia como `<tabela>_<coluna>_<pai>_id_fk` e isso pode mudar
++-- entre versões. Uma tentativa anterior com nomes chutados falhou em silêncio,
++-- deixando a FK antiga viva ao lado da nova.
++
++DO $$
++DECLARE
++  pais text[] := ARRAY['barbers','services','products','appointments'];
++  p text;
++  r record;
++  nova text;
++BEGIN
++  -- 4.1 cada pai precisa de UNIQUE (id, tenant_id) para poder ser referenciado
++  FOREACH p IN ARRAY pais LOOP
++    IF NOT EXISTS (
++      SELECT 1 FROM pg_constraint
++      WHERE conname = format('%s_id_tenant_uq', p) AND conrelid = p::regclass
++    ) THEN
++      EXECUTE format('ALTER TABLE %I ADD CONSTRAINT %I UNIQUE (id, tenant_id)',
++                     p, format('%s_id_tenant_uq', p));
++    END IF;
++  END LOOP;
++
++  -- 4.2 troca cada FK de uma coluna por uma composta com tenant_id
++  FOR r IN
++    SELECT c.conname AS antiga,
++           c.conrelid::regclass::text AS filha,
++           a.attname  AS col,
++           c.confrelid::regclass::text AS pai
++    FROM pg_constraint c
++    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
++    WHERE c.contype = 'f'
++      AND c.connamespace = 'public'::regnamespace
++      AND array_length(c.conkey, 1) = 1              -- só as de uma coluna
++      AND c.confrelid::regclass::text = ANY(pais)     -- que apontam para tabela com tenant
++  LOOP
++    nova := format('%s_%s_tenant_fkey', r.filha, r.col);
++    EXECUTE format('ALTER TABLE %I DROP CONSTRAINT %I', r.filha, r.antiga);
++    EXECUTE format(
++      'ALTER TABLE %I ADD CONSTRAINT %I FOREIGN KEY (%I, tenant_id) REFERENCES %I (id, tenant_id)',
++      r.filha, nova, r.col, r.pai);
++    RAISE NOTICE 'FK composta: %.% -> % (era %)', r.filha, r.col, r.pai, r.antiga;
++  END LOOP;
++END $$;
++
++COMMIT;
+diff --git a/apps/barbearia/src/db/schema.ts b/apps/barbearia/src/db/schema.ts
+index 248c8cf..eb93974 100644
+--- a/apps/barbearia/src/db/schema.ts
++++ b/apps/barbearia/src/db/schema.ts
+@@ -1,26 +1,49 @@
+-import { pgTable, serial, integer, text, boolean, unique, index } from 'drizzle-orm/pg-core';
++import { pgTable, serial, integer, text, boolean, unique, index, timestamp } from 'drizzle-orm/pg-core';
+ import { sql } from 'drizzle-orm';
+ 
++/**
++ * Passo 3 de docs/ARQUITETURA-MULTI-TENANT-V1.md §9.
++ * Uma linha por barbearia. Toda tabela de dados aponta para cá.
++ */
++export const tenants = pgTable('tenants', {
++  id: serial('id').primaryKey(),
++  /** Vira o subdomínio: {slug}.barbearianoar.com.br */
++  slug: text('slug').notNull().unique(),
++  /** Domínio próprio, quando o cliente paga por um. Nulo é o padrão. */
++  domain: text('domain').unique(),
++  businessName: text('business_name').notNull(),
++  /** active | suspended (inadimplente, dados preservados) | cancelled */
++  status: text('status', { enum: ['active', 'suspended', 'cancelled'] }).notNull().default('active'),
++  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
++});
++
+ export const barbers = pgTable('barbers', {
++  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+   id: serial('id').primaryKey(),
+   name: text('name').notNull(),
+-  slug: text('slug').notNull().unique(),
++  slug: text('slug').notNull(),
+   role: text('role', { enum: ['admin', 'barber'] }).notNull(),
+   passwordHash: text('password_hash').notNull(),
+   active: boolean('active').notNull().default(true),
+   createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
+-});
++}, (t) => [
++  unique('barbers_tenant_slug_uq').on(t.tenantId, t.slug),
++]);
+ 
+ export const services = pgTable('services', {
++  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+   id: serial('id').primaryKey(),
+   name: text('name').notNull(),
+-  slug: text('slug').notNull().unique(),
++  slug: text('slug').notNull(),
+   priceCents: integer('price_cents').notNull(),
+   active: boolean('active').notNull().default(true),
+   createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
+-});
++}, (t) => [
++  unique('services_tenant_slug_uq').on(t.tenantId, t.slug),
++]);
+ 
+ export const barberServices = pgTable('barber_services', {
++  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+   id: serial('id').primaryKey(),
+   barberId: integer('barber_id').notNull().references(() => barbers.id),
+   serviceId: integer('service_id').notNull().references(() => services.id),
+@@ -31,6 +54,7 @@ export const barberServices = pgTable('barber_services', {
+ ]);
+ 
+ export const workingHours = pgTable('working_hours', {
++  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+   id: serial('id').primaryKey(),
+   barberId: integer('barber_id').notNull().references(() => barbers.id),
+   weekday: integer('weekday').notNull(), // 0=domingo, 1=segunda...6=sábado
+@@ -39,6 +63,7 @@ export const workingHours = pgTable('working_hours', {
+ });
+ 
+ export const timeOff = pgTable('time_off', {
++  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+   id: serial('id').primaryKey(),
+   barberId: integer('barber_id').references(() => barbers.id), // null = vale pra todos (feriado)
+   startsAt: text('starts_at').notNull(), // timestamp UTC ISO string
+@@ -49,6 +74,7 @@ export const timeOff = pgTable('time_off', {
+ });
+ 
+ export const appointments = pgTable('appointments', {
++  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+   id: serial('id').primaryKey(),
+   barberId: integer('barber_id').notNull().references(() => barbers.id),
+   serviceId: integer('service_id').notNull().references(() => services.id),
+@@ -82,6 +108,7 @@ export const appointments = pgTable('appointments', {
+ // cliente consumiu além do serviço agendado — ex.: agendou corte, fez barba também.
+ // priceCents e name são snapshot no momento do fechamento.
+ export const appointmentItems = pgTable('appointment_items', {
++  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+   id: serial('id').primaryKey(),
+   appointmentId: integer('appointment_id').notNull().references(() => appointments.id),
+   serviceId: integer('service_id').references(() => services.id), // null = item avulso
+@@ -96,6 +123,7 @@ export const appointmentItems = pgTable('appointment_items', {
+ // agendamento (ex.: cliente entra só pra comprar um óleo Boris). Entra no
+ // faturamento como "produto". priceCents é o total da linha (quantidade × unitário).
+ export const productSales = pgTable('product_sales', {
++  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+   id: serial('id').primaryKey(),
+   barberId: integer('barber_id').notNull().references(() => barbers.id),
+   name: text('name').notNull(),
+@@ -113,8 +141,9 @@ export const productSales = pgTable('product_sales', {
+ // Alimenta os cards da landing, o combo e a venda avulsa. image é um caminho:
+ // /products/... (estático em public) ou /api/products/image/... (upload no volume).
+ export const products = pgTable('products', {
++  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+   id: serial('id').primaryKey(),
+-  slug: text('slug').notNull().unique(),
++  slug: text('slug').notNull(),
+   name: text('name').notNull(),
+   shortDesc: text('short_desc'),
+   priceCents: integer('price_cents').notNull(),
+@@ -124,12 +153,14 @@ export const products = pgTable('products', {
+   createdAt: text('created_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
+ }, (table) => [
+   index('products_active_idx').on(table.active),
++  unique('products_tenant_slug_uq').on(table.tenantId, table.slug),
+ ]);
+ 
+ // Combos do dia — gerenciáveis pelo barbeiro. Cada combo é um serviço + um produto
+ // fixos, com desconto próprio (discountPct), e aparece nos dias marcados em `weekdays`
+ // (bitmask: bit i = dia da semana i, 0=domingo … 6=sábado; 127 = todos os dias).
+ export const combos = pgTable('combos', {
++  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+   id: serial('id').primaryKey(),
+   name: text('name').notNull(),
+   serviceId: integer('service_id').notNull().references(() => services.id),
+@@ -148,6 +179,7 @@ export const combos = pgTable('combos', {
+ // (sem serviço). O barbeiro vê a lista no admin e marca como retirado (vira
+ // venda no faturamento) ou cancela. Nome/preço são snapshot do momento da reserva.
+ export const reservations = pgTable('reservations', {
++  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+   id: serial('id').primaryKey(),
+   productId: integer('product_id').references(() => products.id), // null se o produto for removido depois
+   productName: text('product_name').notNull(),
+@@ -174,6 +206,7 @@ export const reservations = pgTable('reservations', {
+ // manda no agendamento continua sendo a tabela workingHours — as duas divergem
+ // legitimamente, e o caso do Bayron prova isso.
+ export const settings = pgTable('settings', {
++  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+   id: integer('id').primaryKey(),
+   businessName: text('business_name').notNull(),
+   shortName: text('short_name').notNull(),
+@@ -208,4 +241,6 @@ export const settings = pgTable('settings', {
+   googleReviewCount: integer('google_review_count'),
+   productsSectionTitle: text('products_section_title').notNull().default('Produtos'),
+   updatedAt: text('updated_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
+-});
++}, (t) => [
++  unique('settings_tenant_uq').on(t.tenantId),
++]);
+diff --git a/apps/barbearia/src/lib/bookAppointment.ts b/apps/barbearia/src/lib/bookAppointment.ts
+index 32ad5f8..42e9d40 100644
+--- a/apps/barbearia/src/lib/bookAppointment.ts
++++ b/apps/barbearia/src/lib/bookAppointment.ts
+@@ -4,6 +4,7 @@ import { fromZonedTime } from 'date-fns-tz';
+ import { and, eq, sql } from 'drizzle-orm';
+ import { db, first } from '../db/index.js';
+ import { barbers, barberServices, products, services, workingHours } from '../db/schema.js';
++import { tenantAtual, type Tenant } from './tenant.js';
+ import { normalizePhone } from './phone.js';
+ import { applyDiscountPct } from './combo.js';
+ 
+@@ -45,6 +46,11 @@ export interface BookParams {
+    * nunca envia preço nem desconto.
+    */
+   combo?:            { productSlug: string; discountPct: number } | null;
++  /**
++   * De quem é este agendamento. Vem do resolvedor (`tenantAtual()`), NUNCA do
++   * corpo da requisição — ver a skill `barbearia-multi-tenant`.
++   */
++  tenant?:           Tenant;
+ }
+ 
+ export type BookResult =
+@@ -56,6 +62,7 @@ export type BookResult =
+ export async function bookAppointment(params: BookParams): Promise<BookResult> {
+   const { barberId, serviceId, customerName, customerBirthdate, startsAt, createdBy } = params;
+   const idempotencyKey = params.idempotencyKey ?? null;
++  const tenant = params.tenant ?? tenantAtual();
+ 
+   // Telefone é armazenado SEMPRE normalizado (só dígitos, 10-11). Ponto único
+   // de escrita — cobre booking público e manual do admin.
+@@ -77,7 +84,8 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
+       FROM appointments a
+       INNER JOIN barbers  b ON b.id = a.barber_id
+       INNER JOIN services s ON s.id = a.service_id
+-      WHERE a.idempotency_key = ${idempotencyKey}
++      WHERE a.tenant_id = ${tenant.id}
++        AND a.idempotency_key = ${idempotencyKey}
+     `));
+     if (existing) {
+       return {
+@@ -113,6 +121,7 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
+       eq(barberServices.active,    true),
+       eq(barbers.active,           true),
+       eq(services.active,          true),
++      eq(barberServices.tenantId,  tenant.id),
+     ));
+ 
+   if (bsRows.length === 0) {
+@@ -133,7 +142,8 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
+     const product = await first(db
+       .select({ name: products.name, priceCents: products.priceCents })
+       .from(products)
+-      .where(and(eq(products.slug, combo.productSlug), eq(products.active, true))));
++      .where(and(eq(products.slug, combo.productSlug), eq(products.active, true),
++                 eq(products.tenantId, tenant.id))));
+     if (!product) {
+       return { ok: false, httpStatus: 400, error: 'Produto do combo inválido' };
+     }
+@@ -149,7 +159,8 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
+   const whRows = await db
+     .select()
+     .from(workingHours)
+-    .where(and(eq(workingHours.barberId, barberId), eq(workingHours.weekday, dow)));
++    .where(and(eq(workingHours.barberId, barberId), eq(workingHours.weekday, dow),
++               eq(workingHours.tenantId, tenant.id)));
+ 
+   if (whRows.length === 0) {
+     return { ok: false, httpStatus: 400, error: 'Barbeiro não trabalha nesse dia' };
+@@ -179,11 +190,14 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
+       // transação. A garantia definitiva vem da exclusion constraint
+       // (`ARQUITETURA-MULTI-TENANT-V1.md` §9, passo 7) — isto é o que segura
+       // até lá, e continua barato depois.
++      // `barbers.id` é serial global: dois tenants nunca compartilham o mesmo
++      // id, então o lock por barbeiro continua correto sem entrar o tenant.
+       await tx.execute(sql`SELECT pg_advisory_xact_lock(${barberId})`);
+ 
+       const apptConflict = Number((await first(tx.execute<{ c: string }>(sql`
+         SELECT COUNT(*) AS c FROM appointments
+-        WHERE barber_id = ${barberId} AND status IN ('confirmed','completed')
++        WHERE tenant_id = ${tenant.id}
++          AND barber_id = ${barberId} AND status IN ('confirmed','completed')
+           AND starts_at < ${endsAtIso} AND ends_at > ${startsAtIso}
+       `)))?.c ?? 0);
+       if (apptConflict > 0) {
+@@ -192,7 +206,8 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
+ 
+       const offConflict = Number((await first(tx.execute<{ c: string }>(sql`
+         SELECT COUNT(*) AS c FROM time_off
+-        WHERE (barber_id = ${barberId} OR barber_id IS NULL)
++        WHERE tenant_id = ${tenant.id}
++          AND (barber_id = ${barberId} OR barber_id IS NULL)
+           AND starts_at < ${endsAtIso} AND ends_at > ${startsAtIso}
+       `)))?.c ?? 0);
+       if (offConflict > 0) {
+@@ -201,10 +216,10 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
+ 
+       const inserido = await first(tx.execute<{ id: number }>(sql`
+         INSERT INTO appointments
+-          (barber_id, service_id, customer_name, customer_phone, customer_birthdate,
++          (tenant_id, barber_id, service_id, customer_name, customer_phone, customer_birthdate,
+            starts_at, ends_at, duration_minutes, price_cents,
+            manage_token, created_by, idempotency_key, notes)
+-        VALUES (${barberId}, ${serviceId}, ${customerName}, ${customerPhone},
++        VALUES (${tenant.id}, ${barberId}, ${serviceId}, ${customerName}, ${customerPhone},
+                 ${customerBirthdate}, ${startsAtIso}, ${endsAtIso}, ${durationMinutes},
+                 ${finalPriceCents}, ${manageToken}, ${createdBy}, ${idempotencyKey}, ${notes})
+         RETURNING id
+@@ -214,8 +229,8 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
+       // Produto do combo entra como item da comanda na MESMA transação.
+       if (comboItem) {
+         await tx.execute(sql`
+-          INSERT INTO appointment_items (appointment_id, service_id, name, price_cents)
+-          VALUES (${id}, NULL, ${comboItem.name}, ${comboItem.priceCents})
++          INSERT INTO appointment_items (tenant_id, appointment_id, service_id, name, price_cents)
++          VALUES (${tenant.id}, ${id}, NULL, ${comboItem.name}, ${comboItem.priceCents})
+         `);
+       }
+ 
+diff --git a/apps/barbearia/src/lib/settings.ts b/apps/barbearia/src/lib/settings.ts
+index 31ad5fc..512f583 100644
+--- a/apps/barbearia/src/lib/settings.ts
++++ b/apps/barbearia/src/lib/settings.ts
+@@ -18,6 +18,7 @@
+ import { eq } from 'drizzle-orm';
+ import { db, first } from '../db/index.js';
+ import { settings as settingsTable } from '../db/schema.js';
++import { tenantAtual, type Tenant } from './tenant.js';
+ 
+ export interface BusinessHour {
+   label: string;
+@@ -114,23 +115,33 @@ export function parseBusinessHours(raw: string | null | undefined): BusinessHour
+   }
+ }
+ 
+-let cache: Settings | null = null;
++/**
++ * Cache por tenant (§5.4 do ARQUITETURA-MULTI-TENANT-V1.md).
++ *
++ * Era uma variável única, quando havia uma barbearia só. Com várias, guardar uma
++ * settings global serviria a marca, as cores e o WhatsApp de uma barbearia no
++ * site de outra — dependendo apenas de quem carregou primeiro.
++ */
++const cache = new Map<number, Settings>();
+ 
+-export async function getSettings(): Promise<Settings> {
+-  if (cache) return cache;
++export async function getSettings(tenant: Tenant = tenantAtual()): Promise<Settings> {
++  const guardado = cache.get(tenant.id);
++  if (guardado) return guardado;
+ 
+-  const row = await first( db.select().from(settingsTable).where(eq(settingsTable.id, 1)));
++  const row = await first(db.select().from(settingsTable)
++    .where(eq(settingsTable.tenantId, tenant.id)));
+ 
+   if (!row) {
+     console.error(
+-      '[settings] linha 1 ausente na tabela `settings`. Usando TEMPLATE_DEFAULTS. ' +
+-      'Isso indica migration 0009 não aplicada ou banco recriado sem seed.'
++      `[settings] tenant ${tenant.id} (${tenant.slug}) sem linha em \`settings\`. ` +
++      'Usando TEMPLATE_DEFAULTS. Indica banco sem a carga de dados — ver o §6 do ' +
++      'migracao-postgres/LEIA-ME.md.'
+     );
+-    cache = TEMPLATE_DEFAULTS;
+-    return cache;
++    cache.set(tenant.id, TEMPLATE_DEFAULTS);
++    return TEMPLATE_DEFAULTS;
+   }
+ 
+-  cache = {
++  const montado: Settings = {
+     businessName: row.businessName,
+     shortName: row.shortName,
+     tagline: row.tagline ?? '',
+@@ -160,12 +171,20 @@ export async function getSettings(): Promise<Settings> {
+     productsSectionTitle: row.productsSectionTitle,
+   };
+ 
+-  return cache;
++  cache.set(tenant.id, montado);
++  return montado;
+ }
+ 
+-/** Chamar em TODO endpoint que escreve em `settings`. Sem isto, o painel salva e o site não muda. */
+-export function invalidateSettings(): void {
+-  cache = null;
++/**
++ * Chamar em TODO endpoint que escreve em `settings`. Sem isto, o painel salva e o
++ * site continua mostrando o valor velho.
++ *
++ * Sem argumento limpa tudo — é o certo para teste e para migração. Com o tenant,
++ * limpa só o dele: um cliente salvando não deve derrubar o cache dos outros.
++ */
++export function invalidateSettings(tenant?: Tenant): void {
++  if (tenant) cache.delete(tenant.id);
++  else cache.clear();
+ }
+ 
+ /**
+diff --git a/apps/barbearia/src/lib/uploads.ts b/apps/barbearia/src/lib/uploads.ts
+index 83a8d9b..45824d6 100644
+--- a/apps/barbearia/src/lib/uploads.ts
++++ b/apps/barbearia/src/lib/uploads.ts
+@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
+ import { dirname, join } from 'node:path';
+ import { randomBytes } from 'node:crypto';
+ import sharp from 'sharp';
++import { TENANT_UNICO, type Tenant } from './tenant.js';
+ 
+ // Uploads ficam no MESMO volume persistente do banco (/data em produção,
+ // ./data localmente). Assim a imagem sobrevive a deploys e a rebuilds da imagem.
+@@ -15,6 +16,31 @@ export const PRODUCT_UPLOAD_DIR = join(UPLOAD_ROOT, 'products');
+ export const TIPOS_MIDIA = ['logo', 'hero', 'og', 'favicon', 'galeria'] as const;
+ export type TipoMidia = (typeof TIPOS_MIDIA)[number];
+ 
++/**
++ * Terceira costura do passo 1 de `docs/ARQUITETURA-MULTI-TENANT-V1.md` §9:
++ * **os dois únicos lugares que montam caminho de mídia.**
++ *
++ * Nenhum outro arquivo deve concatenar `UPLOAD_ROOT` com tipo, nem escrever
++ * `/api/media/...` à mão. É o que permite escopar a mídia por barbearia
++ * mexendo em um lugar só.
++ *
++ * ⚠️ A barbearia única mantém o caminho legado, **sem o slug**. Os arquivos já
++ * estão no disco assim e os caminhos estão gravados no banco — inserir o slug
++ * agora quebraria a instância que está em produção.
++ */
++export function pastaDeMidia(tipo: TipoMidia, tenant: Tenant = TENANT_UNICO): string {
++  return tenant.id === TENANT_UNICO.id
++    ? join(UPLOAD_ROOT, tipo)
++    : join(UPLOAD_ROOT, tenant.slug, tipo);
++}
++
++/** O endereço público do arquivo. Mesma regra do legado que `pastaDeMidia`. */
++export function urlDeMidia(tipo: TipoMidia, arquivo: string, tenant: Tenant = TENANT_UNICO): string {
++  return tenant.id === TENANT_UNICO.id
++    ? `/api/media/${tipo}/${arquivo}`
++    : `/api/media/${tenant.slug}/${tipo}/${arquivo}`;
++}
++
+ /**
+  * Larguras geradas em WebP por tipo. O topo da página é o elemento de LCP:
+  * servir o JPEG de 4 MB que saiu do celular do barbeiro derruba a nota de
+diff --git a/apps/barbearia/src/pages/a/[token].astro b/apps/barbearia/src/pages/a/[token].astro
+index cce4f9b..b223124 100755
+--- a/apps/barbearia/src/pages/a/[token].astro
++++ b/apps/barbearia/src/pages/a/[token].astro
+@@ -4,10 +4,13 @@ export const prerender = false;
+ import Layout from '../../layouts/Layout.astro';
+ import { db } from '../../db/index.js';
+ import { appointments, appointmentItems, barbers, services } from '../../db/schema.js';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { formatInTimeZone } from 'date-fns-tz';
+ import { ptBR } from 'date-fns/locale';
+ import { getSettings, waUrl } from '../../lib/settings';
++import { tenantDoHost } from '../../lib/tenant.js';
++
++const tenant = tenantDoHost(Astro.request);
+ 
+ const s = await getSettings();
+ 
+@@ -35,7 +38,7 @@ const rows = (await db
+   .from(appointments)
+   .innerJoin(barbers,  eq(barbers.id,  appointments.barberId))
+   .innerJoin(services, eq(services.id, appointments.serviceId))
+-  .where(eq(appointments.manageToken, token))
++  .where(and(eq(appointments.manageToken, token), eq(appointments.tenantId, tenant.id)))
+   );
+ 
+ if (rows.length === 0) return Astro.redirect('/agendar');
+@@ -52,7 +55,7 @@ const weekday    = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
+ const items = (await db
+   .select({ name: appointmentItems.name, priceCents: appointmentItems.priceCents })
+   .from(appointmentItems)
+-  .where(eq(appointmentItems.appointmentId, appt.id))
++  .where(and(eq(appointmentItems.appointmentId, appt.id), eq(appointmentItems.tenantId, tenant.id)))
+   );
+ const itemsTotalCents = items.reduce((sum, it) => sum + it.priceCents, 0);
+ const totalCents = appt.priceCents + itemsTotalCents;
+diff --git a/apps/barbearia/src/pages/admin/barbeiros.astro b/apps/barbearia/src/pages/admin/barbeiros.astro
+index a363844..f9a9072 100644
+--- a/apps/barbearia/src/pages/admin/barbeiros.astro
++++ b/apps/barbearia/src/pages/admin/barbeiros.astro
+@@ -5,14 +5,16 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
+ import { getSession } from '../../lib/session.js';
+ import { db } from '../../db/index.js';
+ import { barbers } from '../../db/schema.js';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
++import { tenantDaSessao } from '../../lib/tenant.js';
+ 
+ const session = await getSession(Astro.request);
+ if (!session) return Astro.redirect('/admin/login');
++const tenant = tenantDaSessao(session);
+ if (session.role !== 'admin') return Astro.redirect('/admin/servicos');
+ 
+ const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+-  .from(barbers).where(eq(barbers.id, session.barberId)))[0];
++  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+ if (!barberRow) return Astro.redirect('/admin/login');
+ 
+ const list = (await db
+diff --git a/apps/barbearia/src/pages/admin/bloqueios.astro b/apps/barbearia/src/pages/admin/bloqueios.astro
+index 991ad8f..e29fc7d 100644
+--- a/apps/barbearia/src/pages/admin/bloqueios.astro
++++ b/apps/barbearia/src/pages/admin/bloqueios.astro
+@@ -7,14 +7,16 @@ import { db } from '../../db/index.js';
+ import { barbers, timeOff } from '../../db/schema.js';
+ import { and, eq, isNull, or } from 'drizzle-orm';
+ import { formatInTimeZone } from 'date-fns-tz';
++import { tenantDaSessao } from '../../lib/tenant.js';
+ 
+ const TZ = 'America/Fortaleza';
+ 
+ const session = await getSession(Astro.request);
+ if (!session) return Astro.redirect('/admin/login');
++const tenant = tenantDaSessao(session);
+ 
+ const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+-  .from(barbers).where(eq(barbers.id, session.barberId)))[0];
++  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+ if (!barberRow) return Astro.redirect('/admin/login');
+ 
+ // Load time-off entries
+@@ -33,7 +35,7 @@ const baseQuery = db
+ const rawRows = session.role === 'admin'
+   ? (await baseQuery.orderBy(timeOff.startsAt))
+   : (await baseQuery
+-      .where(or(eq(timeOff.barberId, session.barberId), isNull(timeOff.barberId)))
++      .where(and(or(eq(timeOff.barberId, session.barberId), isNull(timeOff.barberId)), eq(timeOff.tenantId, tenant.id)))
+       .orderBy(timeOff.startsAt)
+       );
+ 
+@@ -52,7 +54,7 @@ const entries = rawRows.map(r => ({
+ 
+ // Load all active barbers for the form (admin)
+ const allBarbers = session.role === 'admin'
+-  ? (await db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(eq(barbers.active, true)))
++  ? (await db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(and(eq(barbers.active, true), eq(barbers.tenantId, tenant.id))))
+   : [];
+ 
+ const upcoming = entries.filter(e => !e.isPast);
+diff --git a/apps/barbearia/src/pages/admin/buscar.astro b/apps/barbearia/src/pages/admin/buscar.astro
+index 6426c4c..29a94f4 100644
+--- a/apps/barbearia/src/pages/admin/buscar.astro
++++ b/apps/barbearia/src/pages/admin/buscar.astro
+@@ -5,15 +5,17 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
+ import { getSession } from '../../lib/session.js';
+ import { db } from '../../db/index.js';
+ import { barbers } from '../../db/schema.js';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
++import { tenantDaSessao } from '../../lib/tenant.js';
+ 
+ const session = await getSession(Astro.request);
+ if (!session) return Astro.redirect('/admin/login');
++const tenant = tenantDaSessao(session);
+ 
+ const barberRow = (await db
+   .select({ id: barbers.id, name: barbers.name, role: barbers.role })
+   .from(barbers)
+-  .where(eq(barbers.id, session.barberId))
++  .where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id)))
+   )[0];
+ 
+ if (!barberRow) return Astro.redirect('/admin/login');
+diff --git a/apps/barbearia/src/pages/admin/combos.astro b/apps/barbearia/src/pages/admin/combos.astro
+index 17a4cf7..d8aa1f9 100644
+--- a/apps/barbearia/src/pages/admin/combos.astro
++++ b/apps/barbearia/src/pages/admin/combos.astro
+@@ -5,13 +5,15 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
+ import { getSession } from '../../lib/session.js';
+ import { db } from '../../db/index.js';
+ import { barbers, combos, services, products } from '../../db/schema.js';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
++import { tenantDaSessao } from '../../lib/tenant.js';
+ 
+ const session = await getSession(Astro.request);
+ if (!session) return Astro.redirect('/admin/login');
++const tenant = tenantDaSessao(session);
+ 
+ const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+-  .from(barbers).where(eq(barbers.id, session.barberId)))[0];
++  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+ if (!barberRow) return Astro.redirect('/admin/login');
+ if (session.role !== 'admin') return Astro.redirect('/admin');
+ 
+@@ -25,8 +27,8 @@ const list = (await db.select({
+   .leftJoin(products, eq(products.id, combos.productId))
+   .orderBy(combos.sortOrder, combos.id));
+ 
+-const serviceOpts = (await db.select({ id: services.id, name: services.name }).from(services).where(eq(services.active, true)).orderBy(services.name));
+-const productOpts = (await db.select({ id: products.id, name: products.name }).from(products).where(eq(products.active, true)).orderBy(products.sortOrder));
++const serviceOpts = (await db.select({ id: services.id, name: services.name }).from(services).where(and(eq(services.active, true), eq(services.tenantId, tenant.id))).orderBy(services.name));
++const productOpts = (await db.select({ id: products.id, name: products.name }).from(products).where(and(eq(products.active, true), eq(products.tenantId, tenant.id))).orderBy(products.sortOrder));
+ 
+ const WD_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+ const brl = (c: number) => 'R$ ' + (c / 100).toFixed(2).replace('.', ',');
+diff --git a/apps/barbearia/src/pages/admin/configuracoes.astro b/apps/barbearia/src/pages/admin/configuracoes.astro
+index 336ed34..9e0ebb5 100644
+--- a/apps/barbearia/src/pages/admin/configuracoes.astro
++++ b/apps/barbearia/src/pages/admin/configuracoes.astro
+@@ -1,6 +1,7 @@
+ ---
+ export const prerender = false;
+ 
++import { tenantAtual } from '../../lib/tenant.js';
+ import AdminLayout from '../../layouts/AdminLayout.astro';
+ import { getSession } from '../../lib/session.js';
+ import { db, first } from '../../db/index.js';
+@@ -17,7 +18,7 @@ const barberRow = (await db.select({ id: barbers.id, name: barbers.name })
+   .from(barbers).where(eq(barbers.id, session.barberId)))[0];
+ if (!barberRow) return Astro.redirect('/admin/login');
+ 
+-const cfg = (await first(db.select().from(settings).where(eq(settings.id, 1))));
++const cfg = (await first(db.select().from(settings).where(eq(settings.tenantId, tenantAtual().id))));
+ const horarios = parseBusinessHours(cfg?.businessHours);
+ 
+ type Campo = {
+diff --git a/apps/barbearia/src/pages/admin/dia/[date].astro b/apps/barbearia/src/pages/admin/dia/[date].astro
+index 7e7626f..47147b4 100644
+--- a/apps/barbearia/src/pages/admin/dia/[date].astro
++++ b/apps/barbearia/src/pages/admin/dia/[date].astro
+@@ -10,6 +10,7 @@ import { eq, and, gt, gte, lt, or, isNull, inArray } from 'drizzle-orm';
+ import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
+ import { waPhone } from '../../../lib/whatsapp.js';
+ import { computeOccupancy, pickEmptiestBand } from '../../../lib/occupancy.js';
++import { tenantDaSessao } from '../../../lib/tenant.js';
+ 
+ const TZ = 'America/Fortaleza';
+ 
+@@ -23,6 +24,7 @@ const TOTAL_HOURS = END_HOUR - START_HOUR;
+ 
+ const session = await getSession(Astro.request);
+ if (!session) return Astro.redirect('/admin/login');
++const tenant = tenantDaSessao(session);
+ 
+ const { date } = Astro.params;
+ if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+@@ -30,7 +32,7 @@ if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+ }
+ 
+ const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+-  .from(barbers).where(eq(barbers.id, session.barberId)))[0];
++  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+ if (!barberRow) return Astro.redirect('/admin/login');
+ 
+ const barberParam = Astro.url.searchParams.get('barber');
+@@ -68,11 +70,11 @@ const apptRows = (await db
+   .from(appointments)
+   .innerJoin(barbers,  eq(barbers.id,  appointments.barberId))
+   .innerJoin(services, eq(services.id, appointments.serviceId))
+-  .where(
++  .where(and(
+     filterBarberId !== null
+       ? and(gte(appointments.startsAt, dayStart), lt(appointments.startsAt, dayEnd), eq(appointments.barberId, filterBarberId))
+       : and(gte(appointments.startsAt, dayStart), lt(appointments.startsAt, dayEnd))
+-  )
++  , eq(appointments.tenantId, tenant.id)))
+   .orderBy(appointments.startsAt)
+   );
+ 
+@@ -84,7 +86,7 @@ if (apptIds.length > 0) {
+   const itemRows = (await db
+     .select({ appointmentId: appointmentItems.appointmentId, priceCents: appointmentItems.priceCents })
+     .from(appointmentItems)
+-    .where(inArray(appointmentItems.appointmentId, apptIds))
++    .where(and(inArray(appointmentItems.appointmentId, apptIds), eq(appointmentItems.tenantId, tenant.id)))
+     );
+   for (const it of itemRows) {
+     itemsByAppt.set(it.appointmentId, (itemsByAppt.get(it.appointmentId) ?? 0) + it.priceCents);
+@@ -104,11 +106,11 @@ const saleRows = (await db
+   })
+   .from(productSales)
+   .innerJoin(barbers, eq(barbers.id, productSales.barberId))
+-  .where(
++  .where(and(
+     filterBarberId !== null
+       ? and(gte(productSales.soldAt, dayStart), lt(productSales.soldAt, dayEnd), eq(productSales.barberId, filterBarberId))
+       : and(gte(productSales.soldAt, dayStart), lt(productSales.soldAt, dayEnd))
+-  )
++  , eq(productSales.tenantId, tenant.id)))
+   .orderBy(productSales.soldAt)
+   );
+ const salesCents = saleRows.reduce((s, r) => s + r.priceCents, 0);
+@@ -117,12 +119,12 @@ const salesCents = saleRows.reduce((s, r) => s + r.priceCents, 0);
+ const productListForSale = (await db
+   .select({ name: products.name, priceCents: products.priceCents })
+   .from(products)
+-  .where(eq(products.active, true))
++  .where(and(eq(products.active, true), eq(products.tenantId, tenant.id)))
+   .orderBy(products.sortOrder, products.id)
+   );
+ 
+ const allBarbers = session.role === 'admin'
+-  ? (await db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(eq(barbers.active, true)))
++  ? (await db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(and(eq(barbers.active, true), eq(barbers.tenantId, tenant.id))))
+   : [];
+ 
+ // Map id→nome de TODOS os barbeiros (ativos + inativos), pra mostrar quem modificou
+@@ -142,7 +144,7 @@ const timeOffRows = (await db
+     barberId: timeOff.barberId,
+   })
+   .from(timeOff)
+-  .where(
++  .where(and(
+     filterBarberId !== null
+       ? and(
+           lt(timeOff.startsAt, dayEnd),
+@@ -153,7 +155,7 @@ const timeOffRows = (await db
+           lt(timeOff.startsAt, dayEnd),
+           gte(timeOff.endsAt, dayStart)
+         )
+-  )
++  , eq(timeOff.tenantId, tenant.id)))
+   .orderBy(timeOff.startsAt)
+   );
+ 
+@@ -324,17 +326,17 @@ if (session.role === 'admin' && isToday) {
+     .select({ barberId: workingHours.barberId, weekday: workingHours.weekday, startTime: workingHours.startTime, endTime: workingHours.endTime })
+     .from(workingHours)
+     .innerJoin(barbers, eq(barbers.id, workingHours.barberId))
+-    .where(eq(barbers.active, true))
++    .where(and(eq(barbers.active, true), eq(workingHours.tenantId, tenant.id)))
+     );
+   const weekAppts = (await db
+     .select({ barberId: appointments.barberId, startsAt: appointments.startsAt, endsAt: appointments.endsAt })
+     .from(appointments)
+-    .where(and(eq(appointments.status, 'confirmed'), gte(appointments.startsAt, weekStartIso), lt(appointments.startsAt, weekEndIso)))
++    .where(and(eq(appointments.status, 'confirmed'), gte(appointments.startsAt, weekStartIso), lt(appointments.startsAt, weekEndIso), eq(appointments.tenantId, tenant.id)))
+     );
+   const weekTimeOff = (await db
+     .select({ barberId: timeOff.barberId, startsAt: timeOff.startsAt, endsAt: timeOff.endsAt })
+     .from(timeOff)
+-    .where(and(lt(timeOff.startsAt, weekEndIso), gt(timeOff.endsAt, weekStartIso)))
++    .where(and(lt(timeOff.startsAt, weekEndIso), gt(timeOff.endsAt, weekStartIso), eq(timeOff.tenantId, tenant.id)))
+     );
+ 
+   const occ  = computeOccupancy({ days: nextDays, workingHours: whRows, timeOff: weekTimeOff, appointments: weekAppts });
+diff --git a/apps/barbearia/src/pages/admin/horarios.astro b/apps/barbearia/src/pages/admin/horarios.astro
+index 108bfac..e76ecfa 100644
+--- a/apps/barbearia/src/pages/admin/horarios.astro
++++ b/apps/barbearia/src/pages/admin/horarios.astro
+@@ -5,20 +5,22 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
+ import { getSession } from '../../lib/session.js';
+ import { db } from '../../db/index.js';
+ import { barbers, workingHours } from '../../db/schema.js';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
++import { tenantDaSessao } from '../../lib/tenant.js';
+ 
+ const session = await getSession(Astro.request);
+ if (!session) return Astro.redirect('/admin/login');
++const tenant = tenantDaSessao(session);
+ 
+ const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+-  .from(barbers).where(eq(barbers.id, session.barberId)))[0];
++  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+ if (!barberRow) return Astro.redirect('/admin/login');
+ 
+ const isAdmin = session.role === 'admin';
+ 
+ // Lista de barbeiros ativos (admin vê todos, barbeiro vê só o próprio)
+ const allBarbers = isAdmin
+-  ? (await db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(eq(barbers.active, true)).orderBy(barbers.name))
++  ? (await db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(and(eq(barbers.active, true), eq(barbers.tenantId, tenant.id))).orderBy(barbers.name))
+   : [{ id: session.barberId, name: barberRow.name }];
+ 
+ // Barbeiro selecionado na aba (param ?barber=N)
+@@ -40,7 +42,7 @@ const currentHours = (await db.select({
+   endTime:   workingHours.endTime,
+ })
+   .from(workingHours)
+-  .where(eq(workingHours.barberId, selectedBarberId))
++  .where(and(eq(workingHours.barberId, selectedBarberId), eq(workingHours.tenantId, tenant.id)))
+   );
+ 
+ const WEEKDAY_LABELS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+diff --git a/apps/barbearia/src/pages/admin/index.astro b/apps/barbearia/src/pages/admin/index.astro
+index 59b24de..f70891b 100644
+--- a/apps/barbearia/src/pages/admin/index.astro
++++ b/apps/barbearia/src/pages/admin/index.astro
+@@ -2,20 +2,21 @@
+ export const prerender = false;
+ 
+ import AdminLayout from '../../layouts/AdminLayout.astro';
++import { and, sql, eq, gte, lt, desc } from 'drizzle-orm';
+ import { getSession } from '../../lib/session.js';
+-import { sql } from 'drizzle-orm';
+ import { db, first } from '../../db/index.js';
+ import { barbers, appointments, services } from '../../db/schema.js';
+-import { eq, and, gte, lt, desc } from 'drizzle-orm';
+ import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
++import { tenantDaSessao } from '../../lib/tenant.js';
+ 
+ const TZ = 'America/Fortaleza';
+ 
+ const session = await getSession(Astro.request);
+ if (!session) return Astro.redirect('/admin/login');
++const tenant = tenantDaSessao(session);
+ 
+ const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+-  .from(barbers).where(eq(barbers.id, session.barberId)))[0];
++  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+ if (!barberRow) return Astro.redirect('/admin/login');
+ 
+ const nowUtc = new Date();
+@@ -76,7 +77,8 @@ const num = (v: unknown): number => Number(v ?? 0);
+ async function sumRevenue(startIso: string, endIso: string): Promise<number> {
+   const r = await first(db.execute<{ s: string }>(sql`
+     SELECT COALESCE(SUM(price_cents),0) AS s FROM appointments
+-     WHERE status IN ('confirmed','completed')
++     WHERE tenant_id = ${tenant.id}
++       AND status IN ('confirmed','completed')
+        AND starts_at >= ${startIso} AND starts_at < ${endIso}
+        AND (${barberFilter}::int IS NULL OR barber_id = ${barberFilter}::int)
+   `));
+@@ -86,7 +88,8 @@ async function sumRevenue(startIso: string, endIso: string): Promise<number> {
+ async function countAppts(startIso: string, endIso: string, statuses: string[]): Promise<number> {
+   const r = await first(db.execute<{ c: string }>(sql`
+     SELECT COUNT(*) AS c FROM appointments
+-     WHERE status IN (${sql.join(statuses.map(st => sql`${st}`), sql`, `)})
++     WHERE tenant_id = ${tenant.id}
++       AND status IN (${sql.join(statuses.map(st => sql`${st}`), sql`, `)})
+        AND starts_at >= ${startIso} AND starts_at < ${endIso}
+        AND (${barberFilter}::int IS NULL OR barber_id = ${barberFilter}::int)
+   `));
+@@ -121,7 +124,7 @@ const upcomingRows = (barberFilter !== null
+       eq(appointments.barberId, barberFilter),
+       gte(appointments.startsAt, nowUtc.toISOString()),
+       lt(appointments.startsAt, next48hEndUtc),
+-    ))
++      eq(appointments.tenantId, tenant.id)))
+     .orderBy(appointments.startsAt)
+     .limit(8)
+     )
+@@ -136,7 +139,7 @@ const upcomingRows = (barberFilter !== null
+       eq(appointments.status, 'confirmed'),
+       gte(appointments.startsAt, nowUtc.toISOString()),
+       lt(appointments.startsAt, next48hEndUtc),
+-    ))
++      eq(appointments.tenantId, tenant.id)))
+     .orderBy(appointments.startsAt)
+     .limit(8)
+     ));
+@@ -155,7 +158,7 @@ const lateRows = (barberFilter !== null
+       eq(appointments.barberId, barberFilter),
+       gte(appointments.startsAt, todayStartUtc),
+       lt(appointments.startsAt, nowUtc.toISOString()),
+-    ))
++      eq(appointments.tenantId, tenant.id)))
+     .orderBy(appointments.startsAt)
+     )
+   : (await db.select({
+@@ -169,7 +172,7 @@ const lateRows = (barberFilter !== null
+       eq(appointments.status, 'confirmed'),
+       gte(appointments.startsAt, todayStartUtc),
+       lt(appointments.startsAt, nowUtc.toISOString()),
+-    ))
++      eq(appointments.tenantId, tenant.id)))
+     .orderBy(appointments.startsAt)
+     ));
+ 
+@@ -185,7 +188,7 @@ const noShowRows = (barberFilter !== null
+       eq(appointments.status, 'no_show'),
+       eq(appointments.barberId, barberFilter),
+       gte(appointments.startsAt, sevenDaysAgo),
+-    ))
++      eq(appointments.tenantId, tenant.id)))
+     .orderBy(desc(appointments.startsAt))
+     .limit(5)
+     )
+@@ -198,7 +201,7 @@ const noShowRows = (barberFilter !== null
+     .where(and(
+       eq(appointments.status, 'no_show'),
+       gte(appointments.startsAt, sevenDaysAgo),
+-    ))
++      eq(appointments.tenantId, tenant.id)))
+     .orderBy(desc(appointments.startsAt))
+     .limit(5)
+     ));
+diff --git a/apps/barbearia/src/pages/admin/produtos.astro b/apps/barbearia/src/pages/admin/produtos.astro
+index 2d9f615..11ece3a 100644
+--- a/apps/barbearia/src/pages/admin/produtos.astro
++++ b/apps/barbearia/src/pages/admin/produtos.astro
+@@ -5,13 +5,15 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
+ import { getSession } from '../../lib/session.js';
+ import { db } from '../../db/index.js';
+ import { barbers, products } from '../../db/schema.js';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
++import { tenantDaSessao } from '../../lib/tenant.js';
+ 
+ const session = await getSession(Astro.request);
+ if (!session) return Astro.redirect('/admin/login');
++const tenant = tenantDaSessao(session);
+ 
+ const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+-  .from(barbers).where(eq(barbers.id, session.barberId)))[0];
++  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+ if (!barberRow) return Astro.redirect('/admin/login');
+ 
+ // Gerenciar o catálogo afeta o site público — restrito ao admin.
+diff --git a/apps/barbearia/src/pages/admin/relatorios.astro b/apps/barbearia/src/pages/admin/relatorios.astro
+index e901995..2e84e2a 100644
+--- a/apps/barbearia/src/pages/admin/relatorios.astro
++++ b/apps/barbearia/src/pages/admin/relatorios.astro
+@@ -9,6 +9,7 @@ import { appointments, appointmentItems, barbers, services, workingHours, timeOf
+ import { and, gte, lt, eq, ne, or, isNull } from 'drizzle-orm';
+ import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
+ import { computeOccupancy } from '../../lib/occupancy.js';
++import { tenantDaSessao } from '../../lib/tenant.js';
+ 
+ const TZ = 'America/Fortaleza';
+ const START_HOUR = 9;
+@@ -16,13 +17,14 @@ const END_HOUR = 19;
+ 
+ const session = await getSession(Astro.request);
+ if (!session) return Astro.redirect('/admin/login');
++const tenant = tenantDaSessao(session);
+ 
+ // Admin vê o negócio inteiro; barbeiro vê só os próprios dados.
+ const isAdmin = session.role === 'admin';
+ const viewBarberId: number | null = isAdmin ? null : session.barberId;
+ 
+ const barberRow = (await db.select({ id: barbers.id, name: barbers.name })
+-  .from(barbers).where(eq(barbers.id, session.barberId)))[0];
++  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+ if (!barberRow) return Astro.redirect('/admin/login');
+ 
+ const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+@@ -95,7 +97,7 @@ async function loadMonth(ym: string): Promise<MonthMetrics> {
+     .from(appointments)
+     .innerJoin(barbers,  eq(barbers.id,  appointments.barberId))
+     .innerJoin(services, eq(services.id, appointments.serviceId))
+-    .where(and(gte(appointments.startsAt, start), lt(appointments.startsAt, end), apptBarberCond))
++    .where(and(gte(appointments.startsAt, start), lt(appointments.startsAt, end), apptBarberCond, eq(appointments.tenantId, tenant.id)))
+     );
+ 
+   let realizadoCents = 0, previstoCents = 0, abertoCents = 0, perdidoCents = 0;
+@@ -144,7 +146,7 @@ async function loadMonth(ym: string): Promise<MonthMetrics> {
+     .from(appointmentItems)
+     .innerJoin(appointments, eq(appointments.id, appointmentItems.appointmentId))
+     .innerJoin(barbers, eq(barbers.id, appointments.barberId))
+-    .where(and(gte(appointments.startsAt, start), lt(appointments.startsAt, end), eq(appointments.status, 'completed'), apptBarberCond))
++    .where(and(gte(appointments.startsAt, start), lt(appointments.startsAt, end), eq(appointments.status, 'completed'), apptBarberCond, eq(appointmentItems.tenantId, tenant.id)))
+     );
+ 
+   for (const it of itemRows) {
+@@ -176,7 +178,7 @@ async function loadMonth(ym: string): Promise<MonthMetrics> {
+     .from(productSales)
+     .innerJoin(barbers, eq(barbers.id, productSales.barberId))
+     .where(and(gte(productSales.soldAt, start), lt(productSales.soldAt, end),
+-      viewBarberId != null ? eq(productSales.barberId, viewBarberId) : undefined))
++      viewBarberId != null ? eq(productSales.barberId, viewBarberId) : undefined, eq(productSales.tenantId, tenant.id)))
+     );
+   for (const sv of saleRows) {
+     realizadoCents += sv.priceCents;
+@@ -200,7 +202,7 @@ const { start: curStart, end: curEnd } = monthRange(mes);
+ const priorRows = (await db
+   .select({ phone: appointments.customerPhone })
+   .from(appointments)
+-  .where(and(lt(appointments.startsAt, curStart), ne(appointments.status, 'cancelled'), apptBarberCond))
++  .where(and(lt(appointments.startsAt, curStart), ne(appointments.status, 'cancelled'), apptBarberCond, eq(appointments.tenantId, tenant.id)))
+   );
+ const priorSet = new Set(priorRows.map(r => r.phone));
+ let novosCount = 0, recorrentesCount = 0;
+@@ -212,7 +214,7 @@ const recorrentesPct = clientesUnicos ? Math.round((recorrentesCount / clientesU
+ const whRows = (await db
+   .select({ barberId: workingHours.barberId, weekday: workingHours.weekday, startTime: workingHours.startTime, endTime: workingHours.endTime })
+   .from(workingHours)
+-  .where(viewBarberId != null ? eq(workingHours.barberId, viewBarberId) : undefined)
++  .where(and(viewBarberId != null ? eq(workingHours.barberId, viewBarberId) : undefined, eq(workingHours.tenantId, tenant.id)))
+   );
+ 
+ const timeOffRows = (await db
+@@ -222,7 +224,7 @@ const timeOffRows = (await db
+     lt(timeOff.startsAt, curEnd),
+     gte(timeOff.endsAt, curStart),
+     viewBarberId != null ? or(isNull(timeOff.barberId), eq(timeOff.barberId, viewBarberId)) : undefined,
+-  ))
++    eq(timeOff.tenantId, tenant.id)))
+   );
+ 
+ // Dias do mês a considerar: passados/atual até hoje; mês inteiro se já passou.
+diff --git a/apps/barbearia/src/pages/admin/reservas.astro b/apps/barbearia/src/pages/admin/reservas.astro
+index 29110c8..372271f 100644
+--- a/apps/barbearia/src/pages/admin/reservas.astro
++++ b/apps/barbearia/src/pages/admin/reservas.astro
+@@ -5,17 +5,19 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
+ import { getSession } from '../../lib/session.js';
+ import { db } from '../../db/index.js';
+ import { barbers, reservations } from '../../db/schema.js';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { formatInTimeZone } from 'date-fns-tz';
+ import { waPhone } from '../../lib/whatsapp.js';
++import { tenantDaSessao } from '../../lib/tenant.js';
+ 
+ const TZ = 'America/Fortaleza';
+ 
+ const session = await getSession(Astro.request);
+ if (!session) return Astro.redirect('/admin/login');
++const tenant = tenantDaSessao(session);
+ 
+ const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+-  .from(barbers).where(eq(barbers.id, session.barberId)))[0];
++  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+ if (!barberRow) return Astro.redirect('/admin/login');
+ 
+ const rows = (await db.select().from(reservations));
+diff --git a/apps/barbearia/src/pages/admin/servicos.astro b/apps/barbearia/src/pages/admin/servicos.astro
+index b919dbc..9dc87ca 100644
+--- a/apps/barbearia/src/pages/admin/servicos.astro
++++ b/apps/barbearia/src/pages/admin/servicos.astro
+@@ -6,12 +6,14 @@ import { getSession } from '../../lib/session.js';
+ import { db } from '../../db/index.js';
+ import { barbers, barberServices, services } from '../../db/schema.js';
+ import { and, eq } from 'drizzle-orm';
++import { tenantDaSessao } from '../../lib/tenant.js';
+ 
+ const session = await getSession(Astro.request);
+ if (!session) return Astro.redirect('/admin/login');
++const tenant = tenantDaSessao(session);
+ 
+ const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+-  .from(barbers).where(eq(barbers.id, session.barberId)))[0];
++  .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
+ if (!barberRow) return Astro.redirect('/admin/login');
+ 
+ const isAdmin = session.role === 'admin';
+@@ -35,7 +37,7 @@ const baseSelect = db
+ 
+ const rows = isAdmin
+   ? (await baseSelect.orderBy(services.name))
+-  : (await baseSelect.where(eq(services.active, true)).orderBy(services.name));
++  : (await baseSelect.where(and(eq(services.active, true), eq(services.tenantId, tenant.id))).orderBy(services.name));
+ 
+ const svcList = rows.map(r => ({
+   id:           r.id,
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/[id]/cancel.ts b/apps/barbearia/src/pages/api/admin/appointments/[id]/cancel.ts
+index 8cd4c16..6517008 100644
+--- a/apps/barbearia/src/pages/api/admin/appointments/[id]/cancel.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/[id]/cancel.ts
+@@ -6,10 +6,12 @@ import { db } from '../../../../../db/index.js';
+ import { appointments } from '../../../../../db/schema.js';
+ import { json } from '../../../../../lib/api.js';
+ import { getSession } from '../../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../../lib/tenant.js';
+ 
+ export const POST: APIRoute = async ({ request, params }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const id = parseInt(params.id ?? '', 10);
+   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
+@@ -17,7 +19,7 @@ export const POST: APIRoute = async ({ request, params }) => {
+   const rows = await db
+     .select({ id: appointments.id, status: appointments.status, barberId: appointments.barberId })
+     .from(appointments)
+-    .where(eq(appointments.id, id));
++    .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id)));
+ 
+   if (rows.length === 0) return json({ error: 'Não encontrado' }, 404);
+ 
+@@ -38,7 +40,7 @@ export const POST: APIRoute = async ({ request, params }) => {
+       lastModifiedById: session.barberId,
+       lastModifiedAt:   now,
+     })
+-    .where(and(eq(appointments.id, id), eq(appointments.status, 'confirmed')));
++    .where(and(eq(appointments.id, id), eq(appointments.status, 'confirmed'), eq(appointments.tenantId, tenant.id)));
+ 
+   return json({ ok: true });
+ };
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/[id]/complete.ts b/apps/barbearia/src/pages/api/admin/appointments/[id]/complete.ts
+index 70aa506..d4475d7 100644
+--- a/apps/barbearia/src/pages/api/admin/appointments/[id]/complete.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/[id]/complete.ts
+@@ -2,11 +2,12 @@ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+ import { z } from 'zod';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db, first } from '../../../../../db/index.js';
+ import { appointments, appointmentItems, services } from '../../../../../db/schema.js';
+ import { json } from '../../../../../lib/api.js';
+ import { getSession } from '../../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../../lib/tenant.js';
+ 
+ // Extras da "comanda": serviços adicionais feitos no balcão (ex.: barba além do corte).
+ // priceCents vem do fechamento (permite ajuste/desconto); o nome é snapshot do serviço.
+@@ -20,6 +21,7 @@ const completeSchema = z.object({
+ export const POST: APIRoute = async ({ request, params }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const id = parseInt(params.id ?? '', 10);
+   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
+@@ -39,7 +41,7 @@ export const POST: APIRoute = async ({ request, params }) => {
+   const appt = await first(db
+     .select({ id: appointments.id, status: appointments.status, barberId: appointments.barberId })
+     .from(appointments)
+-    .where(eq(appointments.id, id)));
++    .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id))));
+ 
+   if (!appt) return json({ error: 'Não encontrado' }, 404);
+   if (session.role !== 'admin' && appt.barberId !== session.barberId) {
+@@ -53,7 +55,7 @@ export const POST: APIRoute = async ({ request, params }) => {
+   const items: { serviceId: number; name: string; priceCents: number }[] = [];
+   for (const ex of extras) {
+     const svc = await first(db.select({ id: services.id, name: services.name })
+-      .from(services).where(eq(services.id, ex.serviceId)));
++      .from(services).where(and(eq(services.id, ex.serviceId), eq(services.tenantId, tenant.id))));
+     if (!svc) return json({ error: `Serviço ${ex.serviceId} não encontrado` }, 400);
+     items.push({ serviceId: svc.id, name: svc.name, priceCents: ex.priceCents });
+   }
+@@ -65,11 +67,12 @@ export const POST: APIRoute = async ({ request, params }) => {
+         lastModifiedById: session.barberId,
+         lastModifiedAt:   new Date().toISOString(),
+       })
+-      .where(eq(appointments.id, id));
++      .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id)));
+ 
+     for (const it of items) {
+       await tx.insert(appointmentItems)
+-        .values({ appointmentId: id, serviceId: it.serviceId, name: it.name, priceCents: it.priceCents });
++        .values({ tenantId: tenant.id, appointmentId: id, serviceId: it.serviceId,
++                  name: it.name, priceCents: it.priceCents });
+     }
+   });
+ 
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/[id]/customer.ts b/apps/barbearia/src/pages/api/admin/appointments/[id]/customer.ts
+index a346b14..fcc9249 100644
+--- a/apps/barbearia/src/pages/api/admin/appointments/[id]/customer.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/[id]/customer.ts
+@@ -7,6 +7,8 @@ import { db, first } from '../../../../../db/index.js';
+ import { json } from '../../../../../lib/api.js';
+ import { getSession } from '../../../../../lib/session.js';
+ import { normalizePhone } from '../../../../../lib/phone.js';
++import type { Tenant } from '../../../../../lib/tenant.js';
++import { tenantDaSessao } from '../../../../../lib/tenant.js';
+ 
+ const bodySchema = z.object({
+   customerName:      z.string().min(2).max(100),
+@@ -34,20 +36,27 @@ interface DadosDoCliente {
+ }
+ 
+ // Busca o appointment e seu telefone normalizado
+-function buscarAppointment(id: number) {
++function buscarAppointment(id: number, tenant: Tenant) {
+   return first(db.execute<{ id: number; customer_phone: string; barber_id: number }>(sql`
+-    SELECT id, customer_phone, barber_id FROM appointments WHERE id = ${id}
++    SELECT id, customer_phone, barber_id FROM appointments
++     WHERE id = ${id} AND tenant_id = ${tenant.id}
+   `));
+ }
+ 
+ /**
+- * Atualiza TODOS os appointments do mesmo telefone (coluna já normalizada).
++ * Atualiza TODOS os appointments do mesmo telefone **desta barbearia**.
++ *
++ * ⚠️ O telefone NÃO é escopado por barbearia: o mesmo cliente pode cortar
++ * cabelo em duas. Sem `tenant_id` no WHERE, esta função reescreveria o nome e a
++ * data de nascimento do cliente na barbearia do vizinho.
++ *
++ * (coluna de telefone já normalizada).
+  *
+  * `RETURNING id` substitui o `result.changes` do better-sqlite3: no driver do
+  * Postgres a contagem de linhas afetadas não vem no mesmo formato, e devolver
+  * os ids é o jeito que não depende de detalhe do driver.
+  */
+-async function propagarPorTelefone(d: DadosDoCliente, telefoneOriginal: string): Promise<number> {
++async function propagarPorTelefone(d: DadosDoCliente, telefoneOriginal: string, tenant: Tenant): Promise<number> {
+   const linhas = await db.execute<{ id: number }>(sql`
+     UPDATE appointments
+        SET customer_name = ${d.nome},
+@@ -55,14 +64,14 @@ async function propagarPorTelefone(d: DadosDoCliente, telefoneOriginal: string):
+            customer_birthdate = ${d.nascimento},
+            last_modified_by_id = ${d.editorId},
+            last_modified_at = ${d.quando}
+-     WHERE customer_phone = ${telefoneOriginal}
++     WHERE tenant_id = ${tenant.id} AND customer_phone = ${telefoneOriginal}
+     RETURNING id
+   `);
+   return linhas.length;
+ }
+ 
+ // Atualiza só esse appointment (fallback)
+-async function atualizarUm(d: DadosDoCliente, id: number): Promise<number> {
++async function atualizarUm(d: DadosDoCliente, id: number, tenant: Tenant): Promise<number> {
+   const linhas = await db.execute<{ id: number }>(sql`
+     UPDATE appointments
+        SET customer_name = ${d.nome},
+@@ -70,7 +79,7 @@ async function atualizarUm(d: DadosDoCliente, id: number): Promise<number> {
+            customer_birthdate = ${d.nascimento},
+            last_modified_by_id = ${d.editorId},
+            last_modified_at = ${d.quando}
+-     WHERE id = ${id}
++     WHERE id = ${id} AND tenant_id = ${tenant.id}
+     RETURNING id
+   `);
+   return linhas.length;
+@@ -79,6 +88,7 @@ async function atualizarUm(d: DadosDoCliente, id: number): Promise<number> {
+ export const PATCH: APIRoute = async ({ params, request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const id = parseInt(params.id ?? '', 10);
+   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
+@@ -94,7 +104,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
+     return json({ error: 'Data de nascimento inválida' }, 400);
+   }
+ 
+-  const appt = await buscarAppointment(id);
++  const appt = await buscarAppointment(id, tenant);
+   if (!appt) return json({ error: 'Agendamento não encontrado' }, 404);
+ 
+   if (session.role !== 'admin' && appt.barber_id !== session.barberId) {
+@@ -115,11 +125,11 @@ export const PATCH: APIRoute = async ({ params, request }) => {
+ 
+   // Propaga se o telefone original tem >= 10 dígitos (chave estável)
+   if (origPhoneKey.length >= 10) {
+-    const updated = await propagarPorTelefone(dados, origPhoneKey);
++    const updated = await propagarPorTelefone(dados, origPhoneKey, tenant);
+     return json({ ok: true, updated, propagated: true });
+   }
+ 
+   // Caso raro: telefone original muito curto, só atualiza esse
+-  const updated = await atualizarUm(dados, id);
++  const updated = await atualizarUm(dados, id, tenant);
+   return json({ ok: true, updated, propagated: false });
+ };
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/[id]/history.ts b/apps/barbearia/src/pages/api/admin/appointments/[id]/history.ts
+index 74f58ea..18dbe51 100644
+--- a/apps/barbearia/src/pages/api/admin/appointments/[id]/history.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/[id]/history.ts
+@@ -23,22 +23,23 @@ import { getSession } from '../../../../../lib/session.js';
+  */
+ const num = (v: unknown): number => Number(v ?? 0);
+ 
+-function buscarAtual(id: number) {
++function buscarAtual(id: number, tenant: Tenant) {
+   return first(db.execute<{ customer_phone: string; barber_id: number }>(sql`
+-    SELECT customer_phone, barber_id FROM appointments WHERE id = ${id}
++    SELECT customer_phone, barber_id FROM appointments
++     WHERE id = ${id} AND tenant_id = ${tenant.id}
+   `));
+ }
+ 
+ // Total de visitas (qualquer status) — pro card de stat.
+ // customer_phone armazenado normalizado → comparação direta com índice.
+-function contarVisitas(phone: string) {
++function contarVisitas(phone: string, tenant: Tenant) {
+   return first(db.execute<{ total: string }>(sql`
+     SELECT COUNT(*) AS total FROM appointments
+-    WHERE customer_phone = ${phone}
++    WHERE tenant_id = ${tenant.id} AND customer_phone = ${phone}
+   `));
+ }
+ 
+-function historico(phone: string, exceto: number, limite: number) {
++function historico(phone: string, exceto: number, limite: number, tenant: Tenant) {
+   return db.execute<{
+     id: number; starts_at: string; status: string; price_cents: number;
+     service_name: string; barber_name: string;
+@@ -53,7 +54,7 @@ function historico(phone: string, exceto: number, limite: number) {
+     FROM appointments a
+     INNER JOIN services s ON s.id = a.service_id
+     INNER JOIN barbers  b ON b.id = a.barber_id
+-    WHERE a.customer_phone = ${phone}
++    WHERE a.tenant_id = ${tenant.id} AND a.customer_phone = ${phone}
+       AND a.id != ${exceto}
+     ORDER BY a.starts_at DESC
+     LIMIT ${limite}
+@@ -61,7 +62,7 @@ function historico(phone: string, exceto: number, limite: number) {
+ }
+ 
+ // Estatísticas agregadas pra "ficha do cliente": gasto, contagens, 1ª visita.
+-function estatisticas(phone: string) {
++function estatisticas(phone: string, tenant: Tenant) {
+   return first(db.execute<{
+     total: string; completed: string; no_show: string;
+     spent_appts: string | null; first_visit: string | null;
+@@ -73,17 +74,17 @@ function estatisticas(phone: string) {
+       SUM(CASE WHEN status = 'completed' THEN price_cents ELSE 0 END) AS spent_appts,
+       MIN(starts_at)                                             AS first_visit
+     FROM appointments
+-    WHERE customer_phone = ${phone}
++    WHERE tenant_id = ${tenant.id} AND customer_phone = ${phone}
+   `));
+ }
+ 
+ // Soma dos itens da comanda (ex.: produtos) só de atendimentos concluídos.
+-function gastoEmItens(phone: string) {
++function gastoEmItens(phone: string, tenant: Tenant) {
+   return first(db.execute<{ spent_items: string }>(sql`
+     SELECT COALESCE(SUM(ai.price_cents), 0) AS spent_items
+     FROM appointment_items ai
+     INNER JOIN appointments a ON a.id = ai.appointment_id
+-    WHERE a.customer_phone = ${phone} AND a.status = 'completed'
++    WHERE a.tenant_id = ${tenant.id} AND a.customer_phone = ${phone} AND a.status = 'completed'
+   `));
+ }
+ 
+@@ -93,12 +94,12 @@ function gastoEmItens(phone: string) {
+ // e ainda selecionar s.name; o Postgres exige que toda coluna do SELECT esteja
+ // no GROUP BY ou dentro de agregado. Como service_id determina o nome, incluir
+ // s.name não muda o agrupamento.
+-function servicoFavorito(phone: string) {
++function servicoFavorito(phone: string, tenant: Tenant) {
+   return first(db.execute<{ name: string; c: string }>(sql`
+     SELECT s.name AS name, COUNT(*) AS c
+     FROM appointments a
+     INNER JOIN services s ON s.id = a.service_id
+-    WHERE a.customer_phone = ${phone} AND a.status != 'cancelled'
++    WHERE a.tenant_id = ${tenant.id} AND a.customer_phone = ${phone} AND a.status != 'cancelled'
+     GROUP BY a.service_id, s.name
+     ORDER BY c DESC, MAX(a.starts_at) DESC
+     LIMIT 1
+@@ -106,15 +107,17 @@ function servicoFavorito(phone: string) {
+ }
+ 
+ import { normalizePhone } from '../../../../../lib/phone.js';
++import { tenantDaSessao, type Tenant } from '../../../../../lib/tenant.js';
+ 
+ export const GET: APIRoute = async ({ params, request, url }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const id = parseInt(params.id ?? '', 10);
+   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
+ 
+-  const current = await buscarAtual(id);
++  const current = await buscarAtual(id, tenant);
+   if (!current) return json({ error: 'Agendamento não encontrado' }, 404);
+ 
+   if (session.role !== 'admin' && current.barber_id !== session.barberId) {
+@@ -130,11 +133,11 @@ export const GET: APIRoute = async ({ params, request, url }) => {
+   // As seis consultas são independentes entre si — em rede, uma de cada vez
+   // custaria seis idas ao banco só pra montar a ficha.
+   const [totalRow, rows, statsRow, itemsRow, favRow] = await Promise.all([
+-    contarVisitas(phoneKey),
+-    historico(phoneKey, id, safeLimit),
+-    estatisticas(phoneKey),
+-    gastoEmItens(phoneKey),
+-    servicoFavorito(phoneKey),
++    contarVisitas(phoneKey, tenant),
++    historico(phoneKey, id, safeLimit, tenant),
++    estatisticas(phoneKey, tenant),
++    gastoEmItens(phoneKey, tenant),
++    servicoFavorito(phoneKey, tenant),
+   ]);
+ 
+   // ── Stats agregados (ficha do cliente) ──────────────────────────────────────
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/[id]/no-show.ts b/apps/barbearia/src/pages/api/admin/appointments/[id]/no-show.ts
+index 70cdd1e..d6a5743 100644
+--- a/apps/barbearia/src/pages/api/admin/appointments/[id]/no-show.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/[id]/no-show.ts
+@@ -1,15 +1,17 @@
+ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db } from '../../../../../db/index.js';
+ import { appointments } from '../../../../../db/schema.js';
+ import { json } from '../../../../../lib/api.js';
+ import { getSession } from '../../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../../lib/tenant.js';
+ 
+ export const POST: APIRoute = async ({ request, params }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const id = parseInt(params.id ?? '', 10);
+   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
+@@ -17,7 +19,7 @@ export const POST: APIRoute = async ({ request, params }) => {
+   const rows = await db
+     .select({ id: appointments.id, status: appointments.status, barberId: appointments.barberId })
+     .from(appointments)
+-    .where(eq(appointments.id, id));
++    .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id)));
+ 
+   if (rows.length === 0) return json({ error: 'Não encontrado' }, 404);
+ 
+@@ -35,7 +37,7 @@ export const POST: APIRoute = async ({ request, params }) => {
+       lastModifiedById: session.barberId,
+       lastModifiedAt:   new Date().toISOString(),
+     })
+-    .where(eq(appointments.id, id));
++    .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id)));
+ 
+   return json({ ok: true });
+ };
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/[id]/notes.ts b/apps/barbearia/src/pages/api/admin/appointments/[id]/notes.ts
+index 2c0e4e7..849f494 100644
+--- a/apps/barbearia/src/pages/api/admin/appointments/[id]/notes.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/[id]/notes.ts
+@@ -2,11 +2,12 @@ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+ import { z } from 'zod';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db } from '../../../../../db/index.js';
+ import { appointments } from '../../../../../db/schema.js';
+ import { json } from '../../../../../lib/api.js';
+ import { getSession } from '../../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../../lib/tenant.js';
+ 
+ const bodySchema = z.object({
+   notes: z.string().max(1000).nullable(),
+@@ -15,6 +16,7 @@ const bodySchema = z.object({
+ export const PATCH: APIRoute = async ({ params, request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const id = parseInt(params.id ?? '', 10);
+   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
+@@ -29,7 +31,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
+   const apptRows = await db
+     .select({ id: appointments.id, barberId: appointments.barberId })
+     .from(appointments)
+-    .where(eq(appointments.id, id));
++    .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id)));
+ 
+   if (apptRows.length === 0) return json({ error: 'Agendamento não encontrado' }, 404);
+ 
+@@ -46,7 +48,7 @@ export const PATCH: APIRoute = async ({ params, request }) => {
+       lastModifiedById: session.barberId,
+       lastModifiedAt:   new Date().toISOString(),
+     })
+-    .where(eq(appointments.id, id));
++    .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id)));
+ 
+   return json({ ok: true, notes: normalizedNotes });
+ };
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/[id]/reschedule.ts b/apps/barbearia/src/pages/api/admin/appointments/[id]/reschedule.ts
+index 1cb7c53..65dbd6a 100644
+--- a/apps/barbearia/src/pages/api/admin/appointments/[id]/reschedule.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/[id]/reschedule.ts
+@@ -10,6 +10,7 @@ import { appointments, workingHours } from '../../../../../db/schema.js';
+ import { json } from '../../../../../lib/api.js';
+ import { getSession } from '../../../../../lib/session.js';
+ import { reagendarAtomicamente } from '../../../../../lib/reagendar.js';
++import { tenantDaSessao } from '../../../../../lib/tenant.js';
+ 
+ const TZ = 'America/Fortaleza';
+ 
+@@ -25,6 +26,7 @@ function weekdayOf(dateStr: string): number {
+ export const POST: APIRoute = async ({ params, request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const id = parseInt(params.id ?? '', 10);
+   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
+@@ -55,7 +57,7 @@ export const POST: APIRoute = async ({ params, request }) => {
+       status:          appointments.status,
+     })
+     .from(appointments)
+-    .where(eq(appointments.id, id));
++    .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id)));
+ 
+   if (apptRows.length === 0) return json({ error: 'Agendamento não encontrado' }, 404);
+ 
+@@ -77,7 +79,7 @@ export const POST: APIRoute = async ({ params, request }) => {
+   const whRows = await db
+     .select()
+     .from(workingHours)
+-    .where(and(eq(workingHours.barberId, appt.barberId), eq(workingHours.weekday, dow)));
++    .where(and(eq(workingHours.barberId, appt.barberId), eq(workingHours.weekday, dow), eq(workingHours.tenantId, tenant.id)));
+ 
+   if (whRows.length === 0) {
+     return json({ error: 'Barbeiro não trabalha nesse dia' }, 400);
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/count.ts b/apps/barbearia/src/pages/api/admin/appointments/count.ts
+index 69392dc..bbd2f51 100644
+--- a/apps/barbearia/src/pages/api/admin/appointments/count.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/count.ts
+@@ -6,6 +6,7 @@ import { db, first } from '../../../../db/index.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
+ import { fromZonedTime } from 'date-fns-tz';
++import { tenantDaSessao, type Tenant } from '../../../../lib/tenant.js';
+ 
+ /**
+  * GET /api/admin/appointments/count?date=YYYY-MM-DD[&barber=N]
+@@ -29,12 +30,13 @@ const TZ = 'America/Fortaleza';
+  * chegaria como `maxmodified` e o auto-refresh da timeline nunca detectaria
+  * mudança.
+  */
+-function contar(barberId: number | null, startIso: string, endIso: string) {
++function contar(barberId: number | null, startIso: string, endIso: string, tenant: Tenant) {
+   return first(db.execute<{ c: string; maxModified: string }>(sql`
+     SELECT COUNT(*) AS c,
+            COALESCE(MAX(COALESCE(last_modified_at, created_at)), '') AS "maxModified"
+       FROM appointments
+-     WHERE starts_at >= ${startIso} AND starts_at < ${endIso}
++     WHERE tenant_id = ${tenant.id}
++       AND starts_at >= ${startIso} AND starts_at < ${endIso}
+        AND (${barberId}::int IS NULL OR barber_id = ${barberId}::int)
+   `));
+ }
+@@ -42,6 +44,7 @@ function contar(barberId: number | null, startIso: string, endIso: string) {
+ export const GET: APIRoute = async ({ request, url }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const date = url.searchParams.get('date');
+   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+@@ -62,6 +65,6 @@ export const GET: APIRoute = async ({ request, url }) => {
+   const startIso = fromZonedTime(`${date}T00:00:00`, TZ).toISOString();
+   const endIso   = fromZonedTime(`${date}T23:59:59`, TZ).toISOString();
+ 
+-  const r = await contar(barberFilter, startIso, endIso);
++  const r = await contar(barberFilter, startIso, endIso, tenant);
+   return json({ ok: true, count: Number(r?.c ?? 0), maxModified: r?.maxModified ?? '' });
+ };
+diff --git a/apps/barbearia/src/pages/api/admin/appointments/index.ts b/apps/barbearia/src/pages/api/admin/appointments/index.ts
+index 8a0d904..720cf2a 100644
+--- a/apps/barbearia/src/pages/api/admin/appointments/index.ts
++++ b/apps/barbearia/src/pages/api/admin/appointments/index.ts
+@@ -9,6 +9,7 @@ import { appointments, barbers, services } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
+ import { bookAppointment } from '../../../../lib/bookAppointment.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ const TZ = 'America/Fortaleza';
+ 
+@@ -25,6 +26,7 @@ const createSchema = z.object({
+ export const GET: APIRoute = async ({ request, url }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const date         = url.searchParams.get('date');
+   const barberIdParam = url.searchParams.get('barberId');
+@@ -64,11 +66,12 @@ export const GET: APIRoute = async ({ request, url }) => {
+     .from(appointments)
+     .innerJoin(barbers,  eq(barbers.id,  appointments.barberId))
+     .innerJoin(services, eq(services.id, appointments.serviceId))
+-    .where(
+-      filterBarberId !== null
+-        ? and(gte(appointments.startsAt, dayStart), lt(appointments.startsAt, dayEnd), eq(appointments.barberId, filterBarberId))
+-        : and(gte(appointments.startsAt, dayStart), lt(appointments.startsAt, dayEnd))
+-    )
++    .where(and(
++      eq(appointments.tenantId, tenant.id),
++      gte(appointments.startsAt, dayStart),
++      lt(appointments.startsAt, dayEnd),
++      ...(filterBarberId !== null ? [eq(appointments.barberId, filterBarberId)] : []),
++    ))
+     .orderBy(appointments.startsAt);
+ 
+   return json(rows.map(r => ({
+@@ -81,6 +84,7 @@ export const GET: APIRoute = async ({ request, url }) => {
+ export const POST: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   let body: unknown;
+   try { body = await request.json(); }
+@@ -99,6 +103,7 @@ export const POST: APIRoute = async ({ request }) => {
+ 
+   try {
+     const result = await bookAppointment({
++      tenant,
+       barberId,
+       serviceId,
+       customerName,
+diff --git a/apps/barbearia/src/pages/api/admin/barber-services/[serviceId].ts b/apps/barbearia/src/pages/api/admin/barber-services/[serviceId].ts
+index 5a60620..9ea469a 100644
+--- a/apps/barbearia/src/pages/api/admin/barber-services/[serviceId].ts
++++ b/apps/barbearia/src/pages/api/admin/barber-services/[serviceId].ts
+@@ -7,6 +7,7 @@ import { db } from '../../../../db/index.js';
+ import { barberServices } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ const updateSchema = z.object({
+   active:          z.boolean(),
+@@ -17,6 +18,7 @@ const updateSchema = z.object({
+ export const PUT: APIRoute = async ({ request, params }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const serviceId = parseInt(params.serviceId ?? '', 10);
+   if (isNaN(serviceId)) return json({ error: 'serviceId inválido' }, 400);
+@@ -40,7 +42,7 @@ export const PUT: APIRoute = async ({ request, params }) => {
+   }
+ 
+   await db.insert(barberServices)
+-    .values({ barberId: targetBarberId, serviceId, durationMinutes, active })
++    .values({ tenantId: tenant.id, barberId: targetBarberId, serviceId, durationMinutes, active })
+     .onConflictDoUpdate({
+       target: [barberServices.barberId, barberServices.serviceId],
+       set:    { durationMinutes, active },
+diff --git a/apps/barbearia/src/pages/api/admin/barbers/[id].ts b/apps/barbearia/src/pages/api/admin/barbers/[id].ts
+index f621948..61187b3 100644
+--- a/apps/barbearia/src/pages/api/admin/barbers/[id].ts
++++ b/apps/barbearia/src/pages/api/admin/barbers/[id].ts
+@@ -2,11 +2,12 @@ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+ import { z } from 'zod';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db, first } from '../../../../db/index.js';
+ import { barbers } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ // Slug NÃO é editável: ele é o identificador de login (ver /api/auth/login).
+ // Mudá-lo trocaria o usuário de acesso do barbeiro. Por isso fica fora do schema.
+@@ -19,6 +20,7 @@ const updateSchema = z.object({
+ export const PUT: APIRoute = async ({ request, params }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   const id = parseInt(params.id ?? '', 10);
+@@ -37,7 +39,7 @@ export const PUT: APIRoute = async ({ request, params }) => {
+   }
+ 
+   const target = await first(db.select({ id: barbers.id, role: barbers.role })
+-    .from(barbers).where(eq(barbers.id, id)));
++    .from(barbers).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id))));
+   if (!target) return json({ error: 'Barbeiro não encontrado' }, 404);
+ 
+   // Proteções: o admin logado não pode se trancar pra fora do sistema.
+@@ -55,6 +57,6 @@ export const PUT: APIRoute = async ({ request, params }) => {
+   if (role   !== undefined) updates.role   = role;
+   if (active !== undefined) updates.active = active;
+ 
+-  await db.update(barbers).set(updates).where(eq(barbers.id, id));
++  await db.update(barbers).set(updates).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id)));
+   return json({ ok: true });
+ };
+diff --git a/apps/barbearia/src/pages/api/admin/barbers/[id]/password.ts b/apps/barbearia/src/pages/api/admin/barbers/[id]/password.ts
+index 7b6668c..20f2351 100644
+--- a/apps/barbearia/src/pages/api/admin/barbers/[id]/password.ts
++++ b/apps/barbearia/src/pages/api/admin/barbers/[id]/password.ts
+@@ -3,11 +3,12 @@ export const prerender = false;
+ import type { APIRoute } from 'astro';
+ import { z } from 'zod';
+ import { hash } from 'bcryptjs';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db, first } from '../../../../../db/index.js';
+ import { barbers } from '../../../../../db/schema.js';
+ import { json } from '../../../../../lib/api.js';
+ import { getSession } from '../../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../../lib/tenant.js';
+ 
+ const BCRYPT_COST = 12;
+ 
+@@ -20,6 +21,7 @@ const bodySchema = z.object({
+ export const POST: APIRoute = async ({ request, params }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   const id = parseInt(params.id ?? '', 10);
+@@ -32,11 +34,11 @@ export const POST: APIRoute = async ({ request, params }) => {
+   const parsed = bodySchema.safeParse(body);
+   if (!parsed.success) return json({ error: 'A senha precisa ter ao menos 6 caracteres' }, 400);
+ 
+-  const target = await first(db.select({ id: barbers.id }).from(barbers).where(eq(barbers.id, id)));
++  const target = await first(db.select({ id: barbers.id }).from(barbers).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id))));
+   if (!target) return json({ error: 'Barbeiro não encontrado' }, 404);
+ 
+   const passwordHash = await hash(parsed.data.password, BCRYPT_COST);
+-  await db.update(barbers).set({ passwordHash }).where(eq(barbers.id, id));
++  await db.update(barbers).set({ passwordHash }).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id)));
+ 
+   return json({ ok: true });
+ };
+diff --git a/apps/barbearia/src/pages/api/admin/barbers/index.ts b/apps/barbearia/src/pages/api/admin/barbers/index.ts
+index ba2b53d..7d80462 100644
+--- a/apps/barbearia/src/pages/api/admin/barbers/index.ts
++++ b/apps/barbearia/src/pages/api/admin/barbers/index.ts
+@@ -3,11 +3,12 @@ export const prerender = false;
+ import type { APIRoute } from 'astro';
+ import { z } from 'zod';
+ import { hash } from 'bcryptjs';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db, first } from '../../../../db/index.js';
+ import { barbers, barberServices, services, workingHours } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ const BCRYPT_COST = 12;
+ 
+@@ -28,6 +29,7 @@ const createSchema = z.object({
+ export const GET: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   const rows = await db
+@@ -40,6 +42,7 @@ export const GET: APIRoute = async ({ request }) => {
+       createdAt: barbers.createdAt,
+     })
+     .from(barbers)
++    .where(eq(barbers.tenantId, tenant.id))
+     .orderBy(barbers.name);
+ 
+   return json(rows);
+@@ -49,6 +52,7 @@ export const GET: APIRoute = async ({ request }) => {
+ export const POST: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   let body: unknown;
+@@ -65,7 +69,7 @@ export const POST: APIRoute = async ({ request }) => {
+ 
+   // Slug é o identificador de login: precisa ser único. Sem sufixo automático —
+   // se colidir, o admin escolhe outro (senão geraria um login esquisito).
+-  const existing = await db.select({ id: barbers.id }).from(barbers).where(eq(barbers.slug, slug));
++  const existing = await db.select({ id: barbers.id }).from(barbers).where(and(eq(barbers.slug, slug), eq(barbers.tenantId, tenant.id)));
+   if (existing.length > 0) {
+     return json({ error: `O slug "${slug}" já está em uso. Escolha outro.` }, 409);
+   }
+@@ -74,10 +78,10 @@ export const POST: APIRoute = async ({ request }) => {
+ 
+   // Serviços ativos + uma duração de referência (a já praticada por algum barbeiro,
+   // ou 30 min de fallback) para o novo barbeiro nascer oferecendo o catálogo.
+-  const activeServices = await db.select({ id: services.id }).from(services).where(eq(services.active, true));
++  const activeServices = await db.select({ id: services.id }).from(services).where(and(eq(services.active, true), eq(services.tenantId, tenant.id)));
+   const refDuration = async (serviceId: number): Promise<number> => {
+     const r = await first(db.select({ d: barberServices.durationMinutes }).from(barberServices)
+-      .where(eq(barberServices.serviceId, serviceId)).limit(1));
++      .where(and(eq(barberServices.serviceId, serviceId), eq(barberServices.tenantId, tenant.id))).limit(1));
+     return r?.d ?? 30;
+   };
+   const serviceSeed = await Promise.all(
+@@ -87,19 +91,19 @@ export const POST: APIRoute = async ({ request }) => {
+   let newId: number | bigint;
+   try {
+     newId = await db.transaction(async (tx) => {
+-      const res = await tx.insert(barbers).values({ name, slug, role, passwordHash })
++      const res = await tx.insert(barbers).values({ tenantId: tenant.id, name, slug, role, passwordHash })
+         .returning({ id: barbers.id });
+       const id = res[0].id;
+ 
+       // working_hours: seg–sex 09:00–20:00, sáb 09:00–18:00 (mesmo padrão do seed)
+       for (let weekday = 1; weekday <= 5; weekday++) {
+-        await tx.insert(workingHours).values({ barberId: Number(id), weekday, startTime: '09:00', endTime: '20:00' });
++        await tx.insert(workingHours).values({ tenantId: tenant.id, barberId: Number(id), weekday, startTime: '09:00', endTime: '20:00' });
+       }
+-      await tx.insert(workingHours).values({ barberId: Number(id), weekday: 6, startTime: '09:00', endTime: '18:00' });
++      await tx.insert(workingHours).values({ tenantId: tenant.id, barberId: Number(id), weekday: 6, startTime: '09:00', endTime: '18:00' });
+ 
+       // barber_services: oferece todos os serviços ativos por padrão
+       for (const s of serviceSeed) {
+-        await tx.insert(barberServices).values({
++        await tx.insert(barberServices).values({ tenantId: tenant.id,
+           barberId: Number(id), serviceId: s.serviceId, durationMinutes: s.durationMinutes, active: true,
+         });
+       }
+diff --git a/apps/barbearia/src/pages/api/admin/combos/[id].ts b/apps/barbearia/src/pages/api/admin/combos/[id].ts
+index 72b4c3b..098377d 100644
+--- a/apps/barbearia/src/pages/api/admin/combos/[id].ts
++++ b/apps/barbearia/src/pages/api/admin/combos/[id].ts
+@@ -3,12 +3,13 @@ export const prerender = false;
+ import type { APIRoute } from 'astro';
+ import { unlink } from 'node:fs/promises';
+ import { join } from 'node:path';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db, first } from '../../../../db/index.js';
+ import { combos, services, products } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
+ import { saveProductImage, PRODUCT_UPLOAD_DIR, safeUploadName } from '../../../../lib/uploads.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ const IMG_PREFIX = '/api/products/image/';
+ 
+@@ -23,12 +24,13 @@ async function removeUploadedImage(image: string | null): Promise<void> {
+ export const PATCH: APIRoute = async ({ request, params }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   const id = parseInt(params.id ?? '', 10);
+   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
+ 
+-  const current = await first(db.select().from(combos).where(eq(combos.id, id)));
++  const current = await first(db.select().from(combos).where(and(eq(combos.id, id), eq(combos.tenantId, tenant.id))));
+   if (!current) return json({ error: 'Combo não encontrado' }, 404);
+ 
+   let form: FormData;
+@@ -44,14 +46,14 @@ export const PATCH: APIRoute = async ({ request, params }) => {
+   }
+   if (form.has('serviceId')) {
+     const serviceId = parseInt(String(form.get('serviceId')), 10);
+-    if (isNaN(serviceId) || !(await first(db.select({ id: services.id }).from(services).where(eq(services.id, serviceId))))) {
++    if (isNaN(serviceId) || !(await first(db.select({ id: services.id }).from(services).where(and(eq(services.id, serviceId), eq(services.tenantId, tenant.id)))))) {
+       return json({ error: 'Serviço inválido' }, 400);
+     }
+     updates.serviceId = serviceId;
+   }
+   if (form.has('productId')) {
+     const productId = parseInt(String(form.get('productId')), 10);
+-    if (isNaN(productId) || !(await first(db.select({ id: products.id }).from(products).where(eq(products.id, productId))))) {
++    if (isNaN(productId) || !(await first(db.select({ id: products.id }).from(products).where(and(eq(products.id, productId), eq(products.tenantId, tenant.id)))))) {
+       return json({ error: 'Produto inválido' }, 400);
+     }
+     updates.productId = productId;
+@@ -80,7 +82,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
+ 
+   if (Object.keys(updates).length === 0) return json({ error: 'Nada para atualizar' }, 400);
+ 
+-  await db.update(combos).set(updates).where(eq(combos.id, id));
++  await db.update(combos).set(updates).where(and(eq(combos.id, id), eq(combos.tenantId, tenant.id)));
+   if (oldImageToRemove) await removeUploadedImage(oldImageToRemove);
+ 
+   return json({ ok: true });
+@@ -90,15 +92,16 @@ export const PATCH: APIRoute = async ({ request, params }) => {
+ export const DELETE: APIRoute = async ({ request, params }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   const id = parseInt(params.id ?? '', 10);
+   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
+ 
+-  const current = await first(db.select().from(combos).where(eq(combos.id, id)));
++  const current = await first(db.select().from(combos).where(and(eq(combos.id, id), eq(combos.tenantId, tenant.id))));
+   if (!current) return json({ error: 'Combo não encontrado' }, 404);
+ 
+-  await db.delete(combos).where(eq(combos.id, id));
++  await db.delete(combos).where(and(eq(combos.id, id), eq(combos.tenantId, tenant.id)));
+   await removeUploadedImage(current.image);
+ 
+   return json({ ok: true });
+diff --git a/apps/barbearia/src/pages/api/admin/combos/index.ts b/apps/barbearia/src/pages/api/admin/combos/index.ts
+index 66a7a6e..8e99b3f 100644
+--- a/apps/barbearia/src/pages/api/admin/combos/index.ts
++++ b/apps/barbearia/src/pages/api/admin/combos/index.ts
+@@ -1,12 +1,13 @@
+ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db, first } from '../../../../db/index.js';
+ import { combos, services, products } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
+ import { saveProductImage } from '../../../../lib/uploads.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ function parseIntField(form: FormData, key: string): number {
+   return parseInt(String(form.get(key) ?? ''), 10);
+@@ -16,6 +17,7 @@ function parseIntField(form: FormData, key: string): number {
+ export const GET: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const rows = await db.select({
+     id: combos.id, name: combos.name, serviceId: combos.serviceId, productId: combos.productId,
+@@ -26,6 +28,7 @@ export const GET: APIRoute = async ({ request }) => {
+     .from(combos)
+     .leftJoin(services, eq(services.id, combos.serviceId))
+     .leftJoin(products, eq(products.id, combos.productId))
++    .where(eq(combos.tenantId, tenant.id))
+     .orderBy(combos.sortOrder, combos.id);
+   return json(rows);
+ };
+@@ -34,6 +37,7 @@ export const GET: APIRoute = async ({ request }) => {
+ export const POST: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   let form: FormData;
+@@ -47,9 +51,9 @@ export const POST: APIRoute = async ({ request }) => {
+   const productId = parseIntField(form, 'productId');
+   if (isNaN(serviceId) || isNaN(productId)) return json({ error: 'Escolha o serviço e o produto' }, 400);
+ 
+-  const svc = await first(db.select({ id: services.id }).from(services).where(eq(services.id, serviceId)));
++  const svc = await first(db.select({ id: services.id }).from(services).where(and(eq(services.id, serviceId), eq(services.tenantId, tenant.id))));
+   if (!svc) return json({ error: 'Serviço não encontrado' }, 400);
+-  const prod = await first(db.select({ id: products.id }).from(products).where(eq(products.id, productId)));
++  const prod = await first(db.select({ id: products.id }).from(products).where(and(eq(products.id, productId), eq(products.tenantId, tenant.id))));
+   if (!prod) return json({ error: 'Produto não encontrado' }, 400);
+ 
+   let discountPct = parseIntField(form, 'discountPct');
+@@ -71,7 +75,7 @@ export const POST: APIRoute = async ({ request }) => {
+   const sorts = await db.select({ s: combos.sortOrder }).from(combos);
+   const nextSort = (sorts.length ? Math.max(...sorts.map(r => r.s)) : 0) + 1;
+ 
+-  const result = await db.insert(combos).values({
++  const result = await db.insert(combos).values({ tenantId: tenant.id,
+     name, serviceId, productId, discountPct, weekdays, image, active, sortOrder: nextSort,
+   }).returning({ id: combos.id });
+ 
+diff --git a/apps/barbearia/src/pages/api/admin/product-sales/[id].ts b/apps/barbearia/src/pages/api/admin/product-sales/[id].ts
+index 7e9c334..eb0ab96 100644
+--- a/apps/barbearia/src/pages/api/admin/product-sales/[id].ts
++++ b/apps/barbearia/src/pages/api/admin/product-sales/[id].ts
+@@ -1,22 +1,24 @@
+ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db, first } from '../../../../db/index.js';
+ import { productSales } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ // Remove uma venda de produto (correção de lançamento manual).
+ export const DELETE: APIRoute = async ({ request, params }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const id = parseInt(params.id ?? '', 10);
+   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
+ 
+   const sale = await first(db.select({ id: productSales.id, barberId: productSales.barberId })
+-    .from(productSales).where(eq(productSales.id, id)));
++    .from(productSales).where(and(eq(productSales.id, id), eq(productSales.tenantId, tenant.id))));
+   if (!sale) return json({ error: 'Venda não encontrada' }, 404);
+ 
+   // Barbeiro só apaga as próprias vendas; admin apaga qualquer uma.
+@@ -24,6 +26,6 @@ export const DELETE: APIRoute = async ({ request, params }) => {
+     return json({ error: 'Sem permissão' }, 403);
+   }
+ 
+-  await db.delete(productSales).where(eq(productSales.id, id));
++  await db.delete(productSales).where(and(eq(productSales.id, id), eq(productSales.tenantId, tenant.id)));
+   return json({ ok: true });
+ };
+diff --git a/apps/barbearia/src/pages/api/admin/product-sales/index.ts b/apps/barbearia/src/pages/api/admin/product-sales/index.ts
+index ba331dc..2986e05 100644
+--- a/apps/barbearia/src/pages/api/admin/product-sales/index.ts
++++ b/apps/barbearia/src/pages/api/admin/product-sales/index.ts
+@@ -2,12 +2,13 @@ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+ import { z } from 'zod';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { fromZonedTime } from 'date-fns-tz';
+ import { db, first } from '../../../../db/index.js';
+ import { barbers, productSales } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ const TZ = 'America/Fortaleza';
+ 
+@@ -24,6 +25,7 @@ const bodySchema = z.object({
+ export const POST: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   let body: unknown;
+   try { body = await request.json(); }
+@@ -40,7 +42,7 @@ export const POST: APIRoute = async ({ request }) => {
+     : session.barberId;
+ 
+   const barber = await first(db.select({ id: barbers.id, name: barbers.name, active: barbers.active })
+-    .from(barbers).where(eq(barbers.id, barberId)));
++    .from(barbers).where(and(eq(barbers.id, barberId), eq(barbers.tenantId, tenant.id))));
+   if (!barber) return json({ error: 'Barbeiro não encontrado' }, 404);
+ 
+   // soldAt: meio-dia do dia informado (evita virar o dia por fuso); senão, agora.
+@@ -50,7 +52,7 @@ export const POST: APIRoute = async ({ request }) => {
+ 
+   const priceCents = quantity * unitPriceCents;
+ 
+-  const res = await db.insert(productSales).values({
++  const res = await db.insert(productSales).values({ tenantId: tenant.id,
+     barberId,
+     name,
+     quantity,
+diff --git a/apps/barbearia/src/pages/api/admin/products/[id].ts b/apps/barbearia/src/pages/api/admin/products/[id].ts
+index 3b069fb..9e27f46 100644
+--- a/apps/barbearia/src/pages/api/admin/products/[id].ts
++++ b/apps/barbearia/src/pages/api/admin/products/[id].ts
+@@ -3,12 +3,13 @@ export const prerender = false;
+ import type { APIRoute } from 'astro';
+ import { unlink } from 'node:fs/promises';
+ import { join } from 'node:path';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db, first } from '../../../../db/index.js';
+ import { products } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
+ import { saveProductImage, PRODUCT_UPLOAD_DIR, safeUploadName } from '../../../../lib/uploads.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ const IMG_PREFIX = '/api/products/image/';
+ 
+@@ -24,12 +25,13 @@ async function removeUploadedImage(image: string | null): Promise<void> {
+ export const PATCH: APIRoute = async ({ request, params }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   const id = parseInt(params.id ?? '', 10);
+   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
+ 
+-  const current = await first(db.select().from(products).where(eq(products.id, id)));
++  const current = await first(db.select().from(products).where(and(eq(products.id, id), eq(products.tenantId, tenant.id))));
+   if (!current) return json({ error: 'Produto não encontrado' }, 404);
+ 
+   let form: FormData;
+@@ -68,7 +70,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
+ 
+   if (Object.keys(updates).length === 0) return json({ error: 'Nada para atualizar' }, 400);
+ 
+-  await db.update(products).set(updates).where(eq(products.id, id));
++  await db.update(products).set(updates).where(and(eq(products.id, id), eq(products.tenantId, tenant.id)));
+   if (oldImageToRemove) await removeUploadedImage(oldImageToRemove);
+ 
+   return json({ ok: true });
+@@ -79,15 +81,16 @@ export const PATCH: APIRoute = async ({ request, params }) => {
+ export const DELETE: APIRoute = async ({ request, params }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   const id = parseInt(params.id ?? '', 10);
+   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
+ 
+-  const current = await first(db.select().from(products).where(eq(products.id, id)));
++  const current = await first(db.select().from(products).where(and(eq(products.id, id), eq(products.tenantId, tenant.id))));
+   if (!current) return json({ error: 'Produto não encontrado' }, 404);
+ 
+-  await db.delete(products).where(eq(products.id, id));
++  await db.delete(products).where(and(eq(products.id, id), eq(products.tenantId, tenant.id)));
+   await removeUploadedImage(current.image);
+ 
+   return json({ ok: true });
+diff --git a/apps/barbearia/src/pages/api/admin/products/index.ts b/apps/barbearia/src/pages/api/admin/products/index.ts
+index 21aba23..8b3cdda 100644
+--- a/apps/barbearia/src/pages/api/admin/products/index.ts
++++ b/apps/barbearia/src/pages/api/admin/products/index.ts
+@@ -1,21 +1,22 @@
+ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db } from '../../../../db/index.js';
+ import { products } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
+ import { saveProductImage } from '../../../../lib/uploads.js';
++import { tenantDaSessao, type Tenant } from '../../../../lib/tenant.js';
+ 
+ function slugify(s: string): string {
+   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+     .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60) || 'produto';
+ }
+ 
+-async function uniqueSlug(base: string): Promise<string> {
++async function uniqueSlug(base: string, tenant: Tenant): Promise<string> {
+   let slug = base, n = 2;
+-  while ((await db.select({ id: products.id }).from(products).where(eq(products.slug, slug))).length > 0) {
++  while ((await db.select({ id: products.id }).from(products).where(and(eq(products.slug, slug), eq(products.tenantId, tenant.id)))).length > 0) {
+     slug = `${base}-${n++}`;
+   }
+   return slug;
+@@ -25,8 +26,11 @@ async function uniqueSlug(base: string): Promise<string> {
+ export const GET: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+-  const rows = await db.select().from(products).orderBy(products.sortOrder, products.id);
++  const rows = await db.select().from(products)
++    .where(eq(products.tenantId, tenant.id))
++    .orderBy(products.sortOrder, products.id);
+   return json(rows);
+ };
+ 
+@@ -34,6 +38,7 @@ export const GET: APIRoute = async ({ request }) => {
+ export const POST: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   let form: FormData;
+@@ -65,9 +70,9 @@ export const POST: APIRoute = async ({ request }) => {
+     const sorts = await db.select({ s: products.sortOrder }).from(products);
+     const nextSort = (sorts.length ? Math.max(...sorts.map(r => r.s)) : 0) + 1;
+ 
+-    const slug = await uniqueSlug(slugify(name));
++    const slug = await uniqueSlug(slugify(name), tenant);
+ 
+-    const result = await db.insert(products).values({
++    const result = await db.insert(products).values({ tenantId: tenant.id,
+       slug, name, shortDesc, priceCents, image, active, sortOrder: nextSort,
+     }).returning({ id: products.id });
+ 
+diff --git a/apps/barbearia/src/pages/api/admin/reservations/[id].ts b/apps/barbearia/src/pages/api/admin/reservations/[id].ts
+index 8dbd7e9..5fbff5b 100644
+--- a/apps/barbearia/src/pages/api/admin/reservations/[id].ts
++++ b/apps/barbearia/src/pages/api/admin/reservations/[id].ts
+@@ -1,11 +1,12 @@
+ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db, first } from '../../../../db/index.js';
+ import { reservations, productSales } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ // PATCH — { action: 'fulfill' | 'cancel' }.
+ // fulfill: marca como retirada E cria uma venda de produto (entra no faturamento
+@@ -13,6 +14,7 @@ import { getSession } from '../../../../lib/session.js';
+ export const PATCH: APIRoute = async ({ request, params }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const id = parseInt(params.id ?? '', 10);
+   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
+@@ -24,7 +26,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
+   const action = (body as { action?: string })?.action;
+   if (action !== 'fulfill' && action !== 'cancel') return json({ error: 'Ação inválida' }, 400);
+ 
+-  const r = await first(db.select().from(reservations).where(eq(reservations.id, id)));
++  const r = await first(db.select().from(reservations).where(and(eq(reservations.id, id), eq(reservations.tenantId, tenant.id))));
+   if (!r) return json({ error: 'Reserva não encontrada' }, 404);
+   if (r.status !== 'pending') {
+     return json({ error: `Reserva já ${r.status === 'fulfilled' ? 'retirada' : 'cancelada'}` }, 409);
+@@ -35,7 +37,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
+   if (action === 'cancel') {
+     await db.update(reservations)
+       .set({ status: 'cancelled', handledById: session.barberId, handledAt: now })
+-      .where(eq(reservations.id, id));
++      .where(and(eq(reservations.id, id), eq(reservations.tenantId, tenant.id)));
+     return json({ ok: true });
+   }
+ 
+@@ -43,8 +45,8 @@ export const PATCH: APIRoute = async ({ request, params }) => {
+   db.transaction(async (tx) => {
+     await tx.update(reservations)
+       .set({ status: 'fulfilled', handledById: session.barberId, handledAt: now })
+-      .where(eq(reservations.id, id));
+-    await tx.insert(productSales).values({
++      .where(and(eq(reservations.id, id), eq(reservations.tenantId, tenant.id)));
++    await tx.insert(productSales).values({ tenantId: tenant.id,
+       barberId:    session.barberId,
+       name:        r.productName,
+       quantity:    r.quantity,
+diff --git a/apps/barbearia/src/pages/api/admin/reservations/index.ts b/apps/barbearia/src/pages/api/admin/reservations/index.ts
+index cde87aa..862ad84 100644
+--- a/apps/barbearia/src/pages/api/admin/reservations/index.ts
++++ b/apps/barbearia/src/pages/api/admin/reservations/index.ts
+@@ -1,17 +1,20 @@
+ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
++import { eq } from 'drizzle-orm';
+ import { db } from '../../../../db/index.js';
+ import { reservations } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ // Lista todas as reservas para o admin (pendentes primeiro, mais novas no topo).
+ export const GET: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+-  const rows = await db.select().from(reservations);
++  const rows = await db.select().from(reservations).where(eq(reservations.tenantId, tenant.id));
+   const rank: Record<string, number> = { pending: 0, fulfilled: 1, cancelled: 2 };
+   rows.sort((a, b) => (rank[a.status] - rank[b.status]) || b.createdAt.localeCompare(a.createdAt));
+   return json(rows);
+diff --git a/apps/barbearia/src/pages/api/admin/services/[id].ts b/apps/barbearia/src/pages/api/admin/services/[id].ts
+index 2c8c811..ab80bac 100644
+--- a/apps/barbearia/src/pages/api/admin/services/[id].ts
++++ b/apps/barbearia/src/pages/api/admin/services/[id].ts
+@@ -2,11 +2,12 @@ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+ import { z } from 'zod';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db } from '../../../../db/index.js';
+ import { services } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ const updateSchema = z.object({
+   name:       z.string().min(2).max(100).optional(),
+@@ -17,6 +18,7 @@ const updateSchema = z.object({
+ export const PUT: APIRoute = async ({ request, params }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   const id = parseInt(params.id ?? '', 10);
+@@ -36,24 +38,25 @@ export const PUT: APIRoute = async ({ request, params }) => {
+ 
+   if (Object.keys(updates).length === 0) return json({ error: 'Nenhum campo para atualizar' }, 400);
+ 
+-  const rows = await db.select({ id: services.id }).from(services).where(eq(services.id, id));
++  const rows = await db.select({ id: services.id }).from(services).where(and(eq(services.id, id), eq(services.tenantId, tenant.id)));
+   if (rows.length === 0) return json({ error: 'Serviço não encontrado' }, 404);
+ 
+-  await db.update(services).set(updates).where(eq(services.id, id));
++  await db.update(services).set(updates).where(and(eq(services.id, id), eq(services.tenantId, tenant.id)));
+   return json({ ok: true });
+ };
+ 
+ export const DELETE: APIRoute = async ({ request, params }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   const id = parseInt(params.id ?? '', 10);
+   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
+ 
+-  const rows = await db.select({ id: services.id }).from(services).where(eq(services.id, id));
++  const rows = await db.select({ id: services.id }).from(services).where(and(eq(services.id, id), eq(services.tenantId, tenant.id)));
+   if (rows.length === 0) return json({ error: 'Serviço não encontrado' }, 404);
+ 
+-  await db.update(services).set({ active: false }).where(eq(services.id, id));
++  await db.update(services).set({ active: false }).where(and(eq(services.id, id), eq(services.tenantId, tenant.id)));
+   return json({ ok: true });
+ };
+diff --git a/apps/barbearia/src/pages/api/admin/services/index.ts b/apps/barbearia/src/pages/api/admin/services/index.ts
+index 7894201..c9fadcd 100644
+--- a/apps/barbearia/src/pages/api/admin/services/index.ts
++++ b/apps/barbearia/src/pages/api/admin/services/index.ts
+@@ -7,6 +7,7 @@ import { db } from '../../../../db/index.js';
+ import { barberServices, services } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ function slugify(str: string): string {
+   return str.toLowerCase()
+@@ -22,6 +23,7 @@ const createSchema = z.object({
+ export const GET: APIRoute = async ({ request, url }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const includeInactive = url.searchParams.get('all') === 'true' && session.role === 'admin';
+ 
+@@ -43,7 +45,7 @@ export const GET: APIRoute = async ({ request, url }) => {
+ 
+   const rows = includeInactive
+     ? await baseQuery.orderBy(services.name)
+-    : await baseQuery.where(eq(services.active, true)).orderBy(services.name);
++    : await baseQuery.where(and(eq(services.active, true), eq(services.tenantId, tenant.id))).orderBy(services.name);
+ 
+   return json(rows);
+ };
+@@ -51,6 +53,7 @@ export const GET: APIRoute = async ({ request, url }) => {
+ export const POST: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   let body: unknown;
+@@ -65,10 +68,10 @@ export const POST: APIRoute = async ({ request }) => {
+ 
+   // Garantir slug único
+   const existing = await db.select({ slug: services.slug }).from(services)
+-    .where(eq(services.slug, slug));
++    .where(and(eq(services.slug, slug), eq(services.tenantId, tenant.id)));
+   if (existing.length > 0) slug = `${slug}-${Date.now()}`;
+ 
+-  const [criado] = await db.insert(services).values({ name, slug, priceCents })
++  const [criado] = await db.insert(services).values({ tenantId: tenant.id, name, slug, priceCents })
+     .returning({ id: services.id });
+   return json({ ok: true, id: criado.id, slug }, 201);
+ };
+diff --git a/apps/barbearia/src/pages/api/admin/settings.ts b/apps/barbearia/src/pages/api/admin/settings.ts
+index a6e48b7..c7caae3 100644
+--- a/apps/barbearia/src/pages/api/admin/settings.ts
++++ b/apps/barbearia/src/pages/api/admin/settings.ts
+@@ -9,6 +9,7 @@ import { json } from '../../../lib/api.js';
+ import { getSession } from '../../../lib/session.js';
+ import { invalidateSettings } from '../../../lib/settings.js';
+ import { derivarAccent, isHex } from '../../../lib/accent.js';
++import { tenantDaSessao } from '../../../lib/tenant.js';
+ 
+ /** URL opcional: ou vazia, ou começando com http(s). Evita salvar "instagram.com/x"
+  *  sem protocolo, que vira link relativo e quebra dentro do próprio site. */
+@@ -56,9 +57,10 @@ const updateSchema = z.object({
+ export const GET: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+-  const row = await first( db.select().from(settings).where(eq(settings.id, 1)));
++  const row = await first( db.select().from(settings).where(eq(settings.tenantId, tenant.id)));
+   if (!row) return json({ error: 'Configuração não encontrada (migration 0009 aplicada?)' }, 404);
+   return json(row);
+ };
+@@ -67,6 +69,7 @@ export const GET: APIRoute = async ({ request }) => {
+ export const PATCH: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   // A marca da loja é do dono, não do barbeiro que só atende.
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+@@ -104,13 +107,13 @@ export const PATCH: APIRoute = async ({ request }) => {
+ 
+   if (Object.keys(updates).length === 0) return json({ error: 'Nenhum campo para atualizar' }, 400);
+ 
+-  const existe = await first( db.select({ id: settings.id }).from(settings).where(eq(settings.id, 1)));
++  const existe = await first( db.select({ id: settings.id }).from(settings).where(eq(settings.tenantId, tenant.id)));
+   if (!existe) return json({ error: 'Configuração não encontrada (migration 0009 aplicada?)' }, 404);
+ 
+   updates.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
+ 
+   try {
+-    await db.update(settings).set(updates).where(eq(settings.id, 1));
++    await db.update(settings).set(updates).where(eq(settings.tenantId, tenant.id));
+   } catch (err) {
+     console.error('[api/admin/settings PATCH]', err);
+     return json({ error: 'Falha ao salvar a configuração' }, 500);
+diff --git a/apps/barbearia/src/pages/api/admin/settings/media.ts b/apps/barbearia/src/pages/api/admin/settings/media.ts
+index 41764e8..c51e2f4 100644
+--- a/apps/barbearia/src/pages/api/admin/settings/media.ts
++++ b/apps/barbearia/src/pages/api/admin/settings/media.ts
+@@ -8,6 +8,7 @@ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
+ import { invalidateSettings } from '../../../../lib/settings.js';
+ import { salvarMidiaMarca, TIPOS_MIDIA, type TipoMidia } from '../../../../lib/uploads.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ /** Cada tipo alimenta uma coluna. `galeria` fica de fora: é a Fase 3. */
+ const COLUNA: Partial<Record<TipoMidia, 'logoPath' | 'heroPath' | 'ogPath' | 'faviconPath'>> = {
+@@ -20,6 +21,7 @@ const COLUNA: Partial<Record<TipoMidia, 'logoPath' | 'heroPath' | 'ogPath' | 'fa
+ export const POST: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   let form: FormData;
+@@ -40,7 +42,7 @@ export const POST: APIRoute = async ({ request }) => {
+   if ('error' in r) return json({ error: r.error }, 400);
+ 
+   try {
+-    await db.update(settings).set({ [COLUNA[tipo]!]: r.path }).where(eq(settings.id, 1));
++    await db.update(settings).set({ [COLUNA[tipo]!]: r.path }).where(eq(settings.tenantId, tenant.id));
+   } catch (err) {
+     console.error('[api/admin/settings/media]', err);
+     return json({ error: 'Imagem salva, mas falhou ao gravar a configuração' }, 500);
+@@ -54,6 +56,7 @@ export const POST: APIRoute = async ({ request }) => {
+ export const DELETE: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+   if (session.role !== 'admin') return json({ error: 'Acesso restrito ao admin' }, 403);
+ 
+   let body: { tipo?: string };
+@@ -64,7 +67,7 @@ export const DELETE: APIRoute = async ({ request }) => {
+ 
+   // O arquivo continua no volume de propósito: apagar é irreversível e o espaço
+   // que uma imagem ocupa não justifica o risco de perder o que o cliente mandou.
+-  await db.update(settings).set({ [COLUNA[tipo]!]: null }).where(eq(settings.id, 1));
++  await db.update(settings).set({ [COLUNA[tipo]!]: null }).where(eq(settings.tenantId, tenant.id));
+   invalidateSettings();
+   return json({ ok: true });
+ };
+diff --git a/apps/barbearia/src/pages/api/admin/time-off/index.ts b/apps/barbearia/src/pages/api/admin/time-off/index.ts
+index 26f1efa..9872941 100644
+--- a/apps/barbearia/src/pages/api/admin/time-off/index.ts
++++ b/apps/barbearia/src/pages/api/admin/time-off/index.ts
+@@ -8,6 +8,7 @@ import { db } from '../../../../db/index.js';
+ import { appointments, barbers, timeOff } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ const TZ = 'America/Fortaleza';
+ 
+@@ -21,6 +22,7 @@ const createSchema = z.object({
+ export const GET: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const baseQuery = db
+     .select({
+@@ -38,7 +40,7 @@ export const GET: APIRoute = async ({ request }) => {
+   const rows = session.role === 'admin'
+     ? await baseQuery.orderBy(timeOff.startsAt)
+     : await baseQuery
+-        .where(or(eq(timeOff.barberId, session.barberId), isNull(timeOff.barberId)))
++        .where(and(or(eq(timeOff.barberId, session.barberId), isNull(timeOff.barberId)), eq(timeOff.tenantId, tenant.id)))
+         .orderBy(timeOff.startsAt);
+ 
+   const now = new Date();
+@@ -55,6 +57,7 @@ export const GET: APIRoute = async ({ request }) => {
+ export const POST: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   let body: unknown;
+   try { body = await request.json(); }
+@@ -94,11 +97,11 @@ export const POST: APIRoute = async ({ request }) => {
+       startsAt:     appointments.startsAt,
+     })
+     .from(appointments)
+-    .where(
++    .where(and(
+       effectiveBarberId !== null
+         ? and(overlap, eq(appointments.barberId, effectiveBarberId))
+         : overlap
+-    )
++    , eq(appointments.tenantId, tenant.id)))
+     .orderBy(appointments.startsAt);
+ 
+   if (conflictRows.length > 0) {
+@@ -111,7 +114,7 @@ export const POST: APIRoute = async ({ request }) => {
+     }, 409);
+   }
+ 
+-  const result = await db.insert(timeOff).values({
++  const result = await db.insert(timeOff).values({ tenantId: tenant.id,
+     barberId:  effectiveBarberId,
+     startsAt:  startsIso,
+     endsAt:    endsIso,
+@@ -125,6 +128,7 @@ export const POST: APIRoute = async ({ request }) => {
+ export const DELETE: APIRoute = async ({ request, url }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const idParam = url.searchParams.get('id');
+   const id = parseInt(idParam ?? '', 10);
+@@ -133,7 +137,7 @@ export const DELETE: APIRoute = async ({ request, url }) => {
+   const rows = await db
+     .select({ id: timeOff.id, barberId: timeOff.barberId })
+     .from(timeOff)
+-    .where(eq(timeOff.id, id));
++    .where(and(eq(timeOff.id, id), eq(timeOff.tenantId, tenant.id)));
+ 
+   if (rows.length === 0) return json({ error: 'Não encontrado' }, 404);
+ 
+@@ -141,6 +145,6 @@ export const DELETE: APIRoute = async ({ request, url }) => {
+     return json({ error: 'Sem permissão' }, 403);
+   }
+ 
+-  await db.delete(timeOff).where(eq(timeOff.id, id));
++  await db.delete(timeOff).where(and(eq(timeOff.id, id), eq(timeOff.tenantId, tenant.id)));
+   return json({ ok: true });
+ };
+diff --git a/apps/barbearia/src/pages/api/admin/working-hours/index.ts b/apps/barbearia/src/pages/api/admin/working-hours/index.ts
+index ea1f069..25cd450 100644
+--- a/apps/barbearia/src/pages/api/admin/working-hours/index.ts
++++ b/apps/barbearia/src/pages/api/admin/working-hours/index.ts
+@@ -2,11 +2,12 @@ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+ import { z } from 'zod';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db } from '../../../../db/index.js';
+ import { barbers, workingHours } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSession } from '../../../../lib/session.js';
++import { tenantDaSessao } from '../../../../lib/tenant.js';
+ 
+ // Validação de cada entrada de horário
+ const daySchema = z.object({
+@@ -26,6 +27,7 @@ const putSchema = z.object({
+ export const GET: APIRoute = async ({ request, url }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   const barberIdParam = url.searchParams.get('barberId');
+   if (!barberIdParam) return json({ error: 'barberId obrigatório' }, 400);
+@@ -45,7 +47,7 @@ export const GET: APIRoute = async ({ request, url }) => {
+     endTime:   workingHours.endTime,
+   })
+     .from(workingHours)
+-    .where(eq(workingHours.barberId, barberId))
++    .where(and(eq(workingHours.barberId, barberId), eq(workingHours.tenantId, tenant.id)))
+     .orderBy(workingHours.weekday);
+ 
+   return json({ barberId, hours: rows });
+@@ -54,6 +56,7 @@ export const GET: APIRoute = async ({ request, url }) => {
+ export const PUT: APIRoute = async ({ request }) => {
+   const session = await getSession(request);
+   if (!session) return json({ error: 'Não autenticado' }, 401);
++  const tenant = tenantDaSessao(session);
+ 
+   let body: unknown;
+   try { body = await request.json(); }
+@@ -73,7 +76,7 @@ export const PUT: APIRoute = async ({ request }) => {
+ 
+   // Verifica se o barbeiro existe
+   const barberExists = await db.select({ id: barbers.id })
+-    .from(barbers).where(eq(barbers.id, barberId));
++    .from(barbers).where(and(eq(barbers.id, barberId), eq(barbers.tenantId, tenant.id)));
+   if (barberExists.length === 0) {
+     return json({ error: 'Barbeiro não encontrado' }, 404);
+   }
+@@ -102,11 +105,12 @@ export const PUT: APIRoute = async ({ request }) => {
+   // um delete no `tx` e um insert no `db` rodariam em transações diferentes —
+   // o barbeiro poderia ficar sem nenhum horário se o insert falhasse.
+   await db.transaction(async (tx) => {
+-    await tx.delete(workingHours).where(eq(workingHours.barberId, barberId));
++    await tx.delete(workingHours).where(and(eq(workingHours.barberId, barberId), eq(workingHours.tenantId, tenant.id)));
+ 
+     // Insere os novos (se houver — dias desabilitados simplesmente não são enviados)
+     if (hours.length > 0) {
+       await tx.insert(workingHours).values(hours.map(h => ({
++        tenantId:  tenant.id,
+         barberId,
+         weekday:   h.weekday,
+         startTime: h.startTime,
+diff --git a/apps/barbearia/src/pages/api/appointments/by-token/[token].ts b/apps/barbearia/src/pages/api/appointments/by-token/[token].ts
+index 342c0db..b916969 100644
+--- a/apps/barbearia/src/pages/api/appointments/by-token/[token].ts
++++ b/apps/barbearia/src/pages/api/appointments/by-token/[token].ts
+@@ -1,16 +1,18 @@
+ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { formatInTimeZone } from 'date-fns-tz';
+ import { db } from '../../../../db/index.js';
+ import { appointments, barbers, services } from '../../../../db/schema.js';
+ import { json } from '../../../../lib/api.js';
+ import { getSettings, waUrl } from '../../../../lib/settings.js';
++import { tenantDoHost } from '../../../../lib/tenant.js';
+ 
+ const TZ = 'America/Fortaleza';
+ 
+-export const GET: APIRoute = async ({ params }) => {
++export const GET: APIRoute = async ({ params, request }) => {
++  const tenant = tenantDoHost(request);
+   const { token } = params;
+   if (!token) return json({ error: 'Token inválido' }, 400);
+ 
+@@ -37,7 +39,7 @@ export const GET: APIRoute = async ({ params }) => {
+       .from(appointments)
+       .innerJoin(barbers, eq(barbers.id, appointments.barberId))
+       .innerJoin(services, eq(services.id, appointments.serviceId))
+-      .where(eq(appointments.manageToken, token));
++      .where(and(eq(appointments.manageToken, token), eq(appointments.tenantId, tenant.id)));
+ 
+     if (rows.length === 0) return json({ error: 'Agendamento não encontrado' }, 404);
+ 
+diff --git a/apps/barbearia/src/pages/api/appointments/by-token/[token]/cancel.ts b/apps/barbearia/src/pages/api/appointments/by-token/[token]/cancel.ts
+index c031e42..0f22e20 100644
+--- a/apps/barbearia/src/pages/api/appointments/by-token/[token]/cancel.ts
++++ b/apps/barbearia/src/pages/api/appointments/by-token/[token]/cancel.ts
+@@ -5,8 +5,10 @@ import { eq, and } from 'drizzle-orm';
+ import { db } from '../../../../../db/index.js';
+ import { appointments } from '../../../../../db/schema.js';
+ import { json } from '../../../../../lib/api.js';
++import { tenantDoHost } from '../../../../../lib/tenant.js';
+ 
+-export const POST: APIRoute = async ({ params }) => {
++export const POST: APIRoute = async ({ params, request }) => {
++  const tenant = tenantDoHost(request);
+   const { token } = params;
+   if (!token) return json({ error: 'Token inválido' }, 400);
+ 
+@@ -15,7 +17,7 @@ export const POST: APIRoute = async ({ params }) => {
+     const apptRows = await db
+       .select({ id: appointments.id, status: appointments.status })
+       .from(appointments)
+-      .where(eq(appointments.manageToken, token));
++      .where(and(eq(appointments.manageToken, token), eq(appointments.tenantId, tenant.id)));
+ 
+     if (apptRows.length === 0) {
+       return json({ error: 'Agendamento não encontrado' }, 404);
+@@ -33,12 +35,11 @@ export const POST: APIRoute = async ({ params }) => {
+         cancelledAt: new Date().toISOString(),
+         cancelledBy: 'customer',
+       })
+-      .where(
+-        and(
++      .where(and(     and(
+           eq(appointments.manageToken, token),
+           eq(appointments.status, 'confirmed')
+         )
+-      );
++     , eq(appointments.tenantId, tenant.id)));
+ 
+     return json({ ok: true, message: 'Agendamento cancelado' });
+   } catch (err) {
+diff --git a/apps/barbearia/src/pages/api/appointments/by-token/[token]/ics.ts b/apps/barbearia/src/pages/api/appointments/by-token/[token]/ics.ts
+index b214878..f7b8636 100644
+--- a/apps/barbearia/src/pages/api/appointments/by-token/[token]/ics.ts
++++ b/apps/barbearia/src/pages/api/appointments/by-token/[token]/ics.ts
+@@ -1,11 +1,12 @@
+ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { formatInTimeZone } from 'date-fns-tz';
+ import { db } from '../../../../../db/index.js';
+ import { appointments, barbers, services } from '../../../../../db/schema.js';
+ import { getSettings } from '../../../../../lib/settings.js';
++import { tenantDoHost } from '../../../../../lib/tenant.js';
+ 
+ const TZ = 'America/Fortaleza';
+ const SITE_HOST = 'bayron.alexandrefdev.tech';
+@@ -33,7 +34,8 @@ function foldLine(line: string): string {
+   return out.join('\r\n');
+ }
+ 
+-export const GET: APIRoute = async ({ params }) => {
++export const GET: APIRoute = async ({ params, request }) => {
++  const tenant = tenantDoHost(request);
+   const { token } = params;
+   if (!token) return new Response(null, { status: 400 });
+ 
+@@ -50,7 +52,7 @@ export const GET: APIRoute = async ({ params }) => {
+     .from(appointments)
+     .innerJoin(barbers,  eq(barbers.id,  appointments.barberId))
+     .innerJoin(services, eq(services.id, appointments.serviceId))
+-    .where(eq(appointments.manageToken, token));
++    .where(and(eq(appointments.manageToken, token), eq(appointments.tenantId, tenant.id)));
+ 
+   if (rows.length === 0) return new Response(null, { status: 404 });
+ 
+diff --git a/apps/barbearia/src/pages/api/appointments/by-token/[token]/reschedule.ts b/apps/barbearia/src/pages/api/appointments/by-token/[token]/reschedule.ts
+index c3f115b..908d087 100644
+--- a/apps/barbearia/src/pages/api/appointments/by-token/[token]/reschedule.ts
++++ b/apps/barbearia/src/pages/api/appointments/by-token/[token]/reschedule.ts
+@@ -1,15 +1,15 @@
+ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
++import { and, eq } from 'drizzle-orm';
+ import { z } from 'zod';
+-import { eq } from 'drizzle-orm';
+ import { addDays, addMinutes } from 'date-fns';
+ import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
+ import { db } from '../../../../../db/index.js';
+ import { appointments, workingHours } from '../../../../../db/schema.js';
+-import { and } from 'drizzle-orm';
+ import { json } from '../../../../../lib/api.js';
+ import { reagendarAtomicamente } from '../../../../../lib/reagendar.js';
++import { tenantDoHost } from '../../../../../lib/tenant.js';
+ 
+ const TZ = 'America/Fortaleza';
+ 
+@@ -23,6 +23,7 @@ function weekdayOf(dateStr: string): number {
+ }
+ 
+ export const POST: APIRoute = async ({ params, request }) => {
++  const tenant = tenantDoHost(request);
+   const { token } = params;
+   if (!token) return json({ error: 'Token inválido' }, 400);
+ 
+@@ -55,7 +56,7 @@ export const POST: APIRoute = async ({ params, request }) => {
+       startsAt:        appointments.startsAt,
+     })
+     .from(appointments)
+-    .where(eq(appointments.manageToken, token));
++    .where(and(eq(appointments.manageToken, token), eq(appointments.tenantId, tenant.id)));
+ 
+   if (apptRows.length === 0) return json({ error: 'Agendamento não encontrado' }, 404);
+ 
+@@ -72,7 +73,7 @@ export const POST: APIRoute = async ({ params, request }) => {
+   const whRows = await db
+     .select()
+     .from(workingHours)
+-    .where(and(eq(workingHours.barberId, appt.barberId), eq(workingHours.weekday, dow)));
++    .where(and(eq(workingHours.barberId, appt.barberId), eq(workingHours.weekday, dow), eq(workingHours.tenantId, tenant.id)));
+ 
+   if (whRows.length === 0) {
+     return json({ error: 'Barbeiro não trabalha nesse dia' }, 400);
+diff --git a/apps/barbearia/src/pages/api/appointments/index.ts b/apps/barbearia/src/pages/api/appointments/index.ts
+index 989eeaa..83f09ab 100644
+--- a/apps/barbearia/src/pages/api/appointments/index.ts
++++ b/apps/barbearia/src/pages/api/appointments/index.ts
+@@ -10,6 +10,7 @@ import { json } from '../../../lib/api.js';
+ import { bookAppointment } from '../../../lib/bookAppointment.js';
+ import { checkRateLimit } from '../../../lib/rateLimit.js';
+ import { getClientIp } from '../../../lib/clientIp.js';
++import { tenantDoHost } from '../../../lib/tenant.js';
+ 
+ // Idade mínima 5 anos, máxima 100 anos — só sanidade
+ const MIN_BIRTH_AGE_YEARS = 5;
+@@ -38,6 +39,7 @@ function isPlausibleBirthdate(iso: string): boolean {
+ }
+ 
+ export const POST: APIRoute = async ({ request, clientAddress }) => {
++  const tenant = tenantDoHost(request);
+   // IP real do cliente atrás do proxy (resistente a spoofing do x-forwarded-for)
+   const ip = getClientIp(request, clientAddress);
+ 
+@@ -66,9 +68,9 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
+     const c = await first(db
+       .select({ serviceId: combos.serviceId, productId: combos.productId, discountPct: combos.discountPct })
+       .from(combos)
+-      .where(and(eq(combos.id, parsed.data.comboId), eq(combos.active, true))));
++      .where(and(eq(combos.id, parsed.data.comboId), eq(combos.active, true), eq(combos.tenantId, tenant.id))));
+     if (!c) return json({ error: 'Combo indisponível' }, 400);
+-    const prod = await first(db.select({ slug: products.slug }).from(products).where(eq(products.id, c.productId)));
++    const prod = await first(db.select({ slug: products.slug }).from(products).where(and(eq(products.id, c.productId), eq(products.tenantId, tenant.id))));
+     if (!prod) return json({ error: 'Produto do combo indisponível' }, 400);
+     effectiveServiceId = c.serviceId;
+     combo = { productSlug: prod.slug, discountPct: c.discountPct };
+@@ -98,6 +100,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
+ 
+   try {
+     const result = await bookAppointment({
++      tenant,
+       barberId,
+       serviceId: effectiveServiceId,
+       customerName,
+diff --git a/apps/barbearia/src/pages/api/barbers.ts b/apps/barbearia/src/pages/api/barbers.ts
+index 067391e..20eb8a8 100644
+--- a/apps/barbearia/src/pages/api/barbers.ts
++++ b/apps/barbearia/src/pages/api/barbers.ts
+@@ -1,17 +1,19 @@
+ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db } from '../../db/index.js';
+ import { barbers } from '../../db/schema.js';
+ import { json } from '../../lib/api.js';
++import { tenantDoHost } from '../../lib/tenant.js';
+ 
+-export const GET: APIRoute = async () => {
++export const GET: APIRoute = async ({ request }) => {
++  const tenant = tenantDoHost(request);
+   try {
+     const result = await db
+       .select({ id: barbers.id, name: barbers.name, slug: barbers.slug })
+       .from(barbers)
+-      .where(eq(barbers.active, true))
++      .where(and(eq(barbers.active, true), eq(barbers.tenantId, tenant.id)))
+       .orderBy(barbers.id);
+ 
+     return json(result);
+diff --git a/apps/barbearia/src/pages/api/combos/index.ts b/apps/barbearia/src/pages/api/combos/index.ts
+index a791161..cddac26 100644
+--- a/apps/barbearia/src/pages/api/combos/index.ts
++++ b/apps/barbearia/src/pages/api/combos/index.ts
+@@ -6,10 +6,12 @@ import { db } from '../../../db/index.js';
+ import { combos, services, products } from '../../../db/schema.js';
+ import { json } from '../../../lib/api.js';
+ import { applyDiscountPct } from '../../../lib/combo.js';
++import { tenantDoHost } from '../../../lib/tenant.js';
+ 
+ // Lista pública dos combos ATIVOS (com serviço e produto também ativos), já com
+ // preços calculados. A landing filtra pelo dia da semana via `weekdays` (bitmask).
+-export const GET: APIRoute = async () => {
++export const GET: APIRoute = async ({ request }) => {
++  const tenant = tenantDoHost(request);
+   const rows = await db
+     .select({
+       id:          combos.id,
+@@ -28,7 +30,7 @@ export const GET: APIRoute = async () => {
+     .from(combos)
+     .innerJoin(services, eq(services.id, combos.serviceId))
+     .innerJoin(products, eq(products.id, combos.productId))
+-    .where(and(eq(combos.active, true), eq(services.active, true), eq(products.active, true)))
++    .where(and(eq(combos.active, true), eq(services.active, true), eq(products.active, true), eq(combos.tenantId, tenant.id)))
+     .orderBy(combos.sortOrder, combos.id);
+ 
+   const out = rows.map(r => {
+diff --git a/apps/barbearia/src/pages/api/customer/login.ts b/apps/barbearia/src/pages/api/customer/login.ts
+index 8aad999..f7b08b4 100644
+--- a/apps/barbearia/src/pages/api/customer/login.ts
++++ b/apps/barbearia/src/pages/api/customer/login.ts
+@@ -8,6 +8,7 @@ import { json } from '../../../lib/api.js';
+ import { checkRateLimit } from '../../../lib/rateLimit.js';
+ import { getClientIp } from '../../../lib/clientIp.js';
+ import { makeCustomerSessionCookie, normalizePhone } from '../../../lib/customerSession.js';
++import { tenantDoHost, type Tenant } from '../../../lib/tenant.js';
+ 
+ const bodySchema = z.object({
+   phone:     z.string().min(10).max(25),
+@@ -20,28 +21,30 @@ const bodySchema = z.object({
+ // COUNT/SUM no Postgres voltam como bigint, que o driver entrega em string pra
+ // não perder precisão. Por isso todo agregado passa por Number() antes de virar
+ // comparação — `'0' === 0` seria falso e a conta de login sempre falharia.
+-async function contarComBirthdate(phone: string, birthdate: string): Promise<number> {
++async function contarComBirthdate(phone: string, birthdate: string, tenant: Tenant): Promise<number> {
+   const r = await first(db.execute<{ c: string }>(sql`
+     SELECT COUNT(*) AS c FROM appointments
+-    WHERE customer_phone = ${phone} AND customer_birthdate = ${birthdate}
++    WHERE tenant_id = ${tenant.id}
++      AND customer_phone = ${phone} AND customer_birthdate = ${birthdate}
+   `));
+   return Number(r?.c ?? 0);
+ }
+ 
+ // Conta agendamentos do telefone independente de birthdate — usado pra distinguir
+ // "telefone não cadastrado" de "telefone cadastrado mas sem birthdate".
+-async function contarPorTelefone(phone: string): Promise<{ total: number; semBirthdate: number }> {
++async function contarPorTelefone(phone: string, tenant: Tenant): Promise<{ total: number; semBirthdate: number }> {
+   const r = await first(db.execute<{ total: string; without_birthdate: string | null }>(sql`
+     SELECT
+       COUNT(*) AS total,
+       SUM(CASE WHEN customer_birthdate IS NULL THEN 1 ELSE 0 END) AS without_birthdate
+     FROM appointments
+-    WHERE customer_phone = ${phone}
++    WHERE tenant_id = ${tenant.id} AND customer_phone = ${phone}
+   `));
+   return { total: Number(r?.total ?? 0), semBirthdate: Number(r?.without_birthdate ?? 0) };
+ }
+ 
+ export const POST: APIRoute = async ({ request, clientAddress }) => {
++  const tenant = tenantDoHost(request);
+   // Rate limit por IP — protege contra brute-force de números/datas
+   const ip = getClientIp(request, clientAddress);
+   const rl = checkRateLimit(`customer-login:${ip}`);
+@@ -62,12 +65,12 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
+   const compareKey = phone.length >= 11 ? phone.slice(-11) : phone;
+   const birthdate  = parsed.data.birthdate;
+ 
+-  const match = await contarComBirthdate(compareKey, birthdate);
++  const match = await contarComBirthdate(compareKey, birthdate, tenant);
+ 
+   if (match === 0) {
+     // Distingue "telefone existe mas sem birthdate" (cliente antigo) de "não bate".
+     // Mostra mensagem específica pro cliente antigo orientando a refazer agendamento.
+-    const any = await contarPorTelefone(compareKey);
++    const any = await contarPorTelefone(compareKey, tenant);
+     if (any.total > 0 && any.total === any.semBirthdate) {
+       return json({
+         error: 'Seu cadastro é anterior ao novo portal. Faça um novo agendamento ou peça pra barbearia atualizar sua data de nascimento.',
+diff --git a/apps/barbearia/src/pages/api/products/index.ts b/apps/barbearia/src/pages/api/products/index.ts
+index 8e24693..20801fa 100644
+--- a/apps/barbearia/src/pages/api/products/index.ts
++++ b/apps/barbearia/src/pages/api/products/index.ts
+@@ -1,14 +1,16 @@
+ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db } from '../../../db/index.js';
+ import { products } from '../../../db/schema.js';
+ import { json } from '../../../lib/api.js';
++import { tenantDoHost } from '../../../lib/tenant.js';
+ 
+ // Lista pública dos produtos ATIVOS — usada pelos cards da landing, pelo combo
+ // (wizard de agendamento) e pelo modal de venda de produto no admin.
+-export const GET: APIRoute = async () => {
++export const GET: APIRoute = async ({ request }) => {
++  const tenant = tenantDoHost(request);
+   const rows = await db
+     .select({
+       id:        products.id,
+@@ -19,7 +21,7 @@ export const GET: APIRoute = async () => {
+       image:     products.image,
+     })
+     .from(products)
+-    .where(eq(products.active, true))
++    .where(and(eq(products.active, true), eq(products.tenantId, tenant.id)))
+     .orderBy(products.sortOrder, products.id);
+ 
+   return json(rows);
+diff --git a/apps/barbearia/src/pages/api/reservations/index.ts b/apps/barbearia/src/pages/api/reservations/index.ts
+index f9fd518..29ac43a 100644
+--- a/apps/barbearia/src/pages/api/reservations/index.ts
++++ b/apps/barbearia/src/pages/api/reservations/index.ts
+@@ -2,13 +2,14 @@ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+ import { z } from 'zod';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db, first } from '../../../db/index.js';
+ import { products, reservations } from '../../../db/schema.js';
+ import { json } from '../../../lib/api.js';
+ import { checkRateLimit } from '../../../lib/rateLimit.js';
+ import { getClientIp } from '../../../lib/clientIp.js';
+ import { normalizePhone } from '../../../lib/phone.js';
++import { tenantDoHost } from '../../../lib/tenant.js';
+ 
+ const bodySchema = z.object({
+   productId:     z.number().int().positive(),
+@@ -19,6 +20,7 @@ const bodySchema = z.object({
+ 
+ // Reserva pública de produto (cliente reserva pra retirar na barbearia).
+ export const POST: APIRoute = async ({ request, clientAddress }) => {
++  const tenant = tenantDoHost(request);
+   const ip = getClientIp(request, clientAddress);
+ 
+   const ipRl = checkRateLimit(`reservation-ip:${ip}`, { maxTries: 10 });
+@@ -39,10 +41,10 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
+ 
+   const product = await first(db
+     .select({ id: products.id, name: products.name, priceCents: products.priceCents, active: products.active })
+-    .from(products).where(eq(products.id, parsed.data.productId)));
++    .from(products).where(and(eq(products.id, parsed.data.productId), eq(products.tenantId, tenant.id))));
+   if (!product || !product.active) return json({ error: 'Produto indisponível' }, 400);
+ 
+-  await db.insert(reservations).values({
++  await db.insert(reservations).values({ tenantId: tenant.id,
+     productId:     product.id,
+     productName:   product.name,
+     priceCents:    product.priceCents,
+diff --git a/apps/barbearia/src/pages/api/services.ts b/apps/barbearia/src/pages/api/services.ts
+index 1e35e86..c51f7ef 100644
+--- a/apps/barbearia/src/pages/api/services.ts
++++ b/apps/barbearia/src/pages/api/services.ts
+@@ -5,8 +5,10 @@ import { eq, and } from 'drizzle-orm';
+ import { db } from '../../db/index.js';
+ import { services, barberServices, barbers } from '../../db/schema.js';
+ import { json } from '../../lib/api.js';
++import { tenantDoHost } from '../../lib/tenant.js';
+ 
+-export const GET: APIRoute = async () => {
++export const GET: APIRoute = async ({ request }) => {
++  const tenant = tenantDoHost(request);
+   try {
+     const rows = await db
+       .select({
+@@ -22,13 +24,12 @@ export const GET: APIRoute = async () => {
+       .from(services)
+       .innerJoin(barberServices, eq(barberServices.serviceId, services.id))
+       .innerJoin(barbers, eq(barbers.id, barberServices.barberId))
+-      .where(
+-        and(
++      .where(and(     and(
+           eq(services.active, true),
+           eq(barberServices.active, true),
+           eq(barbers.active, true)
+         )
+-      )
++     , eq(services.tenantId, tenant.id)))
+       .orderBy(services.id, barbers.id);
+ 
+     // Agrupa barbeiros por serviço
+diff --git a/apps/barbearia/src/pages/api/services/prices.ts b/apps/barbearia/src/pages/api/services/prices.ts
+index 33f00ad..9266d07 100644
+--- a/apps/barbearia/src/pages/api/services/prices.ts
++++ b/apps/barbearia/src/pages/api/services/prices.ts
+@@ -1,20 +1,22 @@
+ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db } from '../../../db/index.js';
+ import { services } from '../../../db/schema.js';
+ import { json } from '../../../lib/api.js';
++import { tenantDoHost } from '../../../lib/tenant.js';
+ 
+ // Preços públicos do catálogo (fonte da verdade para a landing).
+ // Lista TODOS os serviços ativos — sem o filtro de barber_services, pois aqui
+ // importa o catálogo institucional, não quem oferece cada serviço.
+-export const GET: APIRoute = async () => {
++export const GET: APIRoute = async ({ request }) => {
++  const tenant = tenantDoHost(request);
+   try {
+     const rows = await db
+       .select({ slug: services.slug, priceCents: services.priceCents })
+       .from(services)
+-      .where(eq(services.active, true));
++      .where(and(eq(services.active, true), eq(services.tenantId, tenant.id)));
+     return json(rows);
+   } catch (err) {
+     console.error('[api/services/prices]', err);
+diff --git a/apps/barbearia/src/pages/api/working-hours/index.ts b/apps/barbearia/src/pages/api/working-hours/index.ts
+index b182027..14d2dc9 100644
+--- a/apps/barbearia/src/pages/api/working-hours/index.ts
++++ b/apps/barbearia/src/pages/api/working-hours/index.ts
+@@ -1,15 +1,17 @@
+ export const prerender = false;
+ 
+ import type { APIRoute } from 'astro';
+-import { eq } from 'drizzle-orm';
++import { and, eq } from 'drizzle-orm';
+ import { db } from '../../../db/index.js';
+ import { workingHours } from '../../../db/schema.js';
+ import { json } from '../../../lib/api.js';
++import { tenantDoHost } from '../../../lib/tenant.js';
+ 
+ // Leitura pública: o wizard de agendamento usa para saber em quais dias da semana
+ // o barbeiro trabalha (e desabilitar os dias sem registro). Horário de
+ // funcionamento não é dado sensível.
+-export const GET: APIRoute = async ({ url }) => {
++export const GET: APIRoute = async ({ url, request }) => {
++  const tenant = tenantDoHost(request);
+   const barberId = parseInt(url.searchParams.get('barber') ?? '', 10);
+   if (isNaN(barberId)) return json({ error: 'Parâmetro "barber" inválido' }, 400);
+ 
+@@ -20,7 +22,7 @@ export const GET: APIRoute = async ({ url }) => {
+       endTime:   workingHours.endTime,
+     })
+     .from(workingHours)
+-    .where(eq(workingHours.barberId, barberId))
++    .where(and(eq(workingHours.barberId, barberId), eq(workingHours.tenantId, tenant.id)))
+     .orderBy(workingHours.weekday);
+ 
+   return json(rows);
+diff --git a/apps/barbearia/src/pages/cliente/index.astro b/apps/barbearia/src/pages/cliente/index.astro
+index 31479fb..62d7921 100755
+--- a/apps/barbearia/src/pages/cliente/index.astro
++++ b/apps/barbearia/src/pages/cliente/index.astro
+@@ -5,14 +5,16 @@ import Layout from '../../layouts/Layout.astro';
+ import { getCustomerSession } from '../../lib/customerSession.js';
+ import { sql } from 'drizzle-orm';
+ import { db } from '../../db/index.js';
++import { tenantDoHost, type Tenant } from '../../lib/tenant.js';
+ import { formatInTimeZone } from 'date-fns-tz';
+ 
+ const TZ = 'America/Fortaleza';
+ 
+ const session = await getCustomerSession(Astro.request);
++const tenant = tenantDoHost(Astro.request);
+ if (!session) return Astro.redirect('/cliente/entrar');
+ 
+-function listarAgendamentos(phone: string, birthdate: string) {
++function listarAgendamentos(phone: string, birthdate: string, tenant: Tenant) {
+   return db.execute<ApptRow>(sql`
+     SELECT
+       a.id              AS id,
+@@ -31,7 +33,7 @@ function listarAgendamentos(phone: string, birthdate: string) {
+     FROM appointments a
+     INNER JOIN barbers  b ON b.id = a.barber_id
+     INNER JOIN services s ON s.id = a.service_id
+-    WHERE a.customer_phone = ${phone}
++    WHERE a.tenant_id = ${tenant.id} AND a.customer_phone = ${phone}
+       AND a.customer_birthdate = ${birthdate}
+     ORDER BY a.starts_at DESC
+   `);
+@@ -53,7 +55,7 @@ type ApptRow = {
+   service_name: string;
+ };
+ 
+-const rows = await listarAgendamentos(session.phone, session.birthdate);
++const rows = await listarAgendamentos(session.phone, session.birthdate, tenant);
+ 
+ // Se a sessão é válida mas não tem mais agendamentos (todos deletados manualmente, por ex),
+ // devolve pra entrar.
+diff --git a/apps/barbearia/tests/bookAppointment.test.ts b/apps/barbearia/tests/bookAppointment.test.ts
+index ab0d9d7..5768247 100755
+--- a/apps/barbearia/tests/bookAppointment.test.ts
++++ b/apps/barbearia/tests/bookAppointment.test.ts
+@@ -1,19 +1,51 @@
+-// Teste de INTEGRAÇÃO: usa um SQLite real (better-sqlite3) em memória.
+-// Por depender do binário nativo, roda na máquina do dev (`npm test`), não num
+-// CI sem build nativo. O DATABASE_PATH é setado para ':memory:' ANTES de importar
+-// o módulo de banco (que cria a conexão no import), por isso usamos import dinâmico.
++// Teste de INTEGRAÇÃO: usa um PostgreSQL real.
++//
++// Portado do SQLite em memória em 06/09/2026 (passo 3.5). O porte para Postgres
++// não tinha portado os testes: eles usavam `sqlite`, que `db/index.ts` não
++// exporta mais, e chamavam `bookAppointment` como função síncrona.
++//
++// Precisa de um Postgres de verdade — não dá para simular o advisory lock nem a
++// transação. Sem `DATABASE_URL` a suíte é PULADA em vez de falhar, para que
++// `npm test` continue rodando numa máquina sem banco.
++//
++//   createdb barbearia_test
++//   DATABASE_URL='postgres://.../barbearia_test' npx vitest run
++//
++// ⚠️ Recria o schema do zero a cada rodada. Aponte para um banco de TESTE.
+ import { describe, it, expect, beforeAll } from 'vitest';
+ import { fromZonedTime } from 'date-fns-tz';
++import { readFileSync, existsSync } from 'node:fs';
++import postgres from 'postgres';
+ 
+ const TZ = 'America/Fortaleza';
+ const DATE = '2030-03-15';                                   // data futura fixa
+ const WEEKDAY = new Date(Date.UTC(2030, 2, 15, 12)).getUTCDay(); // dia da semana de 15/03/2030
+-const OTHER_DATE = '2030-03-16';                             // dia seguinte (outro weekday, sem expediente)
+-const SPLIT_DATE = '2030-03-18';                             // dia com DOIS turnos (manhã + tarde)
++const OTHER_DATE = '2030-03-16';                             // dia seguinte (sem expediente)
++const SPLIT_DATE = '2030-03-18';                             // dia com DOIS turnos
+ const SPLIT_WEEKDAY = new Date(Date.UTC(2030, 2, 18, 12)).getUTCDay();
+ 
++/**
++ * Acha o SQL da migration. O `0000_init_postgres.sql` vive em
++ * `migracao-postgres/` até o passo 2 ser aplicado, quando é copiado para
++ * `drizzle/` — ver o §2 do `migracao-postgres/LEIA-ME.md`. Procurar nos dois
++ * lugares evita o ENOENT críptico de quem roda o teste antes dessa cópia.
++ */
++function migrationSql(nome: string): string {
++  for (const p of [`drizzle/${nome}`, `../../migracao-postgres/${nome}`]) {
++    if (existsSync(p)) return readFileSync(p, 'utf8');
++  }
++  throw new Error(
++    `Migration ${nome} não encontrada. Aplique o passo 2 primeiro:\n` +
++    `  cp migracao-postgres/0000_init_postgres.sql apps/barbearia/drizzle/\n` +
++    `Ver migracao-postgres/LEIA-ME.md §2.`
++  );
++}
++
++const TEM_BANCO = Boolean(process.env.DATABASE_URL);
++
+ type BookFn = typeof import('../src/lib/bookAppointment')['bookAppointment'];
+ let bookAppointment: BookFn;
++let sqlConn: typeof import('../src/db/index')['sqlConn'];
+ 
+ const at = (time: string, date = DATE) => fromZonedTime(`${date}T${time}:00`, TZ);
+ const base = {
+@@ -23,28 +55,50 @@ const base = {
+ };
+ 
+ beforeAll(async () => {
+-  process.env.DATABASE_PATH = ':memory:';
+-
+-  const { db, sqlite } = await import('../src/db/index');
+-  const { migrate } = await import('drizzle-orm/better-sqlite3/migrator');
+-  migrate(db, { migrationsFolder: 'drizzle' });
+-
+-  sqlite.prepare(`INSERT INTO barbers (id, name, slug, role, password_hash, active) VALUES (1,'Teste','teste','barber','x',1)`).run();
+-  sqlite.prepare(`INSERT INTO services (id, name, slug, price_cents, active) VALUES (1,'Corte','corte',4500,1)`).run();
+-  sqlite.prepare(`INSERT INTO barber_services (barber_id, service_id, duration_minutes, active) VALUES (1,1,30,1)`).run();
++  if (!TEM_BANCO) return;
++
++  // Conexão própria para o schema: as migrations trazem BEGIN/COMMIT, e o
++  // driver recusa transação explícita num pool com mais de uma conexão.
++  const migrador = postgres(process.env.DATABASE_URL!, { max: 1 });
++  await migrador.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
++  for (const f of ['0000_init_postgres.sql', '0001_tenants.sql']) {
++    await migrador.unsafe(migrationSql(f));
++  }
++  await migrador.end();
++
++  ({ sqlConn } = await import('../src/db/index'));
++
++  // Banco de teste nasce vazio e a 0001 não cria tenant sem dados para
++  // backfillar (`PENDENCIAS-ABERTAS.md` §4.6) — então o teste cria o seu.
++  await sqlConn`INSERT INTO tenants (slug, business_name)
++                VALUES ('bayron','Barbearia Bayron') ON CONFLICT DO NOTHING`;
++  const [{ id: tid }] = await sqlConn`SELECT id FROM tenants WHERE slug = 'bayron'`;
++
++  await sqlConn`INSERT INTO barbers (id, tenant_id, name, slug, role, password_hash, active)
++                VALUES (1, ${tid}, 'Teste', 'teste', 'barber', 'x', true)`;
++  await sqlConn`INSERT INTO services (id, tenant_id, name, slug, price_cents, active)
++                VALUES (1, ${tid}, 'Corte', 'corte', 4500, true)`;
++  await sqlConn`INSERT INTO barber_services (tenant_id, barber_id, service_id, duration_minutes, active)
++                VALUES (${tid}, 1, 1, 30, true)`;
+   // Expediente só no weekday da DATE: 09:00–18:00
+-  sqlite.prepare(`INSERT INTO working_hours (barber_id, weekday, start_time, end_time) VALUES (1, ?, '09:00','18:00')`).run(WEEKDAY);
+-  // SPLIT_WEEKDAY tem dois turnos: 09:00–12:00 e 14:00–18:00
+-  sqlite.prepare(`INSERT INTO working_hours (barber_id, weekday, start_time, end_time) VALUES (1, ?, '09:00','12:00')`).run(SPLIT_WEEKDAY);
+-  sqlite.prepare(`INSERT INTO working_hours (barber_id, weekday, start_time, end_time) VALUES (1, ?, '14:00','18:00')`).run(SPLIT_WEEKDAY);
++  await sqlConn`INSERT INTO working_hours (tenant_id, barber_id, weekday, start_time, end_time)
++                VALUES (${tid}, 1, ${WEEKDAY}, '09:00', '18:00')`;
++  // SPLIT_WEEKDAY tem dois turnos
++  await sqlConn`INSERT INTO working_hours (tenant_id, barber_id, weekday, start_time, end_time)
++                VALUES (${tid}, 1, ${SPLIT_WEEKDAY}, '09:00', '12:00')`;
++  await sqlConn`INSERT INTO working_hours (tenant_id, barber_id, weekday, start_time, end_time)
++                VALUES (${tid}, 1, ${SPLIT_WEEKDAY}, '14:00', '18:00')`;
++
++  // As sequências continuam em 1 depois dos inserts com id explícito.
++  await sqlConn`SELECT setval('barbers_id_seq',  (SELECT MAX(id) FROM barbers))`;
++  await sqlConn`SELECT setval('services_id_seq', (SELECT MAX(id) FROM services))`;
+ 
+-  // Importa só depois das tabelas existirem (o módulo prepara statements no import)
+   ({ bookAppointment } = await import('../src/lib/bookAppointment'));
+ });
+ 
+-describe('bookAppointment (integração com SQLite)', () => {
+-  it('cria um agendamento válido dentro do expediente', () => {
+-    const r = bookAppointment({ ...base, startsAt: at('10:00') });
++describe.skipIf(!TEM_BANCO)('bookAppointment (integração com Postgres)', () => {
++  it('cria um agendamento válido dentro do expediente', async () => {
++    const r = await bookAppointment({ ...base, startsAt: at('10:00') });
+     expect(r.ok).toBe(true);
+     if (r.ok) {
+       expect(r.manageToken).toBeTruthy();
+@@ -54,19 +108,18 @@ describe('bookAppointment (integração com SQLite)', () => {
+     }
+   });
+ 
+-  it('rejeita conflito de horário (409)', () => {
+-    const ok = bookAppointment({ ...base, startsAt: at('14:00') });
++  it('rejeita conflito de horário (409)', async () => {
++    const ok = await bookAppointment({ ...base, startsAt: at('14:00') });
+     expect(ok.ok).toBe(true);
+-    // tenta encaixar em cima do horário recém-criado
+-    const conflict = bookAppointment({ ...base, startsAt: at('14:15') });
++    const conflict = await bookAppointment({ ...base, startsAt: at('14:15') });
+     expect(conflict.ok).toBe(false);
+     if (!conflict.ok) expect(conflict.httpStatus).toBe(409);
+   });
+ 
+-  it('idempotência: mesma chave não cria duplicado', () => {
++  it('idempotência: mesma chave não cria duplicado', async () => {
+     const params = { ...base, startsAt: at('11:00'), idempotencyKey: 'chave-unica-123' };
+-    const first  = bookAppointment(params);
+-    const second = bookAppointment(params);
++    const first  = await bookAppointment(params);
++    const second = await bookAppointment(params);
+     expect(first.ok && second.ok).toBe(true);
+     if (first.ok && second.ok) {
+       expect(second.id).toBe(first.id);
+@@ -74,48 +127,60 @@ describe('bookAppointment (integração com SQLite)', () => {
+     }
+   });
+ 
+-  it('rejeita horário fora do expediente (400)', () => {
+-    const r = bookAppointment({ ...base, startsAt: at('19:00') }); // 19:00 + 30 passa das 18:00
++  it('conflito não deixa resto: nada gravado quando dá 409', async () => {
++    const antes = await sqlConn`SELECT count(*)::int AS n FROM appointments`;
++    const r = await bookAppointment({ ...base, startsAt: at('14:10') });
++    expect(r.ok).toBe(false);
++    const depois = await sqlConn`SELECT count(*)::int AS n FROM appointments`;
++    expect(depois[0].n).toBe(antes[0].n);
++  });
++
++  it('rejeita horário fora do expediente (400)', async () => {
++    const r = await bookAppointment({ ...base, startsAt: at('19:00') });
+     expect(r.ok).toBe(false);
+     if (!r.ok) expect(r.httpStatus).toBe(400);
+   });
+ 
+-  it('rejeita dia em que o barbeiro não trabalha (400)', () => {
+-    const r = bookAppointment({ ...base, startsAt: at('10:00', OTHER_DATE) });
++  it('rejeita dia em que o barbeiro não trabalha (400)', async () => {
++    const r = await bookAppointment({ ...base, startsAt: at('10:00', OTHER_DATE) });
+     expect(r.ok).toBe(false);
+     if (!r.ok) expect(r.httpStatus).toBe(400);
+   });
+ 
+-  it('rejeita barbeiro/serviço inexistente (404)', () => {
+-    const r = bookAppointment({ ...base, serviceId: 999, startsAt: at('12:00') });
++  it('rejeita barbeiro/serviço inexistente (404)', async () => {
++    const r = await bookAppointment({ ...base, serviceId: 999, startsAt: at('12:00') });
+     expect(r.ok).toBe(false);
+     if (!r.ok) expect(r.httpStatus).toBe(404);
+   });
+ 
+   it('armazena o telefone normalizado (só dígitos), mesmo recebendo com máscara', async () => {
+-    const { sqlite } = await import('../src/db/index');
+-    const r = bookAppointment({ ...base, customerPhone: '+55 (84) 91234-5678', startsAt: at('16:00') });
++    const r = await bookAppointment({ ...base, customerPhone: '+55 (84) 91234-5678', startsAt: at('16:00') });
+     expect(r.ok).toBe(true);
+     if (r.ok) {
+-      const row = sqlite.prepare('SELECT customer_phone FROM appointments WHERE id = ?').get(r.id) as { customer_phone: string };
+-      expect(row.customer_phone).toBe('84912345678');
++      const rows = await sqlConn`SELECT customer_phone FROM appointments WHERE id = ${Number(r.id)}`;
++      expect(rows[0].customer_phone).toBe('84912345678');
+     }
+   });
+ 
+-  it('rejeita telefone com menos de 10 dígitos (400)', () => {
+-    const r = bookAppointment({ ...base, customerPhone: '9123-4567', startsAt: at('17:00') });
++  it('rejeita telefone com menos de 10 dígitos (400)', async () => {
++    const r = await bookAppointment({ ...base, customerPhone: '9123-4567', startsAt: at('17:00') });
+     expect(r.ok).toBe(false);
+     if (!r.ok) expect(r.httpStatus).toBe(400);
+   });
+ 
+-  it('dia com dois turnos: aceita slot no segundo turno', () => {
+-    const r = bookAppointment({ ...base, startsAt: at('15:00', SPLIT_DATE) });
++  it('dia com dois turnos: aceita slot no segundo turno', async () => {
++    const r = await bookAppointment({ ...base, startsAt: at('15:00', SPLIT_DATE) });
+     expect(r.ok).toBe(true);
+   });
+ 
+-  it('dia com dois turnos: rejeita slot no intervalo entre turnos (400)', () => {
+-    const r = bookAppointment({ ...base, startsAt: at('12:30', SPLIT_DATE) });
++  it('dia com dois turnos: rejeita slot no intervalo entre turnos (400)', async () => {
++    const r = await bookAppointment({ ...base, startsAt: at('12:30', SPLIT_DATE) });
+     expect(r.ok).toBe(false);
+     if (!r.ok) expect(r.httpStatus).toBe(400);
+   });
++
++  it('todo agendamento nasce com tenant_id', async () => {
++    const rows = await sqlConn`SELECT count(*)::int AS n FROM appointments WHERE tenant_id IS NULL`;
++    expect(rows[0].n).toBe(0);
++  });
+ });
+diff --git a/apps/barbearia/tests/escopo-rotas.test.ts b/apps/barbearia/tests/escopo-rotas.test.ts
+new file mode 100644
+index 0000000..e7f0f9b
+--- /dev/null
++++ b/apps/barbearia/tests/escopo-rotas.test.ts
+@@ -0,0 +1,94 @@
++// Guarda-corpo do passo 4: nenhuma rota nova pode tocar tabela com `tenant_id`
++// sem escopar por tenant.
++//
++// Não precisa de banco: lê o código-fonte. Roda sempre, inclusive no `npm test`
++// de uma máquina sem Postgres.
++//
++// COMO ISTO FUNCIONA
++//   `PENDENTES` é a lista das rotas que ainda NÃO foram escopadas. O teste
++//   falha de duas formas:
++//     1. uma rota fora da lista toca o banco sem tenant  → alguém regrediu
++//     2. uma rota da lista JÁ está escopada              → tire-a da lista
++//   A segunda existe para a lista encolher de verdade em vez de virar
++//   cemitério. Quando ela zerar, o passo 4 acabou.
++import { describe, it, expect } from 'vitest';
++import { readFileSync } from 'node:fs';
++import { globSync } from 'node:fs';
++
++/** Tabelas que ganharam `tenant_id` na migration 0001. */
++const TABELAS = [
++  'barbers', 'services', 'products', 'appointments', 'appointmentItems',
++  'barberServices', 'workingHours', 'timeOff', 'productSales', 'reservations',
++  'combos', 'settings',
++  'appointment_items', 'barber_services', 'working_hours', 'time_off', 'product_sales',
++];
++
++/**
++ * Rotas ainda não escopadas. **Só encolhe.**
++ * Ver `migracao-tenants/LEIA-ME.md` para a ordem sugerida.
++ */
++const PENDENTES = new Set([
++  // 🔴 BLOQUEADA POR DECISÃO, não por falta de trabalho.
++  //
++  // O login do painel busca o barbeiro por `slug`, que era único no mundo. Com
++  // vários tenants ele vira único POR TENANT — e o painel é central
++  // (painel.barbearianoar.com.br), então não há host de onde tirar a barbearia.
++  // Dois donos chamados "bayron" colidem no login.
++  //
++  // A recomendação registrada no §6 do ARQUITETURA-MULTI-TENANT-V1.md é login
++  // por telefone: todo barbeiro tem, é único, e é consistente com o portal do
++  // cliente. Enquanto essa decisão não for tomada, escopar esta rota é chutar.
++  'auth/login.ts',
++]);
++
++interface Rota { nome: string; escopada: boolean; tocaBanco: boolean }
++
++/**
++ * ⚠️ As rotas de API NÃO são a superfície toda. Doze páginas `.astro` consultam
++ * o banco direto no frontmatter — o painel inteiro. A contagem de "49 rotas" dos
++ * documentos subestima a exposição; o número real é 41 rotas + 12 páginas.
++ */
++const rotas: Rota[] = [...globSync('src/pages/api/**/*.ts'), ...globSync('src/pages/**/*.astro')]
++  .sort()
++  .map((caminho) => {
++    const s = readFileSync(caminho, 'utf8');
++    const tocaTabela = TABELAS.some((t) => new RegExp(`\\b${t}\\b`).test(s));
++    const consulta = /\.(select|insert|update|delete)\(|SELECT |INSERT INTO|UPDATE |DELETE FROM/.test(s);
++    return {
++      nome: caminho.replace('src/pages/api/', '').replace('src/pages/', 'PÁGINA:'),
++      tocaBanco: tocaTabela && consulta,
++      escopada: /tenant\.id|tenantId/.test(s),
++    };
++  });
++
++describe('escopo por tenant nas rotas de API', () => {
++  it('encontra as rotas e as páginas (guarda contra o glob quebrar em silêncio)', () => {
++    expect(rotas.filter((r) => !r.nome.startsWith('PÁGINA:')).length).toBeGreaterThan(40);
++    expect(rotas.filter((r) => r.nome.startsWith('PÁGINA:')).length).toBeGreaterThan(10);
++  });
++
++  it('nenhuma rota FORA da lista de pendentes toca o banco sem tenant', () => {
++    const regrediram = rotas
++      .filter((r) => r.tocaBanco && !r.escopada && !PENDENTES.has(r.nome))
++      .map((r) => r.nome);
++    expect(regrediram).toEqual([]);
++  });
++
++  it('a lista de pendentes não guarda rota que já foi escopada', () => {
++    const jaFeitas = rotas.filter((r) => r.escopada && PENDENTES.has(r.nome)).map((r) => r.nome);
++    expect(jaFeitas, 'já escopadas — tire da lista PENDENTES').toEqual([]);
++  });
++
++  it('a lista de pendentes não cita rota que não existe mais', () => {
++    const nomes = new Set(rotas.map((r) => r.nome));
++    const fantasmas = [...PENDENTES].filter((p) => !nomes.has(p));
++    expect(fantasmas).toEqual([]);
++  });
++
++  // Documenta o progresso. Ajuste o número ao tirar rotas de PENDENTES.
++  it('o passo 4 está no ponto que a documentação afirma', () => {
++    const escopadas = rotas.filter((r) => r.tocaBanco && r.escopada).length;
++    const total = rotas.filter((r) => r.tocaBanco).length;
++    expect({ escopadas, total }).toEqual({ escopadas: 53, total: 54 });
++  });
++});
+diff --git a/apps/barbearia/tests/settings.test.ts b/apps/barbearia/tests/settings.test.ts
+index b405d3f..615a30f 100755
+--- a/apps/barbearia/tests/settings.test.ts
++++ b/apps/barbearia/tests/settings.test.ts
+@@ -1,38 +1,96 @@
+-// Teste de INTEGRAÇÃO: SQLite real em memória, migrations reais.
+-// Mesma convenção de bookAppointment.test.ts — DATABASE_PATH é setado ANTES de
+-// importar o módulo de banco (que abre a conexão no import), daí o import dinâmico.
++// Teste de INTEGRAÇÃO: PostgreSQL real.
+ //
+-// Cobre duas coisas que quebram em silêncio:
+-//   1. a migration 0009 semear a linha 1 (se falhar, o site sobe com defaults vazios);
+-//   2. o cache de módulo (D3.1) — se invalidateSettings() não for chamado, o painel
+-//      salva e o site continua mostrando o valor velho.
++// Portado do SQLite em memória em 06/09/2026 (passo 3.5).
++//
++// O QUE MUDOU NO PORTE, e é o principal:
++//   A migration 0009 do SQLite CRIAVA a tabela `settings` e SEMEAVA a linha 1
++//   com os dados do Bayron. O `0000_init_postgres.sql` cria a tabela e não
++//   semeia nada — a carga dos dados está listada como pendente no §6 do
++//   `migracao-postgres/LEIA-ME.md`. Por isso este teste agora INSERE a linha que
++//   antes vinha pronta, em vez de afirmar que a migration a criou.
++//
++// Sem `DATABASE_URL` a suíte de integração é PULADA; os testes de função pura
++// (waUrl, parseBusinessHours) rodam sempre.
++//
++// ⚠️ Recria o schema do zero. Aponte para um banco de TESTE.
+ import { describe, it, expect, beforeAll } from 'vitest';
+-import type Database from 'better-sqlite3';
++import { readFileSync, existsSync } from 'node:fs';
++import postgres from 'postgres';
++
++/**
++ * Acha o SQL da migration. O `0000_init_postgres.sql` vive em
++ * `migracao-postgres/` até o passo 2 ser aplicado, quando é copiado para
++ * `drizzle/` — ver o §2 do `migracao-postgres/LEIA-ME.md`. Procurar nos dois
++ * lugares evita o ENOENT críptico de quem roda o teste antes dessa cópia.
++ */
++function migrationSql(nome: string): string {
++  for (const p of [`drizzle/${nome}`, `../../migracao-postgres/${nome}`]) {
++    if (existsSync(p)) return readFileSync(p, 'utf8');
++  }
++  throw new Error(
++    `Migration ${nome} não encontrada. Aplique o passo 2 primeiro:\n` +
++    `  cp migracao-postgres/0000_init_postgres.sql apps/barbearia/drizzle/\n` +
++    `Ver migracao-postgres/LEIA-ME.md §2.`
++  );
++}
++
++const TEM_BANCO = Boolean(process.env.DATABASE_URL);
++
++// `src/db/index.ts` cria a conexão no import e joga erro sem DATABASE_URL — o que
++// torna qualquer módulo que dependa dele impossível de importar numa máquina sem
++// banco, inclusive para testar função pura. O driver conecta de forma preguiçosa,
++// então uma URL de fachada basta para o import passar; nenhuma consulta roda,
++// porque as suítes de integração estão puladas.
++//
++// ⚠️ Isto é contorno, não solução. A solução é `db/index.ts` não abrir conexão no
++// import — fica registrado para o passo 4.
++if (!TEM_BANCO) process.env.DATABASE_URL = 'postgres://fachada@127.0.0.1:1/nao-conecta';
+ 
+ type SettingsMod = typeof import('../src/lib/settings');
+ let mod: SettingsMod;
+-let sqlite: Database.Database;
++let sqlConn: typeof import('../src/db/index')['sqlConn'];
+ 
+-beforeAll(async () => {
+-  process.env.DATABASE_PATH = ':memory:';
++const HORARIOS = JSON.stringify([
++  { label: 'Segunda — Sexta', hours: '09:00 às 19:00' },
++  { label: 'Sábado',          hours: '08:00 às 17:00' },
++  { label: 'Domingo',         hours: 'Fechado', closed: true },
++]);
+ 
+-  const dbMod = await import('../src/db/index');
+-  const { migrate } = await import('drizzle-orm/better-sqlite3/migrator');
+-  migrate(dbMod.db, { migrationsFolder: 'drizzle' });
+-  sqlite = dbMod.sqlite;
++beforeAll(async () => {
++  if (!TEM_BANCO) return;
++
++  const migrador = postgres(process.env.DATABASE_URL!, { max: 1 });
++  await migrador.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
++  for (const f of ['0000_init_postgres.sql', '0001_tenants.sql']) {
++    await migrador.unsafe(migrationSql(f));
++  }
++  await migrador.end();
++
++  ({ sqlConn } = await import('../src/db/index'));
++  // Banco de teste nasce vazio e a 0001 não cria tenant sem dados para
++  // backfillar (`PENDENCIAS-ABERTAS.md` §4.6) — então o teste cria o seu.
++  await sqlConn`INSERT INTO tenants (slug, business_name)
++                VALUES ('bayron','Barbearia Bayron') ON CONFLICT DO NOTHING`;
++  const [{ id: tid }] = await sqlConn`SELECT id FROM tenants WHERE slug = 'bayron'`;
++
++  // A linha que a migration 0009 semeava. Fica explícita aqui até a carga dos
++  // dados existir — ver o §6 do LEIA-ME do porte.
++  await sqlConn`
++    INSERT INTO settings (id, tenant_id, business_name, short_name, address_city,
++                          whatsapp_number, whatsapp_display, google_review_count,
++                          products_section_title, business_hours,
++                          address_street, accent_color)
++    VALUES (1, ${tid}, 'Barbearia Bayron', 'Bayron', 'Mossoró/RN',
++            '15551547238', '+1 (555) 154-7238', 227,
++            'Produtos Boris', ${HORARIOS},
++            'Rua Exemplo, 100', '#0f766e')`;
+ 
+   mod = await import('../src/lib/settings');
+ });
+ 
+-describe('migration 0009 — semente da linha 1', () => {
+-  it('cria exatamente uma linha, com id = 1', () => {
+-    const rows = sqlite.prepare('SELECT id FROM settings').all() as { id: number }[];
+-    expect(rows).toHaveLength(1);
+-    expect(rows[0].id).toBe(1);
+-  });
+-
+-  it('semeia os valores atuais em vez de deixar vazio', () => {
+-    const s = mod.getSettings();
++describe.skipIf(!TEM_BANCO)('leitura da tabela settings', () => {
++  it('lê os valores gravados, não os TEMPLATE_DEFAULTS', async () => {
++    const s = await mod.getSettings();
+     expect(s.businessName).toBe('Barbearia Bayron');
+     expect(s.shortName).toBe('Bayron');
+     expect(s.addressCity).toBe('Mossoró/RN');
+@@ -40,88 +98,103 @@ describe('migration 0009 — semente da linha 1', () => {
+     expect(s.googleReviewCount).toBe(227);
+   });
+ 
+-  // O seed carrega o MESMO placeholder de src/config.ts, de propósito: ainda não
+-  // foi decidido qual número o site/demo usa. O teste trava o valor para que a
+-  // troca seja uma decisão consciente, e não uma surpresa em produção.
+-  it('semeia o placeholder de WhatsApp que está em config.ts', () => {
+-    expect(mod.getSettings().whatsappNumber).toBe('15551547238');
+-    expect(mod.getSettings().whatsappDisplay).toBe('+1 (555) 154-7238');
++  it('o placeholder de WhatsApp continua sendo o de config.ts', async () => {
++    const s = await mod.getSettings();
++    expect(s.whatsappNumber).toBe('15551547238');
++    expect(s.whatsappDisplay).toBe('+1 (555) 154-7238');
+   });
+ 
+-  it('business_hours chega como JSON parseável, com os 3 blocos', () => {
+-    const h = mod.getSettings().businessHours;
++  it('business_hours chega como JSON parseável, com os 3 blocos', async () => {
++    const h = (await mod.getSettings()).businessHours;
+     expect(h).toHaveLength(3);
+     expect(h[0].label).toBe('Segunda — Sexta');
+     expect(h[2].closed).toBe(true);
+   });
++
++  // ⚠️ Passo 4: `getSettings()` ainda faz `where(id = 1)`, que é exatamente o
++  // "assume barbearia única" que a skill barbearia-multi-tenant proíbe. Com uma
++  // linha por tenant, o id 1 é a linha do Bayron por ordem de inserção, não por
++  // desenho. Este teste trava o comportamento ATUAL para a troca ser consciente.
++  it('hoje a linha é encontrada por id = 1, não por tenant', async () => {
++    const linhas = await sqlConn`SELECT id, tenant_id FROM settings`;
++    expect(linhas).toHaveLength(1);
++    expect(linhas[0].id).toBe(1);
++    expect(linhas[0].tenant_id).toBeTypeOf('number');
++  });
+ });
+ 
+-describe('cache de módulo (D3.1)', () => {
+-  it('NÃO reflete escrita direta no banco enquanto não invalidar', () => {
+-    sqlite.prepare(`UPDATE settings SET business_name = 'Outra Barbearia' WHERE id = 1`).run();
+-    expect(mod.getSettings().businessName).toBe('Barbearia Bayron');
++describe.skipIf(!TEM_BANCO)('cache de módulo (D3.1)', () => {
++  it('NÃO reflete escrita direta no banco enquanto não invalidar', async () => {
++    await mod.getSettings();                                    // aquece o cache
++    await sqlConn`UPDATE settings SET business_name = 'Outra Barbearia' WHERE id = 1`;
++    expect((await mod.getSettings()).businessName).toBe('Barbearia Bayron');
+   });
+ 
+-  it('reflete depois de invalidateSettings()', () => {
++  it('reflete depois de invalidateSettings()', async () => {
+     mod.invalidateSettings();
+-    expect(mod.getSettings().businessName).toBe('Outra Barbearia');
+-    // volta ao estado original para não vazar entre os describes
+-    sqlite.prepare(`UPDATE settings SET business_name = 'Barbearia Bayron' WHERE id = 1`).run();
++    expect((await mod.getSettings()).businessName).toBe('Outra Barbearia');
++    await sqlConn`UPDATE settings SET business_name = 'Barbearia Bayron' WHERE id = 1`;
+     mod.invalidateSettings();
+   });
+ });
+ 
+-// Estes testes são sobre a MONTAGEM e o encoding da URL, não sobre qual número
+-// está configurado — por isso derivam o número das settings em vez de fixá-lo.
+-// Assim, trocar o número da barbearia não quebra teste que não tem a ver com isso.
+-describe('waUrl', () => {
+-  it('monta o link com a mensagem url-encoded', () => {
+-    const n = mod.getSettings().whatsappNumber;
+-    expect(mod.waUrl('Olá, quero agendar')).toBe(
+-      `https://wa.me/${n}?text=Ol%C3%A1%2C%20quero%20agendar`
+-    );
+-  });
+-
+-  it('monta o link sem mensagem', () => {
+-    expect(mod.waUrl()).toBe(`https://wa.me/${mod.getSettings().whatsappNumber}`);
+-  });
++describe.skipIf(!TEM_BANCO)('sanitização do acento (D5 — injeção de CSS)', () => {
++  it('rejeita valor que não é hex e cai no default', async () => {
++    await sqlConn`UPDATE settings SET accent_color = ${'red;} body{display:none}'} WHERE id = 1`;
++    mod.invalidateSettings();
++    expect((await mod.getSettings()).accentColor).toBe('#0f766e');
+ 
+-  it('devolve string vazia quando não há número configurado (CTA some em vez de quebrar)', () => {
+-    const s = { ...mod.getSettings(), whatsappNumber: '' };
+-    expect(mod.waUrl('oi', s)).toBe('');
++    await sqlConn`UPDATE settings SET accent_color = '#0f766e' WHERE id = 1`;
++    mod.invalidateSettings();
+   });
+-});
+ 
+-describe('sanitização do acento (D5 — injeção de CSS)', () => {
+-  it('rejeita valor que não é hex e cai no default', () => {
+-    sqlite.prepare(`UPDATE settings SET accent_color = ? WHERE id = 1`)
+-      .run('red;} body{display:none}');
++  it('aceita hex de 6 dígitos', async () => {
++    await sqlConn`UPDATE settings SET accent_color = '#AA3311' WHERE id = 1`;
+     mod.invalidateSettings();
+-    expect(mod.getSettings().accentColor).toBe('#0f766e');
++    expect((await mod.getSettings()).accentColor).toBe('#AA3311');
+ 
+-    sqlite.prepare(`UPDATE settings SET accent_color = '#0f766e' WHERE id = 1`).run();
++    await sqlConn`UPDATE settings SET accent_color = '#0f766e' WHERE id = 1`;
+     mod.invalidateSettings();
+   });
++});
+ 
+-  it('aceita hex de 6 dígitos', () => {
+-    sqlite.prepare(`UPDATE settings SET accent_color = '#AA3311' WHERE id = 1`).run();
+-    mod.invalidateSettings();
+-    expect(mod.getSettings().accentColor).toBe('#AA3311');
++// Sobre a MONTAGEM e o encoding da URL, não sobre qual número está configurado.
++//
++// ⚠️ O porte para Postgres tornou o 2º argumento OBRIGATÓRIO de propósito:
++// `getSettings()` virou assíncrono e não serve mais como valor padrão. waUrl é
++// formatador de string e não deve consultar o banco. Quem chama já tem as
++// settings em mãos.
++describe.skipIf(!TEM_BANCO)('waUrl', () => {
++  it('monta o link com a mensagem url-encoded', async () => {
++    const s = await mod.getSettings();
++    expect(mod.waUrl('Olá, quero agendar', s)).toBe(
++      `https://wa.me/${s.whatsappNumber}?text=Ol%C3%A1%2C%20quero%20agendar`
++    );
++  });
+ 
+-    sqlite.prepare(`UPDATE settings SET accent_color = '#0f766e' WHERE id = 1`).run();
+-    mod.invalidateSettings();
++  it('monta o link sem mensagem', async () => {
++    const s = await mod.getSettings();
++    expect(mod.waUrl(undefined, s)).toBe(`https://wa.me/${s.whatsappNumber}`);
++  });
++
++  it('devolve string vazia quando não há número configurado (CTA some em vez de quebrar)', async () => {
++    const s = { ...(await mod.getSettings()), whatsappNumber: '' };
++    expect(mod.waUrl('oi', s)).toBe('');
+   });
+ });
+ 
++// Função pura: roda com ou sem banco.
+ describe('parseBusinessHours', () => {
+-  it('JSON inválido vira lista vazia em vez de derrubar a página', () => {
+-    expect(mod.parseBusinessHours('{isso não é json')).toEqual([]);
+-    expect(mod.parseBusinessHours(null)).toEqual([]);
+-    expect(mod.parseBusinessHours('"uma string"')).toEqual([]);
++  it('JSON inválido vira lista vazia em vez de derrubar a página', async () => {
++    const m = await import('../src/lib/settings');
++    expect(m.parseBusinessHours('{isso não é json')).toEqual([]);
++    expect(m.parseBusinessHours(null)).toEqual([]);
++    expect(m.parseBusinessHours('"uma string"')).toEqual([]);
+   });
+ 
+-  it('descarta itens malformados e normaliza closed', () => {
+-    const r = mod.parseBusinessHours('[{"label":"Seg","hours":"9h"},{"nada":1}]');
++  it('descarta itens malformados e normaliza closed', async () => {
++    const m = await import('../src/lib/settings');
++    const r = m.parseBusinessHours('[{"label":"Seg","hours":"9h"},{"nada":1}]');
+     expect(r).toEqual([{ label: 'Seg', hours: '9h', closed: false }]);
+   });
+ });
+diff --git a/apps/barbearia/tests/tenants-schema.test.ts b/apps/barbearia/tests/tenants-schema.test.ts
+new file mode 100644
+index 0000000..11497b2
+--- /dev/null
++++ b/apps/barbearia/tests/tenants-schema.test.ts
+@@ -0,0 +1,184 @@
++// Os 11 testes do passo 3: cada um TENTA violar uma regra do banco e espera
++// levar não. Não é teste de "a migration roda" — é de "a migration barra".
++//
++// Precisa de Postgres. Sem DATABASE_URL a suíte é pulada.
++//   DATABASE_URL='postgres://.../barbearia_test' npx vitest run
++//
++// ⚠️ Recria o schema. Aponte para um banco de TESTE.
++import { describe, it, expect, beforeAll, afterAll } from 'vitest';
++import { readFileSync, existsSync } from 'node:fs';
++import postgres from 'postgres';
++
++const TEM_BANCO = Boolean(process.env.DATABASE_URL);
++
++function migrationSql(nome: string): string {
++  for (const p of [`drizzle/${nome}`, `../../migracao-postgres/${nome}`]) {
++    if (existsSync(p)) return readFileSync(p, 'utf8');
++  }
++  throw new Error(`Migration ${nome} não encontrada. Ver migracao-postgres/LEIA-ME.md §2.`);
++}
++
++let sql: ReturnType<typeof postgres>;
++let A = 0, B = 0;
++
++beforeAll(async () => {
++  if (!TEM_BANCO) return;
++  sql = postgres(process.env.DATABASE_URL!, { max: 1 });
++  await sql.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
++  for (const f of ['0000_init_postgres.sql', '0001_tenants.sql']) await sql.unsafe(migrationSql(f));
++  // Os tenants são criados AQUI de propósito. A 0001 só cria o tenant de
++  // backfill quando encontra dados antigos, e o banco de teste nasce vazio —
++  // depender daquele INSERT era depender do seed, não do schema.
++  await sql`INSERT INTO tenants (slug, business_name)
++            VALUES ('bayron','Barbearia Bayron'), ('cortes-do-ze','Cortes do Zé')
++            ON CONFLICT DO NOTHING`;
++  [{ id: A }] = await sql`SELECT id FROM tenants WHERE slug='bayron'`;
++  [{ id: B }] = await sql`SELECT id FROM tenants WHERE slug='cortes-do-ze'`;
++});
++
++afterAll(async () => { if (TEM_BANCO) await sql.end(); });
++
++/** Roda dentro de uma transação que SEMPRE desfaz, para um caso não sujar o outro. */
++async function numaTransacao(fn: (t: postgres.TransactionSql) => Promise<void>) {
++  const marca = Symbol('rollback');
++  try {
++    await sql.begin(async (t) => { await fn(t as postgres.TransactionSql); throw marca; });
++  } catch (e) {
++    if (e === marca) return null;
++    return e as { constraint_name?: string; code?: string };
++  }
++  return null;
++}
++
++const barbeiro = (t: postgres.TransactionSql, tid: number, slug: string) =>
++  t`INSERT INTO barbers (tenant_id,name,slug,role,password_hash)
++    VALUES (${tid},'X',${slug},'admin','h') RETURNING id`;
++const servico = (t: postgres.TransactionSql, tid: number, slug: string) =>
++  t`INSERT INTO services (tenant_id,name,slug,price_cents)
++    VALUES (${tid},'Corte',${slug},4000) RETURNING id`;
++const agendar = (t: postgres.TransactionSql, tid: number, bid: number, sid: number, token: string) =>
++  t`INSERT INTO appointments
++    (tenant_id,barber_id,service_id,customer_name,customer_phone,starts_at,ends_at,
++     duration_minutes,price_cents,status,manage_token,created_by)
++    VALUES (${tid},${bid},${sid},'F','84','2026-09-10 10:00','2026-09-10 10:30',
++            30,4000,'confirmed',${token},'customer') RETURNING id`;
++
++describe.skipIf(!TEM_BANCO)('o que a migration 0001 tem que garantir', () => {
++  it('mesmo slug de barbeiro em tenants diferentes é ACEITO', async () => {
++    const erro = await numaTransacao(async (t) => {
++      await barbeiro(t, A, 'joao'); await barbeiro(t, B, 'joao');
++    });
++    expect(erro).toBeNull();
++  });
++
++  it('slug de barbeiro repetido no mesmo tenant é recusado', async () => {
++    const erro = await numaTransacao(async (t) => {
++      await barbeiro(t, A, 'pedro'); await barbeiro(t, A, 'pedro');
++    });
++    expect(erro?.constraint_name).toBe('barbers_tenant_slug_uq');
++  });
++
++  it('slug de serviço repetido no mesmo tenant é recusado', async () => {
++    const erro = await numaTransacao(async (t) => {
++      await servico(t, A, 'corte-social'); await servico(t, A, 'corte-social');
++    });
++    expect(erro?.constraint_name).toBe('services_tenant_slug_uq');
++  });
++
++  it('agendamento apontando para barbeiro de OUTRO tenant é recusado', async () => {
++    const erro = await numaTransacao(async (t) => {
++      const [b] = await barbeiro(t, B, 'ze');
++      const [s] = await servico(t, A, 'corte-a');
++      await agendar(t, A, b.id, s.id, 'tok-cross');
++    });
++    expect(erro?.constraint_name).toContain('tenant_fkey');
++  });
++
++  it('agendamento apontando para serviço de OUTRO tenant é recusado', async () => {
++    const erro = await numaTransacao(async (t) => {
++      const [b] = await barbeiro(t, A, 'ana');
++      const [s] = await servico(t, B, 'corte-b');
++      await agendar(t, A, b.id, s.id, 'tok-cross2');
++    });
++    expect(erro?.constraint_name).toContain('tenant_fkey');
++  });
++
++  it('barber_services cruzando tenants é recusado', async () => {
++    const erro = await numaTransacao(async (t) => {
++      const [b] = await barbeiro(t, A, 'bs');
++      const [s] = await servico(t, B, 'bs');
++      await t`INSERT INTO barber_services (tenant_id,barber_id,service_id,duration_minutes)
++              VALUES (${A},${b.id},${s.id},30)`;
++    });
++    expect(erro?.constraint_name).toContain('tenant_fkey');
++  });
++
++  it('manage_token repetido, mesmo entre tenants, é recusado', async () => {
++    const erro = await numaTransacao(async (t) => {
++      const [b1] = await barbeiro(t, A, 'x1'); const [s1] = await servico(t, A, 'x1');
++      const [b2] = await barbeiro(t, B, 'x2'); const [s2] = await servico(t, B, 'x2');
++      await agendar(t, A, b1.id, s1.id, 'tok-igual');
++      await agendar(t, B, b2.id, s2.id, 'tok-igual');
++    });
++    expect(erro?.constraint_name).toContain('manage_token');
++  });
++
++  it('settings: uma linha por tenant, com id gerado sozinho', async () => {
++    const erro = await numaTransacao(async (t) => {
++      await t`INSERT INTO settings (tenant_id,business_name,short_name,whatsapp_number,address_street,address_city)
++              VALUES (${A},'Bayron','Bayron','8499','Rua A','Mossoró')`;
++      await t`INSERT INTO settings (tenant_id,business_name,short_name,whatsapp_number,address_street,address_city)
++              VALUES (${B},'Zé','Zé','8498','Rua B','Mossoró')`;
++    });
++    expect(erro).toBeNull();
++  });
++
++  it('settings: duas linhas para o mesmo tenant é recusado', async () => {
++    const erro = await numaTransacao(async (t) => {
++      await t`INSERT INTO settings (tenant_id,business_name,short_name,whatsapp_number,address_street,address_city)
++              VALUES (${A},'A','A','1','R','M')`;
++      await t`INSERT INTO settings (tenant_id,business_name,short_name,whatsapp_number,address_street,address_city)
++              VALUES (${A},'B','B','2','R','M')`;
++    });
++    expect(erro?.constraint_name).toBe('settings_tenant_uq');
++  });
++
++  it('tenant com status inválido é recusado', async () => {
++    const erro = await numaTransacao(async (t) => {
++      await t`INSERT INTO tenants (slug,business_name,status) VALUES ('z','Z','banido')`;
++    });
++    expect(erro?.constraint_name).toBe('tenants_status_valido');
++  });
++
++  it('linha sem tenant_id é recusada', async () => {
++    const erro = await numaTransacao(async (t) => {
++      await t`INSERT INTO barbers (name,slug,role,password_hash) VALUES ('sem','sem','admin','h')`;
++    });
++    expect(erro?.code).toBe('23502');
++  });
++
++  it('banco novo NÃO nasce com o tenant do Bayron', async () => {
++    // A 0001 cria 'bayron' só para dar tenant_id aos dados que já existem. Num
++    // banco recém-criado ela não deve criar nada: o cliente novo nasceria com o
++    // subdomínio e o nome de outra barbearia (`PENDENCIAS-ABERTAS.md` §4.6).
++    const s2 = postgres(process.env.DATABASE_URL!, { max: 1 });
++    try {
++      await s2.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
++      for (const f of ['0000_init_postgres.sql', '0001_tenants.sql']) await s2.unsafe(migrationSql(f));
++      const [{ c }] = await s2`SELECT COUNT(*)::int AS c FROM tenants`;
++      expect(c).toBe(0);
++    } finally {
++      // devolve o schema como os outros casos esperam
++      await s2.unsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
++      for (const f of ['0000_init_postgres.sql', '0001_tenants.sql']) await s2.unsafe(migrationSql(f));
++      await s2`INSERT INTO tenants (slug, business_name)
++               VALUES ('bayron','Barbearia Bayron'), ('cortes-do-ze','Cortes do Zé')
++               ON CONFLICT DO NOTHING`;
++      await s2.end();
++    }
++  });
++
++  it('a migration roda duas vezes sem erro (idempotente)', async () => {
++    await expect(sql.unsafe(migrationSql('0001_tenants.sql'))).resolves.toBeDefined();
++  });
++});

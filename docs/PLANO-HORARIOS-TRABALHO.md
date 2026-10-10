@@ -1,5 +1,10 @@
 # Plano — Tela de Horários de Trabalho (`working_hours`)
 
+> <!-- STATUS-CONFERIDO-06/09 -->
+> **✅ IMPLANTADO.** Conferido em 06/09/2026: a tabela `working_hours` existe em
+> `apps/barbearia/src/db/schema.ts`. Documento histórico — descreve o plano.
+> Onde o código está hoje: `ESTADO-ATUAL.md`.
+
 ## Objetivo
 
 Permitir editar, pela interface, os horários de trabalho de cada barbeiro (tabela `working_hours`) — hoje só populados pelo `seed.mjs`. Isso fecha dois problemas reais:

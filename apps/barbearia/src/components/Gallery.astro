@@ -1,0 +1,274 @@
+---
+import { Image } from "astro:assets";
+import { getSettings } from '../lib/settings';
+import { tenantAtual } from '../lib/tenant';
+import { ehOBayron } from '../lib/bayron';
+import { srcsetDe } from '../lib/uploads';
+import { fotosDaGaleria, faixaDoCarrossel, MINIMO_PARA_APARECER } from '../lib/galeria';
+import avatarBayron from '../assets/Logo-Bayron3-256.png';
+
+const s = await getSettings();
+
+/**
+ * O carrossel "Portfólio" — as fotos que a barbearia sobe em `/admin/galeria`.
+ *
+ * ⚠️ Até 25/09/2026 as fotos eram uma pasta do repositório lida em tempo de build,
+ * e a seção só aparecia no site do Bayron: eram dele, e mostrá-las em outra
+ * barbearia seria exibir o trabalho de terceiros como próprio. Agora cada uma
+ * mostra as suas (migration 0005). As 20 do Bayron entram no banco pelo
+ * `scripts/importar-galeria-bayron.mjs` — sem rodá-lo, o site dele fica sem a
+ * seção (`ROTEIRO-MIGRACAO-PRODUCAO.md`).
+ *
+ * Regra do `PENDENCIAS-ABERTAS.md` §4.1: nenhuma seção meia-boca. Abaixo de
+ * `MINIMO_PARA_APARECER` fotos ela não é renderizada.
+ */
+const fotos = await fotosDaGaleria(tenantAtual());
+const aparece = fotos.length >= MINIMO_PARA_APARECER;
+const faixa = faixaDoCarrossel(fotos);
+
+const HANDLE = s.instagramHandle;
+// Sem Instagram cadastrado, a foto não vira link para lugar nenhum e o cartão
+// "Seguir" some — em vez de um botão que leva a uma página em branco.
+const INSTAGRAM = s.instagramUrl && s.instagramUrl.trim() !== '' ? s.instagramUrl : null;
+// O logo em `assets/` é do Bayron e vai junto no build (mesma regra do Header):
+// outra barbearia sem logo mostra a inicial do nome, nunca a marca de terceiros.
+const BAYRON = ehOBayron(tenantAtual());
+// Glifo do Instagram, reusado no cabeçalho de perfil e no overlay dos cards.
+const IG_GLYPH = "M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z";
+---
+
+{aparece && (
+<section id="galeria" class="py-12 md:py-20 overflow-hidden bg-dark-alt">
+  <div class="max-w-6xl mx-auto px-4">
+    <!-- Header -->
+    <div class="text-center mb-16">
+      <div class="w-10 h-px bg-teal mx-auto mb-6"></div>
+      <span class="text-teal-light text-sm font-medium tracking-[0.25em] uppercase">Portfólio</span>
+      <h2 class="font-serif text-3xl md:text-5xl font-medium mt-3 mb-4 text-neutral-50">Transformações que Inspiram</h2>
+      <p class="text-neutral-400 max-w-lg mx-auto">Cada corte é pensado para valorizar seu estilo. Confira alguns dos nossos trabalhos.</p>
+    </div>
+  </div>
+
+  <!-- Horizontal carousel - full bleed. A faixa vai duas vezes: é o que deixa o
+       fim de uma volta emendar no começo da próxima. -->
+  <div class="relative mb-16">
+    <div
+      id="gallery-carousel"
+      data-count={faixa.length}
+      class="flex gap-4 overflow-x-auto px-4 md:px-8 pb-4 no-scrollbar"
+    >
+      {[false, true].flatMap((segundaVolta) => faixa.map(({ foto, repetida }, i) => {
+        const copia = segundaVolta || repetida;
+        const imagem = (
+          <img
+            src={foto.path}
+            srcset={srcsetDe(foto.path, foto.widths) || undefined}
+            sizes="(max-width: 768px) 280px, 320px"
+            alt={copia ? '' : `Portfólio ${s.businessName}, foto ${i + 1}`}
+            loading="lazy"
+            decoding="async"
+            width="320"
+            height="427"
+            class="w-full h-full object-cover md:transition-transform md:duration-700 md:group-hover:scale-105"
+          />
+        );
+        return (
+          <div class="flex-none w-[280px] md:w-[320px] group" aria-hidden={copia ? 'true' : undefined}>
+            {INSTAGRAM ? (
+              <a
+                href={INSTAGRAM}
+                target="_blank"
+                rel="noopener"
+                aria-label={copia ? undefined : 'Ver no Instagram'}
+                tabindex={copia ? -1 : undefined}
+                class="relative block overflow-hidden rounded-md aspect-3/4"
+              >
+                {imagem}
+                <!-- Hover overlay -->
+                <div class="absolute inset-0 bg-gradient-to-t from-dark/70 via-dark/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-5">
+                  <span class="inline-flex items-center gap-2 text-sm text-white font-medium">
+                    <svg class="w-4 h-4 text-teal-light" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={IG_GLYPH} /></svg>
+                    Ver no Instagram
+                  </span>
+                </div>
+              </a>
+            ) : (
+              <div class="relative block overflow-hidden rounded-md aspect-3/4">{imagem}</div>
+            )}
+          </div>
+        );
+      }))}
+    </div>
+
+    <!-- Scroll hint gradient edges -->
+    <div class="hidden md:block absolute left-0 top-0 bottom-4 w-16 bg-gradient-to-r from-dark-alt to-transparent pointer-events-none z-10"></div>
+    <div class="hidden md:block absolute right-0 top-0 bottom-4 w-16 bg-gradient-to-l from-dark-alt to-transparent pointer-events-none z-10"></div>
+
+    <!-- Navigation arrows (desktop only) -->
+    <button
+      id="gallery-prev"
+      class="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/50 hover:bg-black/75 backdrop-blur-sm border border-white/10 hover:border-white/20 items-center justify-center text-white transition-all duration-200 hover:scale-110"
+      aria-label="Fotos anteriores"
+    >
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+      </svg>
+    </button>
+    <button
+      id="gallery-next"
+      class="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/50 hover:bg-black/75 backdrop-blur-sm border border-white/10 hover:border-white/20 items-center justify-center text-white transition-all duration-200 hover:scale-110"
+      aria-label="Próximas fotos"
+    >
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+      </svg>
+    </button>
+  </div>
+
+  <!-- Card "Seguir no Instagram" — abaixo do carrossel -->
+  {INSTAGRAM && (
+  <div class="max-w-md mx-auto px-4">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-4 bg-dark-card border border-white/10 rounded-2xl p-4 hover:border-teal/30 transition-colors">
+      <div class="flex items-center gap-3 min-w-0 flex-1">
+        <a href={INSTAGRAM} target="_blank" rel="noopener" aria-label="Abrir o perfil no Instagram" class="flex-none">
+          <span class="block rounded-full p-[2px]" style="background:conic-gradient(from 215deg,#feda75,#fa7e1e,#d62976,#962fbf,#4f5bd5,#feda75)">
+            <span class="block rounded-full p-[2px] bg-dark-card">
+              {s.logoPath ? (
+                <img src={s.logoPath} srcset={srcsetDe(s.logoPath, [96, 256]) || undefined} sizes="48px" alt={s.businessName} width="48" height="48" class="w-12 h-12 rounded-full object-cover" />
+              ) : BAYRON ? (
+                <Image src={avatarBayron} alt={s.businessName} width={96} height={96} class="w-12 h-12 rounded-full object-cover" />
+              ) : (
+                <span class="w-12 h-12 rounded-full bg-teal/20 text-teal-light font-semibold text-lg flex items-center justify-center" aria-hidden="true">{s.shortName.slice(0, 1).toUpperCase()}</span>
+              )}
+            </span>
+          </span>
+        </a>
+        <div class="min-w-0">
+          <p class="text-white font-semibold leading-tight truncate">{HANDLE}</p>
+          <p class="text-gray-light text-sm truncate">Barbearia · {s.addressCity}</p>
+        </div>
+      </div>
+      <a
+        href={INSTAGRAM}
+        target="_blank"
+        rel="noopener"
+        class="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-2 bg-teal hover:bg-teal-hover text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors"
+      >
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={IG_GLYPH} /></svg>
+        Seguir
+      </a>
+    </div>
+  </div>
+  )}
+</section>
+)}
+
+<style>
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+</style>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const carousel = document.getElementById("gallery-carousel");
+    if (!carousel) return;
+
+    // Quem pediu ao sistema menos movimento não ganha carrossel andando sozinho.
+    // As setas e o arrastar continuam funcionando.
+    const semMovimento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const originalCount = parseInt(carousel.getAttribute("data-count") || "20", 10);
+    let paused = false;
+    let touching = false;
+    let userInteracted = false; // true entre touchstart e fim da inercia
+    let isProgrammaticScroll = false; // true durante o auto-scroll setando scrollLeft
+    let scrollIdleTimer: number | undefined;
+    let currentScroll = 0;
+    const SCROLL_SPEED = 0.8;
+    const ARROW_STEP = 336; // card width (320) + gap (16)
+    const SCROLL_IDLE_DELAY = 200; // ms sem scroll do usuario = inercia parou
+
+    function isPaused() {
+      return paused || touching || userInteracted;
+    }
+
+    carousel.addEventListener("scroll", () => {
+      // Ignora scrolls disparados pela propria animacao
+      if (isProgrammaticScroll) return;
+
+      // Scroll causado pelo usuario (drag direto ou inercia pos-touchend)
+      currentScroll = carousel.scrollLeft;
+
+      if (scrollIdleTimer) clearTimeout(scrollIdleTimer);
+      scrollIdleTimer = window.setTimeout(() => {
+        // Scroll parou: encerra o "userInteracted" e deixa o auto-scroll voltar
+        if (!touching) {
+          userInteracted = false;
+          currentScroll = carousel.scrollLeft;
+        }
+      }, SCROLL_IDLE_DELAY);
+    }, { passive: true });
+
+    function scroll() {
+      if (!carousel) return;
+      if (!isPaused()) {
+        currentScroll += SCROLL_SPEED;
+
+        const card = carousel.querySelector<HTMLElement>(":scope > div");
+        if (card) {
+          const singleSetWidth = (card.offsetWidth + 16) * originalCount;
+          if (currentScroll >= singleSetWidth) {
+            currentScroll -= singleSetWidth;
+          }
+        }
+
+        isProgrammaticScroll = true;
+        carousel.scrollLeft = currentScroll;
+        // Reseta a flag no proximo frame (depois do scroll event ja ter disparado)
+        requestAnimationFrame(() => { isProgrammaticScroll = false; });
+      }
+      requestAnimationFrame(scroll);
+    }
+
+    carousel.addEventListener("mousedown", () => { paused = true; });
+    carousel.addEventListener("mouseup", () => { paused = false; });
+    carousel.addEventListener("mouseleave", () => { paused = false; });
+    carousel.addEventListener("touchstart", () => {
+      touching = true;
+      userInteracted = true;
+    }, { passive: true });
+    carousel.addEventListener("touchend", () => {
+      touching = false;
+      // userInteracted continua true ate o scroll de inercia parar
+    }, { passive: true });
+    carousel.addEventListener("touchcancel", () => {
+      touching = false;
+      userInteracted = false;
+    }, { passive: true });
+
+    // Arrow navigation
+    const prevBtn = document.getElementById("gallery-prev");
+    const nextBtn = document.getElementById("gallery-next");
+
+    prevBtn?.addEventListener("click", () => {
+      paused = true;
+      currentScroll = Math.max(0, currentScroll - ARROW_STEP);
+      carousel.scrollLeft = currentScroll;
+      setTimeout(() => { paused = false; }, 700);
+    });
+
+    nextBtn?.addEventListener("click", () => {
+      paused = true;
+      currentScroll += ARROW_STEP;
+      carousel.scrollLeft = currentScroll;
+      setTimeout(() => { paused = false; }, 700);
+    });
+
+    if (!semMovimento) requestAnimationFrame(scroll);
+  });
+</script>

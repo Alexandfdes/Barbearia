@@ -1,0 +1,151 @@
+---
+export const prerender = false;
+
+import Layout from '../layouts/Layout.astro';
+import { NOME_PRODUTO, SITE_URL, whatsappUrl } from '../config';
+
+// Domínio do produto, usado quando o cliente está num subdomínio nosso
+// (ex.: "vintage" → vintage.fadeline.com.br). Os dois existem: subdomínio nosso
+// incluso e domínio próprio como opção paga (PENDENCIAS §1.1, decidido em
+// 01/09/2026) — por isso esta tela aceita as duas formas.
+const DOMINIO_BASE = new URL(SITE_URL).hostname;
+
+const waAjuda = whatsappUrl('Olá! Não lembro o endereço do painel da minha barbearia, pode me mandar?');
+---
+
+<Layout title={`Entrar no painel — ${NOME_PRODUTO}`} description="Acesse o painel da sua barbearia.">
+  <header class="border-b border-line/60 sticky top-0 bg-card/95 backdrop-blur z-20">
+    <div class="max-w-2xl mx-auto px-5 h-16 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2.5">
+        <span class="ponto-no-ar w-1.5 h-1.5 rounded-full bg-brand-on-dark shrink-0" aria-hidden="true"></span>
+        <span class="font-serif text-lg tracking-wide text-cream">{NOME_PRODUTO}</span>
+      </a>
+      <a href={waAjuda} target="_blank" rel="noopener"
+         class="text-xs text-cream/40 hover:text-brand-light transition-colors">Preciso de ajuda</a>
+    </div>
+  </header>
+
+  <main class="max-w-2xl mx-auto px-5 py-14 sm:py-20">
+    <h1 class="font-serif text-3xl sm:text-4xl text-cream leading-tight">Entrar no seu painel</h1>
+    <p class="mt-4 text-cream/60 leading-relaxed max-w-lg">
+      O painel da sua barbearia fica no endereço do seu próprio site — ele é seu, não mora aqui dentro.
+      Digite o endereço abaixo que eu te levo direto.
+    </p>
+
+    <!-- Atalho: aparece só para quem já entrou uma vez neste aparelho -->
+    <div id="atalho" hidden class="mt-8 border border-brand/30 bg-card rounded-lg p-5">
+      <p class="text-xs uppercase tracking-[0.15em] text-cream/45 mb-2">Seu último acesso</p>
+      <a id="atalho-link" href="#"
+         class="inline-flex items-center justify-center min-h-[52px] w-full sm:w-auto bg-brand hover:bg-brand-hover text-on-brand font-bold uppercase tracking-wider text-sm px-8 rounded-md transition-colors">
+        <span id="atalho-nome"></span>
+      </a>
+      <button type="button" id="atalho-trocar"
+              class="block mt-3 text-xs text-cream/45 hover:text-brand-light transition-colors">
+        Entrar em outro endereço
+      </button>
+    </div>
+
+    <form id="form-acesso" class="mt-8 border border-line/60 bg-card rounded-lg p-5 sm:p-6">
+      <label for="endereco" class="block text-xs font-medium text-cream/60 mb-1.5">
+        Endereço do seu site <span class="text-brand-light">*</span>
+      </label>
+      <input id="endereco" name="endereco" required autocomplete="url" inputmode="url"
+             spellcheck="false" autocapitalize="none"
+             placeholder="suabarbearia.com.br"
+             class="w-full bg-ground border border-line rounded px-3 py-2.5 text-cream placeholder:text-cream/40 focus:border-brand/50 focus:outline-none transition-colors" />
+      <p id="erro" hidden class="mt-2 text-xs text-red-400"></p>
+      <p class="mt-2 text-[11px] text-cream/45">
+        É o mesmo endereço que os seus clientes usam para agendar.
+      </p>
+
+      <button type="submit"
+              class="mt-5 w-full sm:w-auto inline-flex items-center justify-center min-h-[52px] bg-brand hover:bg-brand-hover text-on-brand font-bold uppercase tracking-wider text-sm px-8 rounded-md transition-colors">
+        Ir para o meu painel
+      </button>
+    </form>
+
+    <noscript>
+      <p class="mt-6 text-sm text-cream/60 leading-relaxed">
+        Digite o endereço do seu site no navegador e acrescente <span class="text-brand-light">/admin</span> no fim.
+        Exemplo: <span class="text-cream">suabarbearia.com.br/admin</span>
+      </p>
+    </noscript>
+
+    <div class="mt-10 pt-8 border-t border-line/60 space-y-3">
+      <p class="text-sm text-cream/60 leading-relaxed">
+        <span class="text-cream">Não lembra o endereço?</span>
+        <a href={waAjuda} target="_blank" rel="noopener" class="text-brand-light hover:underline">Me chama no WhatsApp</a>
+        que eu te mando na hora.
+      </p>
+      <p class="text-sm text-cream/60 leading-relaxed">
+        <span class="text-cream">Ainda não é cliente?</span>
+        <a href="/" class="text-brand-light hover:underline">Veja como funciona</a>.
+      </p>
+    </div>
+  </main>
+</Layout>
+
+<script define:vars={{ DOMINIO_BASE }}>
+  const CHAVE = 'bna:ultimo-painel';
+  const form = document.getElementById('form-acesso');
+  const campo = document.getElementById('endereco');
+  const erro = document.getElementById('erro');
+
+  /**
+   * Aceita as duas formas que o cliente pode ter, porque a decisão entre
+   * subdomínio nosso e domínio próprio ainda está aberta:
+   *   "suabarbearia.com.br"  · "https://suabarbearia.com.br/agendar"  → domínio próprio
+   *   "vintage"                                                       → subdomínio nosso
+   * Devolve null se não sobrar um host plausível.
+   */
+  function resolverHost(bruto) {
+    let v = (bruto || '').trim().toLowerCase();
+    if (!v) return null;
+    // Se veio protocolo ou caminho, a pessoa quis dizer um endereço completo —
+    // nesse caso não vale cair no apelido. "http://x" é engano, não é o apelido "x".
+    const veioComoEndereco = /:\/\//.test(v) || v.includes('/');
+    v = v.replace(/^[a-z]+:\/\//, '');   // tira protocolo
+    v = v.split('/')[0].split('?')[0].split('#')[0];  // tira caminho
+    v = v.replace(/\.+$/, '');
+    if (!v) return null;
+    // Só o que pode existir num host. Barra qualquer tentativa de javascript: e afins.
+    if (!/^[a-z0-9.-]+$/.test(v)) return null;
+    if (v.includes('..') || v.startsWith('-') || v.startsWith('.')) return null;
+    if (!v.includes('.')) {
+      if (veioComoEndereco || v.length < 2) return null;   // apelido só vale digitado sozinho
+      v = `${v}.${DOMINIO_BASE}`;
+    }
+    if (!/\.[a-z]{2,}$/.test(v)) return null;
+    return v;
+  }
+
+  function mostrarAtalho() {
+    let host;
+    try { host = localStorage.getItem(CHAVE); } catch { return; }
+    if (!host) return;
+    const caixa = document.getElementById('atalho');
+    document.getElementById('atalho-link').href = `https://${host}/admin`;
+    document.getElementById('atalho-nome').textContent = host;
+    caixa.hidden = false;
+    document.getElementById('atalho-trocar').addEventListener('click', () => {
+      caixa.hidden = true;
+      campo.focus();
+    });
+  }
+
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const host = resolverHost(campo.value);
+    if (!host) {
+      erro.textContent = 'Não consegui entender esse endereço. Escreva como suabarbearia.com.br';
+      erro.hidden = false;
+      campo.focus();
+      return;
+    }
+    erro.hidden = true;
+    try { localStorage.setItem(CHAVE, host); } catch { /* navegador sem armazenamento: segue assim mesmo */ }
+    window.location.href = `https://${host}/admin`;
+  });
+
+  mostrarAtalho();
+</script>

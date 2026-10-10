@@ -1,0 +1,811 @@
+---
+// SSR: ver ARQUITETURA-PRODUTO-V1 D3.
+export const prerender = false;
+import Layout from '../layouts/Layout.astro';
+import { getSettings, waUrl } from '../lib/settings';
+
+import { tenantDoHost } from '../lib/tenant.js';
+import { TZ } from '../lib/timezone.js';
+
+// Endereço que não é de barbearia nenhuma: 404 seco, sem renderizar.
+//
+// ⚠️ Sem esta guarda a página renderizaria com `tenantAtual()` caindo na
+// barbearia única — ou seja, um host desconhecido mostraria o site do PRIMEIRO
+// cliente. É o defeito que o passo 6 existe para não criar.
+if (!tenantDoHost(Astro.request)) {
+  return new Response('Barbearia não encontrada', { status: 404 });
+}
+
+
+const s = await getSettings();
+
+// A saída da tela quando não há serviço para agendar: o WhatsApp da barbearia,
+// com o mesmo texto do rodapé. Vazio quando ela não cadastrou número.
+const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário.', s);
+---
+
+<Layout
+  title={`Agendar — ${s.businessName}`}
+  description={`Agende seu horário online na ${s.businessName} em ${s.addressCity}. Rápido, fácil e sem espera.`}
+>
+  <div class="min-h-screen bg-dark relative overflow-hidden">
+    <!-- Glows decorativos de fundo para estética premium -->
+    <div class="absolute top-[-25%] left-[-25%] w-[80%] h-[80%] rounded-full bg-forest-glow/15 blur-[140px] pointer-events-none"></div>
+    <div class="absolute bottom-[-25%] right-[-25%] w-[80%] h-[80%] rounded-full bg-teal/5 blur-[140px] pointer-events-none"></div>
+
+    <!-- Header mínimo -->
+    <div class="border-b border-white/5 px-4 py-4">
+      <div class="max-w-2xl mx-auto flex items-center justify-between">
+        <button id="header-back-btn" class="text-neutral-400 hover:text-neutral-200 text-sm flex items-center gap-1.5 transition-colors cursor-pointer bg-transparent border-0 p-0 outline-none">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+          </svg>
+          Voltar
+        </button>
+        <span class="text-neutral-400 text-sm font-medium">{s.businessName}</span>
+      </div>
+    </div>
+
+    <main class="max-w-2xl mx-auto px-4 py-8">
+
+      <!--
+        Indicador de progresso. Os pontos são montados pelo script: são três ou
+        quatro, conforme haja barbeiro para escolher (`lib/agendamento.ts`).
+      -->
+      <div id="progress" class="flex items-center justify-center gap-0 mb-10 opacity-0 transition-opacity duration-300"></div>
+
+      <!-- Área do wizard -->
+      <div id="wizard" data-tz={TZ} data-whatsapp={whatsappUrl}>
+        <div class="flex items-center justify-center py-20 gap-3 text-neutral-500">
+          <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          Carregando...
+        </div>
+      </div>
+
+    </main>
+  </div>
+</Layout>
+
+<script>
+import { reais } from '../lib/dinheiro';
+import { applyDiscountPct, comboValeNaData, diasDoCombo, type ComboProduct } from '../lib/combo';
+import { passosDoAgendamento, rotuloDoPasso, type Passo } from '../lib/agendamento';
+// ⚠️ Todo nome que vai para o `innerHTML` passa por `esc`: serviço, barbeiro,
+// produto e combo são texto livre do painel (`lib/html.ts`). Até 09/10/2026 o
+// nome do produto entrava cru no resumo (`PENDENCIAS-ABERTAS.md` §2.24), e
+// `tests/agendar-primeiro-minuto.test.ts` reprova o nome sem escape.
+import { escaparHtml as esc } from '../lib/html';
+
+// ── Tipos ─────────────────────────────────────────────────────────────────────
+interface BarberOption { id: number; name: string; slug: string; durationMinutes: number; }
+interface Service { id: number; name: string; slug: string; priceCents: number; barbers: BarberOption[]; }
+interface SlotInfo { utc: string; time: string; }
+
+// ── Estado ────────────────────────────────────────────────────────────────────
+// Modo combo: /agendar?combo=<id>, o link do combo do dia no site. Serviço,
+// produto, desconto e dias vêm do combo (`/api/combos`); o servidor confere tudo
+// de novo ao gravar, o dia inclusive (`api/appointments/index.ts`).
+const comboParam = new URLSearchParams(location.search).get('combo');
+const comboId = comboParam && /^\d+$/.test(comboParam) ? parseInt(comboParam, 10) : null;
+const comboMode = comboId !== null;
+let comboData: any = null;   // combo carregado de /api/combos (serviço, produto, desconto, dias)
+let comboPct = 0;            // desconto do combo (%), o que o dono definiu
+let selProduct: ComboProduct | null = null;
+
+let services: Service[] = [];
+let selService: Service | null = null;
+let selBarber: BarberOption | null = null;
+let selDate = '';
+let loadedSlots: SlotInfo[] = [];
+// Dias da semana (0=dom…6=sáb) em que o barbeiro selecionado trabalha.
+// null = ainda não carregado (cai no fallback de domingo fechado).
+let barberWorkdays: Set<number> | null = null;
+let selSlot: SlotInfo | null = null;
+let currentStep = 1;
+// Chave de idempotência: gerada UMA vez quando o user chega no step 4.
+// Se ele clicar duas vezes no Confirmar, ambos POSTs mandam a mesma chave
+// e o backend retorna o mesmo agendamento (sem criar duplicata).
+let idempotencyKey: string | null = null;
+function generateIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
+// ── Elementos ─────────────────────────────────────────────────────────────────
+const wizard  = document.getElementById('wizard')!;
+const progress = document.getElementById('progress')!;
+const headerBackBtn = document.getElementById('header-back-btn')!;
+
+headerBackBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  // Do horário, volta ao serviço quando o barbeiro foi escolhido sozinho.
+  if (currentStep === 1) voltarPara(0);
+  else if (currentStep === 3 && !temPassoDoBarbeiro()) voltarPara(1);
+  else voltarPara(currentStep - 1);
+});
+
+/**
+ * Volta a um passo, limpando o que foi escolhido depois dele. Serve ao "Voltar"
+ * do topo e aos de cada tela.
+ *
+ * ⚠️ No modo combo o serviço é o do combo, e não se apaga: até 09/10/2026 o
+ * "Voltar" do topo o apagava, e a tela do combo respondia "Este combo não está
+ * mais disponível".
+ */
+function voltarPara(passo: number) {
+  if (passo === 0) { window.location.href = '/'; return; }
+  if (passo === 1) {
+    if (!comboMode) selService = null;
+    selBarber = null; selDate = ''; loadedSlots = []; selSlot = null;
+    renderStep1();
+  } else if (passo === 2) {
+    selBarber = null; selDate = ''; loadedSlots = []; selSlot = null;
+    renderStep2();
+  } else if (passo === 3) {
+    selSlot = null;
+    renderStep3();
+    if (selDate && loadedSlots.length) renderSlots();
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const DAYS  = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+// Com centavos quando há centavos — `lib/dinheiro.ts`.
+const fmt = reais;
+
+function spinner(msg = 'Carregando...') {
+  return `<div class="flex items-center justify-center py-12 gap-3 text-neutral-500 text-sm">
+    <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+    </svg>${msg}</div>`;
+}
+
+function backBtn(toStep: number, label: string) {
+  return `<button data-action="go-back" data-value="${toStep}"
+    class="text-neutral-400 hover:text-neutral-200 text-sm flex items-center gap-1.5 transition-colors mt-8">
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+    </svg>${label}</button>`;
+}
+
+function stepHeader(title: string, subtitle: string) {
+  return `<div class="mb-7">
+    <div class="w-8 h-px bg-teal mb-4"></div>
+    <h1 class="font-serif text-2xl md:text-3xl font-medium text-neutral-50 mb-1">${title}</h1>
+    <p class="text-sm text-neutral-400">${subtitle}</p>
+  </div>`;
+}
+
+// ── Progresso ─────────────────────────────────────────────────────────────────
+// `currentStep` numera as telas — 1 serviço, 2 barbeiro, 3 horário, 4 dados — e
+// não muda quando o barbeiro é escolhido sozinho. O que o cliente vê ("Passo 2 de
+// 3", os pontos) sai de `passosDoAgendamento`, que sabe se há escolha.
+const PASSO_DA_TELA: Passo[] = ['servico', 'servico', 'barbeiro', 'horario', 'dados'];
+
+function passosAgora(): Passo[] {
+  return passosDoAgendamento(services, selService);
+}
+
+function temPassoDoBarbeiro(): boolean {
+  return passosAgora().includes('barbeiro');
+}
+
+function rotulo(tela: number): string {
+  return rotuloDoPasso(PASSO_DA_TELA[tela], passosAgora());
+}
+
+function setProgress(step: number) {
+  currentStep = step;
+  const passos = passosAgora();
+  const atual = passos.indexOf(PASSO_DA_TELA[step]);
+  progress.innerHTML = passos.map((_, i) => {
+    const estado = i < atual
+      ? 'border-teal bg-teal/20 text-teal-light'
+      : i === atual
+        ? 'border-teal bg-teal text-white'
+        : 'border-white/20 bg-dark-card text-neutral-500';
+    const traco = i > 0 ? '<div class="w-10 md:w-16 h-px bg-white/10"></div>' : '';
+    return `${traco}<div data-dot="${i + 1}" class="w-8 h-8 rounded-full border-2 ${estado} flex items-center justify-center text-xs font-medium transition-all duration-300">${i + 1}</div>`;
+  }).join('');
+  progress.style.opacity = '1';
+}
+
+// ── Step 1: Serviços ──────────────────────────────────────────────────────────
+async function initStep1() {
+  // Sem `setProgress` aqui: quantos pontos há depende dos serviços, que ainda não
+  // chegaram. O indicador aparece com a primeira tela.
+  try {
+    const res = await fetch('/api/services');
+    if (!res.ok) throw new Error('falha na API');
+    services = await res.json();
+    if (comboMode) {
+      try {
+        const cr = await fetch('/api/combos');
+        const list = cr.ok ? await cr.json() : [];
+        comboData = (list as any[]).find(c => c.id === comboId) ?? null;
+        if (comboData) {
+          comboPct = comboData.discountPct;
+          selService = services.find(s => s.id === comboData.serviceId) ?? null;
+          selProduct = { slug: comboData.productSlug, name: comboData.productName, priceCents: comboData.productCents };
+        }
+      } catch { comboData = null; }
+    }
+    renderStep1();
+  } catch {
+    wizard.innerHTML = `<p class="text-center text-red-400 py-10">
+      Erro ao carregar serviços.
+      <button data-action="retry" class="underline ml-1">Tentar novamente</button>
+    </p>`;
+  }
+}
+
+function renderStep1() {
+  if (comboMode) return renderStep1Combo();
+  // `/api/services` só traz serviço ativo com barbeiro ativo: lista vazia é
+  // barbearia sem nada que o cliente consiga marcar.
+  if (services.length === 0) return renderSemServico();
+  setProgress(1);
+  const cards = services.map(s => `
+    <button data-action="select-service" data-id="${s.id}"
+      class="text-left bg-dark-card border border-white/5 hover:border-teal/40 rounded-md p-5 transition-all duration-200 group w-full">
+      <div class="flex items-start justify-between mb-1.5 pointer-events-none">
+        <span class="text-base font-medium text-neutral-200 group-hover:text-white leading-tight pr-2">${esc(s.name)}</span>
+        <span class="text-teal-light font-semibold whitespace-nowrap text-sm">${fmt(s.priceCents)}</span>
+      </div>
+      <span class="text-xs text-neutral-500 pointer-events-none">
+        ${detalheDoServico(s)}
+      </span>
+    </button>
+  `).join('');
+
+  wizard.innerHTML = `
+    <div class="animate-fade-in">
+      ${stepHeader('Escolha o serviço', rotulo(1))}
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${cards}</div>
+    </div>`;
+}
+
+/**
+ * O que o cartão do serviço diz embaixo do nome. Com um barbeiro só, a duração:
+ * era a tela do barbeiro que a mostrava, e essa tela não aparece mais.
+ */
+function detalheDoServico(s: Service): string {
+  if (s.barbers.length === 1) return `Duração estimada: ${s.barbers[0].durationMinutes} min`;
+  return `${s.barbers.length} barbeiros`;
+}
+
+// ── Sem serviço para agendar ──────────────────────────────────────────────────
+// ⚠️ Até 09/10/2026 esta tela era "Escolha o serviço — Passo 1 de 4" e mais nada:
+// barbearia recém-criada nasce sem serviço, e o botão "Reservar horário" do site
+// levava a uma página em branco, sem saída (`PENDENCIAS-ABERTAS.md` §4.9). Agora
+// diz o que acontece e oferece o WhatsApp da barbearia.
+function linkDoWhatsApp(): string {
+  const url = wizard.dataset.whatsapp ?? '';
+  return url.startsWith('https://wa.me/') ? url : '';
+}
+
+function renderSemServico() {
+  currentStep = 1;
+  progress.innerHTML = '';
+  progress.style.opacity = '0';
+  const whatsapp = linkDoWhatsApp();
+  wizard.innerHTML = whatsapp
+    ? `<div class="animate-fade-in max-w-md mx-auto text-center py-10" data-estado="sem-servico">
+        <h1 class="font-serif text-2xl md:text-3xl font-medium text-neutral-50 mb-3">Agende pelo WhatsApp</h1>
+        <p class="text-sm text-neutral-400 mb-8">No momento, os horários desta barbearia são marcados direto com ela.</p>
+        <a href="${esc(whatsapp)}" target="_blank" rel="noopener"
+          class="inline-flex items-center justify-center w-full sm:w-auto bg-teal hover:bg-teal-hover text-white font-bold tracking-widest uppercase text-sm px-8 py-4 rounded-md transition-colors duration-300">
+          Chamar no WhatsApp
+        </a>
+        <a href="/" class="block mt-6 text-sm text-neutral-400 hover:text-neutral-200 underline underline-offset-4">Voltar ao site</a>
+      </div>`
+    : `<div class="animate-fade-in max-w-md mx-auto text-center py-10" data-estado="sem-servico">
+        <h1 class="font-serif text-2xl md:text-3xl font-medium text-neutral-50 mb-3">Agendamento indisponível</h1>
+        <p class="text-sm text-neutral-400 mb-8">No momento, não há horários para marcar pelo site. Volte em breve.</p>
+        <a href="/" class="text-sm text-neutral-400 hover:text-neutral-200 underline underline-offset-4">Voltar ao site</a>
+      </div>`;
+}
+
+// ── Step 1 (modo combo): o serviço e o produto do combo, com o desconto ──────
+function renderStep1Combo() {
+  // Combo sem dia nenhum marcado não vale em dia nenhum: o servidor recusaria no
+  // fim, depois de o cliente preencher tudo.
+  if (!comboData || !selService || !selProduct || !comboData.weekdays) {
+    progress.innerHTML = '';
+    currentStep = 1;
+    wizard.innerHTML = `
+      <div class="animate-fade-in text-center py-10">
+        <p class="text-neutral-400 text-sm mb-4">Este combo não está mais disponível.</p>
+        <a href="/agendar" class="text-teal-light underline text-sm">Agendar um serviço normal</a>
+      </div>`;
+    return;
+  }
+
+  setProgress(1);
+  const svcD  = applyDiscountPct(selService.priceCents, comboPct);
+  const prodD = applyDiscountPct(selProduct.priceCents, comboPct);
+  const totalCents = svcD + prodD;
+  const fullCents  = selService.priceCents + selProduct.priceCents;
+  const economiaCents = fullCents - totalCents;
+  // O calendário só abre os dias do combo; aqui o cliente fica sabendo antes.
+  const dias = comboData.weekdays === 127 ? '' : `
+        <p class="text-xs text-neutral-400">Dias do combo: <span class="text-neutral-200">${esc(diasDoCombo(comboData.weekdays))}</span></p>`;
+
+  wizard.innerHTML = `
+    <div class="animate-fade-in">
+      ${stepHeader(esc(comboData.name), `${rotulo(1)} · ${comboPct}% OFF no combo`)}
+
+      <div class="bg-dark-card border border-teal/30 rounded-md p-5 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-neutral-200">${esc(selService.name)}</span>
+          <span class="text-sm whitespace-nowrap">
+            <span class="text-teal-light font-semibold">${fmt(svcD)}</span>
+            <span class="text-neutral-600 line-through ml-1 text-xs">${fmt(selService.priceCents)}</span>
+          </span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-neutral-200">${esc(selProduct.name)} <span class="text-neutral-600 text-xs">(retira na barbearia)</span></span>
+          <span class="text-sm whitespace-nowrap">
+            <span class="text-teal-light font-semibold">${fmt(prodD)}</span>
+            <span class="text-neutral-600 line-through ml-1 text-xs">${fmt(selProduct.priceCents)}</span>
+          </span>
+        </div>
+        <div class="border-t border-white/5 pt-3 flex items-center justify-between">
+          <span class="text-sm text-neutral-300 font-medium">Total</span>
+          <div class="text-right">
+            <span class="text-teal-light font-bold text-xl">${fmt(totalCents)}</span>
+            <span class="text-neutral-600 line-through ml-2 text-sm">${fmt(fullCents)}</span>
+          </div>
+        </div>
+        <p class="text-xs text-teal-light/80 text-right">Você economiza ${fmt(economiaCents)} (${comboPct}% OFF)</p>${dias}
+      </div>
+
+      <button data-action="combo-continue"
+        class="w-full bg-teal hover:bg-teal-hover text-white font-bold tracking-widest uppercase px-8 py-4 rounded-md transition-colors duration-300 mt-5">
+        Continuar
+      </button>
+
+      <button data-action="go-back" data-value="0"
+        class="text-neutral-400 hover:text-neutral-200 text-sm flex items-center gap-1.5 transition-colors mt-6">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+        </svg>Voltar ao site
+      </button>
+    </div>`;
+}
+
+function renderStep2() {
+  if (!selService) return;
+  setProgress(2);
+
+  const cards = selService.barbers.map(b => `
+    <button data-action="select-barber" data-id="${b.id}"
+      class="text-left bg-dark-card border border-white/5 hover:border-teal/40 rounded-md p-5 transition-all duration-200 group w-full">
+      <div class="flex items-center gap-3 mb-2 pointer-events-none">
+        <div class="w-10 h-10 rounded-full bg-dark-surface border border-white/10 flex items-center justify-center text-base font-serif text-teal-light shrink-0">
+          ${esc(b.name.charAt(0))}
+        </div>
+        <span class="text-base font-medium text-neutral-200 group-hover:text-white">${esc(b.name)}</span>
+      </div>
+      <span class="text-xs text-neutral-500 pointer-events-none">Duração estimada: ${b.durationMinutes} min</span>
+    </button>
+  `).join('');
+
+  wizard.innerHTML = `
+    <div class="animate-fade-in">
+      ${stepHeader('Escolha o barbeiro', `Serviço: <span class="text-neutral-300">${esc(selService.name)}</span>`)}
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">${cards}</div>
+      ${backBtn(1, comboMode ? 'Voltar ao combo' : 'Alterar serviço')}
+    </div>`;
+}
+
+/**
+ * Depois do serviço (ou do combo): com um barbeiro só, ele é escolhido sozinho e
+ * o cliente vai direto ao horário (`PENDENCIAS-ABERTAS.md` §2.2).
+ */
+function avancarDoServico() {
+  if (!selService) return;
+  if (selService.barbers.length === 1) escolherBarbeiro(selService.barbers[0]);
+  else renderStep2();
+}
+
+async function escolherBarbeiro(b: BarberOption) {
+  selBarber = b;
+  selDate = ''; loadedSlots = []; selSlot = null;
+  barberWorkdays = null;
+  renderStep3();
+  // Carrega os dias que o barbeiro trabalha e re-renderiza o calendário.
+  try {
+    const res = await fetch(`/api/working-hours?barber=${b.id}`);
+    if (!res.ok) return;
+    const rows: { weekday: number }[] = await res.json();
+    // O cliente pode ter voltado, ou trocado de barbeiro, enquanto a resposta vinha.
+    if (selBarber !== b) return;
+    barberWorkdays = new Set(rows.map(r => r.weekday));
+    if (currentStep !== 3) return;
+    renderStep3();
+    if (selDate && loadedSlots.length) renderSlots();
+  } catch { /* mantém o calendário do fallback */ }
+}
+
+// ── Step 3: Data & Hora ───────────────────────────────────────────────────────
+// A data de hoje NA BARBEARIA — o fuso vem do servidor, no `data-tz` do wizard.
+//
+// ⚠️ Até 27/09/2026 era `Date.now() - 3 * 60 * 60 * 1000`: hoje em Fortaleza, para
+// qualquer barbearia. Em Manaus, das 23:00 à meia-noite o calendário já começava no
+// dia seguinte — o cliente não via o dia de hoje (`PENDENCIAS-ABERTAS.md` §2.11).
+// `Intl` e não `date-fns-tz`: esta é a página do cliente, e o calendário não
+// justifica carregar mais uma biblioteca no celular dele.
+function hojeNaBarbearia(): string {
+  const partes = new Intl.DateTimeFormat('en-US', {
+    timeZone: wizard.dataset.tz, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const parte = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? '';
+  return `${parte('year')}-${parte('month')}-${parte('day')}`;
+}
+
+function buildDates() {
+  const todayStr = hojeNaBarbearia();
+  const base = new Date(todayStr + 'T12:00:00Z');
+  return Array.from({ length: 30 }, (_, i) => {
+    const t = new Date(base.getTime() + i * 86_400_000);
+    const y = t.getUTCFullYear(), mo = t.getUTCMonth(), d = t.getUTCDate(), wd = t.getUTCDay();
+    return {
+      dateStr: `${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`,
+      weekday: wd, dayNum: d, month: MONTHS[mo], label: DAYS[wd], isToday: i === 0,
+    };
+  });
+}
+
+function renderStep3(slotsContent?: string) {
+  if (!selService || !selBarber) return;
+  setProgress(3);
+
+  const dates = buildDates();
+  // Fechado: o barbeiro não trabalha naquele dia da semana, ou — no combo — o
+  // combo não vale nele. O servidor recusa os dois; aqui o cliente nem consegue
+  // escolher (`PENDENCIAS-ABERTAS.md` §2.16).
+  const fechado = (d: { weekday: number; dateStr: string }) =>
+    (barberWorkdays ? !barberWorkdays.has(d.weekday) : d.weekday === 0)
+    || (comboMode && !!comboData && !comboValeNaData(comboData.weekdays, d.dateStr));
+  const datePicker = dates.map(d => {
+    const closed = fechado(d);
+    const active = d.dateStr === selDate;
+    let cls: string;
+    if (closed)      cls = 'flex flex-col items-center py-3 px-2 rounded-md border border-white/5 min-w-[54px] opacity-30 cursor-not-allowed';
+    else if (active) cls = 'flex flex-col items-center py-3 px-2 rounded-md border border-teal bg-teal/10 text-teal-light min-w-[54px] cursor-pointer';
+    else             cls = 'flex flex-col items-center py-3 px-2 rounded-md border border-white/5 hover:border-teal/30 hover:bg-teal/5 text-neutral-300 hover:text-teal-light min-w-[54px] cursor-pointer transition-all duration-200';
+
+    return `<button ${closed ? 'disabled' : `data-action="select-date" data-value="${d.dateStr}"`}
+      class="${cls}">
+      <span class="text-xs text-neutral-500 mb-1 pointer-events-none">${d.label}</span>
+      <span class="text-base font-semibold leading-none pointer-events-none">${d.dayNum}</span>
+      <span class="text-xs text-neutral-500 mt-1 pointer-events-none">${d.isToday ? 'Hoje' : d.month}</span>
+    </button>`;
+  }).join('');
+
+  // Com os dias do barbeiro já carregados e nenhum aberto, "selecione um dia" seria
+  // um pedido impossível.
+  const nenhumAberto = barberWorkdays !== null && dates.every(fechado);
+  const defaultSlots = nenhumAberto
+    ? `<p class="text-neutral-500 text-sm text-center py-8">Nenhum dia disponível nos próximos 30 dias</p>`
+    : `<p class="text-neutral-500 text-sm text-center py-8">Selecione um dia acima para ver os horários</p>`;
+  // Sem o passo do barbeiro, o "Voltar" daqui é o do serviço — ou o do combo.
+  const voltar = temPassoDoBarbeiro()
+    ? backBtn(2, 'Alterar barbeiro')
+    : backBtn(1, comboMode ? 'Voltar ao combo' : 'Alterar serviço');
+
+  wizard.innerHTML = `
+    <div class="animate-fade-in">
+      ${stepHeader('Escolha o dia e horário', `${esc(selService.name)} · ${esc(selBarber.name)}`)}
+      <div class="overflow-x-auto no-scrollbar -mx-4 px-4 pb-2">
+        <div id="date-row" class="flex gap-2 w-max">${datePicker}</div>
+      </div>
+      <div id="slots-area" class="mt-6">${slotsContent ?? defaultSlots}</div>
+      ${voltar}
+    </div>`;
+
+  // Rola a data selecionada para o centro
+  if (selDate) {
+    requestAnimationFrame(() => {
+      wizard.querySelector(`[data-value="${selDate}"]`)
+        ?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    });
+  }
+}
+
+function renderSlots() {
+  const slotsArea = document.getElementById('slots-area');
+  if (!slotsArea) return;
+
+  if (loadedSlots.length === 0) {
+    slotsArea.innerHTML = `<p class="text-neutral-500 text-sm text-center py-8">Nenhum horário disponível neste dia</p>`;
+    return;
+  }
+
+  const btns = loadedSlots.map(s => {
+    const active = selSlot?.utc === s.utc;
+    const cls = active
+      ? 'px-4 py-3 bg-teal/20 border border-teal rounded-md text-sm font-semibold text-teal-light cursor-pointer transition-all'
+      : 'px-4 py-3 bg-dark-card border border-white/10 hover:border-teal/40 hover:bg-teal/5 hover:text-teal-light rounded-md text-sm font-medium text-neutral-400 cursor-pointer transition-all duration-200';
+    return `<button data-action="select-slot" data-value="${s.utc}" data-time="${s.time}" class="${cls}">${s.time}</button>`;
+  }).join('');
+
+  slotsArea.innerHTML = `<div class="grid grid-cols-4 sm:grid-cols-6 gap-2">${btns}</div>`;
+}
+
+async function loadSlots(date: string) {
+  const slotsArea = document.getElementById('slots-area');
+  if (slotsArea) slotsArea.innerHTML = spinner('Carregando horários...');
+
+  try {
+    const res = await fetch(`/api/slots?barberId=${selBarber!.id}&serviceId=${selService!.id}&date=${date}`);
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error ?? 'erro');
+    loadedSlots = data.slots;
+    renderSlots();
+  } catch (err: any) {
+    const slotsArea2 = document.getElementById('slots-area');
+    if (slotsArea2) slotsArea2.innerHTML = `<p class="text-red-400 text-sm text-center py-6">${esc(err.message || 'Erro ao carregar horários')}</p>`;
+  }
+}
+
+// ── Step 4: Dados do cliente ───────────────────────────────────────────────────
+function renderStep4() {
+  if (!selService || !selBarber || !selSlot) return;
+  setProgress(4);
+  // Gera nova chave de idempotência sempre que entra (ou re-entra) no step 4.
+  // Se o user voltar pra step 3 e mudar de slot, a chave anterior fica desatualizada
+  // e seria descartada de qualquer forma porque o slot mudou.
+  idempotencyKey = generateIdempotencyKey();
+
+  const [y, m, d] = selDate.split('-');
+  const dateDisp = `${d}/${m}/${y}`;
+
+  // Combo: preços com desconto e linha do produto a retirar.
+  const isCombo    = comboMode && !!selProduct;
+  const svcCents   = isCombo ? applyDiscountPct(selService.priceCents, comboPct) : selService.priceCents;
+  const prodCents  = isCombo ? applyDiscountPct(selProduct!.priceCents, comboPct) : 0;
+  const totalCents = svcCents + prodCents;
+
+  // ⚠️ Até 09/10/2026 a linha do combo dizia "Combo Boris" — o combo do Bayron — em
+  // toda barbearia, e o nome do produto entrava sem escape (`PENDENCIAS-ABERTAS.md`
+  // §2.24). O nome é o do combo que o cliente abriu.
+  const comboRows = isCombo ? `
+        <div class="flex justify-between text-sm">
+          <span class="text-neutral-400">Produto <span class="text-neutral-600">(retira na barbearia)</span></span>
+          <span class="text-neutral-200">${esc(selProduct!.name)}</span>
+        </div>
+        <div class="flex justify-between gap-3 text-xs">
+          <span class="text-teal-light/80">${esc(comboData?.name ?? 'Combo')}</span>
+          <span class="text-teal-light/80 whitespace-nowrap">${comboPct}% OFF aplicado</span>
+        </div>` : '';
+
+  wizard.innerHTML = `
+    <div class="animate-fade-in">
+      ${stepHeader('Seus dados', `${rotulo(4)} · Quase lá!`)}
+
+      <div class="bg-dark-card border border-white/5 rounded-md p-4 mb-6 space-y-2.5 text-sm">
+        <div class="flex justify-between text-sm">
+          <span class="text-neutral-400">Serviço</span>
+          <span class="text-neutral-200">${esc(selService.name)}</span>
+        </div>
+        ${comboRows}
+        <div class="flex justify-between text-sm">
+          <span class="text-neutral-400">Barbeiro</span>
+          <span class="text-neutral-200">${esc(selBarber.name)}</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-neutral-400">Data</span>
+          <span class="text-neutral-200">${dateDisp}</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-neutral-400">Horário</span>
+          <span class="text-neutral-200">${selSlot.time}</span>
+        </div>
+        <div class="flex justify-between text-sm border-t border-white/5 pt-2.5 mt-1">
+          <span class="text-neutral-300 font-medium">Total</span>
+          <span class="text-teal-light font-semibold">${fmt(totalCents)}</span>
+        </div>
+      </div>
+
+      <form id="booking-form" class="space-y-4">
+        <div>
+          <label class="block text-sm text-neutral-400 mb-1.5">Seu nome completo</label>
+          <input id="inp-name" type="text" placeholder="Ex: João Silva" autocomplete="name"
+            class="w-full bg-dark-surface border border-white/10 focus:border-teal rounded-md px-4 py-3 text-neutral-200 placeholder-neutral-600 outline-none transition-colors text-sm"
+            required minlength="2" maxlength="100" />
+        </div>
+        <div>
+          <label class="block text-sm text-neutral-400 mb-1.5">
+            WhatsApp <span class="text-neutral-600 font-normal">(para avisar a barbearia)</span>
+          </label>
+          <input id="inp-phone" type="tel" inputmode="numeric" placeholder="(88) 99999-0000" autocomplete="tel"
+            maxlength="15"
+            class="w-full bg-dark-surface border border-white/10 focus:border-teal rounded-md px-4 py-3 text-neutral-200 placeholder-neutral-600 outline-none transition-colors text-sm tabular-nums"
+            required />
+        </div>
+        <div>
+          <label class="block text-sm text-neutral-400 mb-1.5">
+            Data de nascimento <span class="text-neutral-600 font-normal">(para acessar seus agendamentos depois)</span>
+          </label>
+          <input id="inp-birthdate" type="text" inputmode="numeric" autocomplete="bday"
+            placeholder="dd/mm/aaaa" maxlength="10"
+            class="w-full bg-dark-surface border border-white/10 focus:border-teal rounded-md px-4 py-3 text-neutral-200 placeholder-neutral-600 outline-none transition-colors text-sm tabular-nums"
+            required />
+        </div>
+
+        <p id="form-error" class="hidden text-red-400 text-sm"></p>
+
+        <button type="submit" id="submit-btn"
+          class="w-full bg-teal hover:bg-teal-hover text-white font-bold tracking-widest uppercase px-8 py-4 rounded-md transition-colors duration-300 mt-2 disabled:opacity-60 disabled:cursor-not-allowed">
+          Confirmar agendamento
+        </button>
+      </form>
+
+      ${backBtn(3, 'Alterar horário')}
+    </div>`;
+
+  wizard.querySelector('#booking-form')!.addEventListener('submit', handleSubmit);
+
+  // Máscara dd/mm/aaaa no campo de data de nascimento
+  const bd = document.getElementById('inp-birthdate') as HTMLInputElement | null;
+  if (bd) {
+    bd.addEventListener('input', () => {
+      const d = bd.value.replace(/\D/g, '').slice(0, 8);
+      if (d.length === 0)      bd.value = '';
+      else if (d.length <= 2)  bd.value = d;
+      else if (d.length <= 4)  bd.value = `${d.slice(0, 2)}/${d.slice(2)}`;
+      else                     bd.value = `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+    });
+  }
+
+  // Máscara (DD) 99999-9999 no campo de WhatsApp (aceita fixo de 10 dígitos)
+  const ph = document.getElementById('inp-phone') as HTMLInputElement | null;
+  if (ph) {
+    ph.addEventListener('input', () => {
+      const d = ph.value.replace(/\D/g, '').slice(0, 11);
+      if (d.length === 0)      ph.value = '';
+      else if (d.length <= 2)  ph.value = `(${d}`;
+      else if (d.length <= 6)  ph.value = `(${d.slice(0, 2)}) ${d.slice(2)}`;
+      else if (d.length <= 10) ph.value = `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+      else                     ph.value = `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+    });
+  }
+
+  // Foca no campo nome
+  requestAnimationFrame(() => (document.getElementById('inp-name') as HTMLInputElement)?.focus());
+}
+
+// Converte dd/mm/aaaa pra YYYY-MM-DD; retorna null se inválido ou fora da faixa (5–100 anos).
+function parseBirthdate(raw: string): string | null {
+  const m = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const dd = parseInt(m[1], 10);
+  const mm = parseInt(m[2], 10);
+  const yyyy = parseInt(m[3], 10);
+  if (mm < 1 || mm > 12) return null;
+  const dt = new Date(yyyy, mm - 1, dd);
+  if (dt.getFullYear() !== yyyy || dt.getMonth() !== mm - 1 || dt.getDate() !== dd) return null;
+  const now = new Date();
+  const min = new Date(now.getFullYear() - 100, now.getMonth(), now.getDate());
+  const max = new Date(now.getFullYear() - 5,   now.getMonth(), now.getDate());
+  if (dt < min || dt > max) return null;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${yyyy}-${pad(mm)}-${pad(dd)}`;
+}
+
+async function handleSubmit(e: Event) {
+  e.preventDefault();
+  const name      = (document.getElementById('inp-name')      as HTMLInputElement).value.trim();
+  const phone     = (document.getElementById('inp-phone')     as HTMLInputElement).value.trim();
+  const birthdateRaw = (document.getElementById('inp-birthdate') as HTMLInputElement).value;
+  const birthdate = parseBirthdate(birthdateRaw);
+  const errEl  = document.getElementById('form-error')!;
+  const btn    = document.getElementById('submit-btn') as HTMLButtonElement;
+
+  if (name.length < 2)  { errEl.textContent = 'Nome muito curto (mínimo 2 letras)'; errEl.classList.remove('hidden'); return; }
+  if (!/^\d{10,11}$/.test(phone.replace(/\D/g, ''))) { errEl.textContent = 'WhatsApp inválido (DDD + número)'; errEl.classList.remove('hidden'); return; }
+  if (!birthdate) { errEl.textContent = 'Data de nascimento inválida. Use o formato dd/mm/aaaa.'; errEl.classList.remove('hidden'); return; }
+
+  errEl.classList.add('hidden');
+  btn.disabled = true;
+  btn.textContent = 'Confirmando...';
+
+  try {
+    const res = await fetch('/api/appointments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        barberId:          selBarber!.id,
+        serviceId:         selService!.id,
+        customerName:      name,
+        customerPhone:     phone,
+        customerBirthdate: birthdate,
+        startsAt:          selSlot!.utc,
+        idempotencyKey:    idempotencyKey,
+        ...(comboMode && comboId ? { comboId } : {}),
+      }),
+    });
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      errEl.textContent = data.error ?? 'Erro ao criar agendamento';
+      errEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Confirmar agendamento';
+      return;
+    }
+
+    window.location.href = `/a/${data.manageToken}`;
+  } catch {
+    errEl.textContent = 'Erro de conexão. Tente novamente.';
+    errEl.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = 'Confirmar agendamento';
+  }
+}
+
+// ── Delegação de eventos ──────────────────────────────────────────────────────
+wizard.addEventListener('click', async (e) => {
+  const target = e.target as HTMLElement;
+  const btn = target.closest('[data-action]') as HTMLElement | null;
+  if (!btn || btn.hasAttribute('disabled')) return;
+
+  const action = btn.dataset.action!;
+  const id     = btn.dataset.id ? parseInt(btn.dataset.id) : 0;
+  const val    = btn.dataset.value ?? '';
+  const slug   = btn.dataset.slug ?? '';
+
+  switch (action) {
+    case 'retry':
+      initStep1();
+      break;
+
+    case 'combo-continue':
+      if (selService && selProduct) avancarDoServico();
+      break;
+
+    case 'select-service':
+      selService = services.find(s => s.id === id) ?? null;
+      if (selService) avancarDoServico();
+      break;
+
+    case 'select-barber': {
+      const barbeiro = selService?.barbers.find(b => b.id === id);
+      if (barbeiro) await escolherBarbeiro(barbeiro);
+      break;
+    }
+
+    case 'select-date':
+      selDate = val;
+      selSlot = null;
+      loadedSlots = [];
+      // Re-renderiza o picker (atualiza destaque) e carrega slots
+      renderStep3(spinner('Carregando horários...'));
+      await loadSlots(val);
+      break;
+
+    case 'select-slot':
+      selSlot = { utc: val, time: btn.dataset.time! };
+      renderStep4();
+      break;
+
+    case 'go-back':
+      voltarPara(parseInt(val));
+      break;
+  }
+});
+
+// ── Init ─────────────────────────
+initStep1();
+
+// ⚠️ Até o Astro 6 este bloco não tinha o fechamento, e o compilador antigo fechava
+// sozinho no fim do arquivo. O do Astro 7 recusa o build sem ele.
+</script>
