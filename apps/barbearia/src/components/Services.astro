@@ -6,6 +6,7 @@ import { db } from '../db/index';
 import { services as servicesTable } from '../db/schema';
 import { getSettings } from '../lib/settings';
 import { tenantAtual } from '../lib/tenant';
+import { ehOBayron } from '../lib/bayron';
 
 const cfg = await getSettings();
 
@@ -21,7 +22,7 @@ const cfg = await getSettings();
  * Para unificar: uma coluna `categoria` em `services` e o painel deixando o dono
  * organizar. Aí este `categories` some.
  */
-const BAYRON = cfg.shortName === "Bayron";
+const BAYRON = ehOBayron(tenantAtual());
 
 const doBanco = BAYRON ? [] : await db
   .select({ name: servicesTable.name, slug: servicesTable.slug, priceCents: servicesTable.priceCents })

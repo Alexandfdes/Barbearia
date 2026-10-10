@@ -75,7 +75,9 @@ describe('nenhum site usa o endereço ou a imagem de outra barbearia', () => {
     const linhas = layout.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l));
     const comOg = linhas.filter((l) => /og\.jpg/.test(l));
     expect(comOg.length).toBeLessThanOrEqual(1);
-    for (const l of comOg) expect(l).toMatch(/shortName === 'Bayron'/);
+    // Desde 09/10/2026 o interruptor é o endereço, e não o nome que o dono edita
+    // (`PENDENCIAS-ABERTAS.md` §4.7, `tests/bayron-pelo-endereco.test.ts`).
+    for (const l of comOg) expect(l).toMatch(/ehOBayron\(tenantAtual\(\)\)/);
   });
 
   it('nenhuma tela traz "Barbearia Bayron" escrito no código', () => {

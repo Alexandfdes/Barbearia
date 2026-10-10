@@ -14,6 +14,7 @@
  * Lista fechada e curta, de propósito. Nome novo entra com o motivo.
  */
 import { NOME_PRODUTO } from './produto.js';
+import { SLUG_DO_BAYRON } from './bayron.js';
 
 /** Um nome como rótulo de endereço: "Barbearia São José" → "barbearia-sao-jose". */
 export function rotuloDoNome(nome: string): string {
@@ -37,6 +38,10 @@ export const ENDERECOS_RESERVADOS: ReadonlySet<string> = new Set([
   'dev', 'teste', 'staging',
   // O nome do produto — o de agora e o de antes de 08/10/2026.
   rotuloDoNome(NOME_PRODUTO), 'barbearianoar', 'barbearia-no-ar',
+  // O Bayron: o conteúdo dele cravado no repositório vai para quem tem este
+  // endereço (`lib/bayron.ts`). O dele nasce da migração, não do cadastro — então
+  // reservar não o atrapalha, e num banco ainda sem ele ninguém o pega (09/10/2026).
+  SLUG_DO_BAYRON,
 ]);
 
 export function enderecoReservado(slug: string): boolean {

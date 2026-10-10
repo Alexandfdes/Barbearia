@@ -1,5 +1,7 @@
 ---
 import { getSettings } from '../lib/settings';
+import { tenantAtual } from '../lib/tenant';
+import { ehOBayron } from '../lib/bayron';
 
 const s = await getSettings();
 import faqs from '../data/faq.json';
@@ -30,7 +32,7 @@ const ldJson = {
  *
  * Para generalizar, as sete perguntas são universais, mas as respostas não — precisam vir do painel.
  */
-const BAYRON = s.shortName === "Bayron";
+const BAYRON = ehOBayron(tenantAtual());
 const mostrar = BAYRON && faqs.length > 0;
 
 ---

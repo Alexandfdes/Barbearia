@@ -1,12 +1,14 @@
 ---
 import { getSettings, waUrl } from '../lib/settings';
+import { tenantAtual } from '../lib/tenant';
+import { ehOBayron } from '../lib/bayron';
 import { srcsetDe } from '../lib/uploads';
 import { Image } from 'astro:assets';
 import logoSrc from '../assets/Logo-Bayron3.png';
 
 const s = await getSettings();
 // Mesma regra do Header: o logo empacotado é do Bayron; ninguém mais o usa.
-const BAYRON = s.shortName === "Bayron";
+const BAYRON = ehOBayron(tenantAtual());
 const temHorario = s.businessHours.length > 0;
 const temLogo = Boolean(s.logoPath) || BAYRON;
 const currentYear = new Date().getFullYear();

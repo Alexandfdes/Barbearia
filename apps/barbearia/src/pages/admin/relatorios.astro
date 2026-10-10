@@ -10,6 +10,7 @@ import { and, gte, lt, eq, ne, or, isNull } from 'drizzle-orm';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { computeOccupancy } from '../../lib/occupancy.js';
 import { tenantDaSessao } from '../../lib/tenant.js';
+import { ehOBayron } from '../../lib/bayron.js';
 import { getSettings } from '../../lib/settings.js';
 import { reais } from '../../lib/dinheiro.js';
 import { TZ } from '../../lib/timezone.js';
@@ -25,7 +26,7 @@ const tenant = tenantDaSessao(session);
 // componentes do site (`PENDENCIAS-ABERTAS.md` §4.7).
 const cfgImpressao = await getSettings(tenant);
 const logoImpressao = cfgImpressao.logoPath
-  || (cfgImpressao.shortName === 'Bayron' ? printLogo.src : null);
+  || (ehOBayron(tenant) ? printLogo.src : null);
 
 // Admin vê o negócio inteiro; barbeiro vê só os próprios dados.
 const isAdmin = session.role === 'admin';

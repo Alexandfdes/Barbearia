@@ -11,6 +11,7 @@ import { db } from '../db/index';
 import { products } from '../db/schema';
 import { getSettings } from '../lib/settings';
 import { tenantAtual } from '../lib/tenant';
+import { ehOBayron } from '../lib/bayron';
 
 const s = await getSettings();
 // ⚠️ O filtro por barbearia é a parede da aplicação; o RLS é a segunda. Esta
@@ -19,7 +20,7 @@ const s = await getSettings();
 const temProduto = (await db.select({ id: products.id }).from(products)
   .where(and(eq(products.active, true), eq(products.tenantId, tenantAtual().id)))).length > 0;
 
-const BAYRON = s.shortName === "Bayron";
+const BAYRON = ehOBayron(tenantAtual());
 ---
 
 {temProduto && (
