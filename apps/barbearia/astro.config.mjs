@@ -11,11 +11,16 @@ import tailwindcss from '@tailwindcss/vite';
 // silenciosamente — que era o risco do modo 'static'.
 export default defineConfig({
   output: 'server',
-  // Atrás do proxy do EasyPanel o Host chega diferente do Origin, e a proteção
-  // CSRF nativa do Astro (checkOrigin) barra POST/PATCH/DELETE de formulário com
-  // "Cross-site ... form submissions are forbidden". Desligamos aqui porque a
-  // proteção CSRF já é garantida pelos cookies de sessão (HttpOnly + SameSite=Lax):
-  // o navegador não envia o cookie em requisições de escrita cross-site.
+  // Atrás do proxy do EasyPanel, a origem que o Astro monta a partir da requisição
+  // não batia com a do navegador, e a proteção CSRF nativa (checkOrigin) barrava
+  // POST/PATCH/DELETE de formulário com "Cross-site ... form submissions are
+  // forbidden". Por isso, desligada.
+  //
+  // ⚠️ Até 09/10/2026 este comentário dizia que o SameSite=Lax do cookie bastava.
+  // Basta contra outro SITE, não contra outro SUBDOMÍNIO — e os sites das
+  // barbearias são subdomínios do painel. Quem confere a origem agora é o
+  // `src/middleware.ts`, pelo nome do endereço (`src/lib/origem.ts`,
+  // `docs/PENDENCIAS-ABERTAS.md` §2.30).
   security: { checkOrigin: false },
   adapter: node({ mode: 'standalone' }),
   // ⚠️ Desde o Astro 7 o padrão é 'jsx', que apaga o espaço entre elementos de

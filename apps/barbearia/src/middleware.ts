@@ -39,9 +39,21 @@ import {
 import { getSettings } from './lib/settings.js';
 import { respostaForaDoAr } from './lib/siteForaDoAr.js';
 import { TELA_DE_ASSINATURA } from './lib/assinatura.js';
+import { motivoDaRecusa, respostaDaRecusa } from './lib/origem.js';
 
 export const onRequest = defineMiddleware(async (contexto, next) => {
   const caminho = new URL(contexto.request.url).pathname;
+
+  // ⚠️ ANTES DE TUDO: requisição que muda dado só passa vinda do próprio endereço.
+  // O `SameSite` do cookie não separa subdomínios, e os sites das barbearias são
+  // subdomínios do painel — sem isto, um script no site de uma barbearia agia no
+  // painel de outra (`lib/origem.ts`, `docs/PENDENCIAS-ABERTAS.md` §2.30). Fica antes
+  // do desvio das tarefas e de qualquer rota: nenhuma escapa, nem a que vier depois.
+  const recusa = motivoDaRecusa(contexto.request);
+  if (recusa) {
+    console.warn(`[origem] recusado ${contexto.request.method} ${caminho}: ${recusa}`);
+    return respostaDaRecusa(caminho);
+  }
 
   // As tarefas agendadas (`pages/api/tarefas/`) não são de barbearia nenhuma, e
   // quem as chama é o daemon, pela porta local — `Host: 127.0.0.1`. Sem este
