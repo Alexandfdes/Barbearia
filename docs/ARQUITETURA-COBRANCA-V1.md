@@ -474,8 +474,10 @@ uma antiga, removida quando o cartão foi trocado, não atrasa ninguém.
 
 **O cancelar:** em dia, no ar até o fim do período pago; com a cobrança atrasada — na carência
 ou fora do ar —, só o que restava da carência, e a mensalidade que falhou some com a assinatura.
-⚠️ As duas regras foram decididas na implementação e esperam a sua confirmação
-(`PENDENCIAS-ABERTAS.md` §4.14).
+As duas regras foram decididas na implementação e confirmadas pelo dono em 10/10/2026
+(`PENDENCIAS-ABERTAS.md` §4.14). **E quem sai do ar pela cobrança sem cancelar** continua com a
+assinatura viva: a Asaas tenta o cartão nos vencimentos seguintes, e o pagamento que passar põe a
+barbearia em dia. Rejeitado no mesmo dia: remover a assinatura depois de 30 dias fora do ar.
 
 **Quando o processamento falha.** O erro que é do próprio evento — um dado em conflito, um dado
 que o banco recusa — se repetiria em toda reentrega: fica guardado com o motivo e responde 200,

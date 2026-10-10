@@ -11,13 +11,17 @@
  * barbearia de `trial` a `active`, a cobrança que falha a `past_due`, a paga de
  * volta a `active`.
  *
- * ⚠️ DECIDIDO NA IMPLEMENTAÇÃO, EM 10/10/2026 — falta o dono confirmar
+ * DECIDIDO NA IMPLEMENTAÇÃO E CONFIRMADO PELO DONO EM 10/10/2026
  * (`docs/PENDENCIAS-ABERTAS.md` §4.14): quem cancela fica no ar até o fim do
  * período pago, e depois sai do ar como quem não pagou — sem carência, e sem
  * apagar nada; assinando de novo, volta. É o que a jornada descrevia como o
  * comum no autoatendimento (`docs/JORNADA-DO-BARBEIRO.md` §2.10). Com a
  * cobrança atrasada também se cancela — senão a Asaas seguiria cobrando o
  * cartão de quem quis sair —, e o site fica só o que restava da carência.
+ * E quem sai do ar pela cobrança SEM cancelar continua com a assinatura viva: a
+ * Asaas tenta o cartão nos vencimentos seguintes, e o pagamento que passar põe a
+ * barbearia em dia. Rejeitado no mesmo dia: remover a assinatura depois de 30
+ * dias fora do ar.
  *
  * ── O QUE A ASAAS NÃO GARANTE, E COMO ISTO SE DEFENDE ────────────────────────
  *
