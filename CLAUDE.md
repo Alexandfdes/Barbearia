@@ -130,6 +130,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **Dependências:** o npm 10 quebra ao mexer nelas (`edgesOut`). Gere o lock com
   `npx npm@11 install` e regrave com o npm 10 (`npm install`), que é o do Docker; o `npm ci`
   dos dois tem que passar (`docs/PENDENCIAS-ABERTAS.md` §2.29).
+- **Painel do operador:** `/operador`, só no endereço do painel e só com `OPERADOR_SENHA_HASH`
+  (gere com `npm run operador:senha`); sem ela, 404. Roda como dono do banco: o que ele pode
+  mostrar está em `apps/barbearia/src/lib/operadorBarbearias.ts` (`docs/PENDENCIAS-ABERTAS.md` §3.9).
 - **Requisição que muda dado só passa vinda do próprio endereço:** o `src/middleware.ts`
   confere a `Origin` antes de qualquer rota (`src/lib/origem.ts`). Rota nova não faz nada;
   integração de fora, sem navegador, chega sem `Origin` e passa. Não afrouxe para aceitar
