@@ -558,6 +558,13 @@ nova de falha. A 1 cliente por mês, o retorno chega depois do oitavo. Construir
 
 ### 7.3 Suspensão: manual na V1
 
+> **11/10/2026 — o "você clica" existe:** o painel do operador (`/operador`,
+> `PENDENCIAS-ABERTAS.md` §3.9) tira do ar, reativa e estende o teste, com cada ação
+> registrada. A suspensão por falta de pagamento não espera clique desde 08/10/2026 — sai do
+> relógio (`PENDENCIAS-ABERTAS.md` §3.5); o clique ficou para o caso à mão. E o painel não
+> avisa ninguém: mostra a fase de cada barbearia e os eventos da Asaas que pedem olho, quando
+> você abre — o alerta continua no `PENDENCIAS-ABERTAS.md` §3.4.
+
 O painel detecta os 15 dias e **avisa você**. Você clica. Não automatize ainda:
 
 - A 15 clientes, suspensão acontece talvez uma vez por mês.

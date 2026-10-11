@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-10.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-11.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -33,6 +33,7 @@
 | **08/10** | **O desenho do cadastro e da cobrança:** um layout com a cor do dono; o cartão no fim do teste; a cobrança como módulo do app; e-mail para a senha e os avisos; 3 dias de carência; só mensal. **Feitos no mesmo dia:** o cadastro (§4.13, §4.16 e §4.17) e o teste de 7 dias, com a carência e o site fora do ar (§1.3, §3.5 e §4.14). **Em 09/10:** o e-mail — a senha nova, os avisos do teste e da cobrança e a troca de senha derrubando as sessões (§4.17 e §2.13) | `PLANO-PRODUTIZACAO.md` §13 |
 | **10/10** | **A cobrança no código** — o cartão pelo Checkout da Asaas, o webhook e o cancelar —, **sem a prova no sandbox**. E três regras decididas na implementação e **confirmadas por você no mesmo dia**: quem cancela em dia fica no ar até o fim do período pago, sem carência; quem cancela com a cobrança atrasada fica só o que restava da carência, e a mensalidade que falhou deixa de existir; e quem sai do ar pela cobrança sem cancelar continua com a assinatura viva — a Asaas tenta o cartão de novo, e o pagamento que passar traz o site de volta. Rejeitado: remover a assinatura depois de 30 dias fora do ar | `PENDENCIAS-ABERTAS.md` §4.14 |
 | **11/10** | **As quatro decisões do roteiro do dono:** o e-mail ao barbeiro do horário e ao dono quando o cliente agenda, desmarca ou remarca pelo site — cada um desligável na Equipe —; a data de nascimento continua sendo a senha da área do cliente, e o termo tem de dizer; o dono confere o ponto do mapa no Início; e o e-mail que não se troca fora do ar fica como está. O e-mail e o mapa foram feitos no mesmo dia | `PENDENCIAS-ABERTAS.md` §2.33 |
+| **11/10** | **O painel do operador:** a lista das barbearias, com a fase de cada uma, e três ações — estender o teste, tirar do ar, reativar —, cada uma registrada. **Entra só com senha, sem segundo fator: o risco foi dito e aceito por você.** Feito no mesmo dia. E o aviso sobre autorização de quem aparece nas fotos da galeria: não precisa — a responsabilidade vai para o termo | `PENDENCIAS-ABERTAS.md` §3.9 e `PENDENCIAS-ABERTAS.md` §1.2 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -175,6 +176,13 @@ que tinha ido embora.
 barbearia entra com o telefone e a data de nascimento, e vê os agendamentos dele, com o link
 que desmarca e remarca. Mantido por você, com o risco: quem sabe os dois de alguém entra no
 lugar dele. O termo do dono e o aviso de privacidade ao cliente têm de dizer.
+
+**11/10/2026 — as fotos da galeria, para o termo.** O carrossel do site mostra as fotos que o
+dono sobe em `/admin/galeria` — cortes de cliente, quase sempre com o rosto. Perguntado se a
+tela da galeria devia lembrar o dono de que precisa da autorização de quem aparece: **não
+precisa, decidido por você.** Sem o aviso na tela, sobra o termo: ele tem de dizer que a
+autorização é do dono, que tira a foto e a publica — e o que acontece quando um cliente pede
+para tirar a dele (o dono apaga na galeria; a foto sai do site na hora).
 
 Pergunta nova, que o teste grátis cria: **o que acontece com os dados de quem testou e
 não pagou?** Nome, telefone e data de nascimento de clientes de terceiro, guardados sem
@@ -1177,7 +1185,7 @@ endereço estavam **escritos**, sem comparação nenhuma:
 | Endereço canônico, `og:url`, e o `@id` e o `url` do `schema.org` | `https://bayron.alexandrefdev.tech`, a constante `SITE_URL` de `config.ts` | o endereço da barbearia servida (`lib/tenant.ts:295-299`): domínio próprio, subdomínio do produto ou, em desenvolvimento, o da requisição. Usado em `layouts/Layout.astro:27-28` e `components/Testimonials.astro:16` |
 | Prévia do link (`og:image`) | a foto do Bayron (`/og.jpg`), no link de quem não subiu imagem | a imagem de compartilhamento da barbearia, senão a capa dela; sem nenhuma das duas, sem imagem. O `/og.jpg` só no site do Bayron (`layouts/Layout.astro:37-40`) |
 | Convite de calendário | link e identificador em `bayron.alexandrefdev.tech`, arquivo `bayron-….ics` | o endereço da barbearia (`api/appointments/by-token/[token]/ics.ts:69-70`), arquivo `agendamento-….ics` (`api/appointments/by-token/[token]/ics.ts:76`) |
-| `/portal`, `/cliente/entrar` e `/cliente` | *"Barbearia Bayron"* no título da aba, na descrição e no topo | o nome da barbearia (`portal.astro:21`, `cliente/entrar.astro:27`, `cliente/index.astro:26`) |
+| `/portal`, `/cliente/entrar` e `/cliente` | *"Barbearia Bayron"* no título da aba, na descrição e no topo | o nome da barbearia (`portal.astro:23`, `cliente/entrar.astro:27`, `cliente/index.astro:26`) |
 | Relatório impresso | *"Barbearia Bayron — Relatório"*, com a logo dele | o nome e a logo da barbearia; a logo empacotada, só no Bayron (`admin/relatorios.astro:28-30`, `admin/relatorios.astro:335-337`) |
 | Rodapé do site | o slogan *"Respeito e precisão em cada detalhe."* | só no site do Bayron (`components/Footer.astro:211-216`) |
 
@@ -1191,7 +1199,9 @@ Guarda: `tests/endereco-do-site.test.ts` — o endereço de cada caso (domínio 
 subdomínio, desenvolvimento, sem barbearia) e varreduras que reprovam importar uma constante de
 endereço, o domínio do Bayron escrito em qualquer arquivo, *"Barbearia Bayron"* no código de
 qualquer tela e o `/og.jpg` fora da comparação, com controle de que a varredura encontra os
-arquivos. E `tests/whatsapp.test.ts`: as mensagens assinam com o nome que recebem, sem nome não
+arquivos. ⚠️ *A varredura procurava só a frase "Barbearia Bayron", e o "Portal Bayron" e o
+"Equipe Bayron" do mesmo `/portal` passaram por ela até 11/10/2026 (`PENDENCIAS-ABERTAS.md`
+§2.34). Desde então ela reprova a palavra "Bayron" sozinha.* E `tests/whatsapp.test.ts`: as mensagens assinam com o nome que recebem, sem nome não
 inventam um, e a agenda passa o dela.
 
 ### 2.27 ✅ `[TÉCNICO]` A agenda do dia vivia num expediente fixo de 08:00 às 19:00 — RESOLVIDO em 27/09/2026
@@ -1531,6 +1541,24 @@ no teste; o desmarcar virou um comando só, e o caso em sequência passou a pega
 build: 26 conferências no navegador, e a 0011 aplicada pelo `scripts/startup.mjs` sobre um
 banco parado na 0010.
 
+### 2.34 ✅ `[TÉCNICO]` O portal de toda barbearia dizia "Portal Bayron" — RESOLVIDO em 11/10/2026
+
+**Achado por você**, no mesmo roteiro, com print: o `/portal` da "tour-teste" — a página do
+botão "Portal", no topo de todo site — tinha o título *"Portal Bayron"* e o cartão *"Equipe
+Bayron"*, numa barbearia que não é dele. O conserto de 27/09 (§2.26) trocou a aba, a
+descrição e o topo dessa página e deixou os dois: a guarda procurava só a frase *"Barbearia
+Bayron"*, e nenhum dos dois a contém.
+
+**Agora** o título e o cartão dizem o nome curto da barbearia, ou o nome inteiro quando o
+curto está vazio (`apps/barbearia/src/pages/portal.astro:23-24`). A guarda de
+`apps/barbearia/tests/endereco-do-site.test.ts` passou a reprovar a **palavra** "Bayron"
+sozinha no código de qualquer tela — comentário não conta —, com controle: ela pega
+*"Portal Bayron"* e *"Equipe Bayron"*, e deixa passar `ehOBayron(t)`, `avatarBayron` e o nome
+do arquivo da logo, que são do mecanismo do §4.7, não texto na tela. Conferido na varredura:
+os dois do portal eram os únicos. Desfeito o conserto, cada um dos dois fica vermelho; e
+contra o build, o portal de uma barbearia recém-cadastrada diz o nome dela, e "Bayron" não
+aparece na página (o E2E do §3.9).
+
 ---
 
 ## 3. Operação com vários clientes
@@ -1579,7 +1607,9 @@ o mínimo: ping externo por instância e alerta no seu celular.
 vencidos (`apps/barbearia/src/lib/situacao.ts`, migration 0007). O site responde 503 com o
 aviso e o WhatsApp da barbearia (`apps/barbearia/src/lib/siteForaDoAr.ts`), o painel abre só
 a tela de assinatura, e nada é apagado. Religar é o status voltar a `active` — o que o
-webhook da Asaas vai fazer (§4.14); até lá, à mão, no `psql`.
+webhook da Asaas faz quando o pagamento entra (§4.14, no código desde 10/10/2026). ~~Até lá, à
+mão, no `psql`~~ — desde 11/10/2026, a barbearia tirada do ar à mão e o teste que precisa de
+mais dias se resolvem no painel do operador (§3.9), sem `psql`.
 
 *Como estava:* dependia da decisão §1.3. Se a política fosse cortar, precisava de um jeito
 de suspender a instância sem apagar dados e de religar em um clique.
@@ -1665,6 +1695,86 @@ seu push; o que rodou foi a suíte que ele chama, aqui, e os 11 casos de
 ⚠️ **A primeira execução pode ficar vermelha por motivo que aqui não aparece:** o runner do
 GitHub não é este container. O `pg_dump` dos testes do backup é instalado pelo próprio job, e a
 imagem do Postgres é a do `docker-compose.test.yml` — mas é a primeira vez que roda lá.
+
+### 3.9 ✅ `[TÉCNICO]` Ver e operar as barbearias sem `psql` — o painel do operador, FEITO em 11/10/2026
+
+**A pergunta, sua, em 11/10:** *"como faço para ver as barbearias ativas com sites ativos?
+tem algum painel?"* Não tinha. O painel de cada barbearia mostra só a dela, e a única visão do
+todo era o `psql` em produção — que também era o único jeito de estender um teste, tirar do ar
+(§4.16) ou religar (§3.5). **Decidido por você no mesmo dia:** um painel já com as ações, cada
+uma registrada; **entrar só com a senha**.
+
+**O que ele mostra** (`/operador`, `apps/barbearia/src/pages/operador.astro`): cada barbearia
+com a fase de agora — em dia, teste até tal dia, carência, fora do ar e por quê, encerrada —,
+o link do site, o nome, o WhatsApp e o e-mail do dono, quantos barbeiros ativos, quantos
+agendamentos nos últimos 30 dias e o dia do último, e se tem assinatura na Asaas. Em cima, a
+contagem por fase — *"N cadastradas · M no ar"* —, com filtro e busca. Embaixo, os eventos da
+Asaas que o webhook não resolveu sozinho e as últimas ações. **Nenhum dado de cliente de
+barbearia** — nome, telefone, nascimento de quem agenda: só contagens
+(`apps/barbearia/src/lib/operadorBarbearias.ts`).
+
+**As três ações**, cada uma numa transação, com a linha da barbearia travada e gravada em
+`acoes_do_operador` (migration 0012) na mesma transação:
+
+- **Estender o teste** — de 1 a 60 dias, contados do último dia do teste ou de hoje, se ele já
+  venceu (`fimDoTesteEstendido`, em `apps/barbearia/src/lib/situacao.ts`). Só para quem está no
+  teste: quem paga não tem teste; quem foi tirada do ar à mão, reativa primeiro. A que estava
+  fora do ar pelo teste volta na hora.
+- **Tirar do ar** — exige digitar o endereço dela; o motivo fica no registro. O site passa a
+  dizer "temporariamente indisponível" e o painel do dono abre só a assinatura, como no §3.5.
+  O webhook não religa quem foi tirada à mão (`MEXE_SOZINHO`, em `apps/barbearia/src/lib/cobranca.ts`).
+- **Reativar** — volta com o status que tinha, lido do registro, e com os prazos de antes: o
+  relógio não parou, e o teste que venceu durante a suspensão volta vencido — a tela diz, e o
+  caminho é estender. Sem registro (tirada do ar fora do painel), ele pergunta: em teste — com
+  7 dias, se não havia prazo — ou em dia.
+
+As três valem **na hora**: a ação descarta o cache de barbearias, que segurava o status por até
+30 segundos.
+
+**Como ligar:** sem a variável `OPERADOR_SENHA_HASH`, a página não existe — 404, como qualquer
+endereço inventado. Na sua máquina, `npm run operador:senha` (em `apps/barbearia`) pede a senha
+duas vezes sem mostrar e imprime uma linha; ela vai para as variáveis do serviço e, se quiser o
+painel no desenvolvimento, para o `.env`. Reinicie o app. O painel abre **só no endereço do
+painel** (`PAINEL_URL`, ou `painel.<DOMINIO_BASE>`) — no endereço de qualquer barbearia,
+`/operador` é 404. O endereço de produção e o passo a passo do EasyPanel ficam no projeto do
+claude.ai, não aqui: este repositório é público.
+
+⚠️ **Os riscos — o primeiro, aceito por você:**
+
+- **Só a senha, sem segundo fator.** Quem a tiver tira qualquer barbearia do ar e dá teste a
+  quem quiser. O que existe em volta: hash lento (scrypt), no máximo 5 tentativas por IP e 20 no
+  total a cada 15 minutos, sessão de 8 horas, e **toda entrada gravada com o IP** — olhe as
+  últimas ações de vez em quando: uma entrada que não foi sua aparece ali. Trocar a senha (o
+  hash) derruba quem estiver dentro. *Rejeitado por você:* o segundo fator.
+- **O limite mora na memória do processo** (`apps/barbearia/src/lib/rateLimit.ts`): zera a
+  cada deploy. E qualquer um pode gastar as 20 tentativas do total e te deixar 15 minutos sem
+  entrar — a troca de segurar quem testa senhas de muitos IPs.
+- **Tirar do ar não cancela a assinatura na Asaas.** Quem paga por cartão continua sendo
+  cobrado até alguém cancelar lá. A tela avisa antes do botão, e o pagamento que chegar para
+  barbearia tirada à mão aparece em "eventos que pedem olho" — o webhook o ignora de propósito.
+- **O hash fica nas variáveis do servidor:** quem vê o EasyPanel vê o hash, e com senha fraca dá
+  para adivinhar fora do servidor. O script recusa menos de 12 caracteres; use uma frase de
+  quatro ou cinco palavras.
+- **A lista carrega tudo de uma vez:** serve para dezenas de barbearias, não para milhares.
+
+*Não feito, sugestões:* o segundo fator; estender a carência de quem tem a cobrança
+atrasada; cancelar a assinatura na Asaas pelo próprio painel; encerrar uma barbearia; e o
+alerta no celular (§3.4) — o painel mostra, mas não chama.
+
+**Guarda:** `apps/barbearia/tests/operador.test.ts` — 39 casos: a senha certa e só ela, o hash
+do script aceito pelo app, os 404 fora do endereço e sem a variável, o limite por IP e o total,
+o cookie de barbeiro que não serve de operador, a troca de senha derrubando a sessão, cada
+ação mudando só a barbearia escolhida e valendo na hora, e a lista sem dado de cliente. 32
+reintroduções de defeito, as 32 vermelhas — duas só depois de reforçar o teste: a chave do
+lacre separada da do painel, e reativar quem está no ar. A lista fechada de quem roda como dono
+do banco ganhou um arquivo, com o motivo (`apps/barbearia/tests/rls.test.ts`), e a de páginas
+públicas que não perguntam o endereço, as quatro do operador (`apps/barbearia/tests/host-tenant.test.ts`).
+Contra o build: 35 conferências no navegador — entrar, filtrar, tirar do ar e ver o site
+sair, reativar e ver voltar, vencer o teste e estender, sair —, a 0012 aplicada pelo
+`scripts/startup.mjs` sobre um banco parado na 0011, e o 404 sem a variável. **O E2E achou um
+defeito que a suíte não via:** a página mandava `Referrer-Policy: no-referrer`, e com ela o
+navegador manda `Origin: null` no POST de formulário — o "Sair" era recusado pela conferência de
+origem (§2.30). Virou `same-origin`, que para fora dá o mesmo.
 
 ## 4. Especificações que faltam escrever
 
@@ -2092,7 +2202,7 @@ vinho, o botão do combo continuava verde — visto no build anterior.
 
 **Feito,** com os sete consertos do primeiro minuto, que você pediu em 09/10/2026; o tom é o que
 o código já tinha como padrão. Os quatro lugares são o `ACCENT_PADRAO` (`styles/global.css:22`,
-`lib/settings.ts:92`, `db/schema.ts:344`), e o botão do combo usa as cores do tema
+`lib/settings.ts:92`, `db/schema.ts:362`), e o botão do combo usa as cores do tema
 (`components/ComboBoris.astro:60`). A **migration 0009** troca o padrão da coluna e conserta as
 linhas gravadas com o par antigo exato — quem escolheu cor não é tocado. ⚠️ **Na migração da
 produção ela roda depois da carga do SQLite, e é ela que conserta o Bayron**
@@ -2403,7 +2513,7 @@ fotos por ali está esperando resposta.
   diz que o painel mora nele — o modelo de um painel por barbearia. Com o painel central,
   vira redirecionamento (`ARQUITETURA-MULTI-TENANT-V1.md` §8).
 
-### 4.16 🟠 `[TÉCNICO]` Endereço escolhido e publicado sem revisão — os reservados, FEITOS em 08/10/2026
+### 4.16 🟠 `[TÉCNICO]` Endereço escolhido e publicado sem revisão — os reservados FEITOS em 08/10/2026, o tirar do ar em 11/10/2026
 
 No autoatendimento, qualquer um escolhe o endereço e o que escreve, e vai ao ar na hora
 sob o seu domínio. Conferido em 24/09/2026: o provisionador só conferia se o endereço é um
@@ -2429,8 +2539,9 @@ rótulo de DNS válido (hoje em `lib/provisionarBarbearia.ts:236`) e se já exis
   passa a mostrar o site dela** — no endereço que o dono de cada barbearia digita todo dia.
   A tela de login não muda (não lê marca de barbearia nenhuma) e o login continua
   funcionando: acha o barbeiro pelo telefone, e dali em diante quem decide é a sessão.
-- **Tirar do ar** o que não pode ficar sob o seu domínio. O mecanismo existe no banco — o
-  status `suspended` já some com o site —, mas acioná-lo hoje é abrir o `psql`.
+- ✅ **Tirar do ar** o que não pode ficar sob o seu domínio — **feito em 11/10/2026**, no
+  painel do operador (§3.9): digita-se o endereço da barbearia para confirmar, e o motivo fica
+  registrado. *Antes:* o status `suspended` já sumia com o site, mas acioná-lo era abrir o `psql`.
 - O primeiro a pegar o nome de uma barbearia de verdade, que ainda nem é cliente, fica
   com ele. Não tem conserto técnico barato; tem que caber no termo de uso (§1.2).
 
@@ -2621,6 +2732,10 @@ dia" ao resumo, as reservas que não diziam ser de produto e o cadastro sem o av
 (§2.32). As quatro decisões que ficaram, você tomou em 11/10 — o aviso de agenda por e-mail e a
 conferência do mapa, feitos no mesmo dia (§2.33).
 
+**Achado de 11/10/2026, no mesmo roteiro, ✅ já consertado:** o portal de toda barbearia dizia
+"Portal Bayron" (§2.34). E, pedido por você no mesmo dia, o painel do operador — ver e operar
+as barbearias sem `psql` (§3.9).
+
 **Onda 2 — antes de abrir o cadastro público.**
 
 > ⚠️ **10/10/2026:** o app está no ar, com o cadastro fechado. Abrir é o fim desta onda, não o
@@ -2661,7 +2776,8 @@ data de nascimento fica, e vai no termo (§2.33 e §1.2).
    - ~~**2b. Acrescentado em 09/10/2026:** o CSRF entre subdomínios (§2.30). Com o cadastro
      aberto, qualquer pessoa cria um subdomínio — e um XSS em qualquer um deles alcança o painel
      de todas as barbearias~~ — ✅ fechado no mesmo dia.
-3. ~~Endereços reservados~~ — ✅ feitos em 08/10/2026 — e um jeito de tirar do ar (§4.16).
+3. ~~Endereços reservados~~ — ✅ feitos em 08/10/2026 — ~~e um jeito de tirar do ar (§4.16)~~ —
+   ✅ o painel do operador, em 11/10/2026 (§3.9).
 4. ~~Os três layouts, com as cores do dono (§4.13)~~ — ✅ feito em 08/10/2026, no desenho
    do mesmo dia: um layout, com a cor e a frase do topo escolhidas no cadastro e a tela
    "o seu site está no ar" no fim (`JORNADA-DO-BARBEIRO.md` §2.4 e `JORNADA-DO-BARBEIRO.md` §2.8).

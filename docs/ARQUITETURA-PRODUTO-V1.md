@@ -553,6 +553,11 @@ string traduzível.
 
 ## 10. Fora de escopo
 
+> ⚠️ **Lista de 27/08/2026, superada em parte.** Entraram depois: o multi-tenant (D1 revertida
+> em 01/09), o cadastro sozinho (24/09, `PLANO-PRODUTIZACAO.md` §13), a cobrança online (no
+> código em 10/10, `PENDENCIAS-ABERTAS.md` §4.14) e o painel de super-admin — o do operador,
+> em 11/10 (`PENDENCIAS-ABERTAS.md` §3.9).
+
 Multi-tenant com `tenant_id`. Painel de super-admin. Onboarding self-service. Múltiplos
 templates visuais. Lembrete de WhatsApp (só depois do primeiro cliente pagante).
 Pagamento online. PWA. Importação de dados de concorrente. **Importação automática de
