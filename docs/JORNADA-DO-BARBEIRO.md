@@ -31,6 +31,9 @@
 > `PENDENCIAS-ABERTAS.md` §2.33): consertados os links de mapa vazios, o rodapé, o menu do
 > painel e o aviso do teste no cadastro — os passos 2, 7 e 8 dizem onde. As referências a
 > `cadastrar.astro`, que tinham andado, foram conferidas de novo nesta data.
+>
+> **11/10/2026:** as decisões do roteiro — o aviso de agenda por e-mail e o mapa que o dono
+> confere no Início, feitos (`PENDENCIAS-ABERTAS.md` §2.33). Os passos 7 e 8 dizem onde.
 
 **Legenda:** ✅ existe e foi visto funcionando · ⚠️ existe pela metade · ❌ não existe
 
@@ -376,6 +379,9 @@ logo, texto sobre, frase do topo, capa, **fotos dos cortes**, cor, Instagram, av
 Google, busca (`apps/barbearia/src/lib/completude.ts:111-162`). A galeria, a logo, a capa e
 as fotos de produto se sobem ali mesmo (`PLANO-PRODUTIZACAO.md` §13, *Fotos*).
 
+E, desde 11/10/2026, **o mapa do site**, com a pergunta *"o ponto está certo?"* — até ele
+confirmar, e de novo se o endereço mudar (`PENDENCIAS-ABERTAS.md` §2.33).
+
 **O que falta:**
 
 - ~~**A contagem do teste** no topo do painel~~ — ✅ desde 08/10, a faixa (passo 9).
@@ -400,8 +406,10 @@ as fotos de produto se sobem ali mesmo (`PLANO-PRODUTIZACAO.md` §13, *Fotos*).
   — no roteiro de 10/10, o dono procurou os agendamentos ali~~. ✅ Consertado no mesmo dia:
   "Início" é o resumo, "Agenda do dia" abre a de hoje e o menu diz "Reservas de produto"
   (`PENDENCIAS-ABERTAS.md` §2.32).
-- **Ele não fica sabendo de agendamento novo** sem abrir o painel: a agenda do dia aberta se
-  atualiza sozinha, e fechada nada avisa. A decisão é sua (`PENDENCIAS-ABERTAS.md` §2.33).
+- ~~**Ele não fica sabendo de agendamento novo** sem abrir o painel~~ — ✅ desde 11/10/2026, um
+  e-mail para ele e para o barbeiro do horário a cada agendamento, desmarcação e remarcação
+  feitos pelo cliente (`PENDENCIAS-ABERTAS.md` §2.33). ⚠️ Em produção, só depois do provedor de
+  e-mail (`PENDENCIAS-ABERTAS.md` §4.17).
 
 ### 2.8 Passo 8 — O site no ar
 
@@ -446,8 +454,8 @@ domínio estiver configurado.
   e o "Abrir no Maps" da confirmação eram link vazio em toda barbearia do cadastro — clicar
   reabria o site —, e o rodapé mostrava "Siga no Instagram" sem Instagram e um buraco sem o
   texto sobre (`PENDENCIAS-ABERTAS.md` §2.32). ⚠️ O ponto do mapa sai do endereço digitado:
-  ambíguo, cai em outro lugar — no roteiro, em outra cidade —, e ninguém confere
-  (`PENDENCIAS-ABERTAS.md` §2.33).
+  ambíguo, cai em outro lugar — no roteiro, em outra cidade. ✅ Desde 11/10 o Início mostra o
+  mapa ao dono e pergunta se está certo (`PENDENCIAS-ABERTAS.md` §2.33).
 
 ~~**O que falta:** a tela de fim do cadastro não mostra o site~~ — ✅ feita em 08/10/2026, a
 descrita acima. Era o que este passo pedia desde 27/09: o momento em que ele mostra o produto
