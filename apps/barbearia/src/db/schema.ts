@@ -58,6 +58,24 @@ export const webhookEvents = pgTable('webhook_events', {
   unique('webhook_events_uma_vez').on(t.gateway, t.gatewayEventId),
 ]);
 
+/**
+ * O que o operador fez no painel `/operador` (migration 0012): entrou, estendeu o
+ * teste, tirou do ar, reativou. O reativar lê daqui o status de antes da
+ * suspensão — `tenants.status` já foi sobrescrito.
+ *
+ * ⚠️ `tenantId` aceita nulo, como em `webhookEvents`: a entrada no painel não é de
+ * barbearia nenhuma. O papel do app não tem acesso; quem lê e grava é o painel do
+ * operador, como dono (`lib/operadorBarbearias.ts`).
+ */
+export const acoesDoOperador = pgTable('acoes_do_operador', {
+  tenantId: integer('tenant_id').references(() => tenants.id),
+  id: serial('id').primaryKey(),
+  acao: text('acao', { enum: ['entrou', 'estendeu-teste', 'suspendeu', 'reativou'] }).notNull(),
+  detalhe: jsonb('detalhe').notNull().default(sql`'{}'::jsonb`),
+  ip: text('ip'),
+  criadaEm: timestamp('criada_em', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const barbers = pgTable('barbers', {
   tenantId: integer('tenant_id').notNull().references(() => tenants.id),
   id: serial('id').primaryKey(),

@@ -122,6 +122,16 @@ describe('nenhuma página pública serve barbearia sem perguntar de quem é o en
       'tarefa agendada, chamada pela porta local com token: olha todas as barbearias de propósito — lib/avisos.ts',
     'src/pages/api/asaas/webhook.ts':
       'chamada pela Asaas, com token: a barbearia sai das chaves do evento, não do endereço — lib/cobranca.ts',
+    // O painel do operador (11/10/2026) não é de barbearia nenhuma: abre só no
+    // endereço do painel e com a senha do operador — 404 fora disso (lib/operador.ts).
+    'src/pages/operador.astro':
+      'o painel do operador: olha todas as barbearias de propósito, atrás da senha dele — lib/operadorBarbearias.ts',
+    'src/pages/api/operador/entrar.ts':
+      'a entrada do operador: só a senha, conferida contra OPERADOR_SENHA_HASH',
+    'src/pages/api/operador/acao.ts':
+      'a barbearia é a que o operador escolheu na lista, não a do endereço — atrás da sessão de operador',
+    'src/pages/api/operador/sair.ts':
+      'só apaga o cookie do operador',
   };
 
   it('toda rota e página pública chama `tenantDoHost`', () => {

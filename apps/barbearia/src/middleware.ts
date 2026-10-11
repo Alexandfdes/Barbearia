@@ -40,6 +40,7 @@ import { getSettings } from './lib/settings.js';
 import { respostaForaDoAr } from './lib/siteForaDoAr.js';
 import { ROTA_DO_CANCELAMENTO, ROTA_DO_CARTAO, TELA_DE_ASSINATURA } from './lib/assinatura.js';
 import { motivoDaRecusa, respostaDaRecusa } from './lib/origem.js';
+import { ehRotaDoOperador } from './lib/operador.js';
 
 export const onRequest = defineMiddleware(async (contexto, next) => {
   const caminho = new URL(contexto.request.url).pathname;
@@ -67,6 +68,15 @@ export const onRequest = defineMiddleware(async (contexto, next) => {
   // evento é o próprio evento (`lib/cobranca.ts`), e o token dele é conferido na
   // rota. Chega sem `Origin` — servidor para servidor —, e a conferência acima passa.
   if (caminho.startsWith('/api/asaas/')) return next();
+
+  // O painel do operador (`/operador`) também não é de barbearia nenhuma: ele
+  // olha TODAS, como dono do banco (`lib/operadorBarbearias.ts`), e quem decide se
+  // a requisição passa é a senha do operador, conferida em cada rota dele
+  // (`lib/operador.ts`). Resolver barbearia aqui só serviria para reservar uma
+  // conexão no contexto da barbearia de quem, por acaso, também está logado como
+  // dono no mesmo navegador. Fica DEPOIS da conferência de origem: as ações dele
+  // são POST e só valem vindas do próprio endereço, como todas.
+  if (ehRotaDoOperador(caminho)) return next();
 
   const { tenant, daSessao } = await tenantDaRequisicao(contexto.request);
 

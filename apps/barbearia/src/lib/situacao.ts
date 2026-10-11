@@ -107,6 +107,24 @@ export function fimDoTeste(cadastro: Date, fuso: string = TZ): Date {
 }
 
 /**
+ * O fim do teste estendido pelo operador em `dias` (`lib/operadorBarbearias.ts`):
+ * `dias` a mais depois do último dia do teste — ou depois de HOJE, se ele já
+ * acabou. Teste até o dia 15 estendido em 7: até o dia 22. Teste vencido, dia 11,
+ * estendido em 7: até o dia 18 — o mesmo que um cadastro feito hoje ganharia.
+ *
+ * Uma meia-noite no fuso, como `fimDoTeste`: a tela continua dizendo "até 18/10".
+ */
+export function fimDoTesteEstendido(
+  fimAtual: Date | null | undefined, dias: number, agora: Date = new Date(), fuso: string = TZ,
+): Date {
+  const hoje = formatInTimeZone(agora, fuso, 'yyyy-MM-dd');
+  const ultimo = fimAtual ? ultimoDia(fimAtual, fuso, 'yyyy-MM-dd') : hoje;
+  // Datas "aaaa-mm-dd" comparam como texto.
+  const base = ultimo > hoje ? ultimo : hoje;
+  return fromZonedTime(`${somarDias(base, dias + 1)}T00:00:00`, fuso);
+}
+
+/**
  * O fim da carência que começa em `inicio`: três dias INTEIROS depois do dia em
  * que o prazo venceu. Vencido à meia-noite — o caso do teste —, o próprio dia já
  * é o primeiro dos três; vencido no meio do dia — a cobrança que falhou às
