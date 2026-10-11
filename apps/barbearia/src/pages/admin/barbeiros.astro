@@ -18,7 +18,8 @@ const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: b
 if (!barberRow) return Astro.redirect('/admin/login');
 
 const list = (await db
-  .select({ id: barbers.id, name: barbers.name, slug: barbers.slug, role: barbers.role, active: barbers.active, email: barbers.email })
+  .select({ id: barbers.id, name: barbers.name, slug: barbers.slug, role: barbers.role, active: barbers.active, email: barbers.email,
+            avisarAgendamentos: barbers.avisarAgendamentos })
   .from(barbers)
   .where(eq(barbers.tenantId, tenant.id))
   .orderBy(barbers.name)
@@ -130,8 +131,19 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
                 slug: {b.slug} ·{' '}
                 {b.email
                   ? <span data-email={String(b.id)}>{b.email}</span>
-                  : <span data-sem-email={String(b.id)} class="text-amber-700">sem e-mail — não recebe a senha nova</span>}
+                  : <span data-sem-email={String(b.id)} class="text-amber-700">sem e-mail — não recebe a senha nova nem os avisos de agendamento</span>}
               </p>
+              {/* Os avisos de agendamento por e-mail (11/10/2026, `lib/avisoDeAgenda.ts`):
+                  o dono recebe os de todos; o barbeiro, os dele. Sem e-mail, não há o que dizer. */}
+              {b.email && (
+                <p data-avisos={String(b.id)} class="text-xs text-slate-400 mt-0.5">
+                  {b.avisarAgendamentos
+                    ? (b.role === 'admin'
+                        ? 'Recebe e-mail de todo agendamento, desmarcação e remarcação feitos pelo cliente.'
+                        : 'Recebe e-mail dos agendamentos, desmarcações e remarcações feitos pelo cliente nos próprios horários.')
+                    : 'Avisos de agendamento por e-mail desligados.'}
+                </p>
+              )}
             </div>
             <button data-edit={String(b.id)}
               class="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 border border-slate-200 hover:border-slate-300 rounded transition-colors">
@@ -175,6 +187,18 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
                 placeholder="para a senha nova e os avisos"
                 class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
             </div>
+
+            <label class="flex items-start gap-2 text-sm text-slate-700">
+              <input data-edit-avisos={String(b.id)} type="checkbox" checked={b.avisarAgendamentos}
+                class="mt-0.5 accent-teal" />
+              <span>
+                Mandar e-mail quando um cliente agenda, desmarca ou remarca pelo site
+                <span class="block text-xs text-slate-400">
+                  {b.role === 'admin' ? 'Como admin, recebe os de todos os horários da barbearia.' : 'Só os dos próprios horários.'}
+                  {' '}Precisa do e-mail acima.
+                </span>
+              </span>
+            </label>
 
             <div>
               <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Nova senha (opcional)</label>
@@ -293,6 +317,7 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
       const activeEl= document.querySelector<HTMLSelectElement>(`[data-edit-active="${id}"]`)!;
       const passEl  = document.querySelector<HTMLInputElement>(`[data-edit-password="${id}"]`)!;
       const emailEl = document.querySelector<HTMLInputElement>(`[data-edit-email="${id}"]`)!;
+      const avisosEl= document.querySelector<HTMLInputElement>(`[data-edit-avisos="${id}"]`)!;
       const errorEl = document.querySelector<HTMLElement>(`[data-edit-error="${id}"]`)!;
 
       const name     = nameEl.value.trim();
@@ -310,7 +335,7 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
         const res  = await fetch(`/api/admin/barbers/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, role, active, email }),
+          body: JSON.stringify({ name, role, active, email, avisarAgendamentos: avisosEl.checked }),
         });
         const data = await res.json();
         if (!res.ok) {

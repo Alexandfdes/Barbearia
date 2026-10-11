@@ -8,6 +8,7 @@ import { db, first } from '../../db/index.js';
 import { barbers, settings } from '../../db/schema.js';
 import { and, eq } from 'drizzle-orm';
 import { parseBusinessHours } from '../../lib/settings.js';
+import { embedDoMapa } from '../../lib/mapa.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
@@ -21,6 +22,8 @@ if (!barberRow) return Astro.redirect('/admin/login');
 
 const cfg = (await first(db.select().from(settings).where(eq(settings.tenantId, tenant.id))));
 const horarios = parseBusinessHours(cfg?.businessHours);
+// O mapa que o site mostra agora — a prévia abaixo do endereço (`lib/mapa.ts`).
+const mapaAgora = cfg ? embedDoMapa(cfg) : null;
 
 type Campo = {
   id: string;
@@ -30,7 +33,7 @@ type Campo = {
   placeholder?: string;
 };
 
-const secoes: { titulo: string; nota?: string; campos: Campo[] }[] = [
+const secoes: { titulo: string; nota?: string; campos: Campo[]; ancora?: string; previaDoMapa?: boolean }[] = [
   {
     titulo: 'Identidade',
     campos: [
@@ -56,6 +59,9 @@ const secoes: { titulo: string; nota?: string; campos: Campo[] }[] = [
   },
   {
     titulo: 'Endereço',
+    // O "Não está — corrigir" do Início leva para cá (`admin/index.astro`).
+    ancora: 'endereco',
+    previaDoMapa: true,
     campos: [
       { id: 'addressStreet', label: 'Rua e número', placeholder: 'R. Exemplo, 123' },
       { id: 'addressCity', label: 'Cidade/UF', hint: 'Escreva no formato Cidade/UF — o site divide os dois para o Google.', placeholder: 'Mossoró/RN' },
@@ -109,7 +115,7 @@ const valor = (id: string): string => {
     <form id="form-cfg" class="space-y-8">
 
       {secoes.map((secao) => (
-        <section class="border border-slate-200 rounded-lg p-4 sm:p-5 bg-slate-50">
+        <section id={secao.ancora} class="border border-slate-200 rounded-lg p-4 sm:p-5 bg-slate-50 scroll-mt-4">
           <h2 class="text-sm font-bold uppercase tracking-[0.15em] text-slate-700 mb-1">{secao.titulo}</h2>
           {secao.nota && <p class="text-xs text-slate-500 mb-4">{secao.nota}</p>}
           <div class:list={['space-y-4', !secao.nota && 'mt-4']}>
@@ -138,6 +144,21 @@ const valor = (id: string): string => {
                 {campo.hint && <p class="text-[11px] text-slate-400 mt-1.5 leading-relaxed">{campo.hint}</p>}
               </div>
             ))}
+            {/* A prévia do mapa (11/10/2026): o dono vê o ponto enquanto digita, em vez
+                de salvar e ir conferir no site. Mesma função do site (`lib/mapa.ts`). */}
+            {secao.previaDoMapa && (
+              <div>
+                <p class="block text-xs font-medium text-slate-500 mb-1.5">Como o mapa aparece no seu site</p>
+                <iframe id="mapa-previa" title="Prévia do mapa do seu site" src={mapaAgora ?? undefined} hidden={!mapaAgora}
+                  loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+                  class="w-full h-56 rounded border border-slate-200 bg-white"></iframe>
+                <p id="mapa-previa-vazia" hidden={!!mapaAgora} class="text-[11px] text-slate-400">Sem endereço, o site não mostra mapa.</p>
+                <p class="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+                  A prévia acompanha o que você digita. Ponto errado? Escreva na busca o nome da barbearia + rua + bairro +
+                  cidade e salve: o Início do painel pergunta de novo se o ponto está certo.
+                </p>
+              </div>
+            )}
           </div>
         </section>
       ))}
@@ -276,6 +297,30 @@ const valor = (id: string): string => {
   // Prévia da cor. Usa a MESMA função que o servidor usa ao gravar, para o que
   // aparece aqui ser exatamente o que vai para o site — sem lógica duplicada.
   import { derivarAccent, ACCENT_PADRAO } from '../../lib/accent.js';
+  import { embedDoMapa } from '../../lib/mapa.js';
+
+  // Prévia do mapa — a MESMA função do site (`lib/mapa.ts`), como a da cor abaixo:
+  // o ponto que aparece aqui é o que o site vai mostrar. Espera o dono parar de
+  // digitar para não pedir um mapa ao Google a cada letra.
+  const previa = document.getElementById('mapa-previa') as HTMLIFrameElement | null;
+  const previaVazia = document.getElementById('mapa-previa-vazia');
+  const camposDoMapa = ['addressStreet', 'addressCity', 'mapsEmbedQuery']
+    .map((id) => document.getElementById(id) as HTMLInputElement | null);
+  let esperaDoMapa: ReturnType<typeof setTimeout> | undefined;
+  const atualizarPrevia = () => {
+    if (!previa || !previaVazia) return;
+    const [rua, cidade, busca] = camposDoMapa.map((c) => c?.value ?? '');
+    const src = embedDoMapa({ addressStreet: rua, addressCity: cidade, mapsEmbedQuery: busca });
+    previa.hidden = !src;
+    previaVazia.hidden = Boolean(src);
+    if (src && previa.getAttribute('src') !== src) previa.setAttribute('src', src);
+  };
+  for (const campo of camposDoMapa) {
+    campo?.addEventListener('input', () => {
+      clearTimeout(esperaDoMapa);
+      esperaDoMapa = setTimeout(atualizarPrevia, 800);
+    });
+  }
 
   const entrada = document.getElementById('accentColor') as HTMLInputElement | null;
   const hex     = document.getElementById('accentHex') as HTMLInputElement | null;

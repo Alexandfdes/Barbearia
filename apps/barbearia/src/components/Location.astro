@@ -1,19 +1,16 @@
 ---
 import { getSettings, waUrl } from '../lib/settings';
-import { buscaDoMapa, linkDaRota } from '../lib/mapa';
+import { embedDoMapa, linkDaRota } from '../lib/mapa';
 
 const s = await getSettings();
 const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário.', s);
 
-// O Google aceita espaço como "+" na query do embed. Reproduzimos essa forma em
-// vez do %20 do encodeURIComponent para o HTML sair idêntico ao que já estava.
-// Sem query configurada o embed cairia num mapa em branco. Caímos no endereço
-// e, se nem isso houver, a caixa do mapa não aparece.
-// O mesmo texto da rota (`lib/mapa.ts`): o ponto do mapa e o da rota não podem discordar.
-const queryMapa = buscaDoMapa(s);
+// Sem busca configurada, o mapa cai no endereço; sem nem isso, a caixa do mapa não
+// aparece. A mesma busca da rota e do mapa que o painel mostra ao dono para
+// conferir (`lib/mapa.ts`): os três não podem discordar.
+const mapsEmbedSrc = embedDoMapa(s);
 const rota = linkDaRota(s);
-const temMapa = queryMapa.length > 0;
-const mapsEmbedSrc = `https://www.google.com/maps?q=${encodeURIComponent(queryMapa).replace(/%20/g, '+')}&output=embed`;
+const temMapa = mapsEmbedSrc !== null;
 const temHorario = s.businessHours.length > 0;
 ---
 

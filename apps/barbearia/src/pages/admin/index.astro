@@ -14,6 +14,7 @@ import { parseBusinessHours } from '../../lib/settings.js';
 import { reais } from '../../lib/dinheiro.js';
 import { segundaFeiraDaSemana } from '../../lib/calendario.js';
 import { TZ } from '../../lib/timezone.js';
+import { buscaDoMapa, embedDoMapa, mapaPrecisaConferir } from '../../lib/mapa.js';
 
 
 const session = await getSession(Astro.request);
@@ -283,6 +284,15 @@ const completude = cfg ? calcularCompletude({
   fotosNaGaleria: await quantasFotos(tenant),
 }) : null;
 
+// ── O ponto do mapa (decisão de 11/10/2026, `PENDENCIAS-ABERTAS.md` §2.33) ────
+// O Google acha a barbearia pela busca, e endereço ambíguo cai em outro lugar —
+// no roteiro de 10/10, em outra cidade, sem ninguém ver. Aqui o dono vê o mapa
+// que o site mostra e confirma. Só o admin: é ele quem corrige o endereço. Some
+// quando a busca de agora é a que ele conferiu, e volta se o endereço mudar.
+const mapaParaConferir = cfg && mapaPrecisaConferir(cfg, cfg.mapaConferido)
+  ? { busca: buscaDoMapa(cfg), embed: embedDoMapa(cfg) ?? '', rotaPeloEndereco: !cfg.mapsUrl?.trim() }
+  : null;
+
 ---
 
 <AdminLayout title="Início" barberName={barberRow.name} role={session.role}>
@@ -380,6 +390,31 @@ const completude = cfg ? calcularCompletude({
             )}
           </Fragment>
         )}
+      </section>
+    )}
+
+    {mapaParaConferir && (
+      <section id="conferir-mapa" data-busca={mapaParaConferir.busca}
+        class="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
+        <h2 class="text-sm font-semibold text-slate-900">Confira o ponto do seu site no mapa</h2>
+        <p class="text-sm text-slate-600 mt-1 max-w-[65ch]">
+          É este o lugar que aparece no mapa do seu site{mapaParaConferir.rotaPeloEndereco ? ', e para onde o "Traçar rota" leva o cliente' : ''}.
+          O Google achou pela busca <strong class="font-medium text-slate-800">{mapaParaConferir.busca}</strong>.
+        </p>
+        <iframe title="O mapa do seu site" src={mapaParaConferir.embed} loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+          class="mt-4 w-full h-64 rounded-md border border-slate-200"></iframe>
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <button id="mapa-certo" type="button"
+            class="bg-teal hover:bg-teal-hover text-white text-xs font-bold uppercase tracking-widest px-4 py-2.5 rounded transition-colors disabled:opacity-60">
+            Está certo
+          </button>
+          <a href="/admin/configuracoes#endereco"
+            class="text-xs text-slate-600 hover:text-slate-900 px-4 py-2.5 border border-slate-200 hover:border-slate-300 rounded transition-colors">
+            Não está — corrigir o endereço
+          </a>
+        </div>
+        <p id="mapa-msg" class="hidden text-sm text-red-700 mt-3" role="status"></p>
       </section>
     )}
 
@@ -560,3 +595,38 @@ const completude = cfg ? calcularCompletude({
 
   </main>
 </AdminLayout>
+
+<script>
+  // O "Está certo" do mapa (`api/admin/mapa-conferido.ts`). Manda a busca que o
+  // dono VIU: se o endereço mudou noutra aba, a rota recusa e a tela diz por quê.
+  const cartao = document.getElementById('conferir-mapa');
+  const botao = document.getElementById('mapa-certo') as HTMLButtonElement | null;
+  const msg = document.getElementById('mapa-msg');
+
+  botao?.addEventListener('click', async () => {
+    if (!cartao || !msg) return;
+    botao.disabled = true;
+    msg.classList.add('hidden');
+    try {
+      const r = await fetch('/api/admin/mapa-conferido', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ busca: cartao.dataset.busca ?? '' }),
+      });
+      if (r.ok) {
+        const pronto = document.createElement('p');
+        pronto.className = 'text-sm text-slate-700';
+        pronto.setAttribute('role', 'status');
+        pronto.textContent = 'Pronto: o ponto do mapa está conferido. Se você mudar o endereço, esta pergunta volta.';
+        cartao.replaceChildren(pronto);
+        return;
+      }
+      const d = await r.json().catch(() => ({}));
+      msg.textContent = (d as { error?: string }).error ?? 'Não consegui salvar. Tente de novo.';
+    } catch {
+      msg.textContent = 'Erro de conexão. Tente de novo.';
+    }
+    msg.classList.remove('hidden');
+    botao.disabled = false;
+  });
+</script>

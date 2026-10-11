@@ -56,7 +56,13 @@ export interface BookParams {
 export type BookResult =
   | { ok: true;  id: number | bigint; manageToken: string; status: string;
       startsAt: string; endsAt: string; durationMinutes: number; priceCents: number;
-      customerName: string; barberName: string; serviceName: string }
+      customerName: string; barberName: string; serviceName: string;
+      /**
+       * Gravado AGORA — `false` quando a mesma chave de idempotência devolve o que
+       * já existia. É o que impede o aviso ao barbeiro de sair duas vezes pelo
+       * duplo clique (`lib/avisoDeAgenda.ts`).
+       */
+      criado: boolean }
   | { ok: false; httpStatus: number; error: string };
 
 export async function bookAppointment(params: BookParams): Promise<BookResult> {
@@ -100,6 +106,7 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
         customerName: existing.customer_name,
         barberName: existing.barber_name,
         serviceName: existing.service_name,
+        criado: false,
       };
     }
   }
@@ -262,6 +269,7 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
       customerName,
       barberName,
       serviceName,
+      criado: true,
     };
   } catch (err) {
     if (err instanceof ConflitoDeHorario) {

@@ -9,6 +9,7 @@ import { db, first } from '../../../db/index.js';
 import { combos, products } from '../../../db/schema.js';
 import { json } from '../../../lib/api.js';
 import { bookAppointment } from '../../../lib/bookAppointment.js';
+import { avisarMudancaNaAgenda } from '../../../lib/avisoDeAgenda.js';
 import { comboValeNaData } from '../../../lib/combo.js';
 import { checkRateLimit } from '../../../lib/rateLimit.js';
 import { getClientIp } from '../../../lib/clientIp.js';
@@ -131,6 +132,11 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
       combo,
     });
     if (!result.ok) return json({ error: result.error }, result.httpStatus);
+    // O barbeiro e o dono ficam sabendo, por e-mail — decidido em 11/10/2026
+    // (`docs/PENDENCIAS-ABERTAS.md` §2.33). Só o agendamento NOVO: a mesma chave
+    // de idempotência devolve o que já existe, e o aviso saiu na primeira vez.
+    // Nunca derruba o agendamento (`lib/avisoDeAgenda.ts`).
+    if (result.criado) await avisarMudancaNaAgenda({ tenant, tipo: 'novo', agendamentoId: Number(result.id) });
     return json(result, 201);
   } catch (err) {
     console.error('[api/appointments POST]', err);
