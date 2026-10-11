@@ -32,6 +32,7 @@
 | **09/10** | **O hover do par padrão escurece:** `#0b5f58`, o tom que o código já tinha como padrão — com os sete consertos do primeiro minuto do cliente, que você pediu. **E o combo vale no dia do HORÁRIO marcado, não no dia em que se agenda** — ⚠️ esta, decidida na implementação: falta você confirmar | `PENDENCIAS-ABERTAS.md` §4.12 e `PENDENCIAS-ABERTAS.md` §2.16 |
 | **08/10** | **O desenho do cadastro e da cobrança:** um layout com a cor do dono; o cartão no fim do teste; a cobrança como módulo do app; e-mail para a senha e os avisos; 3 dias de carência; só mensal. **Feitos no mesmo dia:** o cadastro (§4.13, §4.16 e §4.17) e o teste de 7 dias, com a carência e o site fora do ar (§1.3, §3.5 e §4.14). **Em 09/10:** o e-mail — a senha nova, os avisos do teste e da cobrança e a troca de senha derrubando as sessões (§4.17 e §2.13) | `PLANO-PRODUTIZACAO.md` §13 |
 | **10/10** | **A cobrança no código** — o cartão pelo Checkout da Asaas, o webhook e o cancelar —, **sem a prova no sandbox**. E três regras decididas na implementação e **confirmadas por você no mesmo dia**: quem cancela em dia fica no ar até o fim do período pago, sem carência; quem cancela com a cobrança atrasada fica só o que restava da carência, e a mensalidade que falhou deixa de existir; e quem sai do ar pela cobrança sem cancelar continua com a assinatura viva — a Asaas tenta o cartão de novo, e o pagamento que passar traz o site de volta. Rejeitado: remover a assinatura depois de 30 dias fora do ar | `PENDENCIAS-ABERTAS.md` §4.14 |
+| **11/10** | **As quatro decisões do roteiro do dono:** o e-mail ao barbeiro do horário e ao dono quando o cliente agenda, desmarca ou remarca pelo site — cada um desligável na Equipe —; a data de nascimento continua sendo a senha da área do cliente, e o termo tem de dizer; o dono confere o ponto do mapa no Início; e o e-mail que não se troca fora do ar fica como está. O e-mail e o mapa foram feitos no mesmo dia | `PENDENCIAS-ABERTAS.md` §2.33 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -169,6 +170,11 @@ da carência, e a mensalidade que falhou não é cobrada. E **sair do ar por fal
 não cancela a assinatura**: a Asaas tenta o cartão nos vencimentos seguintes, e o pagamento que
 passar traz o site de volta. Esta é a que mais precisa estar escrita — é a que cobra quem achou
 que tinha ido embora.
+
+**11/10/2026 — a área do cliente, para o termo** (`PENDENCIAS-ABERTAS.md` §2.33): o cliente da
+barbearia entra com o telefone e a data de nascimento, e vê os agendamentos dele, com o link
+que desmarca e remarca. Mantido por você, com o risco: quem sabe os dois de alguém entra no
+lugar dele. O termo do dono e o aviso de privacidade ao cliente têm de dizer.
 
 Pergunta nova, que o teste grátis cria: **o que acontece com os dados de quem testou e
 não pagou?** Nome, telefone e data de nascimento de clientes de terceiro, guardados sem
@@ -917,11 +923,11 @@ produto, e entrava no relatório como receita normal.
 para segunda, e não para sexta. *Rejeitado: o dia em que o cliente agenda* — deixaria quem abre
 o link na segunda marcar com desconto para a sexta cheia. ⚠️ **Tomada na implementação, em
 09/10/2026, sem você.** Se a intenção é a outra, a troca está numa linha: a data que
-`api/appointments/index.ts:116` confere passa a ser a de hoje, e não a do horário.
+`api/appointments/index.ts:117` confere passa a ser a de hoje, e não a do horário.
 
 **Feito, nas três pontas, com uma regra só** — `comboValeNaData()` (`lib/combo.ts:34`):
 
-- **O servidor recusa** o horário fora dos dias do combo (`api/appointments/index.ts:116`),
+- **O servidor recusa** o horário fora dos dias do combo (`api/appointments/index.ts:117`),
   com o dia lido no fuso da barbearia: segunda 21h30 em Fortaleza já é terça em UTC, e vale.
   Combo sem dia nenhum marcado não vale em dia nenhum.
 - **O calendário do `/agendar`** só abre os dias do combo (`pages/agendar.astro:474-476`), e o
@@ -1069,7 +1075,7 @@ produção com `TZ=America/Fortaleza` no container, e com uma barbearia fora de 
 haveria `TZ` que servisse às duas.
 
 **Feito:** a segunda-feira sai de `todayStr`, a data na barbearia, por conta de calendário em
-que o relógio do processo não entra (`admin/index.astro:47`, `lib/calendario.ts:42`).
+que o relógio do processo não entra (`admin/index.astro:48`, `lib/calendario.ts:42`).
 
 **Conferido ao vivo em 09/10/2026**, os dois builds lado a lado contra o mesmo banco, o processo
 em UTC: às 21h01 de sexta, 09/10, em Fortaleza — já 00h01 de sábado em UTC —, o build anterior
@@ -1132,7 +1138,7 @@ WhatsApp do site usava esse número: o rodapé, a localização, a barra flutuan
 agendamento (`a/[token].astro`) e o link que a API devolve
 (`api/appointments/by-token/[token].ts`). O `schema.org` publicava `+84996658951` para o
 Google. **E o teste travava o defeito:** `tests/cadastro.test.ts` esperava `'84999990000'`. O
-próprio painel pede o número com o 55 (`admin/configuracoes.astro:51`, *"Ex: 5584999051196"*)
+próprio painel pede o número com o 55 (`admin/configuracoes.astro:54`, *"Ex: 5584999051196"*)
 — o cadastro não seguia a regra do painel.
 
 **O que mudou, dos dois lados:**
@@ -1251,8 +1257,8 @@ coisa falsa.
    e o medidor do próprio painel diz o contrário: *"É a primeira coisa que o cliente lê"*
    (`lib/completude.ts:129`). Quem acredita no aviso deixa o topo genérico. Agora: *"Frase do
    topo"* e *"Texto abaixo da frase"*, com o aviso verdadeiro
-   (`admin/configuracoes.astro:43-44`) — o mesmo nome que o medidor cobra. E o exemplo do nome
-   curto deixou de ser *"Bayron"* (`admin/configuracoes.astro:38`).
+   (`admin/configuracoes.astro:46-47`) — o mesmo nome que o medidor cobra. E o exemplo do nome
+   curto deixou de ser *"Bayron"* (`admin/configuracoes.astro:41`).
 2. **O rodapé tinha "Termos de Uso" e "Políticas de Privacidade" apontando para `#`**, num
    site que coleta nome e telefone. Saíram até os textos existirem
    (`PENDENCIAS-ABERTAS.md` §1.2); o comentário no lugar diz por quê
@@ -1422,7 +1428,8 @@ o dado nunca foi preenchido.
    buscar, o botão some.
    ⚠️ O mapa da página e a rota saem da **mesma** busca. No roteiro, *"nova betania, natal"*
    caiu na Nova Betânia de **Mossoró**: endereço ambíguo erra os dois juntos, em vez de o mapa
-   mostrar um lugar e a rota levar a outro. Conferir o ponto continua sendo do dono (§2.33).
+   mostrar um lugar e a rota levar a outro. Conferir o ponto é do dono — desde 11/10, pelo
+   Início do painel (§2.33).
 2. **"Siga no Instagram" sem Instagram** — o link vazio também reabria o site. E **o texto
    "sobre" vazio** deixava um buraco no rodapé, que o medidor do painel usava de argumento:
    *"Vazio, sobra um buraco."* Agora os dois só aparecem preenchidos, e o medidor diz para que
@@ -1441,7 +1448,7 @@ o dado nunca foi preenchido.
    ligada."*
 7. **Configurações não dizia que os dois campos do mapa são opcionais**, nem que a "Busca do
    mapa embutido" passou a valer também para a rota. Agora diz — e é por ela que o dono
-   conserta o ponto errado (`apps/barbearia/src/pages/admin/configuracoes.astro:64-65`).
+   conserta o ponto errado (`apps/barbearia/src/pages/admin/configuracoes.astro:70-71`).
 8. **No `npm run dev`, a tela final do cadastro diz sempre "quase no ar".** Não é defeito: o
    servidor de desenvolvimento do Astro 7 recusa a imagem que ela pede ao endereço novo — um
    403 *"Cross-origin request blocked"*, de `astro/dist/vite-plugin-astro-server/sec-fetch.js`
@@ -1458,46 +1465,71 @@ de JavaScript.
 Vistos no mesmo roteiro e já registrados: a landing e o `/acessar` contando a história antiga
 (§4.15), e o termo que o cadastro não pede (§1.2).
 
-### 2.33 🟠 `[DECISÃO]` O que o roteiro do dono deixou para você decidir — achado em 10/10/2026
+### 2.33 ✅ `[DECISÃO]` O que o roteiro do dono deixou para você decidir — DECIDIDO em 11/10/2026
 
-Nenhum é defeito de código: cada um é uma escolha de produto, com custo. Achados no roteiro do
-§2.32 e conferidos no código.
+Achados no roteiro do §2.32, conferidos no código, e decididos por você no dia seguinte.
+Nenhum era defeito de código: cada um era uma escolha de produto, com custo.
 
-1. 🟠 **O barbeiro não fica sabendo de agendamento novo.** Com a agenda do dia aberta, ela se
-   atualiza sozinha a cada minuto (`apps/barbearia/src/pages/admin/dia/[date].astro:2703`);
-   fechada, nada avisa — nem e-mail, nem WhatsApp. O agendamento não chama envio nenhum: os
-   e-mails do sistema são a senha nova, as boas-vindas e os avisos do teste e da cobrança
-   (`apps/barbearia/src/lib/avisos.ts`). Num produto que vende agendamento, o dono que não abriu o
-   painel descobre o cliente novo quando ele chega na porta. Três caminhos:
-   - **e-mail a cada agendamento** — barato, o envio já existe; mas barbeiro vive no WhatsApp,
-     e em produção nada sai até existir o provedor (§4.17);
-   - **um resumo do dia, de manhã, por e-mail** — menos ruído, a mesma ressalva, e não avisa
-     o encaixe de última hora;
-   - **WhatsApp** — é onde ele está; a API oficial cobra por conversa e pede número
-     verificado. *Não orçado: a busca na web está desligada na organização.*
+1. ✅ **O barbeiro não ficava sabendo de agendamento novo — agora recebe e-mail. Feito em
+   11/10/2026.** Até então nada avisava: com a agenda do dia aberta, ela se atualizava
+   sozinha a cada minuto (`apps/barbearia/src/pages/admin/dia/[date].astro:2703`); fechada,
+   o dono que não abria o painel descobria o cliente novo quando ele chegava na porta.
 
-   *Recomendação:* o e-mail a cada agendamento agora, com como desligar, e o WhatsApp orçado
-   antes de ser prometido na landing.
-2. 🟠 **A data de nascimento é a senha do cliente.** A área do cliente entra com telefone e
-   data de nascimento (`apps/barbearia/src/pages/api/customer/login.ts`) e lista os
-   agendamentos com o link de cada um, que cancela e remarca. Telefone e aniversário não são
-   segredo: quem sabe os dois de alguém vê onde e quando ele corta o cabelo, e desmarca. O
-   limite de tentativas é por endereço de rede, na memória do processo
-   (`apps/barbearia/src/lib/rateLimit.ts`). É dado pessoal sob a sua operação (§1.2). Caminhos:
-   um código de uso único pelo WhatsApp ou pelo e-mail — o mesmo canal do item 1 —; a área
-   mostrar menos, sem o link que cancela; ou aceitar e dizer no termo. *Recomendação:* decidir
-   junto com o termo (§1.2), antes de abrir o cadastro.
-3. 🟡 **O ponto do mapa ninguém confere.** Endereço ambíguo cai em outro lugar — no roteiro, em
-   outra cidade. O dono só descobre abrindo o próprio site, e o cliente descobre na rua. Desde
-   10/10 dá para consertar pela "Busca do mapa embutido" (§2.32, item 7), mas só conserta quem
-   percebeu. *Proposta:* o mapa no painel logo depois do cadastro, com *"o ponto está
-   certo?"*, e a busca à mão quando não estiver.
-4. 🟡 **Fora do ar, o e-mail não se troca.** A tela de assinatura mostra para onde vão os
-   avisos e esconde o "Trocar" quando o site está fora do ar
-   (`apps/barbearia/src/pages/admin/assinatura.astro:135`), porque nessa fase o painel só abre
-   a tela de assinatura. Quem digitou o e-mail errado no cadastro não recebeu os avisos que o
-   levaram até ali — e só corrige depois de pagar. *Proposta:* deixar a troca do próprio
-   e-mail aberta fora do ar, como o cartão.
+   **Decidido:** e-mail, por enquanto — o WhatsApp fica para quando for orçado. Sai quando o
+   cliente **agenda, desmarca ou remarca** pelo site; recebe **o barbeiro do horário, se
+   tiver e-mail, e o dono**, que vê todos — na barbearia de uma pessoa só, um e-mail por
+   mudança. O dono liga ou desliga, por pessoa, na tela da Equipe — o barbeiro não tem tela
+   própria (`barbers.avisar_agendamentos`, migration 0011; nasce ligado, inclusive para quem
+   já existia). *Rejeitados por você:* só o dono; e só o barbeiro, que deixaria sem aviso
+   quem não tem e-mail — na equipe, quase todo mundo.
+
+   **Como ficou** (`apps/barbearia/src/lib/avisoDeAgenda.ts`): o e-mail diz quem, quando —
+   no fuso da barbearia —, o serviço, o preço, com quem, o WhatsApp do cliente e o link da
+   agenda daquele dia; não leva a data de nascimento nem o link que desmarca. O que o
+   barbeiro faz pelo painel não avisa ninguém, e o duplo clique — a mesma chave de
+   idempotência — não avisa duas vezes. O e-mail que não sai nunca derruba o agendamento:
+   vira uma linha `[agenda]` no log. **De carona:** desmarcar pelo link passou a conferir e
+   desmarcar num comando só (`apps/barbearia/src/pages/api/appointments/by-token/[token]/cancel.ts`)
+   — antes, dois cliques ao mesmo tempo podiam responder os dois "desmarcado", e com o aviso
+   seriam dois e-mails.
+
+   ⚠️ **Em produção, nada sai sem o provedor de e-mail** (§4.17) — o mesmo bloqueio da senha
+   nova e dos avisos do teste.
+2. ✅ **A data de nascimento continua sendo a senha do cliente — mantido por você em
+   11/10/2026.** A área do cliente entra com telefone e data de nascimento
+   (`apps/barbearia/src/pages/api/customer/login.ts`) e lista os agendamentos com o link de
+   cada um, que desmarca e remarca. O risco, aceito: telefone e aniversário não são segredo —
+   quem sabe os dois de alguém vê onde e quando ele corta o cabelo, e desmarca. **Por isso o
+   termo tem de dizer** como o cliente entra e o que a área mostra (§1.2). *Não feito,
+   sugestão:* o limite de tentativas é por endereço de rede e mora na memória do processo
+   (`apps/barbearia/src/lib/rateLimit.ts`); um limite por telefone dificultaria tentar datas
+   de vários endereços, sem mudar o jeito de entrar.
+3. ✅ **O ponto do mapa — agora o dono confere. Feito em 11/10/2026.** O Início do painel
+   mostra ao dono o mapa que o site mostra, com a busca que o Google usou, e pergunta: *"Está
+   certo"* ou *"Não está — corrigir o endereço"*, que leva a Configurações
+   (`apps/barbearia/src/pages/admin/index.astro`). Lá, embaixo do endereço, a prévia do mapa
+   acompanha o que ele digita (`apps/barbearia/src/pages/admin/configuracoes.astro`). A
+   resposta guarda a **busca** conferida (`settings.mapa_conferido`, migration 0011; a rota é
+   `apps/barbearia/src/pages/api/admin/mapa-conferido.ts`): mudou o endereço, a pergunta volta
+   sozinha. O site, o Início e Configurações montam o mapa pela mesma função (`embedDoMapa`,
+   em `apps/barbearia/src/lib/mapa.ts`). Só o dono vê; barbearia sem endereço não tem mapa
+   nem pergunta. ⚠️ Toda barbearia que já existe — o Bayron inclusive, depois da migração —
+   vê a pergunta uma vez.
+4. ✅ **Fora do ar, o e-mail não se troca — fica como está, decidido por você em
+   11/10/2026.** A tela de assinatura mostra para onde vão os avisos e esconde o "Trocar"
+   quando o site está fora do ar (`apps/barbearia/src/pages/admin/assinatura.astro:135`),
+   porque nessa fase o painel só abre ela. Quem digitou o e-mail errado no cadastro só corrige
+   depois de pagar — e pagar funciona fora do ar. *Rejeitado:* um campo para trocar o e-mail
+   na própria tela de assinatura.
+
+Guarda: `apps/barbearia/tests/aviso-de-agenda.test.ts` e
+`apps/barbearia/tests/mapa-conferido.test.ts` — 30 casos; 29 reintroduções, as 29 vermelhas.
+Duas não ficaram na primeira tentativa, e isso mudou o teste e o código: o admin inativo
+recebendo o aviso passava — o inativo do teste era barbeiro, que não recebe de qualquer
+jeito —, e o desmarcar duplo também — cinco cliques ao mesmo tempo não produziram a corrida
+no teste; o desmarcar virou um comando só, e o caso em sequência passou a pegar. Contra o
+build: 26 conferências no navegador, e a 0011 aplicada pelo `scripts/startup.mjs` sobre um
+banco parado na 0010.
 
 ---
 
@@ -2060,7 +2092,7 @@ vinho, o botão do combo continuava verde — visto no build anterior.
 
 **Feito,** com os sete consertos do primeiro minuto, que você pediu em 09/10/2026; o tom é o que
 o código já tinha como padrão. Os quatro lugares são o `ACCENT_PADRAO` (`styles/global.css:22`,
-`lib/settings.ts:92`, `db/schema.ts:305`), e o botão do combo usa as cores do tema
+`lib/settings.ts:92`, `db/schema.ts:344`), e o botão do combo usa as cores do tema
 (`components/ComboBoris.astro:60`). A **migration 0009** troca o padrão da coluna e conserta as
 linhas gravadas com o par antigo exato — quem escolheu cor não é tocado. ⚠️ **Na migração da
 produção ela roda depois da carga do SQLite, e é ela que conserta o Bayron**
@@ -2432,6 +2464,10 @@ rótulo de DNS válido (hoje em `lib/provisionarBarbearia.ts:236`) e se já exis
   fim do teste, no começo da carência — teste vencido ou cobrança que falhou — e quando o site
   sai do ar. Sai só o da fase de agora, um por prazo: a trava é a tabela `avisos_enviados`
   (migration 0008). O texto do meio é o mesmo parágrafo da tela de assinatura.
+- **O aviso de agenda** (11/10/2026, `apps/barbearia/src/lib/avisoDeAgenda.ts`): o barbeiro do
+  horário e o dono recebem um e-mail quando o cliente agenda, desmarca ou remarca pelo site; o
+  dono desliga por pessoa na Equipe (§2.33). Sai na hora, pela rota do cliente — não pelo
+  daemon abaixo.
 - **Quem dispara os avisos** é o `scripts/avisos-daemon.mjs`, de hora em hora, lançado pelo CMD
   do Dockerfile como o daemon de backup. Ele chama `POST /api/tarefas/avisos` pela porta local,
   com um token derivado do `SESSION_SECRET` — variável nenhuma a mais para configurar. Sem o
@@ -2582,7 +2618,8 @@ cliente (§2.11), e o ícone do Astro na aba de toda barbearia (`JORNADA-DO-BARB
 **Achados de 10/10/2026, no roteiro do dono na máquina dele, ✅ já consertados:** os três links
 de mapa vazios, o Instagram e o texto "sobre" sem conteúdo, o menu que levava a "Agenda do
 dia" ao resumo, as reservas que não diziam ser de produto e o cadastro sem o aviso do teste
-(§2.32). Ficaram quatro decisões suas (§2.33).
+(§2.32). As quatro decisões que ficaram, você tomou em 11/10 — o aviso de agenda por e-mail e a
+conferência do mapa, feitos no mesmo dia (§2.33).
 
 **Onda 2 — antes de abrir o cadastro público.**
 
@@ -2600,8 +2637,9 @@ fundo é dele ou do layout (§4.13)~~; e ~~o canal da recuperação de senha (§
 em 27/09, também suas: ~~o cartão antes de a barbearia existir, e onde mora o código da
 cobrança (§4.14)~~. Os riscados foram decididos em 08/10/2026 (`PLANO-PRODUTIZACAO.md` §13);
 o teste que acaba sem cartão segue os mesmos 3 dias — confirmado no mesmo dia (§1.3).
-*Acrescentadas em 10/10/2026:* como o barbeiro fica sabendo de agendamento novo, e se a data
-de nascimento continua sendo a senha do cliente (§2.33).
+~~*Acrescentadas em 10/10/2026:* como o barbeiro fica sabendo de agendamento novo, e se a data
+de nascimento continua sendo a senha do cliente~~ — decididas em 11/10/2026: e-mail, feito; e a
+data de nascimento fica, e vai no termo (§2.33 e §1.2).
 
 *Código, nesta ordem* — detalhada pelo caminho do barbeiro em
 `JORNADA-DO-BARBEIRO.md` §5:
