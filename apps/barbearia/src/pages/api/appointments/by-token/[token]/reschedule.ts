@@ -10,6 +10,7 @@ import { appointments, workingHours } from '../../../../../db/schema.js';
 import { json } from '../../../../../lib/api.js';
 import { reagendarAtomicamente } from '../../../../../lib/reagendar.js';
 import { tenantDoHost } from '../../../../../lib/tenant.js';
+import { avisarMudancaNaAgenda } from '../../../../../lib/avisoDeAgenda.js';
 import { TZ } from '../../../../../lib/timezone.js';
 
 
@@ -117,6 +118,13 @@ export const POST: APIRoute = async ({ params, request }) => {
         status_mudou:         'Agendamento não pode mais ser reagendado',
       };
       return json({ error: mensagens[r.motivo] }, r.httpStatus);
+    }
+
+    // O barbeiro e o dono ficam sabendo do horário novo — e do antigo, que ficou
+    // livre (11/10/2026, `lib/avisoDeAgenda.ts`). Remarcar para o mesmo horário
+    // não muda nada, e não avisa.
+    if (appt.startsAt !== newStartIso) {
+      await avisarMudancaNaAgenda({ tenant, tipo: 'remarcado', agendamentoId: appt.id, inicioAnterior: appt.startsAt });
     }
 
     return json({

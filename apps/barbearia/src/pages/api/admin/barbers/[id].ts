@@ -23,6 +23,12 @@ const updateSchema = z.object({
    * nova não chegasse (`docs/JORNADA-DO-BARBEIRO.md` §2.2).
    */
   email:  z.string().max(254).nullable().optional(),
+  /**
+   * Recebe e-mail quando um cliente agenda, desmarca ou remarca pelo site
+   * (`lib/avisoDeAgenda.ts`, 11/10/2026). Quem liga e desliga é o dono, como o
+   * e-mail: o barbeiro não tem tela própria.
+   */
+  avisarAgendamentos: z.boolean().optional(),
 });
 
 export const PUT: APIRoute = async ({ request, params }) => {
@@ -41,8 +47,9 @@ export const PUT: APIRoute = async ({ request, params }) => {
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return json({ error: parsed.error.issues[0].message }, 400);
 
-  const { name, role, active } = parsed.data;
-  if (name === undefined && role === undefined && active === undefined && parsed.data.email === undefined) {
+  const { name, role, active, avisarAgendamentos } = parsed.data;
+  if (name === undefined && role === undefined && active === undefined && parsed.data.email === undefined
+      && avisarAgendamentos === undefined) {
     return json({ error: 'Nenhum campo para atualizar' }, 400);
   }
 
@@ -71,6 +78,7 @@ export const PUT: APIRoute = async ({ request, params }) => {
   if (role   !== undefined) updates.role   = role;
   if (active !== undefined) updates.active = active;
   if (email  !== undefined) updates.email  = email;
+  if (avisarAgendamentos !== undefined) updates.avisarAgendamentos = avisarAgendamentos;
 
   await db.update(barbers).set(updates).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id)));
   return json({ ok: true });

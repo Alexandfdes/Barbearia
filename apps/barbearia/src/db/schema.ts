@@ -88,6 +88,12 @@ export const barbers = pgTable('barbers', {
    * trocar a senha tirar todo mundo de dentro (`lib/session.ts`, migration 0008).
    */
   senhaTrocadaEm: timestamp('senha_trocada_em', { withTimezone: true }),
+  /**
+   * Recebe e-mail quando um cliente agenda, desmarca ou remarca pelo site — o
+   * barbeiro, dos horários dele; o dono, de todos (`lib/avisoDeAgenda.ts`,
+   * migration 0011). Nasce ligado; o dono desliga por pessoa na tela da Equipe.
+   */
+  avisarAgendamentos: boolean('avisar_agendamentos').notNull().default(true),
 }, (t) => [
   unique('barbers_tenant_slug_uq').on(t.tenantId, t.slug),
 ]);
@@ -348,6 +354,12 @@ export const settings = pgTable('settings', {
   googleReviewCount: integer('google_review_count'),
   productsSectionTitle: text('products_section_title').notNull().default('Produtos'),
   updatedAt: text('updated_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
+  /**
+   * A busca do mapa que o dono confirmou no painel (`lib/mapa.ts`, migration
+   * 0011). O texto, não um "sim": o endereço mudou, a busca mudou, e o painel
+   * pergunta de novo. Nulo é "nunca conferiu".
+   */
+  mapaConferido: text('mapa_conferido'),
 }, (t) => [
   unique('settings_tenant_uq').on(t.tenantId),
 ]);

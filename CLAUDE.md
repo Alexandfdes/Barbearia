@@ -125,7 +125,8 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   desenvolvimento do Astro recusa a imagem que ela pede ao endereço novo. Não é defeito — no build
   e em produção ela confere de verdade (`apps/barbearia/src/lib/noAr.ts`).
 - **E-mail no desenvolvimento** vai para `apps/barbearia/data/emails/`, um `.txt` por e-mail —
-  é ali que está o link da senha nova. Com `SMTP_URL`, sai de verdade (`src/lib/email.ts`).
+  é ali que estão o link da senha nova e o aviso de cada agendamento feito pelo site. Com
+  `SMTP_URL`, sai de verdade (`src/lib/email.ts`).
 - **Dependências:** o npm 10 quebra ao mexer nelas (`edgesOut`). Gere o lock com
   `npx npm@11 install` e regrave com o npm 10 (`npm install`), que é o do Docker; o `npm ci`
   dos dois tem que passar (`docs/PENDENCIAS-ABERTAS.md` §2.29).

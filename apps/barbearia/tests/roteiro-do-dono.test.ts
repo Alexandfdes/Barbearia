@@ -62,7 +62,8 @@ describe('o mapa e a rota da barbearia (`lib/mapa.ts`)', () => {
 
   it('o mapa da página busca o mesmo texto que a rota', () => {
     const local = soCodigo(readFileSync('src/components/Location.astro', 'utf8'));
-    expect(local).toMatch(/const queryMapa = buscaDoMapa\(s\);/);
+    // Desde 11/10/2026 pela mesma função que o painel usa para o dono conferir.
+    expect(local).toMatch(/const mapsEmbedSrc = embedDoMapa\(s\);/);
     expect(local).toMatch(/\{rota && \(\s*<a\s+href=\{rota\}/);
   });
 });
