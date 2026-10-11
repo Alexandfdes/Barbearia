@@ -80,13 +80,25 @@ describe('nenhum site usa o endereço ou a imagem de outra barbearia', () => {
     for (const l of comOg) expect(l).toMatch(/ehOBayron\(tenantAtual\(\)\)/);
   });
 
-  it('nenhuma tela traz "Barbearia Bayron" escrito no código', () => {
+  it('nenhuma tela traz o nome do Bayron escrito no código', () => {
     // O portal, a área do cliente, o lembrete de WhatsApp e o relatório impresso
     // diziam "Barbearia Bayron" para qualquer barbearia até 27/09/2026. O nome
     // tem que vir de `settings`. Comentário não conta.
-    const soCodigo = (f: string) => readFileSync(f, 'utf8').split('\n')
-      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
-    const comNomeFixo = fontes.filter((f) => /Barbearia Bayron/.test(soCodigo(f)));
+    //
+    // ⚠️ Esta guarda procurava a FRASE "Barbearia Bayron" — e por isso o título
+    // "Portal Bayron" e o cartão "Equipe Bayron" do portal passaram verdes até
+    // 11/10/2026, quando o dono abriu o portal de outra barbearia e viu. Agora é a
+    // PALAVRA solta: em nome de variável (`ehOBayron`, `avatarBayron`) e em nome
+    // de arquivo (`Logo-Bayron3.png`) ela não conta, e é o que o conteúdo do
+    // Bayron, atrás de `ehOBayron()`, usa.
+    const soCodigo = (f: string) => readFileSync(f, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '')
+      .split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    const PALAVRA = /(?<![\w-])Bayron(?![\w-])/;
+    // Controle: pega o texto solto, e não confunde nome de variável nem de arquivo.
+    expect(['Portal Bayron', '>Equipe Bayron<', 'Barbearia Bayron'].every((t) => PALAVRA.test(t))).toBe(true);
+    expect(['ehOBayron(t)', 'avatarBayron', "'../assets/Logo-Bayron3.png'", 'BAYRON'].some((t) => PALAVRA.test(t))).toBe(false);
+    const comNomeFixo = fontes.filter((f) => PALAVRA.test(soCodigo(f)));
     expect(comNomeFixo).toEqual([]);
   });
 
