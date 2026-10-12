@@ -1,0 +1,34 @@
+---
+/**
+ * "Seus dados": a lista de clientes e os agendamentos em planilha, para o dono
+ * baixar (`lib/exportacao.ts`). Aparece em Configurações e na tela de assinatura —
+ * que é a única que abre com a barbearia fora do ar: quem saiu leva os dados dele.
+ *
+ * Quem decide que só o dono vê é a página que inclui; as rotas conferem de novo.
+ */
+import { ROTA_DOS_AGENDAMENTOS, ROTA_DOS_CLIENTES } from '../../lib/exportacao.js';
+import { NOME_PRODUTO } from '../../lib/produto.js';
+---
+<section id="exportar-dados" aria-labelledby="exportar-titulo"
+  class="rounded-lg border border-slate-200 bg-white px-5 py-4 space-y-3">
+  <h2 id="exportar-titulo" class="text-sm font-semibold text-slate-900">Seus dados</h2>
+  <p class="text-sm text-slate-700 max-w-[65ch]">
+    A lista de clientes e todos os agendamentos, em planilha — abre no Excel e no Google Planilhas.
+    São seus: baixe quando quiser, inclusive se um dia sair do {NOME_PRODUTO}.
+  </p>
+  <div class="flex flex-wrap gap-2">
+    <a id="baixar-clientes" href={ROTA_DOS_CLIENTES} download
+      class="text-xs font-semibold text-slate-800 border border-slate-300 hover:border-slate-500 rounded px-3 py-2 transition-colors">
+      Baixar a lista de clientes
+    </a>
+    <a id="baixar-agendamentos" href={ROTA_DOS_AGENDAMENTOS} download
+      class="text-xs font-semibold text-slate-800 border border-slate-300 hover:border-slate-500 rounded px-3 py-2 transition-colors">
+      Baixar os agendamentos
+    </a>
+  </div>
+  <p id="aviso-do-arquivo" class="text-xs text-amber-950 bg-amber-50 border border-amber-200 rounded px-3 py-2 max-w-[65ch]">
+    O arquivo traz o telefone e a data de nascimento de cada cliente — e a data é também como ele
+    entra na área do cliente do seu site. Guarde com cuidado: não mande em grupo nem deixe em
+    computador dos outros.
+  </p>
+</section>

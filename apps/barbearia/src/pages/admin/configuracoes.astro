@@ -3,6 +3,7 @@ export const prerender = false;
 
 import { tenantDaSessao } from '../../lib/tenant.js';
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import ExportarDados from '../../components/admin/ExportarDados.astro';
 import { getSession } from '../../lib/session.js';
 import { db, first } from '../../db/index.js';
 import { barbers, settings } from '../../db/schema.js';
@@ -269,16 +270,25 @@ const valor = (id: string): string => {
         </button>
       </section>
 
-      <section class="border border-slate-200 rounded-lg p-4 text-xs text-slate-400 leading-relaxed">
-        <p class="font-medium text-slate-500 mb-1.5">Ainda não dá para editar por aqui:</p>
-        <p>A galeria de fotos da página inicial continua vindo do código, junto com os
-        depoimentos, as perguntas frequentes e o catálogo de serviços — é a próxima fase.
-        A cor de destaque já existe no banco, mas o site ainda não a lê, então não a coloquei
-        aqui para não dar um botão que não faz nada.</p>
+      <!--
+        Até 11/10/2026 este bloco dizia que a galeria, o catálogo de serviços e a cor de
+        destaque "ainda não" se editavam — e as três já se editavam havia semanas (a
+        Galeria e os Serviços têm tela própria; a cor está nesta mesma página, logo
+        acima). Sobram de verdade só os depoimentos e as perguntas frequentes, que vêm
+        do código e por isso só aparecem no site do Bayron (`lib/bayron.ts`).
+      -->
+      <section id="ainda-nao-editavel" class="border border-slate-200 rounded-lg p-4 text-xs text-slate-500 leading-relaxed">
+        <p class="font-medium text-slate-600 mb-1.5">Ainda não existe no painel:</p>
+        <p>Depoimentos de clientes e perguntas frequentes. Por isso o seu site ainda não tem
+        essas duas seções. As fotos ficam em <a href="/admin/galeria" class="underline underline-offset-2">Galeria</a>,
+        e os serviços, em <a href="/admin/servicos" class="underline underline-offset-2">Serviços</a>.</p>
       </section>
 
       <div id="cfg-msg" class="hidden text-sm rounded px-3 py-2"></div>
     </form>
+
+    <!-- Fora do formulário: baixar não é salvar. -->
+    <div class="mt-5"><ExportarDados /></div>
   </main>
 
   <!-- Barra de salvar fixa: o formulário é longo e o botão não pode sumir no fim da rolagem -->

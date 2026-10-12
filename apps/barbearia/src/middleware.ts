@@ -41,6 +41,7 @@ import { respostaForaDoAr } from './lib/siteForaDoAr.js';
 import { ROTA_DO_CANCELAMENTO, ROTA_DO_CARTAO, TELA_DE_ASSINATURA } from './lib/assinatura.js';
 import { motivoDaRecusa, respostaDaRecusa } from './lib/origem.js';
 import { ehRotaDoOperador } from './lib/operador.js';
+import { ROTAS_DA_EXPORTACAO } from './lib/exportacao.js';
 
 export const onRequest = defineMiddleware(async (contexto, next) => {
   const caminho = new URL(contexto.request.url).pathname;
@@ -152,8 +153,11 @@ async function painelDeBarbeariaForaDoAr(
 
   // A tela e o botão do cartão: é por eles que quem saiu do ar volta. E o
   // cancelar: fora do ar pela cobrança, a assinatura segue viva na Asaas, e quem
-  // quer sair tem de poder parar a cobrança sozinho (`lib/cobranca.ts`).
-  if (caminho === TELA_DE_ASSINATURA || caminho === ROTA_DO_CARTAO || caminho === ROTA_DO_CANCELAMENTO) {
+  // quer sair tem de poder parar a cobrança sozinho (`lib/cobranca.ts`). E os dados
+  // dele em planilha (`lib/exportacao.ts`, decisão de 11/10/2026): quem saiu leva a
+  // lista de clientes — não fica refém dela até pagar.
+  if (caminho === TELA_DE_ASSINATURA || caminho === ROTA_DO_CARTAO || caminho === ROTA_DO_CANCELAMENTO
+      || ROTAS_DA_EXPORTACAO.has(caminho)) {
     return servirComTenant(fora.tenant, next);
   }
   if (caminho.startsWith('/api/')) {

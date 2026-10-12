@@ -193,9 +193,12 @@ describe('o middleware deixa passar o que a cobrança precisa — e só isso', (
     expect(corpo.indexOf("caminho.startsWith('/api/asaas/')")).toBeGreaterThan(corpo.indexOf('motivoDaRecusa('));
     expect(corpo.indexOf("caminho.startsWith('/api/asaas/')")).toBeLessThan(corpo.indexOf('tenantDaRequisicao('));
   });
-  it('fora do ar, abre a tela de assinatura, o botão do cartão e o cancelar — e nada mais', () => {
+  it('fora do ar, abre a tela de assinatura, o botão do cartão, o cancelar e os dados em planilha — e nada mais', () => {
     // O cancelar também: fora do ar pela cobrança, a assinatura segue viva na Asaas.
-    expect(fonte).toMatch(/if \(caminho === TELA_DE_ASSINATURA \|\| caminho === ROTA_DO_CARTAO \|\| caminho === ROTA_DO_CANCELAMENTO\) \{\s*return servirComTenant/);
+    // E, desde 11/10/2026, as duas rotas da exportação (`lib/exportacao.ts`): quem
+    // saiu leva a lista de clientes. O conjunto delas é conferido em
+    // `tests/exportacao.test.ts` — são as duas, e só elas.
+    expect(fonte).toMatch(/if \(caminho === TELA_DE_ASSINATURA \|\| caminho === ROTA_DO_CARTAO \|\| caminho === ROTA_DO_CANCELAMENTO\s*\|\|\s*ROTAS_DA_EXPORTACAO\.has\(caminho\)\) \{\s*return servirComTenant/);
     expect(fonte.split('servirComTenant(fora.tenant').length - 1).toBe(1);
   });
 });
