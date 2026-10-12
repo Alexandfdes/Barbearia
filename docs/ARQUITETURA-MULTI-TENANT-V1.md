@@ -160,7 +160,7 @@ FOREIGN KEY (barber_id, tenant_id) REFERENCES barbers (id, tenant_id)
 ```
 
 Assim o banco recusa sozinho, sem depender de o código lembrar. Está na migration
-`0001_tenants.sql`, em `migracao-tenants/`.
+`apps/barbearia/drizzle/0001_tenants.sql`.
 
 ### 5.2.2 `settings.id` não tinha sequência — não previsto
 

@@ -146,6 +146,14 @@ RLS como segunda parede. Está na skill `barbearia-multi-tenant`, e não é opci
 > depois". A garantia vem de onde o módulo é usado: só a tela de assinatura, as rotas dela e o
 > webhook, que não é rota de barbearia. O teste que impediria uma tela de barbearia de importar
 > o módulo não existe.*
+>
+> *Existe desde 12/10/2026:* `apps/barbearia/tests/cobranca-isolada.test.ts` segue os imports de
+> cada página, rota e do middleware — os diretos e os de quem é importado — e reprova quem chega a
+> `lib/cobranca.ts` ou ao cliente da Asaas, `lib/asaas.ts`, fora da lista: a tela de assinatura, as
+> duas rotas dela e o webhook. A lista fecha nos dois sentidos — a exceção que não chega mais à
+> cobrança também reprova. O painel do operador fica de fora: não é tela de barbearia. Conferido
+> reintroduzindo o defeito: o import da cobrança num arquivo do meio, no middleware e por import
+> dinâmico numa tela deixaram o teste vermelho.
 
 **A instância da barbearia nunca sabe que dinheiro existe.**
 

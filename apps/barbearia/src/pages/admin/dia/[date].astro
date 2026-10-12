@@ -1220,7 +1220,7 @@ const clientData = {
   import { waPhone, waLink, buildWaMessages } from '../../../lib/whatsapp';
   import { reais } from '../../../lib/dinheiro';
   import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
-  import { diaDaSemana, horariosParaMover } from '../../../lib/gradeDeHorarios';
+  import { diaDaSemana, horariosLivres, horariosParaMover, ocupacaoDoBarbeiro } from '../../../lib/gradeDeHorarios';
 
   const container = document.getElementById('admin-data-container')!;
   const clientData = JSON.parse(container.dataset.client!);
@@ -2020,12 +2020,14 @@ const clientData = {
   });
 
   // Reagendar: carrega slots ao mudar data
+  let pedidoDaGrade = 0;
   async function loadMoveSlots() {
     if (!currentApptId) return;
     const appt = clientData.appts.find(a => String(a.id) === String(currentApptId));
     if (!appt) return;
     const targetDate = dmMoveDate.value;
     if (!targetDate) return;
+    const pedido = ++pedidoDaGrade;
     dmMoveSlots.innerHTML = '<span class="text-slate-500">Carregando horários...</span>';
     dmMoveConfirm.disabled = true;
     currentMoveSlot = null;
@@ -2033,28 +2035,48 @@ const clientData = {
     try {
       // A grade sai do expediente DO BARBEIRO naquele dia da semana — até
       // 27/09/2026 era 08:00 → 19:00 fixo, e oferecia horário que o servidor
-      // recusava (`lib/gradeDeHorarios.ts`). Conflito com outro atendimento o
-      // servidor continua conferindo ao confirmar.
-      dmMoveSlots.innerHTML = '';
+      // recusava (`lib/gradeDeHorarios.ts`).
       const janelas = clientData.expediente?.[appt.barberId]?.[diaDaSemana(targetDate)] ?? [];
       const horarios = horariosParaMover(janelas, appt.durationMinutes);
       if (horarios.length === 0) {
         dmMoveSlots.innerHTML = '<span class="text-slate-500">O barbeiro não trabalha neste dia.</span>';
         return;
       }
+      // E só os livres: sem outro atendimento do barbeiro nem bloqueio no caminho.
+      // Até 12/10/2026 a grade oferecia o horário de outro cliente, e só o servidor
+      // recusava, ao confirmar. A agenda do dia escolhido vem do servidor — pode ser
+      // outro dia —, e a conta é a dele (`horariosLivres`). Ele continua conferindo.
+      const [agenda, bloqueios] = await Promise.all([
+        callApi(`/api/admin/appointments?date=${targetDate}&barberId=${appt.barberId}`, 'GET'),
+        callApi('/api/admin/time-off', 'GET'),
+      ]);
+      if (pedido !== pedidoDaGrade) return; // a data mudou no meio: vale o pedido novo
+      if (!agenda.ok || !bloqueios.ok) throw new Error('agenda');
+      const ocupados = ocupacaoDoBarbeiro(appt.barberId, appt.id, agenda.data, bloqueios.data);
+      const livres = horariosLivres(
+        horarios.map(rotulo => ({ rotulo, inicio: localTimeToUtcIso(targetDate, rotulo) })),
+        appt.durationMinutes,
+        ocupados,
+      );
+      dmMoveSlots.innerHTML = livres.length === 0 ? '<span class="text-slate-500">Nenhum horário livre neste dia.</span>' : '';
+      if (livres.length === 0) return;
       const grid = document.createElement('div');
       grid.className = 'grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto';
 
-      for (const label of horarios) {
-        const utc = localTimeToUtcIso(targetDate, label);
-
+      for (const { rotulo: label, inicio: utc } of livres) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.textContent = label;
         btn.dataset.iso = utc;
         btn.className = 'text-xs px-2 py-1.5 border border-slate-200 rounded text-slate-700 hover:border-teal/40 hover:text-teal transition-colors tabular-nums';
-        // Marca o atual desabilitado
-        if (utc === '' /* impossivel */) {/* placeholder */}
+        // O horário em que ele já está: aparece, apagado — mover para ele não muda nada.
+        if (targetDate === date && label === appt.timeLocal) {
+          btn.disabled = true;
+          btn.title = 'Horário atual';
+          btn.className = 'text-xs px-2 py-1.5 border border-dashed border-slate-200 rounded text-slate-400 cursor-default tabular-nums';
+          grid.appendChild(btn);
+          continue;
+        }
         btn.addEventListener('click', () => {
           grid.querySelectorAll('button').forEach(b =>
             b.classList.remove('bg-teal/20', 'border-teal/50', 'text-teal'));
@@ -2066,7 +2088,8 @@ const clientData = {
       }
       dmMoveSlots.appendChild(grid);
     } catch {
-      dmMoveSlots.innerHTML = '<span class="text-red-600">Erro ao carregar.</span>';
+      if (pedido !== pedidoDaGrade) return;
+      dmMoveSlots.innerHTML = '<span class="text-red-600">Erro ao carregar os horários. Escolha a data de novo.</span>';
     }
   }
   dmMoveDate?.addEventListener('change', loadMoveSlots);

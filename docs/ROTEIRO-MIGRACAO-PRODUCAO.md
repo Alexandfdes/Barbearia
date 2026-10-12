@@ -457,7 +457,21 @@ SELECT COUNT(*) FROM appointments;   -- compare com o que o script imprimiu
 
 -- a sequence continua de onde parou
 SELECT last_value, is_called FROM appointments_id_seq;
+
+-- nenhum agendamento fictício do gerador de demonstração — tem de dar 0
+SELECT COUNT(*) FROM appointments WHERE notes = '[FICTICIO]';
 ```
+
+**Se o último der mais que zero,** o gerador de dados de demonstração (o `seed-relatorio-demo.mjs`,
+apagado em 12/10/2026) rodou em produção — ele tinha um modo para isso —, e o relatório do Bayron
+conta agendamentos que não existiram. Saem assim, o que o `--undo` dele fazia:
+
+```sql
+DELETE FROM appointment_items WHERE appointment_id IN (SELECT id FROM appointments WHERE notes = '[FICTICIO]');
+DELETE FROM appointments WHERE notes = '[FICTICIO]';
+```
+
+Depois, rode a `0015` de novo, como no §4.4: o corte do horário duplo pode ter vindo deles.
 
 ### 4.7 Subir
 

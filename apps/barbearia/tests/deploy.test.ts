@@ -279,12 +279,13 @@ function fechoDoProvisionador(): string[] {
 
 /**
  * Pacotes que scripts importam e que NÃO estão em `dependencies` — de propósito,
- * cada um com o motivo. A lista fecha: pacote novo aqui precisa de justificativa.
+ * cada um com o motivo. A lista fecha nos dois sentidos: pacote novo aqui precisa
+ * de justificativa, e exceção que nenhum script usa mais sai.
+ *
+ * Vazia desde 12/10/2026: o `better-sqlite3` estava aqui pelos dois scripts da
+ * época do SQLite (`seed-relatorio-demo`, `wipe-appointments`), apagados nesse dia.
  */
-const FORA_DA_PRODUCAO: Record<string, string> = {
-  'better-sqlite3':
-    'só os scripts da época do SQLite (seed-relatorio-demo, wipe-appointments), que não rodam desde o porte para Postgres',
-};
+const FORA_DA_PRODUCAO: Record<string, string> = {};
 
 describe('a imagem leva só o que roda em produção', () => {
   it('o node_modules da imagem vem de um `npm ci --omit=dev` à parte, não do build', () => {
@@ -304,6 +305,9 @@ describe('a imagem leva só o que roda em produção', () => {
       .filter((p) => !deps.has(p) && !(p in FORA_DA_PRODUCAO))
       .map((p) => `${a} → ${p}`));
     expect(faltando, 'mova o pacote para dependencies, ou justifique em FORA_DA_PRODUCAO').toEqual([]);
+    const usados = new Set(arquivos.flatMap((a) => pacotesImportados(a)));
+    const semUso = Object.keys(FORA_DA_PRODUCAO).filter((p) => !usados.has(p));
+    expect(semUso, 'exceção que nenhum script importa mais: tire de FORA_DA_PRODUCAO').toEqual([]);
   });
 
   it('o provisionador roda no container: o tsx é de produção, e o `src/` que ele importa entra na imagem', () => {

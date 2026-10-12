@@ -28,12 +28,6 @@ const SPLIT_WEEKDAY = new Date(Date.UTC(2030, 2, 18, 12)).getUTCDay();
 const LATE_DATE = '2030-03-19';                              // dia com expediente NOTURNO
 const LATE_WEEKDAY = new Date(Date.UTC(2030, 2, 19, 12)).getUTCDay();
 
-/**
- * Acha o SQL da migration. O `0000_init_postgres.sql` vive em
- * `migracao-postgres/` até o passo 2 ser aplicado, quando é copiado para
- * `drizzle/` — ver o §2 do `migracao-postgres/LEIA-ME.md`. Procurar nos dois
- * lugares evita o ENOENT críptico de quem roda o teste antes dessa cópia.
- */
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 
 // ⚠️ Esta suíte roda DROP SCHEMA. A guarda recusa qualquer banco cujo nome não

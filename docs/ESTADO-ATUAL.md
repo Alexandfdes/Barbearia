@@ -37,7 +37,6 @@ C:\DEV\barbearia\            (o monorepo; C:\DEV\produto não é mais usado)
   apps/barbearia/   site público + agendamento + painel   → porta 4321
   apps/vendas/      landing, /onboarding, /envios         → porta 4322
   docs/             decisões de produto e arquitetura
-  migracao-postgres/ o porte para Postgres, pronto e não aplicado
   .claude/skills/   três skills versionadas
   CLAUDE.md         orientação de trabalho
 ```
@@ -90,7 +89,11 @@ teste não compilava. Foram escritas em 06/09, dentro do passo 3.5.
 
 ### O passo 2 em detalhe
 
-O porte inteiro está em `migracao-postgres/porte-postgres.patch` — **101
+*Registro de 06/09/2026, de antes de o porte ser aplicado — no mesmo dia (a tabela acima). As
+pastas `migracao-postgres/` e `migracao-tenants/`, citadas aqui e no item seguinte, saíram do
+repositório em 12/10/2026; continuam no histórico do git.*
+
+O porte inteiro estava em `migracao-postgres/porte-postgres.patch` — **101
 arquivos**. Ele aplica limpo sobre o código atual (conferido com
 `git apply --check`), mas **ninguém o aplicou**: `apps/barbearia/src/` continua
 em `better-sqlite3`.
@@ -174,7 +177,7 @@ produção porque o próprio §2 do LEIA-ME manda desinstalar o `better-sqlite3`
 | `scripts/set-admin-password.mjs` | Caminho de suporte para dono que perdeu a senha | ✅ portado, ciente de tenant |
 | `scripts/settings.mjs` | Edição de configuração fora do painel | ✅ portado, ciente de tenant |
 | `scripts/seed.mjs` | Era o catálogo e a equipe do Bayron. Virou dois scripts — ver abaixo | ✅ substituído |
-| `seed-relatorio-demo.mjs`, `wipe-appointments.mjs` | Ferramentas de desenvolvimento | 🟡 ainda em SQLite |
+| `seed-relatorio-demo.mjs`, `wipe-appointments.mjs` | Ferramentas de desenvolvimento | ✅ apagados em 12/10/2026 — não rodavam desde o porte |
 
 **Uma bomba junto:** o patch adicionava `0000_init_postgres.sql` mas **não removia
 as 9 migrations SQLite** da pasta `drizzle/`. O migrador lê `*.sql` em ordem
