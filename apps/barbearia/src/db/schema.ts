@@ -77,7 +77,8 @@ export const webhookEvents = pgTable('webhook_events', {
 export const acoesDoOperador = pgTable('acoes_do_operador', {
   tenantId: integer('tenant_id').references(() => tenants.id),
   id: serial('id').primaryKey(),
-  acao: text('acao', { enum: ['entrou', 'estendeu-teste', 'suspendeu', 'reativou'] }).notNull(),
+  // 'anotou' desde a 0014 (12/10/2026): a anotação do operador na ficha da barbearia.
+  acao: text('acao', { enum: ['entrou', 'estendeu-teste', 'suspendeu', 'reativou', 'anotou'] }).notNull(),
   detalhe: jsonb('detalhe').notNull().default(sql`'{}'::jsonb`),
   ip: text('ip'),
   criadaEm: timestamp('criada_em', { withTimezone: true }).notNull().defaultNow(),

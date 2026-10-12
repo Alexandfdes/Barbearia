@@ -282,6 +282,10 @@ describe('a rede não tem furo por descuido', () => {
                                           // `tenants`, que o papel do app só lê (0003)
       'src/lib/operadorBarbearias.ts',    // o painel do operador: lista TODAS as barbearias e muda `tenants`;
                                           // atrás da senha do operador (`lib/operador.ts`), sem dado de cliente
+      'src/lib/operadorNumeros.ts',       // o Início e a Cobrança do operador: contagens de `tenants` e os eventos
+                                          // da Asaas — do corpo, só o valor —, atrás da mesma senha
+      'src/lib/operadorSistema.ts',       // a tela de Sistema: pergunta ao banco a versão, o tamanho e as migrations;
+                                          // não lê tabela de barbearia nenhuma
       'src/lib/fusoDaBarbearia.ts',       // o fuso de Configurações mora em `tenants`, que o papel do app só lê
                                           // (0003): um UPDATE só, com o WHERE na barbearia da sessão
     ];

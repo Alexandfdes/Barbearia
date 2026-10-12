@@ -1,0 +1,272 @@
+---
+export const prerender = false;
+
+/**
+ * A ficha de UMA barbearia: a situação, o dono, o uso, o que falta no site dela,
+ * a linha do tempo, as ações e as anotações (`fichaDaBarbearia`, em
+ * `lib/operadorBarbearias.ts`; decisão do dono em 12/10/2026).
+ *
+ * As datas DELA — o fim do teste, o último agendamento — saem no fuso dela. As
+ * do OPERADOR — quando o evento chegou, quando ele agiu — no relógio dele
+ * (`lib/operadorTela.ts`). Nenhum dado de cliente de barbearia: só contagens.
+ */
+import OperadorLayout from '../../../layouts/OperadorLayout.astro';
+import Pilula from '../../../components/operador/Pilula.astro';
+import AcoesDaBarbearia from '../../../components/operador/AcoesDaBarbearia.astro';
+import { exigirOperador } from '../../../lib/operador.js';
+import { ANOTACAO_MAXIMA, fichaDaBarbearia, type EventoDaFicha } from '../../../lib/operadorBarbearias.js';
+import { diaDe } from '../../../lib/situacao.js';
+import { deslocamento, rotuloDoFuso } from '../../../lib/timezone.js';
+import { quandoComAno } from '../../../lib/operadorTela.js';
+import { formatarTelefone } from '../../../lib/phone.js';
+import { waLink, waPhone } from '../../../lib/whatsapp.js';
+
+const fechada = await exigirOperador(Astro.request, Astro.response.headers);
+if (fechada) return fechada;
+
+const id = Number(Astro.params.id);
+const agora = new Date();
+const f = Number.isInteger(id) && id > 0 && id < 1e9 ? await fichaDaBarbearia(id, agora) : null;
+if (!f) Astro.response.status = 404;
+
+// Quem acabou de agir volta para cá com `?feito=`. A frase sai do estado de AGORA,
+// lido do banco — não do que o navegador disse que aconteceu.
+const feito = Astro.url.searchParams.get('feito');
+let mensagem = '';
+if (f && feito === 'estender-teste') {
+  mensagem = `Teste estendido — ${f.tela.rotulo.toLowerCase()}, ${f.tela.detalhe}.`;
+} else if (f && feito === 'suspender') {
+  mensagem = 'Saiu do ar.' + (f.temAssinatura ? ' A assinatura na Asaas continua cobrando: se ela não deve mais pagar, cancele lá.' : '');
+} else if (f && feito === 'reativar') {
+  mensagem = f.tela.tom === 'fora'
+    ? `Voltou ao status de antes, mas continua fora do ar: ${f.tela.detalhe}.`
+    : `Voltou ao ar — ${f.tela.rotulo.toLowerCase()}, ${f.tela.detalhe}.`;
+} else if (f && feito === 'anotar') {
+  mensagem = 'Anotação guardada.';
+}
+
+const wa = f?.dono?.telefone ? waPhone(f.dono.telefone) : null;
+const hostDe = (url: string) => url.replace(/^https?:\/\//, '');
+const diaUtc = (t: string | null, formato = 'dd/MM/yyyy') => (t && f ? diaDe(new Date(`${t.replace(' ', 'T')}Z`), f.fuso, formato) : null);
+
+const PONTO_DA_ORIGEM: Record<EventoDaFicha['origem'], string> = {
+  cadastro: 'bg-teal',
+  prazo: 'bg-amber-500',
+  asaas: 'bg-sky-500',
+  operador: 'bg-slate-700',
+  aviso: 'bg-slate-400',
+  agendamento: 'bg-emerald-500',
+};
+const ORIGEM_POR_EXTENSO: Record<EventoDaFicha['origem'], string> = {
+  cadastro: 'Cadastro', prazo: 'Prazo', asaas: 'Asaas', operador: 'Você', aviso: 'Aviso', agendamento: 'Site',
+};
+---
+<OperadorLayout titulo={f ? f.nome : 'Barbearia não encontrada'} ativo="barbearias">
+  <a href="/operador/barbearias" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-teal">← Barbearias</a>
+
+  {!f ? (
+    <p class="bg-white border border-slate-200 rounded-lg px-5 py-10 text-center text-sm text-slate-500">Não existe barbearia com este número.</p>
+  ) : (
+    <>
+      <section class="bg-white border border-slate-200 rounded-lg p-5">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h2 class="text-xl font-semibold text-slate-900">{f.nome}</h2>
+          <Pilula tom={f.tela.tom} rotulo={f.tela.rotulo} />
+          <span class="text-sm text-slate-600">{f.tela.detalhe}</span>
+        </div>
+        <p class="mt-2 text-sm text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
+          {f.site
+            ? <a href={f.site} target="_blank" rel="noopener noreferrer" class="text-teal hover:underline break-all">{hostDe(f.site)} ↗</a>
+            : <span>{f.slug}</span>}
+          {f.dominioProprio && <span>domínio próprio: {f.dominioProprio}</span>}
+          {f.criadaEm && <span>cliente desde {diaDe(f.criadaEm, f.fuso, 'dd/MM/yyyy')}</span>}
+          <span>{rotuloDoFuso(f.fuso)} · <span class="tabular-nums">{deslocamento(f.fuso)}</span></span>
+        </p>
+      </section>
+
+      {mensagem && (
+        <p id="feito" role="status" class="text-sm bg-white border border-slate-200 border-l-4 border-l-teal rounded-md px-4 py-3">{mensagem}</p>
+      )}
+
+      <div class="grid lg:grid-cols-3 gap-6 items-start">
+        <div class="lg:col-span-2 space-y-6">
+          <section class="bg-white border border-slate-200 rounded-lg p-5" aria-labelledby="titulo-uso">
+            <h3 id="titulo-uso" class="text-sm font-semibold text-slate-900">Uso</h3>
+            <dl class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { rotulo: 'Agendamentos em 7 dias', valor: f.agendamentos.ultimos7Dias },
+                { rotulo: 'Em 30 dias', valor: f.agendamentos.ultimos30Dias },
+                { rotulo: 'No total', valor: f.agendamentos.total },
+                { rotulo: 'Marcados pela frente', valor: f.agendamentos.proximos },
+                { rotulo: 'Barbeiros ativos', valor: f.equipe.ativos, de: f.equipe.total },
+                { rotulo: 'Serviços com preço', valor: f.servicos.comPreco, de: f.servicos.ativos },
+                { rotulo: 'Fotos na galeria', valor: f.fotosNaGaleria },
+              ].map((c) => (
+                <div class="bg-slate-50 rounded-md px-3 py-2.5">
+                  <dt class="text-xs text-slate-500">{c.rotulo}</dt>
+                  <dd class="text-lg font-semibold text-slate-900 tabular-nums">
+                    {c.valor}{c.de !== undefined && c.de !== c.valor && <span class="text-sm font-normal text-slate-500"> de {c.de}</span>}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <p class="mt-3 text-xs text-slate-500">
+              {f.agendamentos.ultimo
+                ? <>Último agendamento em {diaUtc(f.agendamentos.ultimo)}; o primeiro, em {diaUtc(f.agendamentos.primeiro)} — no calendário dela.</>
+                : 'Nenhum agendamento ainda.'}
+            </p>
+          </section>
+
+          <section class="bg-white border border-slate-200 rounded-lg p-5" aria-labelledby="titulo-site">
+            <div class="flex items-center justify-between gap-3">
+              <h3 id="titulo-site" class="text-sm font-semibold text-slate-900">O site</h3>
+              {f.completude.bloqueios.length === 0 && <span class="text-sm font-semibold text-slate-900 tabular-nums">{f.completude.percentual}%</span>}
+            </div>
+            {f.completude.bloqueios.length > 0 ? (
+              <>
+                <p class="mt-2 text-sm text-red-800">Ainda não funciona: falta o que impede o cliente de agendar.</p>
+                <ul class="mt-2 space-y-1 text-sm text-slate-700 list-disc pl-5">
+                  {f.completude.bloqueios.map((i) => <li>{i.titulo}</li>)}
+                </ul>
+              </>
+            ) : f.completude.completo ? (
+              <p class="mt-2 text-sm text-slate-600">Completo: nada a preencher.</p>
+            ) : (
+              <>
+                <div class="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden" aria-hidden="true">
+                  <div class="h-full bg-teal" style={`width: ${f.completude.percentual}%`}></div>
+                </div>
+                <p class="mt-3 text-xs text-slate-500">Falta para ficar apresentável — o mesmo que o Início do dono pede a ele:</p>
+                <ul class="mt-1.5 space-y-1 text-sm text-slate-700 list-disc pl-5">
+                  {f.completude.pendencias.map((i) => <li>{i.titulo}</li>)}
+                </ul>
+              </>
+            )}
+          </section>
+
+          <section class="bg-white border border-slate-200 rounded-lg" aria-labelledby="titulo-linha">
+            <div class="px-5 py-4 border-b border-slate-200">
+              <h3 id="titulo-linha" class="text-sm font-semibold text-slate-900">Linha do tempo</h3>
+              <p class="text-xs text-slate-500 mt-0.5">O cadastro, os prazos que venceram, os avisos da Asaas, os e-mails ao dono e o que você fez — no seu relógio.</p>
+            </div>
+            <ol id="linha-do-tempo" class="px-5 py-4 space-y-4">
+              {f.linhaDoTempo.map((e) => (
+                <li class="flex gap-3">
+                  <span class:list={['mt-1.5 w-2 h-2 rounded-full shrink-0', PONTO_DA_ORIGEM[e.origem]]} aria-hidden="true"></span>
+                  <div class="min-w-0">
+                    <p class="text-sm text-slate-800">{e.texto}</p>
+                    {e.detalhe && <p class="text-xs text-slate-500 break-words">{e.detalhe}</p>}
+                    <p class="text-xs text-slate-500 tabular-nums">{quandoComAno(e.quando)} · {ORIGEM_POR_EXTENSO[e.origem]}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </div>
+
+        <!-- No celular, primeiro: o contato, as ações e as anotações são o que se usa com o telefone na mão. -->
+        <div class="space-y-6 order-first lg:order-none">
+          <section class="bg-white border border-slate-200 rounded-lg p-5" aria-labelledby="titulo-dono">
+            <h3 id="titulo-dono" class="text-sm font-semibold text-slate-900">Dono</h3>
+            {f.dono ? (
+              <div class="mt-2 space-y-1.5 text-sm">
+                <p class="text-slate-900 font-medium">{f.dono.nome}</p>
+                {f.dono.telefone && (wa
+                  ? <a href={waLink(wa)} target="_blank" rel="noopener noreferrer" class="block text-teal hover:underline tabular-nums">WhatsApp · {formatarTelefone(f.dono.telefone)}</a>
+                  : <p class="tabular-nums text-slate-700">{formatarTelefone(f.dono.telefone)}</p>)}
+                {f.dono.email && <a href={`mailto:${f.dono.email}`} class="block text-teal hover:underline break-all">{f.dono.email}</a>}
+                {f.cidade && <p class="text-slate-600">{f.cidade}</p>}
+                <p class="text-xs text-slate-500">{f.equipe.total} {f.equipe.total === 1 ? 'pessoa' : 'pessoas'} na equipe</p>
+              </div>
+            ) : <p class="mt-2 text-sm text-slate-500">Sem dono cadastrado.</p>}
+          </section>
+
+          <section class="bg-white border border-slate-200 rounded-lg p-5" aria-labelledby="titulo-assinatura">
+            <h3 id="titulo-assinatura" class="text-sm font-semibold text-slate-900">Assinatura</h3>
+            {f.asaas.assinatura || f.asaas.cliente ? (
+              <dl class="mt-2 space-y-1 text-sm">
+                <div class="flex justify-between gap-3"><dt class="text-slate-500">Assinatura</dt><dd class="font-mono text-xs text-slate-800 break-all">{f.asaas.assinatura ?? '—'}</dd></div>
+                <div class="flex justify-between gap-3"><dt class="text-slate-500">Cliente</dt><dd class="font-mono text-xs text-slate-800 break-all">{f.asaas.cliente ?? '—'}</dd></div>
+                <p class="text-xs text-slate-500 pt-1">Os ids na Asaas, para achar no painel de lá.</p>
+              </dl>
+            ) : <p class="mt-2 text-sm text-slate-500">Ainda não cadastrou o cartão.</p>}
+          </section>
+
+          <section class="bg-white border border-slate-200 rounded-lg p-5" aria-labelledby="titulo-acoes">
+            <h3 id="titulo-acoes" class="text-sm font-semibold text-slate-900 mb-3">Ações</h3>
+            <AcoesDaBarbearia b={f} />
+          </section>
+
+          <section class="bg-white border border-slate-200 rounded-lg p-5" aria-labelledby="titulo-anotacoes">
+            <h3 id="titulo-anotacoes" class="text-sm font-semibold text-slate-900">Anotações</h3>
+            <p class="text-xs text-slate-500 mt-0.5">Só você vê. Ficam guardadas com data e hora, e não se apagam.</p>
+            <form data-acao="anotar" data-barbearia={f.id} class="mt-3 space-y-2">
+              <label for="texto-anotacao" class="sr-only">Anotação</label>
+              <textarea id="texto-anotacao" name="texto" rows="3" maxlength={ANOTACAO_MAXIMA} required
+                placeholder="Ex.: liguei dia 12, paga sexta"
+                class="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:border-teal"></textarea>
+              <button type="submit" class="text-xs px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded transition-colors">Anotar</button>
+              <p data-erro role="alert" class="hidden text-sm text-red-700"></p>
+            </form>
+            {f.anotacoes.length > 0 && (
+              <ul id="anotacoes" class="mt-4 space-y-3">
+                {f.anotacoes.map((a) => (
+                  <li class="border-l-2 border-slate-200 pl-3">
+                    <p class="text-sm text-slate-800 whitespace-pre-line break-words">{a.texto}</p>
+                    <p class="text-xs text-slate-500 tabular-nums">{quandoComAno(a.quando)}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
+    </>
+  )}
+</OperadorLayout>
+
+<script>
+  for (const form of document.querySelectorAll<HTMLFormElement>('form[data-acao]')) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const acao = form.dataset.acao ?? '';
+      const barbearia = Number(form.dataset.barbearia);
+      const erro = form.querySelector<HTMLParagraphElement>('[data-erro]');
+      const botao = form.querySelector<HTMLButtonElement>('button[type=submit]');
+      const campo = (nome: string) => form.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${nome}"]`);
+      const corpo: Record<string, unknown> = { acao, barbearia };
+      if (acao === 'estender-teste') corpo.dias = Number(campo('dias')?.value);
+      if (acao === 'suspender') {
+        corpo.confirmacao = campo('confirmacao')?.value ?? '';
+        const motivo = campo('motivo')?.value.trim();
+        if (motivo) corpo.motivo = motivo;
+      }
+      if (acao === 'reativar') {
+        const escolhido = form.querySelector<HTMLInputElement>('[name="comoEra"]:checked');
+        if (escolhido) corpo.comoEra = escolhido.value;
+      }
+      if (acao === 'anotar') corpo.texto = campo('texto')?.value ?? '';
+      erro?.classList.add('hidden');
+      if (botao) botao.disabled = true;
+      try {
+        const r = await fetch('/api/operador/acao', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo),
+        });
+        // A sessão acabou (8 horas): a tela de entrar, e de volta para esta ficha.
+        if (r.status === 401) { location.replace(`/operador?volta=${encodeURIComponent(location.pathname)}`); return; }
+        if (r.ok) {
+          // O `t` muda a cada vez: sem ele, a segunda ação seguida daria o MESMO
+          // endereço, e o navegador não recarregaria a ficha.
+          location.replace(`${location.pathname}?feito=${encodeURIComponent(acao)}&t=${Date.now()}`);
+          return;
+        }
+        const d = await r.json().catch(() => ({}));
+        if (erro) erro.textContent = d.error ?? 'Não deu certo.';
+      } catch {
+        if (erro) erro.textContent = 'Erro de conexão. Tente de novo.';
+      }
+      erro?.classList.remove('hidden');
+      if (botao) botao.disabled = false;
+    });
+  }
+</script>

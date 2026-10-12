@@ -60,8 +60,8 @@ describe('o fuso horário vem da barbearia', () => {
     const PERMITIDOS: Record<string, string> = {
       'src/lib/tenant.ts': 'a barbearia única, sem requisição (`TENANT_UNICO`) — o mesmo padrão da coluna',
       'src/db/schema.ts': 'o padrão da coluna `tenants.timezone`, o mesmo da migration 0013',
-      'src/pages/operador.astro':
-        'o relógio do operador, que não é de barbearia nenhuma; as datas de cada barbearia, na lista, saem no fuso dela',
+      'src/lib/operadorTela.ts':
+        'o relógio do operador, que não é de barbearia nenhuma; as datas de cada barbearia, nas telas dele, saem no fuso dela',
     };
     const usam = arquivos.filter((c) => /\bTZ_PADRAO\b/.test(soCodigo(readFileSync(c, 'utf8'))));
     expect(usam).toEqual(Object.keys(PERMITIDOS).sort());

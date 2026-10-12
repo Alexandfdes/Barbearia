@@ -1,0 +1,140 @@
+---
+export const prerender = false;
+
+/**
+ * A saúde do servidor, vista daqui: o banco, as migrations, o backup, o e-mail, a
+ * cobrança, o cadastro e o processo (`lib/operadorSistema.ts`).
+ *
+ * ⚠️ Nenhum segredo: das variáveis, a tela diz só se cada uma existe — nunca o
+ * valor (`tests/operador-telas.test.ts`).
+ */
+import OperadorLayout from '../../layouts/OperadorLayout.astro';
+import { exigirOperador } from '../../lib/operador.js';
+import { sistemaNoPainel } from '../../lib/operadorSistema.js';
+import { haQuanto, PONTO, quandoComAno, tamanhoDeArquivo, type Estado } from '../../lib/operadorTela.js';
+
+const fechada = await exigirOperador(Astro.request, Astro.response.headers);
+if (fechada) return fechada;
+
+const agora = new Date();
+const s = await sistemaNoPainel(process.env, agora);
+const producao = s.processo.ambiente === 'production';
+const backupVelho = s.backup.ultimo ? agora.getTime() - s.backup.ultimo.em.getTime() > 26 * 60 * 60 * 1000 : true;
+
+interface Linha { rotulo: string; valor: string; estado?: Estado }
+interface Quadro { titulo: string; estado: Estado; linhas: Linha[]; nota?: string }
+
+const quadros: Quadro[] = [
+  {
+    titulo: 'Banco',
+    estado: !s.banco.responde ? 'problema' : s.banco.superusuario ? 'atencao' : 'ok',
+    linhas: s.banco.responde ? [
+      { rotulo: 'Responde', valor: `em ${s.banco.ms} ms` },
+      { rotulo: 'PostgreSQL', valor: s.banco.versao ?? '—' },
+      { rotulo: 'Tamanho', valor: s.banco.tamanho ?? '—' },
+      { rotulo: 'O app conecta como', valor: `${s.banco.usuario}${s.banco.superusuario ? ' — superusuário' : ', sem superusuário'}`, estado: s.banco.superusuario ? 'atencao' : 'ok' },
+    ] : [{ rotulo: 'Responde', valor: 'não respondeu em 3 s', estado: 'problema' }],
+    nota: s.banco.superusuario ? 'A troca para um usuário só do app está pronta e falta rodar: scripts/usuario-do-app.mjs, no console do app.' : undefined,
+  },
+  {
+    titulo: 'Atualizações do banco (migrations)',
+    estado: !s.migracoes ? 'neutro' : s.migracoes.noBuild !== null && s.migracoes.aplicadas < s.migracoes.noBuild ? 'problema' : 'ok',
+    linhas: s.migracoes ? [
+      { rotulo: 'Aplicadas', valor: s.migracoes.noBuild !== null ? `${s.migracoes.aplicadas} de ${s.migracoes.noBuild}` : String(s.migracoes.aplicadas) },
+      { rotulo: 'A última', valor: s.migracoes.ultima ?? '—' },
+      { rotulo: 'Aplicada em', valor: quandoComAno(s.migracoes.em) },
+    ] : [{ rotulo: 'Estado', valor: 'sem resposta do banco' }],
+    nota: 'O boot aplica as que faltam, sozinho, a cada deploy.',
+  },
+  {
+    titulo: 'Backup',
+    estado: !s.backup.ultimo ? (producao ? 'problema' : 'atencao') : backupVelho ? 'problema' : !s.backup.foraDoServidor ? 'atencao' : 'ok',
+    linhas: [
+      { rotulo: 'O último do banco', valor: s.backup.ultimo ? `${quandoComAno(s.backup.ultimo.em)} · ${haQuanto(s.backup.ultimo.em, agora)} · ${tamanhoDeArquivo(s.backup.ultimo.bytes)}` : 'nenhum nesta máquina', estado: !s.backup.ultimo || backupVelho ? 'problema' : 'ok' },
+      { rotulo: 'O último das fotos', valor: s.backup.fotos ? `${quandoComAno(s.backup.fotos.em)} · ${tamanhoDeArquivo(s.backup.fotos.bytes)}` : 'nenhum' },
+      { rotulo: 'Guardados', valor: `${s.backup.quantos} ${s.backup.quantos === 1 ? 'dia' : 'dias'}, em ${s.backup.pasta}` },
+      { rotulo: 'Sai do servidor', valor: s.backup.foraDoServidor ? 'sim, para o armazenamento de fora (S3)' : 'não — fica só neste disco', estado: s.backup.foraDoServidor ? 'ok' : 'atencao' },
+    ],
+    nota: 'Diário, às 03:00. Perdido o disco, só o que saiu do servidor volta.',
+  },
+  {
+    titulo: 'E-mail',
+    estado: s.email.transporte === 'smtp' ? 'ok' : s.email.transporte === 'nenhum' ? 'problema' : producao ? 'atencao' : 'neutro',
+    linhas: [
+      {
+        rotulo: 'Para onde vai',
+        valor: ({ smtp: 'sai pelo provedor de envio (SMTP)', arquivo: 'para uma pasta, em arquivo — não sai', nenhum: 'desligado — não sai', memoria: 'para a memória (testes)' } as Record<string, string>)[s.email.transporte],
+        estado: s.email.transporte === 'smtp' ? 'ok' : s.email.transporte === 'nenhum' ? 'problema' : 'neutro',
+      },
+      { rotulo: 'Os links dos e-mails apontam para', valor: s.enderecos.painel || '—' },
+    ],
+    nota: 'A senha esquecida, os avisos do teste e da cobrança e o aviso de agendamento saem por aqui.',
+  },
+  {
+    titulo: 'Cobrança',
+    estado: !s.cobranca.ligada ? 'atencao' : !s.cobranca.tokenDoWebhook ? 'problema' : s.cobranca.ambiente === 'sandbox' && producao ? 'atencao' : 'ok',
+    linhas: [
+      { rotulo: 'Ligada', valor: s.cobranca.ligada ? 'sim' : 'não — ninguém consegue pagar', estado: s.cobranca.ligada ? 'ok' : 'atencao' },
+      { rotulo: 'Ambiente', valor: s.cobranca.ambiente === 'producao' ? 'produção — dinheiro de verdade' : s.cobranca.ambiente === 'sandbox' ? 'teste (sandbox)' : '—' },
+      { rotulo: 'Token do webhook', valor: s.cobranca.tokenDoWebhook ? 'configurado' : 'falta — todo aviso da Asaas é recusado', estado: s.cobranca.tokenDoWebhook ? 'ok' : (s.cobranca.ligada ? 'problema' : 'neutro') },
+    ],
+  },
+  {
+    titulo: 'Cadastro e endereços',
+    estado: 'neutro',
+    linhas: [
+      { rotulo: 'Cadastro de barbearia nova', valor: s.cadastro.aberto ? 'aberto — qualquer um se cadastra' : 'fechado — /cadastrar responde 404' },
+      { rotulo: 'Painel', valor: s.enderecos.painel || '—' },
+      { rotulo: 'Domínio das barbearias', valor: s.enderecos.dominioBase ?? '—' },
+    ],
+  },
+  {
+    titulo: 'Processo',
+    estado: 'neutro',
+    linhas: [
+      { rotulo: 'No ar desde', valor: `${quandoComAno(s.processo.noArDesde)} · ${haQuanto(s.processo.noArDesde, agora)}` },
+      { rotulo: 'Memória', valor: `${s.processo.memoriaMb} MB` },
+      { rotulo: 'Node', valor: s.processo.node },
+      { rotulo: 'Ambiente', valor: s.processo.ambiente },
+    ],
+    nota: 'Cada deploy reinicia o processo — e zera os limites de tentativa, que moram na memória.',
+  },
+];
+---
+<OperadorLayout titulo="Sistema" ativo="sistema">
+  {s.alertas.length > 0 ? (
+    <section class="bg-white border border-slate-200 rounded-lg" aria-labelledby="titulo-alertas">
+      <h2 id="titulo-alertas" class="px-5 pt-4 text-sm font-semibold text-slate-900">O que precisa de você</h2>
+      <ul id="alertas" class="px-5 py-3 space-y-2">
+        {s.alertas.map((a) => (
+          <li class="flex items-start gap-3 text-sm text-slate-800">
+            <span class:list={['mt-1.5 w-2 h-2 rounded-full shrink-0', PONTO[a.estado]]} aria-hidden="true"></span>
+            {a.texto}
+          </li>
+        ))}
+      </ul>
+    </section>
+  ) : (
+    <p class="text-sm bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-lg px-4 py-3">Tudo em ordem.</p>
+  )}
+
+  <div class="grid md:grid-cols-2 gap-4">
+    {quadros.map((q) => (
+      <section class="bg-white border border-slate-200 rounded-lg p-5">
+        <h3 class="flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <span class:list={['w-2.5 h-2.5 rounded-full', PONTO[q.estado]]} aria-hidden="true"></span>
+          {q.titulo}
+        </h3>
+        <dl class="mt-3 space-y-2 text-sm">
+          {q.linhas.map((l) => (
+            <div class="flex flex-wrap justify-between gap-x-4 gap-y-0.5">
+              <dt class="text-slate-500">{l.rotulo}</dt>
+              <dd class:list={['text-right break-all', l.estado === 'problema' ? 'text-red-800 font-medium' : l.estado === 'atencao' ? 'text-amber-900' : 'text-slate-800']}>{l.valor}</dd>
+            </div>
+          ))}
+        </dl>
+        {q.nota && <p class="mt-3 text-xs text-slate-500">{q.nota}</p>}
+      </section>
+    ))}
+  </div>
+</OperadorLayout>

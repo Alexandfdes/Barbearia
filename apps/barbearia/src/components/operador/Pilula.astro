@@ -1,0 +1,9 @@
+---
+/** A pílula da fase de uma barbearia — as cores de `lib/operadorTela.ts`. */
+import { PILULA } from '../../lib/operadorTela.js';
+import type { Tom } from '../../lib/operadorBarbearias.js';
+
+interface Props { tom: Tom; rotulo: string }
+const { tom, rotulo } = Astro.props;
+---
+<span class:list={['inline-flex items-center text-xs font-medium rounded-full px-2 py-0.5 ring-1 ring-inset whitespace-nowrap', PILULA[tom]]}>{rotulo}</span>

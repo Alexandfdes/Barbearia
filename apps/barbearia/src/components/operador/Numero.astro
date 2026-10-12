@@ -1,0 +1,24 @@
+---
+/**
+ * Um número do Início ou da Cobrança: o rótulo em cima, o número grande, e uma
+ * linha que diz de onde ele sai. Com `href`, o cartão inteiro leva à tela dele.
+ */
+interface Props {
+  rotulo: string;
+  valor: string;
+  detalhe?: string;
+  href?: string;
+  /** `alerta` pinta a borda de âmbar: o número pede atenção. */
+  alerta?: boolean;
+}
+const { rotulo, valor, detalhe, href, alerta = false } = Astro.props;
+const Tag = href ? 'a' : 'div';
+---
+<Tag href={href}
+  class:list={['block bg-white border rounded-lg p-4 transition-colors',
+    alerta ? 'border-amber-300' : 'border-slate-200',
+    href && 'hover:border-teal/40']}>
+  <p class="text-xs font-medium text-slate-500">{rotulo}</p>
+  <p class="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{valor}</p>
+  {detalhe && <p class="text-xs text-slate-500 mt-1">{detalhe}</p>}
+</Tag>
