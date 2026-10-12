@@ -132,6 +132,8 @@ describe('nenhuma página pública serve barbearia sem perguntar de quem é o en
       'a barbearia é a que o operador escolheu na lista, não a do endereço — atrás da sessão de operador',
     'src/pages/api/operador/sair.ts':
       'só apaga o cookie do operador',
+    'src/pages/api/saude.ts':
+      'a pergunta do monitor externo: diz só se o app e o banco respondem, sem dado de barbearia nenhuma — lib/saude.ts',
   };
 
   it('toda rota e página pública chama `tenantDoHost`', () => {

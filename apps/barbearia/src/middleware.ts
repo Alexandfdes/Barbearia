@@ -79,6 +79,11 @@ export const onRequest = defineMiddleware(async (contexto, next) => {
   // são POST e só valem vindas do próprio endereço, como todas.
   if (ehRotaDoOperador(caminho)) return next();
 
+  // A pergunta do monitor externo (`lib/saude.ts`): também não é de barbearia
+  // nenhuma, e resolver endereço ou sessão aqui já consultaria o banco — com ele
+  // fora, o monitor receberia um 500 genérico daqui em vez do 503 da rota.
+  if (caminho === '/api/saude') return next();
+
   const { tenant, daSessao } = await tenantDaRequisicao(contexto.request);
 
   // ⚠️ ANTES de olhar o endereço: no desenvolvimento, o painel e a barbearia 1
