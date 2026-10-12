@@ -1763,8 +1763,9 @@ mesmo container que atende os sites. Não medido, e só morde com as `S3_*` liga
 é mandar em partes, lendo do disco aos pedaços. **Não feito.**
 
 **Desde 12/10/2026, o painel do operador mostra o backup** (a tela de Sistema, §3.9): o último
-arquivo do banco e o das fotos, a idade de cada um e se ele sai do servidor — e avisa quando o
-último tem mais de um dia ou quando ele não sai. Só quando você abre a tela.
+arquivo do banco, com a idade, e o das fotos; quantos arquivos há, por quantos dias ficam e a hora
+do diário, lidas das mesmas variáveis que o daemon usa; e se ele sai do servidor. Avisa quando o
+último do banco tem mais de um dia e quando o backup não sai. Só quando você abre a tela.
 
 ### 3.4 🟠 `[TÉCNICO]` Monitoramento — o lado do app FEITO em 11/10/2026; falta o monitor, que é seu
 

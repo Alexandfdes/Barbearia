@@ -52,10 +52,12 @@ const quadros: Quadro[] = [
     linhas: [
       { rotulo: 'O último do banco', valor: s.backup.ultimo ? `${quandoComAno(s.backup.ultimo.em)} · ${haQuanto(s.backup.ultimo.em, agora)} · ${tamanhoDeArquivo(s.backup.ultimo.bytes)}` : 'nenhum nesta máquina', estado: !s.backup.ultimo || backupVelho ? 'problema' : 'ok' },
       { rotulo: 'O último das fotos', valor: s.backup.fotos ? `${quandoComAno(s.backup.fotos.em)} · ${tamanhoDeArquivo(s.backup.fotos.bytes)}` : 'nenhum' },
-      { rotulo: 'Guardados', valor: `${s.backup.quantos} ${s.backup.quantos === 1 ? 'dia' : 'dias'}, em ${s.backup.pasta}` },
+      { rotulo: 'Guardados', valor: `${s.backup.quantos} ${s.backup.quantos === 1 ? 'arquivo' : 'arquivos'} do banco, em ${s.backup.pasta}` },
       { rotulo: 'Sai do servidor', valor: s.backup.foraDoServidor ? 'sim, para o armazenamento de fora (S3)' : 'não — fica só neste disco', estado: s.backup.foraDoServidor ? 'ok' : 'atencao' },
     ],
-    nota: 'Diário, às 03:00. Perdido o disco, só o que saiu do servidor volta.',
+    nota: s.backup.horaDoDiario === null
+      ? `O diário não roda: a variável BACKUP_HOUR não é uma hora de 0 a 23. Sai só um quando o app sobe, se o último tiver mais de 12 horas; cada arquivo fica ${s.backup.retencaoDias} dias.`
+      : `Um por dia, às ${String(s.backup.horaDoDiario).padStart(2, '0')}:00, e um quando o app sobe, se o último tiver mais de 12 horas; cada arquivo fica ${s.backup.retencaoDias} dias. Perdido o disco, só o que saiu do servidor volta.`,
   },
   {
     titulo: 'E-mail',

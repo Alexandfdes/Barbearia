@@ -41,7 +41,18 @@ export interface SistemaNoPainel {
   /** `null` quando o banco não respondeu. */
   migracoes: { aplicadas: number; ultima: string | null; em: Date | null; noBuild: number | null } | null;
   backup: {
+    /**
+     * Quantos arquivos do banco há na pasta — não "quantos dias": o daemon faz um no boot
+     * (se o último tem mais de 12 horas) e um às 03:00, e dois podem ser do mesmo dia.
+     */
     pasta: string; ultimo: ArquivoDeBackup | null; fotos: ArquivoDeBackup | null; quantos: number;
+    /** Por quantos dias o `scripts/backup.mjs` guarda cada arquivo (`BACKUP_RETENTION_DAYS`). */
+    retencaoDias: number;
+    /**
+     * A hora do backup diário do `scripts/backup-daemon.mjs` (`BACKUP_HOUR`), no `TZ` do
+     * container. `null` se a variável não é uma hora de 0 a 23 — e aí o diário nunca roda.
+     */
+    horaDoDiario: number | null;
     /** As quatro `S3_*` existem: o backup sobe para fora do servidor. */
     foraDoServidor: boolean;
   };
@@ -56,13 +67,19 @@ export interface SistemaNoPainel {
 /** O último arquivo de backup — o do banco e o das fotos —, da pasta do `scripts/backup.mjs`. */
 export function backupNoPainel(env: Ambiente = process.env): SistemaNoPainel['backup'] {
   const pasta = env.BACKUP_DIR?.trim() || '/data/backups';
+  // A mesma leitura do `scripts/backup.mjs`, com o mesmo padrão.
+  const retencao = Number.parseInt(env.BACKUP_RETENTION_DAYS ?? '30', 10);
+  const retencaoDias = Number.isFinite(retencao) && retencao > 0 ? retencao : 30;
+  // O daemon compara a hora do relógio com este número: fora de 0 a 23, nunca bate.
+  const hora = Number.parseInt(env.BACKUP_HOUR ?? '3', 10);
+  const horaDoDiario = Number.isInteger(hora) && hora >= 0 && hora <= 23 ? hora : null;
   const foraDoServidor = Boolean(env.S3_ENDPOINT?.trim() && env.S3_BUCKET?.trim()
     && env.S3_ACCESS_KEY_ID?.trim() && env.S3_SECRET_ACCESS_KEY?.trim());
   let nomes: string[] = [];
   try {
     nomes = readdirSync(pasta);
   } catch {
-    return { pasta, ultimo: null, fotos: null, quantos: 0, foraDoServidor };
+    return { pasta, ultimo: null, fotos: null, quantos: 0, retencaoDias, horaDoDiario, foraDoServidor };
   }
   const ler = (fim: RegExp) => nomes
     .filter((n) => fim.test(n))
@@ -78,7 +95,7 @@ export function backupNoPainel(env: Ambiente = process.env): SistemaNoPainel['ba
     .sort((a, b) => b.em.getTime() - a.em.getTime());
   const banco = ler(/^barbearia_.*\.sql\.gz$/);
   const fotos = ler(/^barbearia_.*-fotos\.tar\.gz$/);
-  return { pasta, ultimo: banco[0] ?? null, fotos: fotos[0] ?? null, quantos: banco.length, foraDoServidor };
+  return { pasta, ultimo: banco[0] ?? null, fotos: fotos[0] ?? null, quantos: banco.length, retencaoDias, horaDoDiario, foraDoServidor };
 }
 
 /** O que só depende do ambiente — sem banco e sem disco. */
