@@ -33,6 +33,7 @@
 | **08/10** | **O desenho do cadastro e da cobrança:** um layout com a cor do dono; o cartão no fim do teste; a cobrança como módulo do app; e-mail para a senha e os avisos; 3 dias de carência; só mensal. **Feitos no mesmo dia:** o cadastro (§4.13, §4.16 e §4.17) e o teste de 7 dias, com a carência e o site fora do ar (§1.3, §3.5 e §4.14). **Em 09/10:** o e-mail — a senha nova, os avisos do teste e da cobrança e a troca de senha derrubando as sessões (§4.17 e §2.13) | `PLANO-PRODUTIZACAO.md` §13 |
 | **10/10** | **A cobrança no código** — o cartão pelo Checkout da Asaas, o webhook e o cancelar —, **sem a prova no sandbox**. E três regras decididas na implementação e **confirmadas por você no mesmo dia**: quem cancela em dia fica no ar até o fim do período pago, sem carência; quem cancela com a cobrança atrasada fica só o que restava da carência, e a mensalidade que falhou deixa de existir; e quem sai do ar pela cobrança sem cancelar continua com a assinatura viva — a Asaas tenta o cartão de novo, e o pagamento que passar traz o site de volta. Rejeitado: remover a assinatura depois de 30 dias fora do ar | `PENDENCIAS-ABERTAS.md` §4.14 |
 | **11/10** | **As quatro decisões do roteiro do dono:** o e-mail ao barbeiro do horário e ao dono quando o cliente agenda, desmarca ou remarca pelo site — cada um desligável na Equipe —; a data de nascimento continua sendo a senha da área do cliente, e o termo tem de dizer; o dono confere o ponto do mapa no Início; e o e-mail que não se troca fora do ar fica como está. O e-mail e o mapa foram feitos no mesmo dia | `PENDENCIAS-ABERTAS.md` §2.33 |
+| **11/10** | **A exportação dos dados do dono — também fora do ar, com a data de nascimento e aviso na tela**, decidida por você. E, sem decisão nova, o que estava na fila dos próximos passos: o limite por telefone na área do cliente, a saúde para o monitor externo, a imagem sem as dependências de desenvolvimento e a troca do superusuário do banco, pronta para rodar. No caminho, dois defeitos que ninguém via: o backup restaurado voltava sem as permissões do app, e o provisionador nunca rodou no container | `PENDENCIAS-ABERTAS.md` §3.6, `PENDENCIAS-ABERTAS.md` §3.10, `PENDENCIAS-ABERTAS.md` §3.11 e `PENDENCIAS-ABERTAS.md` §3.12 |
 | **11/10** | **O painel do operador:** a lista das barbearias, com a fase de cada uma, e três ações — estender o teste, tirar do ar, reativar —, cada uma registrada. **Entra só com senha, sem segundo fator: o risco foi dito e aceito por você.** Feito no mesmo dia. E o aviso sobre autorização de quem aparece nas fotos da galeria: não precisa — a responsabilidade vai para o termo | `PENDENCIAS-ABERTAS.md` §3.9 e `PENDENCIAS-ABERTAS.md` §1.2 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
@@ -141,7 +142,8 @@ Isso te coloca como operador de dados pessoais de terceiros.
 Faltam: termos de uso, política de cancelamento, e resposta para a pergunta que o dono
 **vai** fazer — *"se eu sair, levo minha lista de clientes?"*. A resposta certa
 comercialmente é sim, com exportação em CSV; isso é feature (§3.6) e cláusula ao mesmo
-tempo.
+tempo. *A feature existe desde 11/10/2026 — e abre até com o site fora do ar (§3.6). Falta a
+cláusula.*
 
 Não é área para improviso. Vale pagar um advogado uma vez e reusar o contrato em todos
 os clientes.
@@ -1510,10 +1512,15 @@ Nenhum era defeito de código: cada um era uma escolha de produto, com custo.
    (`apps/barbearia/src/pages/api/customer/login.ts`) e lista os agendamentos com o link de
    cada um, que desmarca e remarca. O risco, aceito: telefone e aniversário não são segredo —
    quem sabe os dois de alguém vê onde e quando ele corta o cabelo, e desmarca. **Por isso o
-   termo tem de dizer** como o cliente entra e o que a área mostra (§1.2). *Não feito,
-   sugestão:* o limite de tentativas é por endereço de rede e mora na memória do processo
-   (`apps/barbearia/src/lib/rateLimit.ts`); um limite por telefone dificultaria tentar datas
-   de vários endereços, sem mudar o jeito de entrar.
+   termo tem de dizer** como o cliente entra e o que a área mostra (§1.2). ✅ *Feito em
+   11/10/2026, a sugestão que estava aqui:* além do limite por endereço de rede, o telefone tem
+   cota própria — 5 tentativas a cada 15 minutos e 10 por dia, por barbearia
+   (`apps/barbearia/src/pages/api/customer/login.ts`). Com ~23 mil datas possíveis para um
+   adulto, varrer todas leva anos; antes, com muitos endereços de rede, não havia limite. ⚠️ O
+   custo: qualquer um bloqueia por um dia a área do cliente de um telefone, errando de propósito
+   — agendar continua funcionando. E o limite mora na memória do processo
+   (`apps/barbearia/src/lib/rateLimit.ts`): zera a cada deploy. Guarda:
+   `apps/barbearia/tests/area-do-cliente-limite.test.ts`.
 3. ✅ **O ponto do mapa — agora o dono confere. Feito em 11/10/2026.** O Início do painel
    mostra ao dono o mapa que o site mostra, com a busca que o Google usou, e pergunta: *"Está
    certo"* ou *"Não está — corrigir o endereço"*, que leva a Configurações
@@ -1559,6 +1566,19 @@ os dois do portal eram os únicos. Desfeito o conserto, cada um dos dois fica ve
 contra o build, o portal de uma barbearia recém-cadastrada diz o nome dela, e "Bayron" não
 aparece na página (o E2E do §3.9).
 
+### 2.35 ✅ `[TÉCNICO]` Configurações dizia que a galeria, os serviços e a cor "ainda não" se editavam — RESOLVIDO em 11/10/2026
+
+O rodapé de Configurações dizia: *"A galeria de fotos da página inicial continua vindo do
+código, junto com os depoimentos, as perguntas frequentes e o catálogo de serviços — é a próxima
+fase. A cor de destaque já existe no banco, mas o site ainda não a lê"*. Três das quatro coisas
+já se editavam havia semanas: a Galeria e os Serviços têm tela própria no painel, e a cor está
+na mesma página, acima do rodapé — e o site a lê (§4.2). O dono que acreditasse não subiria foto
+nenhuma. Achado montando a exportação, na mesma tela. Agora o rodapé diz só o que é verdade —
+depoimentos e perguntas frequentes não existem no painel, e por isso o site dele não tem essas
+duas seções —, com o link da Galeria e dos Serviços
+(`apps/barbearia/src/pages/admin/configuracoes.astro`). Guarda:
+`apps/barbearia/tests/exportacao.test.ts`, e o E2E do §3.6.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -1592,14 +1612,28 @@ carregado com os 820 registros reais do Bayron. As fotos entraram no backup em 1
 restauração delas é conferida por comparação de árvore (§3.7). Registro em
 `ESTADO-ATUAL.md` §4.
 
+⚠️ **11/10/2026: o backup também voltava sem as permissões do app** — restaurado, toda tela
+respondia 500. Resolvido, com o reparo para os backups antigos (§3.11).
+
 **O que continua faltando, e só aparece com N clientes:** estrutura de pastas no bucket e
 credenciais — bucket único ou um por cliente. Com banco único multi-tenant, o backup deixou
 de ser por instância e virou um só, o que torna a decisão mais simples e a falha mais cara.
 
-### 3.4 🟠 `[TÉCNICO]` Monitoramento
+### 3.4 🟠 `[TÉCNICO]` Monitoramento — o lado do app FEITO em 11/10/2026; falta o monitor, que é seu
 
 Se o site de um cliente cair sábado de manhã, hoje você descobre quando ele liga. Falta
 o mínimo: ping externo por instância e alerta no seu celular.
+
+**Feito em 11/10/2026:** `GET /api/saude` (`apps/barbearia/src/pages/api/saude.ts`) responde 200
+com `{"ok":true}` quando o app e o banco respondem, e 503 quando o banco falha ou demora mais de
+3 segundos — banco travado também é banco fora (`apps/barbearia/src/lib/saude.ts`). Não é de
+barbearia nenhuma, não diz nada além disso, e responde também a `HEAD`. Guarda:
+`apps/barbearia/tests/saude.test.ts`.
+
+**O que falta é seu:** escolher o serviço de monitoramento — há vários com plano grátis; confira
+se o escolhido avisa no celular — e cadastrar dois monitores: o `/api/saude` do painel, e a
+página de uma barbearia, que pega o que a saúde não vê — o certificado e o endereço. O endereço
+de produção está no projeto do claude.ai.
 
 ### 3.5 ✅ `[TÉCNICO]` Suspensão por inadimplência — FEITA em 08/10/2026
 
@@ -1614,10 +1648,37 @@ mais dias se resolvem no painel do operador (§3.9), sem `psql`.
 *Como estava:* dependia da decisão §1.3. Se a política fosse cortar, precisava de um jeito
 de suspender a instância sem apagar dados e de religar em um clique.
 
-### 3.6 🟡 `[TÉCNICO]` Exportação de dados do cliente
+### 3.6 ✅ `[TÉCNICO]` Exportação de dados do cliente — FEITA em 11/10/2026
 
-Depende de §1.2. CSV de clientes e agendamentos, baixável pelo próprio dono no painel.
-É resposta comercial a uma objeção de venda, não só conformidade.
+*Como estava:* "Depende de §1.2. CSV de clientes e agendamentos, baixável pelo próprio dono no
+painel. É resposta comercial a uma objeção de venda, não só conformidade."
+
+**Feita em 11/10/2026**, com duas decisões suas do mesmo dia: **abre também fora do ar** — quem
+saiu por falta de pagamento, por teste vencido ou por ter cancelado baixa os dados dele, pela
+tela de assinatura, a única que abre nessa fase —; e **leva a data de nascimento**, com aviso na
+tela, porque ela é também a senha da área do cliente. *Rejeitados por você:* só com o site no
+ar; e o arquivo sem a data.
+
+**Como ficou** (`apps/barbearia/src/lib/exportacao.ts`): em Configurações e na tela de
+assinatura, "Seus dados", com dois botões — a lista de clientes (um por telefone, com o nome
+mais recente, a data de nascimento, agendamentos, atendidos, faltas, desmarcados, o gasto nos
+atendimentos, as reservas de produto, o primeiro e o último horário) e todos os agendamentos
+(dia e hora no fuso da barbearia, serviço, barbeiro, preço, extras, situação, observações, quem
+marcou). Só o dono baixa. Abre no Excel em português com dois cliques: `;` entre as colunas,
+UTF-8 com BOM, dinheiro com vírgula.
+
+⚠️ **Fórmula injetada:** o nome do cliente é digitado no site por qualquer pessoa, e a célula
+que começa com `=`, `+`, `-` ou `@` vira fórmula na planilha do dono — um `=HYPERLINK(...)`
+vira link plantado nela. Essas células saem com um apóstrofo na frente, que desliga a fórmula.
+O link de desmarcar de cada agendamento nunca sai: é uma credencial.
+
+Barbearia **encerrada** (status `cancelled`) não entra no painel; aí o caminho é o suporte. E o
+termo ainda precisa dizer o que acontece com os dados de quem sai (§1.2).
+
+Guarda: `apps/barbearia/tests/exportacao.test.ts` — 12 casos, com duas barbearias e uma fora do
+ar, e o filtro por barbearia testado por cima do RLS: dentro da requisição o RLS esconderia uma
+consulta sem ele. Contra o build: o download pelo botão, no ar e fora do ar, com o arquivo
+conferido byte a byte.
 
 ### 3.7 ✅ `[TÉCNICO]` O backup não incluía as fotos — RESOLVIDO em 11/09/2026
 
@@ -1775,6 +1836,106 @@ sair, reativar e ver voltar, vencer o teste e estender, sair —, a 0012 aplicad
 defeito que a suíte não via:** a página mandava `Referrer-Policy: no-referrer`, e com ela o
 navegador manda `Origin: null` no POST de formulário — o "Sair" era recusado pela conferência de
 origem (§2.30). Virou `same-origin`, que para fora dá o mesmo.
+
+### 3.10 🟠 `[TÉCNICO]` O app fala com o banco como superusuário — a troca pronta e ensaiada em 11/10/2026; falta rodar em produção
+
+Em produção, o `DATABASE_URL` do app é o superusuário que a imagem do Postgres cria. O RLS não
+muda com isso — o caminho do dono já passava por cima dele —, mas um defeito que deixasse SQL
+arbitrário chegar ao banco viraria comando com poder total: ler arquivo do servidor, mexer em
+outro banco, criar usuário. O app só precisa ser **dono das tabelas** — as migrations do boot e
+o `pg_dump` do backup dependem disso — e poder assumir `barbearia_app`.
+
+**Feito:** `apps/barbearia/scripts/usuario-do-app.mjs`, para rodar uma vez no console do
+container. Cria um usuário sem superusuário — a senha vem por variável de ambiente, nunca por
+argumento nem na tela —, passa a ele a posse do banco, do schema e de cada tabela, e prova com a
+URL nova, antes de qualquer troca, que tudo funciona. Voltar atrás é devolver o `DATABASE_URL`
+antigo. O passo a passo de produção, com os nomes de lá, está no projeto do claude.ai.
+
+⚠️ **A armadilha que o ensaio confirmou:** o acesso automático do app a toda tabela nova (a
+`0003`) é, no PostgreSQL, por CRIADOR. Depois da troca, quem cria tabela é o usuário novo — e
+sem repetir a regra para ele, a próxima migration criaria uma tabela trancada para o app: 500 em
+toda tela que a usasse, com o deploy verde. O script repete.
+
+**Ensaiado em 11/10/2026** no estado de produção — migrations aplicadas pelo superusuário, uma
+barbearia dentro: a troca; rodar de novo sem estragar nada; o boot com a URL nova; o roteiro E2E
+inteiro; o backup e o provisionador com ela; uma migration futura criando tabela que o app lê e
+grava; e a recusa de tudo que é de superusuário — criar papel, ler arquivo do servidor, mudar a
+configuração, criar banco, rodar programa.
+
+⚠️ **O que muda daqui em diante:**
+
+- Migration que precise de superusuário — extensão não confiável, papel novo — não roda mais no
+  boot: `apps/barbearia/tests/usuario-do-app.test.ts` reprova as que pedirem, da 0013 em diante.
+  Se uma for mesmo necessária, roda à parte, com o superusuário.
+- **A migração do Bayron** recria o banco: os passos com o banco recriado rodam com o
+  `DATABASE_URL` do superusuário — a `0004` só concede o papel com ele; conferido: o usuário
+  novo, mesmo já membro, não pode concedê-lo a si de novo —, e o script roda de novo no fim
+  (`ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2).
+- Banco novo: o primeiro boot é com o superusuário; o script vem depois.
+
+Guarda: `apps/barbearia/tests/usuario-do-app.test.ts`.
+
+### 3.11 ✅ `[TÉCNICO]` O backup restaurado voltava sem as permissões do app — RESOLVIDO em 11/10/2026
+
+**Achado no ensaio do §3.10**, restaurando de verdade: o backup diário rodava
+`pg_dump --no-privileges`. O arquivo trazia as tabelas e os dados, e nenhum GRANT. Restaurado num
+banco vazio, como o próprio script ensinava, o banco voltava inteiro — e o papel do app, que é
+quem lê as tabelas em toda requisição, sem acesso a nada: toda tela, 500. E o boot não via,
+porque só conferia se o papel podia ser *assumido*. Num servidor novo, sem o papel na hora de
+restaurar, era pior: as políticas de RLS nem eram criadas. O teste de restauração de 06/09
+(`ESTADO-ATUAL.md` §4) conferiu as linhas e as constraints — não o app lendo o banco
+restaurado —, e foi antes do RLS existir.
+
+**Agora:**
+
+- o backup leva os privilégios (`apps/barbearia/scripts/backup.mjs`);
+- o boot confere que o papel do app **lê** as tabelas que toda tela usa, e que toda tabela de
+  barbearia tem a rede de RLS — e recusa subir sem isso, dizendo o que rodar
+  (`apps/barbearia/scripts/startup.mjs`);
+- `apps/barbearia/scripts/permissoes-do-app.mjs` devolve exatamente o acesso que as migrations
+  dão — o papel, as políticas, os GRANTs e as exceções —, para o banco restaurado de um backup
+  antigo, ou num servidor novo.
+
+⚠️ **Todo backup feito até 11/10/2026 é do tipo antigo:** restaurado, ele precisa do
+`permissoes-do-app.mjs` — e o boot avisa.
+
+**Ensaiado em 11/10/2026, nos três casos:** backup antigo no mesmo servidor — o boot recusa, o
+reparo resolve; backup novo no mesmo servidor — sobe direto; backup novo num servidor NOVO, sem o
+papel — 54 erros na restauração, o boot recusa, o reparo cria o papel e as 17 políticas. Nos três,
+a matriz de permissões do papel do app — tabela por tabela, sequência por sequência, e a rede de
+cada tabela — saiu igual à de um banco recém-migrado; no último, o E2E do aviso e do mapa passou
+inteiro contra o banco restaurado.
+
+Guarda: `apps/barbearia/tests/usuario-do-app.test.ts` — o boot recusando o banco sem
+permissões, e o reparo devolvendo exatamente as das migrations. Migration nova que tirar acesso
+do papel do app e não entrar no reparo deixa o teste vermelho.
+
+### 3.12 ✅ `[TÉCNICO]` A imagem levava as dependências de desenvolvimento — e o provisionador nunca rodou no container — RESOLVIDO em 11/10/2026
+
+A imagem copiava o `node_modules` inteiro do build: TypeScript, vitest, o drizzle-kit e o esbuild
+antigo que vem com ele — com 4 falhas de segurança moderadas conhecidas (`npm audit`). Nada disso
+roda em produção. Agora um estágio à parte do `apps/barbearia/Dockerfile` instala só as
+dependências de produção, do mesmo lock: o `npm audit --omit=dev` dá zero, e o `node_modules`
+ficou menor — 351 MB contra 452 MB, medido fora do Docker.
+
+**Achado no caminho:** o provisionador (`npm run db:provisionar`) importa código de `src/lib` e
+`src/db`, e o `src/` não entrava na imagem — o script **nunca rodou no container**, e o documento
+de produção mandava rodá-lo lá para a prova da cobrança. Agora as duas pastas entram, e o `tsx`,
+que o executa, virou dependência de produção.
+
+**Conferido rodando** o estágio de produção simulado — só as dependências de produção, o `dist`,
+os scripts e as migrations: as migrations pelo boot, o provisionador criando uma barbearia que
+abre, o backup, a saúde e o roteiro E2E inteiro; e o `npm ci` do lock novo com o npm 10 e o
+npm 11. *Não conferido:* um `docker build` de verdade — este ambiente não tem Docker. O primeiro
+deploy é a prova, e o build fica um pouco mais longo: são dois `npm ci`.
+
+**De carona, registrado e não mexido:** `seed-relatorio-demo.mjs` e `wipe-appointments.mjs`
+importam o `better-sqlite3`, que saiu das dependências no porte para Postgres — não rodam desde
+então.
+
+Guarda: `apps/barbearia/tests/deploy.test.ts` — o estágio de produção; todo pacote que um script
+importa em `dependencies`, com o provisionador seguido até o `src/`; e o `src/` que ele usa
+dentro da imagem.
 
 ## 4. Especificações que faltam escrever
 
@@ -2731,6 +2892,13 @@ de mapa vazios, o Instagram e o texto "sobre" sem conteúdo, o menu que levava a
 dia" ao resumo, as reservas que não diziam ser de produto e o cadastro sem o aviso do teste
 (§2.32). As quatro decisões que ficaram, você tomou em 11/10 — o aviso de agenda por e-mail e a
 conferência do mapa, feitos no mesmo dia (§2.33).
+
+**11/10/2026, à noite, o que estava na fila e não dependia de você, ✅ feito:** a exportação dos
+dados, também fora do ar (§3.6); o limite por telefone na área do cliente (§2.33); a saúde para o
+monitor (§3.4); a imagem sem as dependências de desenvolvimento (§3.12); e a troca do superusuário
+do banco, pronta para rodar (§3.10). Achados no caminho, ✅ consertados: o backup que voltava sem as
+permissões do app (§3.11), o provisionador que nunca rodou no container (§3.12) e o rodapé de
+Configurações que mentia (§2.35).
 
 **Achado de 11/10/2026, no mesmo roteiro, ✅ já consertado:** o portal de toda barbearia dizia
 "Portal Bayron" (§2.34). E, pedido por você no mesmo dia, o painel do operador — ver e operar

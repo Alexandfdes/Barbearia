@@ -133,6 +133,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **Painel do operador:** `/operador`, só no endereço do painel e só com `OPERADOR_SENHA_HASH`
   (gere com `npm run operador:senha`); sem ela, 404. Roda como dono do banco: o que ele pode
   mostrar está em `apps/barbearia/src/lib/operadorBarbearias.ts` (`docs/PENDENCIAS-ABERTAS.md` §3.9).
+- **O app não precisa de superusuário no banco:** `scripts/usuario-do-app.mjs` faz a troca, e
+  migration nova não pode pedir superusuário. **Restaurou um backup?** `scripts/permissoes-do-app.mjs`
+  — o boot recusa subir se o papel do app não ler as tabelas (`docs/PENDENCIAS-ABERTAS.md` §3.10 e §3.11).
 - **Requisição que muda dado só passa vinda do próprio endereço:** o `src/middleware.ts`
   confere a `Origin` antes de qualquer rota (`src/lib/origem.ts`). Rota nova não faz nada;
   integração de fora, sem navegador, chega sem `Origin` e passa. Não afrouxe para aceitar

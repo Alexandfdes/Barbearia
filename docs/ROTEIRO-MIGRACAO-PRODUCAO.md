@@ -61,6 +61,13 @@ papel é do servidor e sobrevive ao banco apagado — está respondida: aguenta 
 e a `0004` também. O SQLite do ensaio é o mesmo de mentira do teste de carga: **dado torto do
 banco real só aparece com o banco real** — ensaie com uma cópia dele antes do dia (§2).
 
+⚠️ **11/10/2026 — se o app já tiver trocado o superusuário por um usuário só dele**
+(`PENDENCIAS-ABERTAS.md` §3.10): os passos 4 e 5 abaixo rodam com o `DATABASE_URL` do
+**superusuário** — o banco recriado é dele, e a `0004` só concede o papel do app com ele (conferido:
+o usuário do app, mesmo já membro, não pode concedê-lo a si de novo). No fim, o
+`scripts/usuario-do-app.mjs` roda de novo, com o mesmo usuário e a mesma senha, e o `DATABASE_URL`
+volta a ser o dele.
+
 **A ordem do dia, revista** — o resto do §4 continua valendo:
 
 1. **Antes do dia:** o backup do app novo saindo da VPS (`PENDENCIAS-ABERTAS.md` §3.3), e o
