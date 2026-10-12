@@ -361,7 +361,7 @@ describe.skipIf(!TEM_BANCO)('com banco: entrar, listar e agir', () => {
     await sql`INSERT INTO appointments (tenant_id, barber_id, service_id, customer_name, customer_phone, customer_birthdate,
                                         starts_at, ends_at, duration_minutes, price_cents, manage_token, created_at) VALUES
       (1, 2, 1, 'Cliente Secreto Silva', '84988887777', '1990-01-01', ${iso(AGORA.getTime() + DIA)}, ${iso(AGORA.getTime() + DIA + 1800_000)}, 30, 4000, 'tk-1', ${quando(AGORA.getTime() - 2 * DIA)}),
-      (1, 2, 1, 'Cliente Secreto Souza', '84988886666', NULL,         ${iso(AGORA.getTime() + DIA)}, ${iso(AGORA.getTime() + DIA + 1800_000)}, 30, 4000, 'tk-2', ${quando(AGORA.getTime() - 5 * DIA)}),
+      (1, 2, 1, 'Cliente Secreto Souza', '84988886666', NULL,         ${iso(AGORA.getTime() + DIA + 3600_000)}, ${iso(AGORA.getTime() + DIA + 5400_000)}, 30, 4000, 'tk-2', ${quando(AGORA.getTime() - 5 * DIA)}),
       (1, 2, 1, 'Cliente Antigo Lima',   '84988885555', NULL,         ${iso(AGORA.getTime() - 40 * DIA)}, ${iso(AGORA.getTime() - 40 * DIA + 1800_000)}, 30, 4000, 'tk-3', ${quando(AGORA.getTime() - 41 * DIA)})`;
     await sql`INSERT INTO webhook_events (tenant_id, gateway_event_id, event, payload, outcome) VALUES
       (NULL, 'evt_sem',   'PAYMENT_CONFIRMED', '{"customer":{"cpfCnpj":"12345678900"}}', 'sem barbearia: nenhuma chave do evento casou'),

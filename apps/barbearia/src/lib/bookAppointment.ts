@@ -8,6 +8,7 @@ import { tenantAtual, type Tenant } from './tenant.js';
 import { normalizePhone } from './phone.js';
 import { applyDiscountPct } from './combo.js';
 import { fusoDe } from './timezone.js';
+import { TRAVA_DE_HORARIO_DUPLO, violouExclusao } from './api.js';
 
 
 function weekdayOf(dateStr: string): number {
@@ -208,9 +209,10 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
       // Equivalente ao `BEGIN IMMEDIATE` do SQLite: serializa as reservas do
       // MESMO barbeiro, para que duas requisições simultâneas não passem as
       // duas pela checagem de conflito abaixo. O lock cai sozinho no fim da
-      // transação. A garantia definitiva vem da exclusion constraint
-      // (`ARQUITETURA-MULTI-TENANT-V1.md` §9, passo 7) — isto é o que segura
-      // até lá, e continua barato depois.
+      // transação. Desde 12/10/2026 o banco também recusa sozinho
+      // (`appointments_sem_horario_duplo`, migration 0015, o passo 7 de
+      // `ARQUITETURA-MULTI-TENANT-V1.md` §9): a fila e a checagem continuam — são
+      // elas que dão a mensagem certa —, e a trava segura se elas falharem.
       // `barbers.id` é serial global: dois tenants nunca compartilham o mesmo
       // id, então o lock por barbeiro continua correto sem entrar o tenant.
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${barberId})`);
@@ -275,6 +277,11 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
   } catch (err) {
     if (err instanceof ConflitoDeHorario) {
       return { ok: false, httpStatus: err.httpStatus, error: err.motivo };
+    }
+    // A trava do banco pegou o que a checagem acima deixou passar: a mesma
+    // resposta, e não um 500.
+    if (violouExclusao(err, TRAVA_DE_HORARIO_DUPLO)) {
+      return { ok: false, httpStatus: 409, error: 'Horário não está mais disponível' };
     }
     throw err;
   }

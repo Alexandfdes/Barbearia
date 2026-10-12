@@ -54,11 +54,13 @@ describe.skipIf(!TEM_BANCO)('a área do cliente limita as tentativas por telefon
     // Cinco clientes na barbearia 1 — um telefone por caso, para um não gastar a cota
     // do outro —, e o primeiro também na barbearia 2.
     const tel = ['84988880001', '84988880002', '84988880003', '84988880004', '84988880005'];
+    // Um horário para cada um: o banco não aceita dois no mesmo horário do mesmo barbeiro (migration 0015).
     for (const [i, t] of tel.entries()) {
+      const inicio = Date.parse('2030-03-15T13:00:00.000Z') + i * 30 * 60_000;
       await sql`INSERT INTO appointments (tenant_id, barber_id, service_id, customer_name, customer_phone,
                                           customer_birthdate, starts_at, ends_at, duration_minutes, price_cents, manage_token)
                 VALUES (1, 1, 1, ${'Cliente ' + i}, ${t}, ${NASCIMENTO},
-                        '2030-03-15T13:00:00.000Z', '2030-03-15T13:30:00.000Z', 30, 4000, ${'tk-limite-' + i})`;
+                        ${new Date(inicio).toISOString()}, ${new Date(inicio + 30 * 60_000).toISOString()}, 30, 4000, ${'tk-limite-' + i})`;
     }
     await sql`INSERT INTO appointments (tenant_id, barber_id, service_id, customer_name, customer_phone,
                                         customer_birthdate, starts_at, ends_at, duration_minutes, price_cents, manage_token)
