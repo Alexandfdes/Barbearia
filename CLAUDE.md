@@ -114,6 +114,8 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   `DATABASE_URL`, os testes de banco **pulam em silêncio** — o número certo é o da linha
   mais recente do `docs/ESTADO-ATUAL.md` §8. Teste de escopo se escreve junto com a rota,
   nunca depois.
+- **Conferidor de tipos:** `npm run check` (o `astro check`) tem de dar **zero erro** — zerado
+  em 12/10/2026, e o CI reprova o primeiro que aparecer (`docs/PENDENCIAS-ABERTAS.md` §2.29).
 - **Migrations:** `apps/barbearia/drizzle/NNNN_nome.sql`, escritas à mão e aplicadas por
   `scripts/startup.mjs`, que confere o hash de cada uma — e que o `npm run dev` roda antes de
   subir (`predev`). Não há journal do Drizzle, e `db:push` e `db:generate` recusam de propósito.
@@ -126,6 +128,10 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   (`docs/ARQUITETURA-COBRANCA-V1.md` §2). ⚠️ **Data em SQL cru vai como texto ISO e volta como
   texto:** o Drizzle desliga a conversão de data do driver na conexão inteira — parâmetro `Date`
   estoura, e `timestamptz` chega como string (`comoData`, no mesmo arquivo).
+- **A fase da barbearia sai de `situacaoDe`** (`apps/barbearia/src/lib/situacao.ts`). Quem lê
+  `past_due_since` para decidir a fase lê também `carencia_ate`, a carência estendida pelo
+  operador — senão tira do ar quem ganhou prazo; o `tests/carencia-estendida.test.ts` reprova
+  (`docs/PENDENCIAS-ABERTAS.md` §3.9).
 - **Horário de agendamento é o texto do `toISOString()`** (`'2026-10-12T13:00:00.000Z'`): o
   banco recusa outro formato e dois agendamentos do mesmo barbeiro que se cruzam (migration
   0015). Caminho novo que grava horário traduz a recusa com `violouExclusao`, como

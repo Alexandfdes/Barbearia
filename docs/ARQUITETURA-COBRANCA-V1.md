@@ -392,7 +392,7 @@ stateDiagram-v2
     past_due --> active: pagou
     past_due --> carencia
     carencia --> active: pagou
-    carencia --> fora_do_ar: 3 dias inteiros
+    carencia --> fora_do_ar: 3 dias inteiros — ou o fim que o operador estendeu
     fora_do_ar --> active: pagou
     active --> cancelada: cancelou
     carencia --> cancelada: cancelou, com a cobrança atrasada
@@ -411,6 +411,11 @@ carência e o fora do ar (`situacaoDe`). Fora do ar, o site responde 503 com o a
 WhatsApp da barbearia, e o painel abre só a tela de assinatura. ~~**O que ainda não existe:**
 quem grava `active` e `past_due` — o webhook da Asaas~~ — ✅ desde 10/10/2026, sem a prova no
 sandbox (§5.3).
+
+**A carência da cobrança se estende** desde 12/10/2026, pelo painel do operador: o FIM novo fica
+em `tenants.carencia_ate` (migration 0016) e vale só para aquele atraso — um gatilho do banco o
+apaga quando `past_due_since` muda, pagou ou atrasou de novo. A carência do teste não lê a
+extensão: o teste se estende pelo teste (`PENDENCIAS-ABERTAS.md` §3.9).
 
 **Os avisos por e-mail de cada passagem**, desde 09/10/2026 — 2 dias antes do fim do teste, no
 começo da carência e no fora do ar — saem de uma tarefa de hora em hora que só **lê** a fase:
@@ -491,7 +496,8 @@ Nenhum mexe em barbearia suspensa à mão. E só conta a cobrança da assinatura
 uma antiga, removida quando o cartão foi trocado, não atrasa ninguém.
 
 **O cancelar:** em dia, no ar até o fim do período pago; com a cobrança atrasada — na carência
-ou fora do ar —, só o que restava da carência, e a mensalidade que falhou some com a assinatura.
+ou fora do ar —, só o que restava da carência (a estendida pelo operador, se foi), e a mensalidade
+que falhou some com a assinatura.
 As duas regras foram decididas na implementação e confirmadas pelo dono em 10/10/2026
 (`PENDENCIAS-ABERTAS.md` §4.14). **E quem sai do ar pela cobrança sem cancelar** continua com a
 assinatura viva: a Asaas tenta o cartão nos vencimentos seguintes, e o pagamento que passar põe a

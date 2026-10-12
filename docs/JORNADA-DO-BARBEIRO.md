@@ -108,6 +108,12 @@ prazo.
   tudo e descobrir no fim que precisa de um cartão que ele não tem.
 - A reescrita da tese (`PENDENCIAS-ABERTAS.md` §4.15), por último, quando o resto existir.
 
+*12/10/2026 — o rascunho, no código, ainda não publicado* (`PENDENCIAS-ABERTAS.md` §4.15): o botão
+principal leva ao `/cadastrar` (com `CADASTRO_ABERTO`; sem ela, ao WhatsApp), e embaixo do botão do
+topo está *"Sem cartão para começar: ele só é pedido no fim do teste"* — o cartão passou para o fim
+do teste em 08/10, e o aviso acompanhou. Saíram o *"avisando 30 dias"*, o *"Endereço próprio"* e o
+plano anual. O texto é rascunho: a voz é a do dono.
+
 **O que pode dar errado:**
 
 - **"Avisando 30 dias" e "7 dias grátis" não se combinam sozinhos.** Se ele cancelar no 6º

@@ -38,6 +38,7 @@
 | **12/10** | **O fuso de cada barbearia: nasce do estado escolhido no cadastro, e o dono troca em Configurações** — escolhido por você em 11/10, feito em 12/10. Rejeitados na implementação: o fuso em `settings`, que sob o RLS o cache das outras barbearias não enxergaria, e o campo livre, onde um nome errado derrubaria toda data. **E o cliente que pede para ser apagado tem os agendamentos anonimizados**, também decidido em 11/10 — não feito | `PENDENCIAS-ABERTAS.md` §2.1 e `PENDENCIAS-ABERTAS.md` §1.2 |
 | **12/10** | **Os três próximos passos, escolhidos por você:** o backup saindo da VPS em partes, sem o arquivo inteiro na memória; o banco recusando dois agendamentos do mesmo barbeiro no mesmo horário; e a limpeza — as entregas antigas fora do repositório, o teste que mantém a cobrança longe das telas da barbearia e a grade de "Mover horário" só com os horários livres. Feitos no mesmo dia. Decidido na implementação — ⚠️ falta você confirmar: num banco que já tinha horário sobreposto, a trava vale a partir do fim do último par, em vez de o boot parar | `PENDENCIAS-ABERTAS.md` §3.3, `PENDENCIAS-ABERTAS.md` §2.37, `PENDENCIAS-ABERTAS.md` §4.6 e `PENDENCIAS-ABERTAS.md` §2.27 |
 | **12/10** | **O painel do operador em telas, como o do barbeiro** — o Início com os números, a ficha de cada barbearia, a Cobrança, o Registro e o Sistema —, **e as anotações na ficha**, escolhidos por você; feitos no mesmo dia. Decididos na implementação — ⚠️ falta você confirmar: a anotação não se edita nem se apaga, e o "pede atenção" do Início mostra o teste a 3 dias do fim e quem cancelou a 15 dias de sair. No caminho, consertado: o JSON que ia ao banco como texto (§2.36) | `PENDENCIAS-ABERTAS.md` §3.9 e `PENDENCIAS-ABERTAS.md` §2.36 |
+| **12/10** | **Depois da vasculhada geral, três escolhidos por você:** o conferidor de tipos zerado e no CI; estender a carência pelo painel do operador; e o rascunho da landing do autoatendimento, com o `/acessar` levando ao painel central — feitos no mesmo dia. Decididos na implementação: a carência estendida grava o fim novo e vale para um atraso só — o banco a apaga quando o atraso muda —; e o plano anual fora do rascunho. **O botão de apagar o cliente a pedido ficou para depois, por escolha sua** | `PENDENCIAS-ABERTAS.md` §2.29, `PENDENCIAS-ABERTAS.md` §3.9, `PENDENCIAS-ABERTAS.md` §4.15 e `PENDENCIAS-ABERTAS.md` §1.2 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -191,7 +192,12 @@ para tirar a dele (o dono apaga na galeria; a foto sai do site na hora).
 
 **11/10/2026 — o cliente que pede para ser apagado, decidido por você:** os agendamentos dele
 são **anonimizados**, não apagados. **Não está feito** — nem a tela, nem a rota —, e o termo
-tem de dizer como o cliente pede.
+tem de dizer como o cliente pede. *12/10/2026: o desenho foi apresentado — um botão na tela
+Buscar cliente, só do dono; os agendamentos e as reservas daquele telefone, naquela barbearia,
+sem nome, telefone, nascimento e observações; o link de desmarcar deixando de valer; e, proposta
+minha ainda não decidida, o que estava marcado para frente desmarcado —, e ficou para depois,
+por escolha sua. Não alcança o backup já feito nem a planilha que o dono já exportou: o termo
+também tem de dizer isso.*
 
 Pergunta nova, que o teste grátis cria: **o que acontece com os dados de quem testou e
 não pagou?** Nome, telefone e data de nascimento de clientes de terceiro, guardados sem
@@ -1401,6 +1407,14 @@ com a mesma atualização na `main`, antes dela.
 scripts de `admin/dia/[date].astro` (264) e de `cadastrar.astro` (78). Erro novo em qualquer
 outro arquivo agora aparece.
 
+✅ **12/10/2026: zero**, escolhido por você. Os 356 saíram só com tipo — `as`, `!`, parâmetro
+anotado e `apps/barbearia/src/lib/agendaDoDia.ts`, o formato que a agenda do dia manda para o
+navegador, conferido nos dois lados. O site construído ficou **idêntico ao de antes, arquivo
+por arquivo** (fora a chave aleatória que o Astro gera a cada build); a mesma comparação acusa
+um ponto de exclamação a mais num aviso. E a conferência entrou no CI, antes da suíte: erro
+novo reprova, e o deploy espera (`.github/workflows/testes.yml`; `apps/barbearia/tests/ci.test.ts`
+reprova se ela sair). Rode com `npm run check`. O site de vendas não tem o conferidor instalado.
+
 ⚠️ **10/10/2026:** a `main` recebeu a correção com o merge do PR #1, em 09/10, e o app novo no
 ar roda dela. **O site do Bayron, não** — e nunca rodou da `main` deste repositório, ao
 contrário do que este item supunha: o serviço dele constrói do `Alexandfdes/Barbearia-Bayron`,
@@ -2100,9 +2114,36 @@ aqui: este repositório é público.
 - **A lista e o Início carregam todas as barbearias de uma vez:** servem para dezenas, não para
   milhares. O Registro e a Cobrança vão de 50 em 50.
 
-*Não feito, sugestões:* o segundo fator; estender a carência de quem tem a cobrança
-atrasada; cancelar a assinatura na Asaas pelo próprio painel; encerrar uma barbearia; e o
-alerta no celular (§3.4) — o painel mostra, mas não chama.
+*Não feito, sugestões:* o segundo fator; ~~estender a carência de quem tem a cobrança
+atrasada~~ — ✅ feito em 12/10/2026, abaixo —; cancelar a assinatura na Asaas pelo próprio
+painel; encerrar uma barbearia; e o alerta no celular (§3.4) — o painel mostra, mas não chama.
+
+**12/10/2026 — estender a carência**, escolhido por você. Na ficha de quem está com a cobrança
+atrasada: de 1 a 60 dias, contados do último dia da carência — ou de hoje, se ela já venceu, e
+aí o site volta na hora. Fica no registro, como as outras ações.
+
+- **O banco guarda o FIM novo**, `tenants.carencia_ate` (migration 0016); `past_due_since`
+  continua dizendo quando a cobrança falhou. A fase usa o mais tarde dos dois — estender não
+  encurta (`apps/barbearia/src/lib/situacao.ts`). *Rejeitado:* empurrar `past_due_since` para a
+  frente — a conta daria o mesmo, e a data da falha, que a ficha mostra, passaria a mentir.
+- **Vale para aquele atraso só.** Um gatilho do banco apaga a extensão quando `past_due_since`
+  muda — pagou, ou atrasou de novo —, e um CHECK recusa carência estendida sem atraso. São cinco
+  lugares do código que mexem no atraso; o que esquecesse de apagar deixaria a extensão de um
+  atraso valendo para o seguinte.
+- ⚠️ **O dono recebe de novo o e-mail "a cobrança do cartão não passou", com a data nova:** o
+  aviso da carência é um por prazo, e o prazo mudou (`apps/barbearia/src/lib/avisos.ts`). Se a
+  extensão acabar sem pagamento, aí sim sai "o site saiu do ar", com a data nova.
+- ⚠️ **Não mexe na Asaas.** Ela continua tentando o cartão nos dias dela, e o pagamento que
+  passar põe a barbearia em dia — com ou sem a extensão. Quem cancela durante a carência
+  estendida fica no ar até o fim dela.
+
+**Guarda:** `apps/barbearia/tests/carencia-estendida.test.ts` — a regra, os leitores da fase (o
+cache de barbearias, o login, os avisos, a cobrança e o operador leem a extensão; o arquivo que
+esquecer reprova) e o banco; e casos em `apps/barbearia/tests/operador.test.ts`,
+`apps/barbearia/tests/cobranca.test.ts` e `apps/barbearia/tests/avisos.test.ts`. 18 defeitos
+reintroduzidos, os 18 vermelhos. No navegador, contra o build, com a migration aplicada pelo
+usuário do app sem superusuário: a barbearia fora do ar pela cobrança volta na hora — 14
+conferências, no computador e no celular.
 
 **Guarda:** `apps/barbearia/tests/operador.test.ts` — 40 casos (39 em 11/10; o fuso de 12/10 pôs
 mais um): a senha certa e só ela, o hash do script aceito pelo app, os 404 fora do endereço e sem
@@ -2943,7 +2984,40 @@ do `ARQUITETURA-COBRANCA-V1.md` §2 ou um módulo isolado no app da barbearia; a
 recomendação é o módulo, registrando a reversão. Junto com o teste, o painel precisa da
 contagem dos dias e do botão de cancelar.
 
-### 4.15 🔴 `[TÉCNICO]` A landing e o `/onboarding` contam a história antiga
+### 4.15 🟠 `[TÉCNICO]` A landing e o `/onboarding` contam a história antiga — o rascunho no código desde 12/10/2026; falta a sua voz
+
+> **12/10/2026 — o rascunho, no código**, escolhido por você (`apps/vendas/src/pages/index.astro`).
+> ⚠️ **É rascunho: o texto é a sua voz.** O site de vendas ainda não está no ar, então nada
+> disto foi publicado.
+>
+> - **A tese:** o site é da barbearia — o nome dela no endereço, a cor dela —, contra a página
+>   dentro do aplicativo dos outros (`PLANO-PRODUTIZACAO.md` §4). A tabela ficou com as duas
+>   linhas que se sustentam: o endereço (conferido em 01/09/2026, §5) e a página.
+> - **O botão principal** leva ao cadastro com `CADASTRO_ABERTO`; sem ela, vira WhatsApp.
+>   Embaixo do botão do topo: *"Sem cartão para começar: ele só é pedido no fim do teste."*
+> - **O preço:** um plano, R$ 100/mês depois dos 7 dias, cancela pelo painel.
+> - **Saíram, e pôr de volta é decisão sua:** o plano anual — o cadastro e a cobrança não o
+>   vendem; a recomendação do `JORNADA-DO-BARBEIRO.md` §4 continua, oferecê-lo no painel depois
+>   do 8º dia —; o *"Atendimento em Mossoró e região"*; o suporte *"com ajustes pequenos
+>   inclusos"*, porque a política (§1.4) não está decidida; e a dor *"Sua barbearia não existe
+>   no Google"*, que virou *"não tem um link"* — o site sozinho não põe ninguém no "perto de mim".
+> - ⚠️ **Duas frases só valem com a produção configurada:** *"Backup todo dia, fora do
+>   servidor"* (o Backblaze, §3.3) e *"No ar, agendando"* (o certificado dos subdomínios,
+>   §2.31). O cadastro também não abre antes delas.
+> - **O "Como fica"** (`apps/vendas/src/pages/demo.astro`) deixou de pedir as fotos no WhatsApp
+>   para alguém montar a página.
+> - **O `/acessar`** pedia o endereço do site e levava ao `/admin` dele; agora é um 302 para
+>   `URL_PAINEL` (`apps/vendas/src/config.ts`), a tela de entrar do painel central. ⚠️ Em
+>   produção, o site de vendas precisa de `URL_PAINEL` e `URL_CADASTRO`: sem elas, os dois
+>   apontam para o `localhost`.
+> - **O `/onboarding` e o `/envios` continuam.** Conferido em 12/10/2026: o SQLite da sua
+>   máquina (`apps/vendas/data/produto.db`) tem 6 envios, de 30 e 31/08, nenhum respondido — 3
+>   iguais, do mesmo responsável e do mesmo WhatsApp, em 9 minutos de madrugada: cara de teste
+>   seu. E o site de vendas nunca esteve no ar neste projeto. Aposentar é decisão sua.
+>
+> Conferido no build: as duas larguras sem rolagem de lado, os 4 botões levando ao cadastro (ou
+> ao WhatsApp, com o cadastro fechado), nenhum erro de JavaScript e nenhuma das frases da
+> montagem na página. O que segue é o diagnóstico de 24/09, que o rascunho responde.
 
 **A landing.** Não é uma frase: é a tese da página. Conferido em 24/09/2026 em
 `apps/vendas/src/pages/index.astro`:
@@ -3230,6 +3304,11 @@ faltava (§2.37); e a limpeza: as entregas antigas e os scripts da época do SQL
 §3.12), o teste que mantém a cobrança num canto só (`ARQUITETURA-COBRANCA-V1.md` §2) e "Mover
 horário" só com os horários livres (§2.27).
 
+**12/10/2026, à noite, escolhidos por você depois da vasculhada geral, ✅ feitos:** o conferidor
+de tipos zerado e no CI (§2.29); estender a carência pelo painel do operador (§3.9); e o
+rascunho da landing, com o `/acessar` levando ao painel central (§4.15). O botão de apagar o
+cliente a pedido (§1.2) ficou para depois, por escolha sua.
+
 **Onda 2 — antes de abrir o cadastro público.**
 
 > ⚠️ **10/10/2026:** o app está no ar, com o cadastro fechado. Abrir é o fim desta onda, não o
@@ -3285,7 +3364,8 @@ data de nascimento fica, e vai no termo (§2.33 e §1.2).
      mesmo canal~~ — ✅ feitos em 09/10/2026, pelo e-mail. Falta o provedor de envio, que
      depende do domínio (§4.17).
 6. A landing, o `/acessar` e a aposentadoria do `/onboarding` (§4.15) — por último de
-   propósito: ela descreve o produto pronto.
+   propósito: ela descreve o produto pronto. *O rascunho e o `/acessar`, em 12/10/2026; falta
+   a sua voz no texto e a decisão de aposentar o `/onboarding`.*
 7. ~~A página "Como fica" (§4.10) — as imagens têm que mostrar os três layouts, então vem
    depois deles~~ — ✅ feita em 09/10/2026, com um layout só. O print do site sai sem foto, e
    o texto ao lado promete fotos: entra na landing nova (item 6).
