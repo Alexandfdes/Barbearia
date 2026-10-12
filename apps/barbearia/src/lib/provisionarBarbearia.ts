@@ -437,9 +437,10 @@ export async function provisionarBarbearia(
     // horário vazio geraria vaga em dia de folga.
     for (const h of semana) {
       if (h.fechado) continue;
+      // `as string`: dia aberto tem as duas horas — conferido antes da transação.
       await tx`
         INSERT INTO working_hours (tenant_id, barber_id, weekday, start_time, end_time)
-        VALUES (${tenant.id}, ${barbeiro.id}, ${h.weekday}, ${h.abre}, ${h.fecha})
+        VALUES (${tenant.id}, ${barbeiro.id}, ${h.weekday}, ${h.abre as string}, ${h.fecha as string})
       `;
     }
 

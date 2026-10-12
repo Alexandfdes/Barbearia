@@ -11,6 +11,7 @@
     "build": "astro build",
     "preview": "node --env-file-if-exists=.env node_modules/astro/bin/astro.mjs preview",
     "astro": "astro",
+    "check": "astro check",
     "db:migrate": "node --env-file-if-exists=.env scripts/startup.mjs",
     "db:provisionar": "tsx scripts/provisionar.mts",
     "db:seed-bayron": "node --env-file-if-exists=.env scripts/seed-bayron.mjs",

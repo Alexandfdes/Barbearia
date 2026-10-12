@@ -209,7 +209,7 @@ describe.skipIf(!TEM_BANCO)('bookAppointment (integração com Postgres)', () =>
     const r = await comTenant(tenant, () => bookAppointment({ ...base, startsAt: at('13:00') }));
     expect(r.ok).toBe(true);
     if (r.ok) {
-      const [linha] = await sqlConn`SELECT tenant_id FROM appointments WHERE id = ${r.id}`;
+      const [linha] = await sqlConn`SELECT tenant_id FROM appointments WHERE id = ${Number(r.id)}`;
       expect(Number(linha.tenant_id)).toBe(Number(tid));
     }
   });
