@@ -123,6 +123,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   `ASAAS_AMBIENTE=producao`, sandbox. ⚠️ **Data em SQL cru vai como texto ISO e volta como
   texto:** o Drizzle desliga a conversão de data do driver na conexão inteira — parâmetro `Date`
   estoura, e `timestamptz` chega como string (`comoData`, no mesmo arquivo).
+- **JSON em SQL cru vai como `${JSON.stringify(x)}::text::jsonb`**, nunca só `::jsonb`: antes de o
+  Drizzle tocar a conexão, o driver serializa de novo e o banco grava uma string — o
+  `tests/jsonb-parametro.test.ts` reprova (`docs/PENDENCIAS-ABERTAS.md` §2.36).
 - **No `npm run dev`, a tela final do cadastro diz sempre "quase no ar":** o servidor de
   desenvolvimento do Astro recusa a imagem que ela pede ao endereço novo. Não é defeito — no build
   e em produção ela confere de verdade (`apps/barbearia/src/lib/noAr.ts`).
@@ -132,9 +135,12 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **Dependências:** o npm 10 quebra ao mexer nelas (`edgesOut`). Gere o lock com
   `npx npm@11 install` e regrave com o npm 10 (`npm install`), que é o do Docker; o `npm ci`
   dos dois tem que passar (`docs/PENDENCIAS-ABERTAS.md` §2.29).
-- **Painel do operador:** `/operador`, só no endereço do painel e só com `OPERADOR_SENHA_HASH`
-  (gere com `npm run operador:senha`); sem ela, 404. Roda como dono do banco: o que ele pode
-  mostrar está em `apps/barbearia/src/lib/operadorBarbearias.ts` (`docs/PENDENCIAS-ABERTAS.md` §3.9).
+- **Painel do operador:** `/operador` e as telas em `apps/barbearia/src/pages/operador/`, só no
+  endereço do painel e só com `OPERADOR_SENHA_HASH` (gere com `npm run operador:senha`); sem ela,
+  404. Roda como dono do banco: o que ele pode mostrar está em
+  `apps/barbearia/src/lib/operadorBarbearias.ts` (`docs/PENDENCIAS-ABERTAS.md` §3.9). **Tela nova
+  abre com `exigirOperador`, antes de qualquer consulta:** o middleware deixa `/operador/` inteiro
+  passar sem barbearia, e o `tests/operador-telas.test.ts` reprova a que não abrir.
 - **O app não precisa de superusuário no banco:** `scripts/usuario-do-app.mjs` faz a troca, e
   migration nova não pode pedir superusuário. **Restaurou um backup?** `scripts/permissoes-do-app.mjs`
   — o boot recusa subir se o papel do app não ler as tabelas (`docs/PENDENCIAS-ABERTAS.md` §3.10 e §3.11).

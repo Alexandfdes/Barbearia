@@ -445,6 +445,10 @@ assinatura em vigor (`asaas_subscription_id`, única), os últimos 20 Checkouts
 única tabela com `tenant_id` que aceita nulo: o evento que não acha barbearia fica guardado. O
 papel do app não tem acesso a ela; só o webhook, como dono das tabelas.
 
+⚠️ **Até 12/10/2026, o evento cru podia ficar gravado como texto, não como objeto** — com ele, o
+`payload->'payment'` não acha nada. Dependia de o Drizzle ter tocado a conexão antes, e o webhook
+não toca. Consertado, e a migration 0014 converte as linhas antigas (`PENDENCIAS-ABERTAS.md` §2.36).
+
 **As rotas:**
 
 | Rota | Quem | O que faz |
@@ -570,6 +574,10 @@ nova de falha. A 1 cliente por mês, o retorno chega depois do oitavo. Construir
 > relógio (`PENDENCIAS-ABERTAS.md` §3.5); o clique ficou para o caso à mão. E o painel não
 > avisa ninguém: mostra a fase de cada barbearia e os eventos da Asaas que pedem olho, quando
 > você abre — o alerta continua no `PENDENCIAS-ABERTAS.md` §3.4.
+>
+> **12/10/2026:** o painel ganhou uma tela de Cobrança — as assinaturas em vigor, as atrasadas, os
+> pagamentos e as falhas do mês e tudo o que o webhook recebeu (`PENDENCIAS-ABERTAS.md` §3.9).
+> Continua mostrando só quando você abre.
 
 O painel detecta os 15 dias e **avisa você**. Você clica. Não automatize ainda:
 

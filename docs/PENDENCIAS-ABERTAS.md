@@ -36,6 +36,7 @@
 | **11/10** | **A exportação dos dados do dono — também fora do ar, com a data de nascimento e aviso na tela**, decidida por você. E, sem decisão nova, o que estava na fila dos próximos passos: o limite por telefone na área do cliente, a saúde para o monitor externo, a imagem sem as dependências de desenvolvimento e a troca do superusuário do banco, pronta para rodar. No caminho, dois defeitos que ninguém via: o backup restaurado voltava sem as permissões do app, e o provisionador nunca rodou no container | `PENDENCIAS-ABERTAS.md` §3.6, `PENDENCIAS-ABERTAS.md` §3.10, `PENDENCIAS-ABERTAS.md` §3.11 e `PENDENCIAS-ABERTAS.md` §3.12 |
 | **11/10** | **O painel do operador:** a lista das barbearias, com a fase de cada uma, e três ações — estender o teste, tirar do ar, reativar —, cada uma registrada. **Entra só com senha, sem segundo fator: o risco foi dito e aceito por você.** Feito no mesmo dia. E o aviso sobre autorização de quem aparece nas fotos da galeria: não precisa — a responsabilidade vai para o termo | `PENDENCIAS-ABERTAS.md` §3.9 e `PENDENCIAS-ABERTAS.md` §1.2 |
 | **12/10** | **O fuso de cada barbearia: nasce do estado escolhido no cadastro, e o dono troca em Configurações** — escolhido por você em 11/10, feito em 12/10. Rejeitados na implementação: o fuso em `settings`, que sob o RLS o cache das outras barbearias não enxergaria, e o campo livre, onde um nome errado derrubaria toda data. **E o cliente que pede para ser apagado tem os agendamentos anonimizados**, também decidido em 11/10 — não feito | `PENDENCIAS-ABERTAS.md` §2.1 e `PENDENCIAS-ABERTAS.md` §1.2 |
+| **12/10** | **O painel do operador em telas, como o do barbeiro** — o Início com os números, a ficha de cada barbearia, a Cobrança, o Registro e o Sistema —, **e as anotações na ficha**, escolhidos por você; feitos no mesmo dia. Decididos na implementação — ⚠️ falta você confirmar: a anotação não se edita nem se apaga, e o "pede atenção" do Início mostra o teste a 3 dias do fim e quem cancelou a 15 dias de sair. No caminho, consertado: o JSON que ia ao banco como texto (§2.36) | `PENDENCIAS-ABERTAS.md` §3.9 e `PENDENCIAS-ABERTAS.md` §2.36 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -1644,6 +1645,46 @@ duas seções —, com o link da Galeria e dos Serviços
 (`apps/barbearia/src/pages/admin/configuracoes.astro`). Guarda:
 `apps/barbearia/tests/exportacao.test.ts`, e o E2E do §3.6.
 
+### 2.36 ✅ `[TÉCNICO]` O JSON ia ao banco como texto — o corpo dos eventos da Asaas e o registro do operador — RESOLVIDO em 12/10/2026
+
+**Achado escrevendo o teste das telas do operador** (§3.9): os dados de teste, gravados como o
+código gravava — `${JSON.stringify(x)}::jsonb` —, voltavam do banco como **string**, não como
+objeto. O `::jsonb` deixa o parâmetro tipado como jsonb, e o driver (postgres.js) serializa
+parâmetro jsonb com `JSON.stringify` — de novo, por cima do texto que já era JSON: o banco recebia
+`"{\"a\":1}"` e gravava um texto entre aspas. Só não acontecia depois de o Drizzle tocar a
+conexão, porque ele troca esse serializador por um que passa o texto como está. Conferido num
+script e na suíte: na mesma conexão, a mesma linha sai string antes do Drizzle e objeto depois.
+
+Por isso o defeito dependia de quem chegava primeiro no processo — e o webhook da Asaas e o
+painel do operador não passam pelo Drizzle no começo da requisição. Depois de um deploy, a Asaas
+reenvia de uma vez o que ficou na fila. **O que ele estragava:**
+
+- **O registro das ações do operador** (`acoes_do_operador.detalhe`, desde 11/10). O "reativar"
+  lê ali como a barbearia estava antes de sair do ar; com a string, não achava — e perguntava,
+  como se ela tivesse sido tirada do ar fora do painel. A resposta ficava com quem estivesse na
+  tela: "em dia" para uma que estava em teste a trazia de volta como paga, sem ter pago. E as
+  últimas ações perdiam o *"estava no teste"* e os dias da extensão.
+- **O corpo dos eventos da Asaas** (`webhook_events.payload`, desde 10/10). Até 12/10 nada do
+  app lia dentro dele — só quem olhasse pelo `psql` (§4.14) —, mas as telas novas leem: o valor e
+  o meio de pagamento, e os pagamentos do mês.
+
+**Agora** é `::text::jsonb`, nos cinco lugares que mandavam só `::jsonb`
+(`apps/barbearia/src/lib/cobranca.ts` e `apps/barbearia/src/lib/operadorBarbearias.ts`) e na
+anotação, que já nasceu assim: o parâmetro vai tipado como texto, o driver o manda como está, e
+o banco o lê como objeto — com ou sem Drizzle. A migration 0014 converte de volta as linhas que
+o defeito gravou, nas duas tabelas; a que não é JSON — o corpo de webhook que não se leu, guardado
+como texto de propósito — fica como está.
+
+**Guarda:** `apps/barbearia/tests/jsonb-parametro.test.ts` reprova, em `src/`, parâmetro convertido
+direto para json ou jsonb — pelo `::` ou pelo `CAST` —, e prova contra o banco, numa conexão que
+o Drizzle não tocou, que `::text::jsonb` grava objeto e só `::jsonb` grava string. ⚠️ **A guarda
+nasceu furada:** parava no primeiro `}` depois do `${`, e `${JSON.stringify({ texto })}::jsonb` —
+com chave dentro do parâmetro — passava. Visto reintroduzindo o defeito na anotação; consertada no
+mesmo dia, com o caso nos controles. Contra o build, o E2E das telas manda eventos da Asaas como as
+primeiras requisições do processo e confere o corpo gravado como objeto, e tira uma barbearia do
+ar antes de qualquer outra coisa passar pelo Drizzle; com o defeito de volta no build, 5
+conferências ficaram vermelhas. A regra foi para o `CLAUDE.md`, junto da das datas em SQL cru.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -1721,6 +1762,10 @@ arquivo das fotos junta a galeria de todas as barbearias e cresce com cada uma �
 mesmo container que atende os sites. Não medido, e só morde com as `S3_*` ligadas; o conserto
 é mandar em partes, lendo do disco aos pedaços. **Não feito.**
 
+**Desde 12/10/2026, o painel do operador mostra o backup** (a tela de Sistema, §3.9): o último
+arquivo do banco e o das fotos, a idade de cada um e se ele sai do servidor — e avisa quando o
+último tem mais de um dia ou quando ele não sai. Só quando você abre a tela.
+
 ### 3.4 🟠 `[TÉCNICO]` Monitoramento — o lado do app FEITO em 11/10/2026; falta o monitor, que é seu
 
 Se o site de um cliente cair sábado de manhã, hoje você descobre quando ele liga. Falta
@@ -1736,6 +1781,10 @@ barbearia nenhuma, não diz nada além disso, e responde também a `HEAD`. Guard
 se o escolhido avisa no celular — e cadastrar dois monitores: o `/api/saude` do painel, e a
 página de uma barbearia, que pega o que a saúde não vê — o certificado e o endereço. O endereço
 de produção está no projeto do claude.ai.
+
+**Desde 12/10/2026, a tela de Sistema do operador** junta o banco, as migrations, o backup, o
+e-mail e a cobrança, com o que precisa de você em cima (§3.9). Ela mostra quando você abre — não
+chama ninguém. O monitor continua faltando.
 
 ### 3.5 ✅ `[TÉCNICO]` Suspensão por inadimplência — FEITA em 08/10/2026
 
@@ -1859,7 +1908,7 @@ seu push; o que rodou foi a suíte que ele chama, aqui, e os 11 casos de
 GitHub não é este container. O `pg_dump` dos testes do backup é instalado pelo próprio job, e a
 imagem do Postgres é a do `docker-compose.test.yml` — mas é a primeira vez que roda lá.
 
-### 3.9 ✅ `[TÉCNICO]` Ver e operar as barbearias sem `psql` — o painel do operador, FEITO em 11/10/2026
+### 3.9 ✅ `[TÉCNICO]` Ver e operar as barbearias sem `psql` — o painel do operador, FEITO em 11/10/2026; as telas, em 12/10/2026
 
 **A pergunta, sua, em 11/10:** *"como faço para ver as barbearias ativas com sites ativos?
 tem algum painel?"* Não tinha. O painel de cada barbearia mostra só a dela, e a única visão do
@@ -1867,17 +1916,47 @@ todo era o `psql` em produção — que também era o único jeito de estender u
 (§4.16) ou religar (§3.5). **Decidido por você no mesmo dia:** um painel já com as ações, cada
 uma registrada; **entrar só com a senha**.
 
-**O que ele mostra** (`/operador`, `apps/barbearia/src/pages/operador.astro`): cada barbearia
-com a fase de agora — em dia, teste até tal dia, carência, fora do ar e por quê, encerrada —,
-o link do site, o nome, o WhatsApp e o e-mail do dono, quantos barbeiros ativos, quantos
-agendamentos nos últimos 30 dias e o dia do último, e se tem assinatura na Asaas. Em cima, a
-contagem por fase — *"N cadastradas · M no ar"* —, com filtro e busca. Embaixo, os eventos da
-Asaas que o webhook não resolveu sozinho e as últimas ações. **Nenhum dado de cliente de
-barbearia** — nome, telefone, nascimento de quem agenda: só contagens
-(`apps/barbearia/src/lib/operadorBarbearias.ts`).
+**As telas, pedidas por você em 12/10** — *"um painel de respeito, parecido com a interface do
+painel do barbeiro, com várias telas"*; você escolheu as cinco abaixo e as anotações. O painel
+ganhou o menu do lado, como o do barbeiro (`apps/barbearia/src/layouts/OperadorLayout.astro`), e
+cada tela, um endereço (`apps/barbearia/src/pages/operador/`):
 
-**As três ações**, cada uma numa transação, com a linha da barbearia travada e gravada em
-`acoes_do_operador` (migration 0012) na mesma transação:
+| Tela | Endereço | O que mostra |
+|---|---|---|
+| Início | `/operador` | Quantas barbearias estão no ar, quantas pagam e a receita prevista — quem paga × R$ 100: conta, não dinheiro que entrou —; o que a Asaas confirmou no mês, cada pagamento uma vez; os cadastros dos últimos 30 dias; onde cada barbearia está, numa barra; **o que pede atenção** — o teste que acaba em 3 dias, a carência, quem cancelou e sai em 15 dias, cada um com o WhatsApp do dono ali mesmo, e os eventos da Asaas que o sistema não resolveu —; quantas passaram do teste para o cartão; os cadastros por semana; e as últimas ações |
+| Barbearias | `/operador/barbearias` | A lista de 11/10, com a busca e o filtro por fase. Cada linha leva à ficha |
+| A ficha | `/operador/barbearias/N` | De uma barbearia: a fase, o endereço, o fuso, o dono e o contato, a assinatura; o uso — equipe, serviços, fotos, agendamentos em 7 e 30 dias e os próximos, só contagens —; o que falta no site, pelo mesmo medidor do painel do dono (§4.4); a linha do tempo — o cadastro, o fim do teste, a carência, o primeiro agendamento, cada evento da Asaas, cada e-mail ao dono e cada ação do operador —; as ações; e as anotações |
+| Cobrança | `/operador/cobranca` | Se a cobrança está ligada, e em que ambiente; as assinaturas em vigor, as atrasadas e quem está saindo; os pagamentos e as falhas do mês; os eventos que pedem olho; e tudo o que o webhook recebeu, por tipo e de 50 em 50, com o valor e o meio de pagamento — do corpo do evento, só isso: o resto traz nome, e-mail e CPF do dono, e para achar o evento na Asaas basta o id |
+| Registro | `/operador/registro` | Cada entrada no painel, cada ação e cada anotação, com data, hora e IP, por tipo e por barbearia, de 50 em 50 |
+| Sistema | `/operador/sistema` | O banco — se responde, quanto ocupa, com que usuário o app conecta e se ele é superusuário (§3.10) —, as migrations aplicadas contra as do build, o último backup e se ele sai do servidor (§3.3), o e-mail, a cobrança, o cadastro, os endereços e o processo. Em cima, o que precisa de você — o problema antes do aviso; os mesmos alertas aparecem no Início. **Nenhum valor de variável secreta**: só se ela existe |
+
+**As anotações** — *"liguei dia 12, paga sexta"*, na ficha. Até 1.000 caracteres, gravadas no
+mesmo registro das ações (`acao = 'anotou'`, migration 0014), com data, hora e IP. **Não se
+editam nem se apagam:** a anotação errada se corrige com outra — ⚠️ decidido na implementação,
+falta você confirmar. Rejeitado: uma tabela de anotações à parte, com editar e apagar —
+anotação que some não serve de histórico, e seria a única coisa do painel sem registro.
+
+**Os dois relógios:** o que é da barbearia — o fim do teste, a carência, o dia do último
+agendamento — sai no fuso dela (§2.1); o que é do operador — quando ele entrou, quando o evento
+chegou, o mês da receita, as semanas dos cadastros — no padrão do produto, o de Mossoró
+(`apps/barbearia/src/lib/operadorTela.ts`).
+
+**Toda tela abre pela porta.** O `src/middleware.ts` deixa o prefixo `/operador/` inteiro passar
+sem barbearia — e por isso cada página começa por `exigirOperador`
+(`apps/barbearia/src/lib/operador.ts`), antes de qualquer consulta: porta fechada, 404; sem
+sessão, a tela de entrar, que depois volta para a tela pedida — e só para tela do painel, nunca
+para endereço de fora. `apps/barbearia/tests/operador-telas.test.ts` reprova a página que não
+abrir assim, e a lista das telas é fechada: tela nova entra nela de propósito.
+
+*Até 12/10, o painel era uma página só (`apps/barbearia/src/pages/operador.astro`, que não
+existe mais): a lista, a contagem por fase, os eventos que pedem olho e as últimas ações.*
+
+**Nenhum dado de cliente de barbearia** — nome, telefone, nascimento de quem agenda — em tela
+nenhuma: só contagens (`apps/barbearia/src/lib/operadorBarbearias.ts`). A guarda reprova
+qualquer coluna `customer_` nos arquivos do operador.
+
+**As três ações**, na ficha de cada barbearia, cada uma numa transação, com a linha da
+barbearia travada e gravada em `acoes_do_operador` (migration 0012) na mesma transação:
 
 - **Estender o teste** — de 1 a 60 dias, contados do último dia do teste ou de hoje, se ele já
   venceu (`fimDoTesteEstendido`, em `apps/barbearia/src/lib/situacao.ts`). Só para quem está no
@@ -1889,55 +1968,78 @@ barbearia** — nome, telefone, nascimento de quem agenda: só contagens
 - **Reativar** — volta com o status que tinha, lido do registro, e com os prazos de antes: o
   relógio não parou, e o teste que venceu durante a suspensão volta vencido — a tela diz, e o
   caminho é estender. Sem registro (tirada do ar fora do painel), ele pergunta: em teste — com
-  7 dias, se não havia prazo — ou em dia.
+  7 dias, se não havia prazo — ou em dia. ⚠️ Até 12/10, o registro podia estar gravado como
+  texto, e ele perguntava mesmo com registro (§2.36).
 
 As três valem **na hora**: a ação descarta o cache de barbearias, que segurava o status por até
 30 segundos.
 
-**Como ligar:** sem a variável `OPERADOR_SENHA_HASH`, a página não existe — 404, como qualquer
+**Como ligar:** sem a variável `OPERADOR_SENHA_HASH`, nenhuma tela existe — 404, como qualquer
 endereço inventado. Na sua máquina, `npm run operador:senha` (em `apps/barbearia`) pede a senha
 duas vezes sem mostrar e imprime uma linha; ela vai para as variáveis do serviço e, se quiser o
 painel no desenvolvimento, para o `.env`. Reinicie o app. O painel abre **só no endereço do
 painel** (`PAINEL_URL`, ou `painel.<DOMINIO_BASE>`) — no endereço de qualquer barbearia,
-`/operador` é 404. O endereço de produção e o passo a passo do EasyPanel ficam no projeto do
-claude.ai, não aqui: este repositório é público.
+`/operador` e as telas são 404. As telas de 12/10 não pedem variável nova: a 0014 é aplicada pelo
+boot. O endereço de produção e o passo a passo do EasyPanel ficam no projeto do claude.ai, não
+aqui: este repositório é público.
 
 ⚠️ **Os riscos — o primeiro, aceito por você:**
 
 - **Só a senha, sem segundo fator.** Quem a tiver tira qualquer barbearia do ar e dá teste a
-  quem quiser. O que existe em volta: hash lento (scrypt), no máximo 5 tentativas por IP e 20 no
-  total a cada 15 minutos, sessão de 8 horas, e **toda entrada gravada com o IP** — olhe as
-  últimas ações de vez em quando: uma entrada que não foi sua aparece ali. Trocar a senha (o
-  hash) derruba quem estiver dentro. *Rejeitado por você:* o segundo fator.
+  quem quiser — e, desde 12/10, vê os números do negócio. O que existe em volta: hash lento
+  (scrypt), no máximo 5 tentativas por IP e 20 no total a cada 15 minutos, sessão de 8 horas, e
+  **toda entrada gravada com o IP** — olhe o Registro de vez em quando: uma entrada que não foi
+  sua aparece ali. Trocar a senha (o hash) derruba quem estiver dentro. *Rejeitado por você:* o
+  segundo fator.
 - **O limite mora na memória do processo** (`apps/barbearia/src/lib/rateLimit.ts`): zera a
   cada deploy. E qualquer um pode gastar as 20 tentativas do total e te deixar 15 minutos sem
   entrar — a troca de segurar quem testa senhas de muitos IPs.
 - **Tirar do ar não cancela a assinatura na Asaas.** Quem paga por cartão continua sendo
   cobrado até alguém cancelar lá. A tela avisa antes do botão, e o pagamento que chegar para
-  barbearia tirada à mão aparece em "eventos que pedem olho" — o webhook o ignora de propósito.
+  barbearia tirada à mão aparece em "pedem olho" — o webhook o ignora de propósito.
 - **O hash fica nas variáveis do servidor:** quem vê o EasyPanel vê o hash, e com senha fraca dá
   para adivinhar fora do servidor. O script recusa menos de 12 caracteres; use uma frase de
   quatro ou cinco palavras.
-- **A lista carrega tudo de uma vez:** serve para dezenas de barbearias, não para milhares.
+- **A lista e o Início carregam todas as barbearias de uma vez:** servem para dezenas, não para
+  milhares. O Registro e a Cobrança vão de 50 em 50.
 
 *Não feito, sugestões:* o segundo fator; estender a carência de quem tem a cobrança
 atrasada; cancelar a assinatura na Asaas pelo próprio painel; encerrar uma barbearia; e o
 alerta no celular (§3.4) — o painel mostra, mas não chama.
 
-**Guarda:** `apps/barbearia/tests/operador.test.ts` — 39 casos: a senha certa e só ela, o hash
-do script aceito pelo app, os 404 fora do endereço e sem a variável, o limite por IP e o total,
-o cookie de barbeiro que não serve de operador, a troca de senha derrubando a sessão, cada
-ação mudando só a barbearia escolhida e valendo na hora, e a lista sem dado de cliente. 32
-reintroduções de defeito, as 32 vermelhas — duas só depois de reforçar o teste: a chave do
-lacre separada da do painel, e reativar quem está no ar. A lista fechada de quem roda como dono
-do banco ganhou um arquivo, com o motivo (`apps/barbearia/tests/rls.test.ts`), e a de páginas
-públicas que não perguntam o endereço, as quatro do operador (`apps/barbearia/tests/host-tenant.test.ts`).
-Contra o build: 35 conferências no navegador — entrar, filtrar, tirar do ar e ver o site
-sair, reativar e ver voltar, vencer o teste e estender, sair —, a 0012 aplicada pelo
-`scripts/startup.mjs` sobre um banco parado na 0011, e o 404 sem a variável. **O E2E achou um
-defeito que a suíte não via:** a página mandava `Referrer-Policy: no-referrer`, e com ela o
-navegador manda `Origin: null` no POST de formulário — o "Sair" era recusado pela conferência de
-origem (§2.30). Virou `same-origin`, que para fora dá o mesmo.
+**Guarda:** `apps/barbearia/tests/operador.test.ts` — 40 casos (39 em 11/10; o fuso de 12/10 pôs
+mais um): a senha certa e só ela, o hash do script aceito pelo app, os 404 fora do endereço e sem
+a variável, o limite por IP e o total, o cookie de barbeiro que não serve de operador, a troca de
+senha derrubando a sessão, cada ação mudando só a barbearia escolhida e valendo na hora, e a
+lista sem dado de cliente. 32 reintroduções de defeito, as 32 vermelhas — duas só depois de
+reforçar o teste: a chave do lacre separada da do painel, e reativar quem está no ar. A lista
+fechada de quem roda como dono do banco ganhou um arquivo, com o motivo
+(`apps/barbearia/tests/rls.test.ts`), e a de páginas públicas que não perguntam o endereço, as
+quatro do operador (`apps/barbearia/tests/host-tenant.test.ts`). Contra o build: 35 conferências
+no navegador — entrar, filtrar, tirar do ar e ver o site sair, reativar e ver voltar, vencer o
+teste e estender, sair —, a 0012 aplicada pelo `scripts/startup.mjs` sobre um banco parado na
+0011, e o 404 sem a variável. **O E2E achou um defeito que a suíte não via:** a página mandava
+`Referrer-Policy: no-referrer`, e com ela o navegador manda `Origin: null` no POST de formulário —
+o "Sair" era recusado pela conferência de origem (§2.30). Virou `same-origin`, que para fora dá o
+mesmo.
+
+**Guarda das telas, de 12/10:** `apps/barbearia/tests/operador-telas.test.ts` — 31 casos: a porta
+em cada tela, antes de qualquer consulta, e a lista fechada delas; as rotas de `/api/operador/`
+conferindo o endereço e a sessão antes de ler o corpo; nenhuma coluna de cliente nos arquivos do
+operador; a volta só para tela do painel; as semanas e o mês no relógio do operador; o nome de
+cada evento da Asaas; o Sistema sem valor de segredo, com o alerta grave antes do aviso; a 0014
+sobre um banco parado na 0013; e, com banco, os números do Início, a Cobrança — cada pagamento e
+cada falha uma vez —, a ficha, a anotação pela rota, o registro com os filtros e as páginas, e o
+Sistema. As listas fechadas cresceram: as seis telas no lugar da página única
+(`apps/barbearia/tests/host-tenant.test.ts`), e os números e o Sistema entre os arquivos que rodam
+como dono do banco, com o motivo (`apps/barbearia/tests/rls.test.ts`). 29 reintroduções de
+defeito, as 29 vermelhas — duas só depois de reforçar o teste: a ordem do "pede atenção", que os
+dados do teste já traziam na ordem certa, e a guarda do JSON (§2.36). Contra o build, com o app
+falando pelo usuário sem superusuário (§3.10): 64 conferências no navegador — as seis telas no
+computador e no celular, entrar e voltar à tela pedida, tirar do ar, reativar achando no registro
+como ela estava, estender e ver o site voltar na hora, anotar, os filtros, nenhum segredo no HTML
+—, sem erro de JavaScript; e a 0014 aplicada pelo `scripts/startup.mjs` sobre um banco parado na
+0013, como dono sem superusuário — rodar de novo não faz nada.
 
 ### 3.10 🟠 `[TÉCNICO]` O app fala com o banco como superusuário — a troca pronta e ensaiada em 11/10/2026; falta rodar em produção
 
@@ -3016,6 +3118,10 @@ estado, editável em Configurações (§2.1), o que fecha a onda 3 abaixo —, e
 ainda descreviam uma instância por barbearia: o `ARQUITETURA-PRODUCAO.md`, reescrito, e os
 §3.1, §3.2 e §3.3 deste. A exclusão do cliente a pedido, decidida na mesma conversa —
 anonimizar os agendamentos dele —, ficou para depois e **não está feita** (§1.2).
+
+**12/10/2026, pedido por você no mesmo dia, ✅ feito:** o painel do operador em seis telas, como o
+do barbeiro, com as anotações na ficha (§3.9). Achado no caminho, ✅ consertado: o JSON que ia ao
+banco como texto — o corpo dos eventos da Asaas e o registro do "tirar do ar" (§2.36).
 
 **Onda 2 — antes de abrir o cadastro público.**
 
