@@ -24,6 +24,12 @@ export const tenants = pgTable('tenants', {
   /** Quando a cobrança falhou; a carência começa aqui. Obrigatório quando `past_due`. */
   pastDueSince: timestamp('past_due_since', { withTimezone: true }),
   /**
+   * O fim da carência estendido pelo operador (migration 0016). Vale para o atraso
+   * de `pastDueSince`: um gatilho do banco o apaga quando ele muda — pagou, ou
+   * atrasou de novo. Lido por `situacaoDe`, em `lib/situacao.ts`.
+   */
+  carenciaAte: timestamp('carencia_ate', { withTimezone: true }),
+  /**
    * A cobrança na Asaas (migration 0010, `lib/cobranca.ts`): o cliente, a assinatura
    * em vigor e os últimos 20 Checkouts. São as chaves com que os eventos do webhook
    * acham a barbearia — cada evento traz uma diferente. A assinatura é única; o

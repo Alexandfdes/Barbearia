@@ -47,6 +47,8 @@ export interface Tenant {
   testeAte?: Date | null;
   /** Quando a cobrança falhou (`past_due_since`). */
   atrasadaDesde?: Date | null;
+  /** O fim da carência estendido pelo operador (`carencia_ate`, migration 0016). */
+  carenciaAte?: Date | null;
   /** Assinatura cancelada: no ar até aqui (`subscription_ends_at`). */
   encerraEm?: Date | null;
   /**
@@ -101,6 +103,7 @@ export async function carregarTenants(forcar = false): Promise<void> {
     domain: tenantsTable.domain,
     testeAte: tenantsTable.trialEndsAt,
     atrasadaDesde: tenantsTable.pastDueSince,
+    carenciaAte: tenantsTable.carenciaAte,
     encerraEm: tenantsTable.subscriptionEndsAt,
     fuso: tenantsTable.timezone,
   }).from(tenantsTable);
@@ -117,6 +120,7 @@ export async function carregarTenants(forcar = false): Promise<void> {
       domain: l.domain ?? null,
       testeAte: l.testeAte ?? null,
       atrasadaDesde: l.atrasadaDesde ?? null,
+      carenciaAte: l.carenciaAte ?? null,
       encerraEm: l.encerraEm ?? null,
       fuso: l.fuso,
     };

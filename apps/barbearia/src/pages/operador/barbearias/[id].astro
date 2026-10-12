@@ -15,7 +15,7 @@ import Pilula from '../../../components/operador/Pilula.astro';
 import AcoesDaBarbearia from '../../../components/operador/AcoesDaBarbearia.astro';
 import { exigirOperador } from '../../../lib/operador.js';
 import { ANOTACAO_MAXIMA, fichaDaBarbearia, type EventoDaFicha } from '../../../lib/operadorBarbearias.js';
-import { diaDe } from '../../../lib/situacao.js';
+import { diaDe, ultimoDia } from '../../../lib/situacao.js';
 import { deslocamento, rotuloDoFuso } from '../../../lib/timezone.js';
 import { quandoComAno } from '../../../lib/operadorTela.js';
 import { formatarTelefone } from '../../../lib/phone.js';
@@ -35,6 +35,10 @@ const feito = Astro.url.searchParams.get('feito');
 let mensagem = '';
 if (f && feito === 'estender-teste') {
   mensagem = `Teste estendido — ${f.tela.rotulo.toLowerCase()}, ${f.tela.detalhe}.`;
+} else if (f && feito === 'estender-carencia') {
+  mensagem = f.situacao.fase === 'carencia'
+    ? `Carência estendida: o site fica no ar até ${ultimoDia(f.situacao.ate, f.fuso)}.`
+    : `Carência estendida — ${f.tela.rotulo.toLowerCase()}, ${f.tela.detalhe}.`;
 } else if (f && feito === 'suspender') {
   mensagem = 'Saiu do ar.' + (f.temAssinatura ? ' A assinatura na Asaas continua cobrando: se ela não deve mais pagar, cancele lá.' : '');
 } else if (f && feito === 'reativar') {
@@ -235,7 +239,7 @@ const ORIGEM_POR_EXTENSO: Record<EventoDaFicha['origem'], string> = {
       const botao = form.querySelector<HTMLButtonElement>('button[type=submit]');
       const campo = (nome: string) => form.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${nome}"]`);
       const corpo: Record<string, unknown> = { acao, barbearia };
-      if (acao === 'estender-teste') corpo.dias = Number(campo('dias')?.value);
+      if (acao === 'estender-teste' || acao === 'estender-carencia') corpo.dias = Number(campo('dias')?.value);
       if (acao === 'suspender') {
         corpo.confirmacao = campo('confirmacao')?.value ?? '';
         const motivo = campo('motivo')?.value.trim();

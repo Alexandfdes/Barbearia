@@ -167,6 +167,7 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
       status: tenants.status,
       testeAte: tenants.trialEndsAt,
       atrasadaDesde: tenants.pastDueSince,
+      carenciaAte: tenants.carenciaAte,
       fuso: tenants.timezone,
     })
     .from(tenants)

@@ -237,7 +237,12 @@ beforeAll(async () => {
     (8,  'atrasado', 'Atrasado',          'past_due',  NULL,      ${agora},  'cus_atr',    'sub_atr',    '{}'),
     (9,  'dono-a',   'Do Mesmo Dono A',   'trial',     ${daqui7}, NULL,      NULL,         NULL,         '{chk_a}'),
     (10, 'dono-b',   'Do Mesmo Dono B',   'trial',     ${daqui7}, NULL,      NULL,         NULL,         '{chk_b}'),
-    (11, 'fora',     'Fora pela Cobrança', 'past_due', NULL,      ${ha10},   'cus_fora',   'sub_fora',   '{}')`;
+    (11, 'fora',     'Fora pela Cobrança', 'past_due', NULL,      ${ha10},   'cus_fora',   'sub_fora',   '{}'),
+    (12, 'prazo-paga',   'Prazo e Pagou',     'past_due', NULL,   ${ha10},   'cus_pp',     'sub_pp',     '{}'),
+    (13, 'prazo-cancela', 'Prazo e Cancelou', 'past_due', NULL,   ${ha10},   'cus_pc',     'sub_pc',     '{}')`;
+  // As duas com a carência estendida pelo operador (migration 0016): a cobrança
+  // falhou há 10 dias, e elas continuam no ar.
+  await conn`UPDATE tenants SET carencia_ate = ${new Date(Date.now() + 5 * DIA)} WHERE id IN (12, 13)`;
   await conn`SELECT setval('tenants_id_seq', 20)`;
   // Um dono por barbearia, e um barbeiro comum na 4.
   await conn`INSERT INTO barbers (tenant_id, id, name, slug, role, password_hash, active, phone, email) VALUES
@@ -248,7 +253,9 @@ beforeAll(async () => {
     (7, 70, 'Dono Em Dia',  'dono', 'admin',  'x', true, '84990000070', NULL),
     (8, 80, 'Dono Atraso',  'dono', 'admin',  'x', true, '84990000080', NULL),
     (3, 30, 'Dono Manual',  'dono', 'admin',  'x', true, '84990000030', NULL),
-    (11, 110, 'Dono Fora',  'dono', 'admin',  'x', true, '84990000110', NULL)`;
+    (11, 110, 'Dono Fora',  'dono', 'admin',  'x', true, '84990000110', NULL),
+    (12, 120, 'Dono PP',    'dono', 'admin',  'x', true, '84990000120', NULL),
+    (13, 130, 'Dono PC',    'dono', 'admin',  'x', true, '84990000130', NULL)`;
 
   ({ POST: WEBHOOK } = await import('../src/pages/api/asaas/webhook.js') as never);
   ({ POST: CARTAO } = await import('../src/pages/api/admin/assinatura/cartao.js') as never);
@@ -364,6 +371,25 @@ describe.skipIf(!TEM_BANCO)('o webhook mantém a barbearia em dia', () => {
 
     await enviar({ id: 'evt_5', event: 'PAYMENT_CONFIRMED', payment: { id: 'pay_1', customer: 'cus_ze', subscription: 'sub_ze_1' } });
     expect(await linha(1)).toMatchObject({ status: 'active', past_due_since: null });
+  });
+
+  it('a carência estendida pelo operador cai com o pagamento — e a falha seguinte começa os 3 dias de novo', async () => {
+    const carenciaAte = async () => (await conn`SELECT carencia_ate FROM tenants WHERE id = 12`)[0].carencia_ate as Date | null;
+    const host = 'prazo-paga.fadeline.com.br';
+    await carregarTenants(true);
+    expect(tenantDoHost(new Request(`https://${host}/`, { headers: { host } }))?.id).toBe(12); // no ar pela extensão
+    expect(await carenciaAte()).not.toBeNull();
+
+    await enviar({ id: 'evt_pp_1', event: 'PAYMENT_CONFIRMED', payment: { id: 'pay_pp', customer: 'cus_pp', subscription: 'sub_pp' } });
+    expect(await linha(12)).toMatchObject({ status: 'active', past_due_since: null });
+    expect(await carenciaAte()).toBeNull();
+
+    await enviar({ id: 'evt_pp_2', event: 'PAYMENT_OVERDUE', payment: { id: 'pay_pp_2', customer: 'cus_pp', subscription: 'sub_pp' } });
+    const atrasada = await linha(12);
+    expect(atrasada.status).toBe('past_due');
+    expect(await carenciaAte()).toBeNull();
+    expect(situacaoDe({ status: 'past_due', atrasadaDesde: atrasada.past_due_since, carenciaAte: null, fuso: TZ }))
+      .toEqual({ fase: 'carencia', motivo: 'cobranca', ate: fimDaCarencia(atrasada.past_due_since, TZ) });
   });
 
   it('cartão trocado: a assinatura nova entra, a antiga é removida na Asaas — e um evento atrasado da antiga não atrasa ninguém', async () => {
@@ -709,6 +735,19 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
     expect(depois.subscription_ends_at.toISOString()).toBe(fimDaCarencia(past_due_since, TZ).toISOString());
     // E a tela diz que foi cancelada, com o site no ar até o fim da carência.
     expect(situacaoDe({ status: 'active', encerraEm: depois.subscription_ends_at, fuso: TZ })).toEqual({ fase: 'ativa', encerraEm: depois.subscription_ends_at });
+  });
+
+  it('com a carência ESTENDIDA pelo operador: o site fica até o fim dela — o que restava é o prazo que ele deu', async () => {
+    responder = (c) => (c.metodo === 'GET'
+      ? { corpo: { id: 'sub_pc', status: 'ACTIVE', nextDueDate: diaNoFuso(new Date(Date.now() + 25 * DIA)), deleted: false } }
+      : { corpo: { deleted: true, id: 'sub_pc' } });
+    const [{ carencia_ate }] = await conn`SELECT carencia_ate FROM tenants WHERE id = 13`;
+    const r = await pedir(CANCELAR, { barberId: 130, role: 'admin', tenantId: 13 });
+    expect(r.status).toBe(200);
+    const depois = await linha(13);
+    expect(depois).toMatchObject({ status: 'active', past_due_since: null });
+    expect(depois.subscription_ends_at.toISOString()).toBe(carencia_ate.toISOString());
+    expect(situacaoDe({ status: 'active', encerraEm: depois.subscription_ends_at, fuso: TZ })).toMatchObject({ fase: 'ativa' });
   });
 
   it('fora do ar pela cobrança: cancela pela sessão de fora do ar — e o site continua fora, agora como cancelado', async () => {

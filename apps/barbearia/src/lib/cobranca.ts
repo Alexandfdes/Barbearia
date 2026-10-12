@@ -53,7 +53,7 @@ import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import type { TransactionSql } from 'postgres';
 import { sqlConn } from '../db/index.js';
 import { fusoDe } from './timezone.js';
-import { fimDaCarencia, situacaoDe, type Situacao, type StatusDaBarbearia } from './situacao.js';
+import { fimDaCarenciaDoAtraso, situacaoDe, type Situacao, type StatusDaBarbearia } from './situacao.js';
 import { NOME_PRODUTO, PRECO_MENSAL } from './produto.js';
 import { TELA_DE_ASSINATURA } from './assinatura.js';
 import { invalidarTenants } from './tenant.js';
@@ -76,6 +76,8 @@ interface LinhaDaBarbearia {
   // Texto ou Date, conforme o Drizzle já tenha embrulhado a conexão: ver `comoData`.
   trial_ends_at: Date | string | null;
   past_due_since: Date | string | null;
+  /** O fim da carência estendido pelo operador (migration 0016). */
+  carencia_ate: Date | string | null;
   subscription_ends_at: Date | string | null;
   asaas_customer_id: string | null;
   asaas_subscription_id: string | null;
@@ -100,6 +102,7 @@ const situacaoDaLinha = (t: LinhaDaBarbearia, agora: Date): Situacao => situacao
   status: t.status,
   testeAte: comoData(t.trial_ends_at),
   atrasadaDesde: comoData(t.past_due_since),
+  carenciaAte: comoData(t.carencia_ate),
   encerraEm: comoData(t.subscription_ends_at),
   fuso: fusoDaLinha(t),
 }, agora);
@@ -166,7 +169,7 @@ export interface DonoDaBarbearia {
 
 async function linhaDaBarbearia(id: number): Promise<LinhaDaBarbearia | null> {
   const [t] = await sqlConn<LinhaDaBarbearia[]>`
-    SELECT id, status, trial_ends_at, past_due_since, subscription_ends_at,
+    SELECT id, status, trial_ends_at, past_due_since, carencia_ate, subscription_ends_at,
            asaas_customer_id, asaas_subscription_id, timezone
     FROM tenants WHERE id = ${id}`;
   return t ?? null;
@@ -321,7 +324,7 @@ async function acharBarbearia(tx: Tx, e: EventoAsaas): Promise<{ t: LinhaDaBarbe
   for (const chave of chaves) {
     if (!chave) continue;
     const achadas = await tx<LinhaDaBarbearia[]>`
-      SELECT id, status, trial_ends_at, past_due_since, subscription_ends_at,
+      SELECT id, status, trial_ends_at, past_due_since, carencia_ate, subscription_ends_at,
              asaas_customer_id, asaas_subscription_id, timezone
       FROM tenants WHERE ${chave}
       ORDER BY id LIMIT 2 FOR UPDATE`;
@@ -527,7 +530,8 @@ export async function registrarEventoComFalha(e: EventoAsaas, erro: unknown): Pr
  *
  * - **Em dia:** até o fim do período pago — a próxima cobrança, que não vai haver.
  * - **Com a cobrança atrasada** — na carência ou já fora do ar: o mês que falhou
- *   não foi pago, então fica só o que restava da carência. E cancela de verdade:
+ *   não foi pago, então fica só o que restava da carência — estendida pelo
+ *   operador, se foi (`fimDaCarenciaDoAtraso`). E cancela de verdade:
  *   a assinatura atrasada continua viva na Asaas, e sem isto ela tentaria de novo
  *   o cartão de quem pediu para sair. Remover a assinatura leva junto a cobrança
  *   vencida (documentação) — a dívida não é cobrada.
@@ -556,7 +560,9 @@ export async function cancelarAssinatura(tenantId: number, cfg: asaas.ConfigAsaa
   const maior = (a: Date, b: Date) => (b.getTime() > a.getTime() ? b : a);
   const atrasadaDesde = comoData(t.past_due_since);
   const fim = t.status === 'past_due'
-    ? (atrasadaDesde ? maior(agora, fimDaCarencia(atrasadaDesde, fusoDaLinha(t))) : agora)
+    ? (atrasadaDesde
+      ? maior(agora, fimDaCarenciaDoAtraso({ atrasadaDesde, carenciaAte: comoData(t.carencia_ate), fuso: fusoDaLinha(t) }))
+      : agora)
     : alvos.reduce((m, a) => maior(m, fimDoPeriodoPago(a.nextDueDate, fusoDaLinha(t), agora)), agora);
 
   for (const a of alvos) await asaas.removerAssinatura(cfg, a.id);
