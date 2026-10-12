@@ -14,11 +14,12 @@ import sharp from 'sharp';
 import { exigirBancoDeTeste } from './guardaBanco.js';
 import { recriarSchema } from './migrations.js';
 import { metadadosDoArquivo } from './imagemEmDisco.js';
+import type { Tenant } from '../src/lib/tenant.js';
 
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
 
-const BAYRON = { id: 1, slug: 'bayron', status: 'active', domain: null, fuso: 'America/Fortaleza' };
+const BAYRON: Tenant = { id: 1, slug: 'bayron', status: 'active', domain: null, fuso: 'America/Fortaleza' };
 const RAIZ_ANTES = process.env.UPLOAD_ROOT;
 const raiz = mkdtempSync(join(tmpdir(), 'import-raiz-'));
 const origem = mkdtempSync(join(tmpdir(), 'import-fotos-'));
@@ -93,7 +94,7 @@ describe.skipIf(!TEM_BANCO)('importar a galeria do Bayron', () => {
     expect(fotos).toHaveLength(3);
     for (const f of fotos) {
       for (const endereco of [f.path, ...f.widths.map((w) => f.path.replace(/\.jpg$/, `-${w}.webp`))]) {
-        const r = await comTenant(BAYRON, () => rota.GET({
+        const r = await comTenant(BAYRON, async () => rota.GET({
           params: { path: endereco.replace(/^\/api\/media\//, '') },
           request: new Request(`http://bayron.test${endereco}`),
         } as never));

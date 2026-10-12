@@ -14,6 +14,7 @@ import { tenantDaSessao } from '../../../lib/tenant.js';
 import { getSettings } from '../../../lib/settings.js';
 import { reais } from '../../../lib/dinheiro.js';
 import { diaDaSemana, faixaDoDia, type Semana } from '../../../lib/gradeDeHorarios.js';
+import type { DadosDaAgenda } from '../../../lib/agendaDoDia.js';
 import { fusoDe } from '../../../lib/timezone.js';
 
 
@@ -215,8 +216,9 @@ function timelinePos(startsAtUtc: string, endsAtUtc: string) {
   const eLocal = formatInTimeZone(new Date(endsAtUtc),   fuso, 'yyyy-MM-dd HH:mm');
   const sParts = sLocal.split(' ')[1].split(':').map(Number);
   const eParts = eLocal.split(' ')[1].split(':').map(Number);
-  const sIsBefore = sLocal.split(' ')[0] < date;
-  const eIsAfter  = eLocal.split(' ')[0] > date;
+  // `date!`: conferida no topo da página — a função é declarada antes da conferência.
+  const sIsBefore = sLocal.split(' ')[0] < date!;
+  const eIsAfter  = eLocal.split(' ')[0] > date!;
   const sMin = sIsBefore ? 0 : Math.max(0, (sParts[0] - START_HOUR) * 60 + sParts[1]);
   const eMin = eIsAfter ? TOTAL_HOURS * 60 : Math.min(TOTAL_HOURS * 60, (eParts[0] - START_HOUR) * 60 + eParts[1]);
   return {
@@ -410,7 +412,7 @@ const faixaDoExpediente = faixaDoDia(
     .flatMap(([, semana]) => semana[diaDaSemana(date)] ?? []),
 );
 
-const clientData = {
+const clientData: DadosDaAgenda = {
   date,
   role:              session.role,
   sessionBarberId:   session.barberId,
@@ -1221,9 +1223,18 @@ const clientData = {
   import { reais } from '../../../lib/dinheiro';
   import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
   import { diaDaSemana, horariosLivres, horariosParaMover, ocupacaoDoBarbeiro } from '../../../lib/gradeDeHorarios';
+  import type { DadosDaAgenda, FichaDoCliente, VisitaDoHistorico } from '../../../lib/agendaDoDia';
+
+  // Os tipos deste script (`as`, `!`, parâmetros) só servem ao conferidor de tipos:
+  // somem no build e não mudam o que roda. Os elementos com `as` existem sempre no
+  // HTML acima; os que podem faltar — o seletor de barbeiro, só do dono — ficam com
+  // `| null` e a conferência no código.
+
+  /** O horário do buraco clicado, guardado para pré-selecionar quando as vagas chegarem. */
+  type JanelaDoEncaixe = Window & { __preferredSlotTime?: string | null };
 
   const container = document.getElementById('admin-data-container')!;
-  const clientData = JSON.parse(container.dataset.client!);
+  const clientData: DadosDaAgenda = JSON.parse(container.dataset.client!);
   const { date, role, sessionBarberId, filterBarberId, allBarbers } = clientData;
   const TZ: string = clientData.tz;
 
@@ -1258,13 +1269,13 @@ const clientData = {
     const todayM = parteDeHoje('month') - 1; // 0-based, como viewMonth
     const todayD = parteDeHoje('day');
 
-    function pad(n) { return String(n).padStart(2, '0'); }
-    function fmt(y, m, d) { return `${y}-${pad(m + 1)}-${pad(d)}`; }
+    function pad(n: number) { return String(n).padStart(2, '0'); }
+    function fmt(y: number, m: number, d: number) { return `${y}-${pad(m + 1)}-${pad(d)}`; }
 
     // Cache: "YYYY-MM" -> { "YYYY-MM-DD": qty }
     const monthCache = new Map();
 
-    async function fetchMonth(yyyymm) {
+    async function fetchMonth(yyyymm: string): Promise<Record<string, number>> {
       if (monthCache.has(yyyymm)) return monthCache.get(yyyymm);
       try {
         const params = new URLSearchParams({ month: yyyymm });
@@ -1280,9 +1291,11 @@ const clientData = {
       }
     }
 
+    // O `!` daqui para baixo: conferidos no começo de `setupCalendar` — o conferidor
+    // não leva a conferência para dentro de função declarada.
     async function render() {
-      title.textContent = `${MONTHS[viewMonth]} ${viewYear}`;
-      grid.innerHTML = '';
+      title!.textContent = `${MONTHS[viewMonth]} ${viewYear}`;
+      grid!.innerHTML = '';
 
       const firstOfMonth = new Date(viewYear, viewMonth, 1);
       const startDow     = firstOfMonth.getDay(); // 0 = domingo
@@ -1374,19 +1387,19 @@ const clientData = {
           location.href = `/admin/dia/${dateStr}${qs}`;
         });
 
-        grid.appendChild(cell);
+        grid!.appendChild(cell);
       }
     }
 
     function open() {
-      popover.classList.remove('hidden');
+      popover!.classList.remove('hidden');
       render();
     }
     function close() {
-      popover.classList.add('hidden');
+      popover!.classList.add('hidden');
     }
     function toggleOpen() {
-      popover.classList.contains('hidden') ? open() : close();
+      popover!.classList.contains('hidden') ? open() : close();
     }
 
     toggle.addEventListener('click', (e) => {
@@ -1410,7 +1423,7 @@ const clientData = {
     // Fecha ao clicar fora
     document.addEventListener('click', (e) => {
       if (popover.classList.contains('hidden')) return;
-      if (popover.contains(e.target) || toggle.contains(e.target)) return;
+      if (popover.contains(e.target as Node) || toggle.contains(e.target as Node)) return;
       close();
     });
     // ESC fecha
@@ -1423,11 +1436,11 @@ const clientData = {
   // Hora local da barbearia → instante UTC, pelo fuso que vem do servidor
   // (`clientData.tz`). Até 27/09/2026 esta conta somava 3 horas à mão: Fortaleza
   // cravada no código que roda no celular do dono (`PENDENCIAS-ABERTAS.md` §2.11).
-  function localTimeToUtcIso(dateStr, timeStr) {
+  function localTimeToUtcIso(dateStr: string, timeStr: string) {
     return fromZonedTime(`${dateStr}T${timeStr}:00`, TZ).toISOString();
   }
 
-  async function callApi(endpoint, method = 'POST', body = undefined) {
+  async function callApi(endpoint: string, method = 'POST', body: unknown = undefined) {
     const res = await fetch(endpoint, {
       method,
       headers: { 'Content-Type': 'application/json' },
@@ -1437,7 +1450,7 @@ const clientData = {
   }
 
   // ─── Toast ──────────────────────────────────────────────────────────────────
-  function toast(msg, kind = 'info') {
+  function toast(msg: string, kind = 'info') {
     const container = document.getElementById('toast-container');
     if (!container) return;
     const el = document.createElement('div');
@@ -1459,13 +1472,13 @@ const clientData = {
 
   // ─── Modal de confirmação ──────────────────────────────────────────────────
   const confirmModal = document.getElementById('confirm-modal');
-  const confirmTitle = document.getElementById('confirm-title');
-  const confirmMsg   = document.getElementById('confirm-message');
-  const confirmOk    = document.getElementById('confirm-ok');
+  const confirmTitle = document.getElementById('confirm-title') as HTMLElement;
+  const confirmMsg   = document.getElementById('confirm-message') as HTMLElement;
+  const confirmOk    = document.getElementById('confirm-ok') as HTMLButtonElement;
   const confirmCancel= document.getElementById('confirm-cancel');
-  let confirmResolve = null;
+  let confirmResolve: ((resultado: boolean) => void) | null = null;
 
-  function showConfirm(opts) {
+  function showConfirm(opts: { title?: string; message?: string; okLabel?: string; danger?: boolean }): Promise<boolean> {
     if (!confirmModal) return Promise.resolve(false);
     confirmTitle.textContent = opts.title ?? 'Confirmar?';
     confirmMsg.textContent   = opts.message ?? '';
@@ -1474,7 +1487,7 @@ const clientData = {
     confirmModal.classList.remove('hidden');
     return new Promise((resolve) => { confirmResolve = resolve; });
   }
-  function closeConfirm(result) {
+  function closeConfirm(result: boolean) {
     confirmModal?.classList.add('hidden');
     if (confirmResolve) { confirmResolve(result); confirmResolve = null; }
   }
@@ -1483,7 +1496,7 @@ const clientData = {
   confirmModal?.addEventListener('click',  (e) => { if (e.target === confirmModal) closeConfirm(false); });
 
   // ─── Atualização local sem reload ───────────────────────────────────────────
-  function updateApptCardStatus(id, newStatus) {
+  function updateApptCardStatus(id: string, newStatus: string) {
     // Atualiza o cache local primeiro (receita e modal usam isso)
     const appt = clientData.appts.find(a => String(a.id) === String(id));
     if (appt) appt.status = newStatus;
@@ -1536,7 +1549,7 @@ const clientData = {
 
   // ─── Action buttons ─────────────────────────────────────────────────────────
   document.addEventListener('click', async (e) => {
-    const btn = e.target.closest('[data-action]');
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-action]');
     if (!btn) return;
     if (btn.hasAttribute('data-no-card-click')) return;
 
@@ -1598,13 +1611,13 @@ const clientData = {
   });
 
   // ─── Modal de mensagens rápidas WhatsApp ───────────────────────────────────
-  const waModal = document.getElementById('wa-modal');
-  const waSub   = document.getElementById('wa-sub');
+  const waModal = document.getElementById('wa-modal') as HTMLElement;
+  const waSub   = document.getElementById('wa-sub') as HTMLElement;
   const waClose = document.getElementById('wa-close');
-  const waOptLembrete = document.getElementById('wa-opt-lembrete');
-  const waOptAtrasoCliente = document.getElementById('wa-opt-atraso-cliente');
-  const waOptAtrasoBarbeiro = document.getElementById('wa-opt-atraso-barbeiro');
-  const waOptLivre = document.getElementById('wa-opt-livre');
+  const waOptLembrete = document.getElementById('wa-opt-lembrete') as HTMLAnchorElement;
+  const waOptAtrasoCliente = document.getElementById('wa-opt-atraso-cliente') as HTMLAnchorElement;
+  const waOptAtrasoBarbeiro = document.getElementById('wa-opt-atraso-barbeiro') as HTMLAnchorElement;
+  const waOptLivre = document.getElementById('wa-opt-livre') as HTMLAnchorElement;
 
   function diaLabel() {
     return clientData.date === clientData.todayStr
@@ -1612,7 +1625,7 @@ const clientData = {
       : `dia ${clientData.date.split('-').reverse().slice(0, 2).join('/')}`;
   }
 
-  function openWaMenu(id) {
+  function openWaMenu(id: string) {
     const appt = clientData.appts.find(a => String(a.id) === String(id));
     if (!appt) return;
     if (!appt.wa) {
@@ -1625,9 +1638,9 @@ const clientData = {
     waOptAtrasoCliente.href   = waLink(appt.wa, msgs.clienteAtrasado);
     waOptAtrasoBarbeiro.href  = waLink(appt.wa, msgs.barbeiroAtrasado);
     waOptLivre.href           = waLink(appt.wa);
-    waOptLembrete.querySelector('[data-wa-preview]').textContent       = msgs.lembrete;
-    waOptAtrasoCliente.querySelector('[data-wa-preview]').textContent  = msgs.clienteAtrasado;
-    waOptAtrasoBarbeiro.querySelector('[data-wa-preview]').textContent = msgs.barbeiroAtrasado;
+    waOptLembrete.querySelector('[data-wa-preview]')!.textContent       = msgs.lembrete;
+    waOptAtrasoCliente.querySelector('[data-wa-preview]')!.textContent  = msgs.clienteAtrasado;
+    waOptAtrasoBarbeiro.querySelector('[data-wa-preview]')!.textContent = msgs.barbeiroAtrasado;
     waModal.classList.remove('hidden');
   }
   function closeWaMenu() { waModal?.classList.add('hidden'); }
@@ -1639,50 +1652,50 @@ const clientData = {
   });
 
   // ─── Modal de detalhes ─────────────────────────────────────────────────────
-  const detailModal = document.getElementById('detail-modal');
-  const dmName      = document.getElementById('dm-name');
-  const dmService   = document.getElementById('dm-service');
-  const dmTime      = document.getElementById('dm-time');
-  const dmDuration  = document.getElementById('dm-duration');
-  const dmPrice     = document.getElementById('dm-price');
-  const dmTel       = document.getElementById('dm-tel');
-  const dmPhone     = document.getElementById('dm-phone');
-  const dmWhats     = document.getElementById('dm-whatsapp');
-  const dmCopyPhone = document.getElementById('dm-copy-phone');
-  const dmNotes     = document.getElementById('dm-notes');
-  const dmNotesSave = document.getElementById('dm-notes-save');
-  const dmNotesStatus = document.getElementById('dm-notes-status');
-  const dmClose     = document.getElementById('dm-close');
-  const dmComplete  = document.getElementById('dm-complete');
-  const dmNoshow    = document.getElementById('dm-noshow');
-  const dmCancel    = document.getElementById('dm-cancel');
-  const dmMoveDate  = document.getElementById('dm-move-date');
-  const dmMoveSlots = document.getElementById('dm-move-slots');
-  const dmMoveConfirm = document.getElementById('dm-move-confirm');
-  const dmHistory      = document.getElementById('dm-history');
-  const dmHistoryCount = document.getElementById('dm-history-count');
-  const dmStats        = document.getElementById('dm-stats');
-  const dmBirthday     = document.getElementById('dm-birthday');
-  const dmEditName     = document.getElementById('dm-edit-name');
-  const dmEditPhone    = document.getElementById('dm-edit-phone');
-  const dmEditBirthdate= document.getElementById('dm-edit-birthdate');
-  const dmEditSave     = document.getElementById('dm-edit-save');
-  const dmEditStatus   = document.getElementById('dm-edit-status');
+  const detailModal = document.getElementById('detail-modal') as HTMLElement;
+  const dmName      = document.getElementById('dm-name') as HTMLElement;
+  const dmService   = document.getElementById('dm-service') as HTMLElement;
+  const dmTime      = document.getElementById('dm-time') as HTMLElement;
+  const dmDuration  = document.getElementById('dm-duration') as HTMLElement;
+  const dmPrice     = document.getElementById('dm-price') as HTMLElement;
+  const dmTel       = document.getElementById('dm-tel') as HTMLAnchorElement;
+  const dmPhone     = document.getElementById('dm-phone') as HTMLElement;
+  const dmWhats     = document.getElementById('dm-whatsapp') as HTMLButtonElement;
+  const dmCopyPhone = document.getElementById('dm-copy-phone') as HTMLButtonElement;
+  const dmNotes     = document.getElementById('dm-notes') as HTMLTextAreaElement;
+  const dmNotesSave = document.getElementById('dm-notes-save') as HTMLButtonElement;
+  const dmNotesStatus = document.getElementById('dm-notes-status') as HTMLElement;
+  const dmClose     = document.getElementById('dm-close') as HTMLButtonElement;
+  const dmComplete  = document.getElementById('dm-complete') as HTMLButtonElement;
+  const dmNoshow    = document.getElementById('dm-noshow') as HTMLButtonElement;
+  const dmCancel    = document.getElementById('dm-cancel') as HTMLButtonElement;
+  const dmMoveDate  = document.getElementById('dm-move-date') as HTMLInputElement;
+  const dmMoveSlots = document.getElementById('dm-move-slots') as HTMLElement;
+  const dmMoveConfirm = document.getElementById('dm-move-confirm') as HTMLButtonElement;
+  const dmHistory      = document.getElementById('dm-history') as HTMLElement;
+  const dmHistoryCount = document.getElementById('dm-history-count') as HTMLElement;
+  const dmStats        = document.getElementById('dm-stats') as HTMLElement;
+  const dmBirthday     = document.getElementById('dm-birthday') as HTMLElement;
+  const dmEditName     = document.getElementById('dm-edit-name') as HTMLInputElement;
+  const dmEditPhone    = document.getElementById('dm-edit-phone') as HTMLInputElement;
+  const dmEditBirthdate= document.getElementById('dm-edit-birthdate') as HTMLInputElement;
+  const dmEditSave     = document.getElementById('dm-edit-save') as HTMLButtonElement;
+  const dmEditStatus   = document.getElementById('dm-edit-status') as HTMLElement;
 
-  let currentApptId = null;
-  let currentMoveSlot = null;
+  let currentApptId: string | null = null;
+  let currentMoveSlot: string | null = null;
   let notesOriginal = '';
   let editOriginal = { name: '', phone: '', birthdate: '' };
 
   // Estado visual do botão WhatsApp do modal conforme validade do telefone
-  function setWaButtonState(btn, wa) {
+  function setWaButtonState(btn: HTMLElement | null, wa: string | null | undefined) {
     if (!btn) return;
     btn.classList.toggle('opacity-40', !wa);
     btn.title = wa ? 'Mensagens rápidas no WhatsApp' : 'Telefone inválido — corrija abaixo';
   }
 
   // Máscara de telefone (DDD + número)
-  function maskPhone(raw) {
+  function maskPhone(raw: string | null | undefined) {
     const d = (raw ?? '').replace(/\D/g, '').slice(0, 11);
     if (d.length === 0) return '';
     if (d.length <= 2)  return `(${d}`;
@@ -1691,7 +1704,7 @@ const clientData = {
     return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
   }
   // Máscara dd/mm/aaaa
-  function maskBirthdate(raw) {
+  function maskBirthdate(raw: string | null | undefined) {
     const d = (raw ?? '').replace(/\D/g, '').slice(0, 8);
     if (d.length === 0) return '';
     if (d.length <= 2)  return d;
@@ -1699,7 +1712,7 @@ const clientData = {
     return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
   }
   // Converte 'dd/mm/aaaa' -> 'YYYY-MM-DD' ou null se inválido
-  function parseBirthdateInput(raw) {
+  function parseBirthdateInput(raw: string | null | undefined) {
     const m = (raw ?? '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     if (!m) return null;
     const dd = +m[1], mm = +m[2], yyyy = +m[3];
@@ -1710,11 +1723,11 @@ const clientData = {
     const min = new Date(now.getFullYear() - 100, now.getMonth(), now.getDate());
     const max = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
     if (dt < min || dt > max) return null;
-    const pad = n => String(n).padStart(2, '0');
+    const pad = (n: number) => String(n).padStart(2, '0');
     return `${yyyy}-${pad(mm)}-${pad(dd)}`;
   }
   // Converte 'YYYY-MM-DD' -> 'dd/mm/aaaa'
-  function formatBirthdateDisplay(iso) {
+  function formatBirthdateDisplay(iso: string | null | undefined) {
     if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
     const [y, m, d] = iso.split('-');
     return `${d}/${m}/${y}`;
@@ -1739,7 +1752,7 @@ const clientData = {
   }
 
   // Selo de aniversário no header (compara dia/mês no fuso da barbearia).
-  function setBirthdayBadge(iso) {
+  function setBirthdayBadge(iso: string | null | undefined) {
     if (!dmBirthday) return;
     dmBirthday.classList.add('hidden');
     dmBirthday.textContent = '';
@@ -1757,9 +1770,9 @@ const clientData = {
   }
 
   // Ficha do cliente: faixa de stats agregados.
-  function renderClientStats(stats, total) {
+  function renderClientStats(stats: FichaDoCliente | null | undefined, total: number | undefined) {
     if (!dmStats) return;
-    const brl = (c) => reais(c || 0);
+    const brl = (c: number) => reais(c || 0);
 
     // Primeira visita: só existe o agendamento atual.
     if (!stats || (total ?? stats.totalCount) <= 1) {
@@ -1778,7 +1791,7 @@ const clientData = {
       since = d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit', timeZone: TZ });
     }
 
-    const cell = (label, value, cls = 'text-slate-800') => `
+    const cell = (label: string, value: string, cls = 'text-slate-800') => `
       <div class="bg-slate-100 border border-slate-200 rounded p-2 text-center">
         <p class="text-[9px] text-slate-500 uppercase tracking-wider">${label}</p>
         <p class="text-sm font-bold ${cls} tabular-nums mt-0.5">${value}</p>
@@ -1797,7 +1810,7 @@ const clientData = {
       </div>`;
   }
 
-  async function loadHistory(id) {
+  async function loadHistory(id: string) {
     if (!dmHistory) return;
     dmHistory.innerHTML = '<p class="text-slate-400 italic">Carregando...</p>';
     if (dmHistoryCount) dmHistoryCount.textContent = '';
@@ -1816,7 +1829,7 @@ const clientData = {
         return;
       }
       if (dmHistoryCount) dmHistoryCount.textContent = `${data.total} no total`;
-      dmHistory.innerHTML = data.history.map(h => {
+      dmHistory.innerHTML = data.history.map((h: VisitaDoHistorico) => {
         const d = new Date(h.startsAt);
         // O dia também no fuso da barbearia, como a hora: sem ele, o navegador usa
         // o fuso de quem abre — e um corte às 23:30 saía com a data do dia seguinte.
@@ -1909,7 +1922,7 @@ const clientData = {
     }
   });
 
-  function openDetailModal(id) {
+  function openDetailModal(id: string) {
     const appt = clientData.appts.find(a => String(a.id) === String(id));
     if (!appt) return;
     currentApptId = id;
@@ -2148,16 +2161,16 @@ const clientData = {
   const exTimeEl  = document.getElementById('ex-time');
   const exHint    = document.getElementById('ex-hint');
   const exAgendar = document.getElementById('ex-agendar');
-  const exBlock30 = document.getElementById('ex-block-30');
-  const exBlock60 = document.getElementById('ex-block-60');
-  let exTimeStr = null;
+  const exBlock30 = document.getElementById('ex-block-30') as HTMLButtonElement | null;
+  const exBlock60 = document.getElementById('ex-block-60') as HTMLButtonElement | null;
+  let exTimeStr: string | null = null;
 
   // Barbeiro alvo do bloqueio expresso: o próprio (barber) ou o filtrado (admin)
   function expressBarberId() {
     return role === 'admin' ? filterBarberId : sessionBarberId;
   }
 
-  function openExpressMenu(timeStr) {
+  function openExpressMenu(timeStr: string) {
     exTimeStr = timeStr;
     if (exTimeEl) exTimeEl.textContent = timeStr;
     const canBlock = !!expressBarberId();
@@ -2176,18 +2189,18 @@ const clientData = {
     loadServices();
     // Encaixe rápido: pré-seleciona o barbeiro quando já se sabe quem é
     // (admin com filtro ativo; barbeiro comum nem tem o select)
-    const mBarber = document.getElementById('m-barber');
+    const mBarber = document.getElementById('m-barber') as HTMLSelectElement | null;
     if (mBarber && role === 'admin' && filterBarberId) {
       mBarber.value = String(filterBarberId);
     }
     formManual?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     // Guarda preferência de horário pra pré-selecionar quando os slots carregarem
-    window.__preferredSlotTime = exTimeStr;
+    (window as JanelaDoEncaixe).__preferredSlotTime = exTimeStr;
     document.getElementById('m-service')?.focus();
     toast(`Escolha o serviço para encaixar às ${exTimeStr}`, 'info');
   });
 
-  async function expressBlock(minutes, btn) {
+  async function expressBlock(minutes: number, btn: HTMLButtonElement) {
     const barberId = expressBarberId();
     if (!barberId || !exTimeStr) return;
     btn.disabled = true;
@@ -2206,7 +2219,7 @@ const clientData = {
     btn.disabled = false;
     closeExpressMenu();
     if (data.conflicts?.length) {
-      const lista = data.conflicts.map(c => `${c.timeLocal} — ${c.customerName}`).join(', ');
+      const lista = data.conflicts.map((c: { timeLocal: string; customerName: string }) => `${c.timeLocal} — ${c.customerName}`).join(', ');
       await showConfirm({
         title:   'Já tem cliente nesse intervalo',
         message: `${lista}. Cancele ou mova o agendamento antes de bloquear.`,
@@ -2260,7 +2273,8 @@ const clientData = {
       const res = await fetch('/api/services');
       servicesCatalog = res.ok ? await res.json() : [];
     } catch { servicesCatalog = []; }
-    return servicesCatalog;
+    // As duas pontas acima gravam uma lista: aqui nunca é `null`.
+    return servicesCatalog!;
   }
 
   function renderComanda() {
@@ -2475,14 +2489,14 @@ const clientData = {
 
 
   // ─── Manual booking form ─────────────────────────────────────────────────────
-  let selectedSlot = null;
+  let selectedSlot: string | null = null;
 
   async function loadServices() {
-    const serviceEl = document.getElementById('m-service');
+    const serviceEl = document.getElementById('m-service') as HTMLSelectElement | null;
     if (!serviceEl || serviceEl.options.length > 1) return;
     const res  = await fetch('/api/services');
     const data = await res.json();
-    data.forEach(svc => {
+    data.forEach((svc: { id: number; name: string }) => {
       const opt = document.createElement('option');
       opt.value       = String(svc.id);
       opt.textContent = svc.name;
@@ -2495,9 +2509,9 @@ const clientData = {
     if (!slotsWrap) return;
 
     const barberId  = role === 'admin'
-      ? document.getElementById('m-barber')?.value
+      ? (document.getElementById('m-barber') as HTMLSelectElement | null)?.value
       : String(sessionBarberId);
-    const serviceId = document.getElementById('m-service')?.value;
+    const serviceId = (document.getElementById('m-service') as HTMLSelectElement | null)?.value;
 
     if (!barberId || !serviceId) {
       slotsWrap.innerHTML = '<span class="text-slate-500">Selecione barbeiro e serviço primeiro.</span>';
@@ -2520,14 +2534,16 @@ const clientData = {
       slotsWrap.innerHTML = '';
       const grid = document.createElement('div');
       grid.className = 'flex flex-wrap gap-2';
-      const preferred = window.__preferredSlotTime;
-      let preferredBtn = null;
+      const preferred = (window as JanelaDoEncaixe).__preferredSlotTime;
+      // `as` e não anotação: com `= null` anotado, o conferidor acharia que o
+      // `forEach` abaixo nunca troca o valor.
+      let preferredBtn = null as HTMLButtonElement | null;
       // Casa com o slot mais próximo do horário clicado (até 30min de distância).
       // Empate → prefere o slot que vem DEPOIS do clique, não antes.
-      const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+      const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
       let bestScore = Infinity;
 
-      data.slots.forEach(slot => {
+      data.slots.forEach((slot: string | { utc: string; time: string }) => {
         const isoStr = typeof slot === 'string' ? slot : slot.utc;
         const label  = typeof slot === 'string'
           ? (() => {
@@ -2563,7 +2579,7 @@ const clientData = {
       if (preferredBtn) {
         preferredBtn.click();
         preferredBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        window.__preferredSlotTime = null;
+        (window as JanelaDoEncaixe).__preferredSlotTime = null;
         // Próximo passo do encaixe: nome do cliente
         document.getElementById('m-name')?.focus();
       }
@@ -2576,17 +2592,17 @@ const clientData = {
   document.getElementById('m-service')?.addEventListener('change', loadSlots);
 
   document.getElementById('m-submit')?.addEventListener('click', async () => {
-    const errorEl = document.getElementById('m-error');
-    const submitBtn = document.getElementById('m-submit');
+    const errorEl = document.getElementById('m-error') as HTMLElement;
+    const submitBtn = document.getElementById('m-submit') as HTMLButtonElement;
 
     const barberId  = role === 'admin'
-      ? document.getElementById('m-barber')?.value
+      ? (document.getElementById('m-barber') as HTMLSelectElement | null)?.value
       : String(sessionBarberId);
-    const serviceId = document.getElementById('m-service')?.value;
-    const name      = document.getElementById('m-name')?.value.trim();
-    const phone     = document.getElementById('m-phone')?.value.trim();
+    const serviceId = (document.getElementById('m-service') as HTMLSelectElement | null)?.value;
+    const name      = (document.getElementById('m-name') as HTMLInputElement | null)?.value.trim();
+    const phone     = (document.getElementById('m-phone') as HTMLInputElement | null)?.value.trim();
 
-    const showErr = msg => {
+    const showErr = (msg: string) => {
       errorEl.textContent = msg;
       errorEl.classList.remove('hidden');
     };
@@ -2620,17 +2636,17 @@ const clientData = {
 
   // ─── Block time form ──────────────────────────────────────────────────────────
   document.getElementById('b-submit')?.addEventListener('click', async () => {
-    const errorEl  = document.getElementById('b-error');
-    const submitBtn = document.getElementById('b-submit');
+    const errorEl  = document.getElementById('b-error') as HTMLElement;
+    const submitBtn = document.getElementById('b-submit') as HTMLButtonElement;
 
     const barberId = role === 'admin'
-      ? (document.getElementById('b-barber')?.value || null)
+      ? ((document.getElementById('b-barber') as HTMLSelectElement | null)?.value || null)
       : sessionBarberId;
-    const startTime = document.getElementById('b-start')?.value;
-    const endTime   = document.getElementById('b-end')?.value;
-    const reason    = document.getElementById('b-reason')?.value.trim() || undefined;
+    const startTime = (document.getElementById('b-start') as HTMLInputElement | null)?.value;
+    const endTime   = (document.getElementById('b-end') as HTMLInputElement | null)?.value;
+    const reason    = (document.getElementById('b-reason') as HTMLInputElement | null)?.value.trim() || undefined;
 
-    const showErr = msg => {
+    const showErr = (msg: string) => {
       errorEl.textContent = msg;
       errorEl.classList.remove('hidden');
     };
@@ -2645,7 +2661,8 @@ const clientData = {
     submitBtn.textContent = 'Bloqueando...';
 
     const { ok, data } = await callApi('/api/admin/time-off', 'POST', {
-      barberId: barberId ? parseInt(barberId) : null,
+      // Do barbeiro, vem o número dele; do dono, o texto do seletor — o parseInt aceita os dois.
+      barberId: barberId ? parseInt(barberId as string) : null,
       startsAt,
       endsAt,
       reason,

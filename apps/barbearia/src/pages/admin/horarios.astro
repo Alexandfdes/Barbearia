@@ -184,7 +184,7 @@ const clientData = { selectedBarberId, isAdmin };
                       data-shift-toggle
                       data-weekday={String(day.weekday)}
                       data-period={s.period}
-                      aria-pressed={String(s.shift.enabled)}
+                      aria-pressed={String(s.shift.enabled) as 'true' | 'false'}
                       aria-label={`${s.label} ${day.label}`}
                       class:list={[
                         'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',

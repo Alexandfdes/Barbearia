@@ -69,6 +69,16 @@ describe('o workflow', () => {
     expect(WORKFLOW).not.toMatch(/https?:\/\/[^\s"']*(easypanel|deploy)[^\s"']*/i);
   });
 
+  it('o conferidor de tipos roda no job do app — e o deploy espera esse job', () => {
+    // Zerado em 12/10/2026: um erro de tipo novo reprova, em vez de sumir no meio de 356.
+    const pacote = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: Record<string, string> };
+    expect(pacote.scripts.check).toBe('astro check');
+    const b = job('barbearia');
+    expect(b).toMatch(/\n\s+run: npm run check\n/);
+    expect(b.indexOf('npm run check')).toBeGreaterThan(b.indexOf('npm ci'));
+    expect(b.indexOf('npm run check')).toBeLessThan(b.indexOf('npm run build'));
+  });
+
   it('o CI só lê o repositório', () => {
     expect(WORKFLOW).toMatch(/\npermissions:\n\s+contents: read\n/);
   });

@@ -76,18 +76,18 @@ afterAll(async () => {
 
 describe.skipIf(!TEM_BANCO)('telefone de login repetido', () => {
   it('já usado em OUTRA barbearia: 409 com o motivo, não 500', async () => {
-    const r = await comTenant(VINTAGE, () => criar({ request: novo(cookieDonaVintage, TELEFONE_DO_BAYRON) } as never));
+    const r = await comTenant(VINTAGE, async () => criar({ request: novo(cookieDonaVintage, TELEFONE_DO_BAYRON) } as never));
     expect(r.status).toBe(409);
     expect(((await r.json()) as { error: string }).error).toMatch(/telefone já está cadastrado/i);
   });
 
   it('já usado NA MESMA barbearia: também 409', async () => {
-    const r = await comTenant(BAYRON, () => criar({ request: novo(cookieDonoBayron, TELEFONE_DO_BAYRON) } as never));
+    const r = await comTenant(BAYRON, async () => criar({ request: novo(cookieDonoBayron, TELEFONE_DO_BAYRON) } as never));
     expect(r.status).toBe(409);
   });
 
   it('telefone livre: cria — o 409 acima não vem de outra coisa', async () => {
-    const r = await comTenant(VINTAGE, () => criar({ request: novo(cookieDonaVintage, '84999990099') } as never));
+    const r = await comTenant(VINTAGE, async () => criar({ request: novo(cookieDonaVintage, '84999990099') } as never));
     expect(r.status).toBe(201);
   });
 });
