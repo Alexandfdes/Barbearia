@@ -1685,6 +1685,71 @@ primeiras requisições do processo e confere o corpo gravado como objeto, e tir
 ar antes de qualquer outra coisa passar pelo Drizzle; com o defeito de volta no build, 5
 conferências ficaram vermelhas. A regra foi para o `CLAUDE.md`, junto da das datas em SQL cru.
 
+### 2.37 ✅ `[TÉCNICO]` Dois agendamentos do mesmo barbeiro no mesmo horário: só o código impedia — o banco recusa desde 12/10/2026
+
+**O que era:** quem garantia era só o código. O agendamento e o reagendamento entram numa fila
+por barbeiro (`pg_advisory_xact_lock`) e conferem o conflito antes de gravar
+(`apps/barbearia/src/lib/bookAppointment.ts` e `apps/barbearia/src/lib/reagendar.ts`). Funciona
+enquanto todo caminho que grava horário passar pelos dois. Um caminho novo que esquecesse — ou
+um defeito na conferência — marcaria dois clientes na mesma cadeira, sem erro nenhum. Era o
+passo 7 que faltava (`ARQUITETURA-MULTI-TENANT-V1.md` §9), escolhido por você em 12/10.
+
+**Agora o próprio banco recusa** (migration 0015, a trava `appointments_sem_horario_duplo`):
+mesmo barbeiro, agendamento confirmado ou concluído, horários que se cruzam. Encostado não é
+cruzado — o que termina às 10:30 e o que começa às 10:30 convivem —, e cancelado e falta não
+ocupam a cadeira: é a mesma regra da conferência do código. A fila e a conferência continuam:
+são elas que dão a mensagem certa. Quando a trava pega o que elas deixaram passar, o app traduz
+a recusa no mesmo 409 do conflito — *"Horário não está mais disponível"* —, e não num 500
+(`violouExclusao`, em `apps/barbearia/src/lib/api.ts`).
+
+**Três coisas que o rascunho da arquitetura não previa** (`ARQUITETURA-MULTI-TENANT-V1.md` §7.1):
+
+- **Os horários são texto**, herança do SQLite — o ISO em UTC do `toISOString()`, como
+  `'2026-10-12T13:00:00.000Z'`. A trava precisa do instante, e o Postgres não aceita a conversão
+  de texto para instante num índice. A migration cria `instante_utc()`, a mesma conversão
+  declarada imutável — o que só é verdade porque o texto traz o `Z`. Daí a segunda regra,
+  `appointments_horario_utc`: o formato do `toISOString()`, e o fim depois do começo. Rejeitado:
+  trocar as colunas para `timestamptz` — mexeria em cada consulta que compara horário como texto,
+  para o mesmo resultado.
+- **Sem extensão:** a igualdade de barbeiro vai como `int4range(barber_id, barber_id, '[]')`, que
+  o índice compara sem o `btree_gist` — extensão pede ao usuário do banco uma permissão que o do
+  app pode não ter.
+- **O banco pode já ter horário sobreposto.** O SQLite da sua máquina
+  (`apps/barbearia/data/appointments.db`, de 06/09) tem **617 agendamentos e 7 pares do mesmo
+  barbeiro que se cruzam**, de 25/05 a 03/06/2026, e nenhum horário fora do formato — conferido em
+  12/10/2026. ⚠️ **Não é o histórico do Bayron:** 606 dos 617 são fictícios, do gerador de dados de
+  demonstração (`seed-relatorio-demo.mjs`, marcados `[FICTICIO]`), e cada par é um agendamento de
+  verdade e um fictício — o gerador gravava sem conferir conflito. Com pares assim, a trava não
+  nasceria, e o boot pararia: todas as barbearias fora do ar pelo histórico de uma. Em vez disso,
+  ela passa a valer a partir do fim do último par — ali, **03/06/2026 14:10 UTC** —, o histórico
+  fica como estava, e o boot diz desde quando:
+  *"ⓘ horário duplo: o banco recusa a partir de 03/06/2026 14:10 UTC"*. Sem par nenhum, como num
+  banco novo, vale para tudo: *"✓ horário duplo: o banco recusa…"*. Se o SQLite de produção tem
+  par, não se sabe daqui — o gerador tem um modo para rodar lá; a linha do boot diz no dia da
+  migração (`ROTEIRO-MIGRACAO-PRODUCAO.md` §4.4). ⚠️ **Se o par mais recente ainda estiver por vir** — dois
+  clientes já marcados na mesma cadeira —, a trava não vale até lá, e o boot avisa alto, com o que
+  fazer: desmarcar um de cada par e rodar a 0015 de novo, que pode rodar quantas vezes precisar.
+
+⚠️ **Horário gravado fora do formato também não para o boot** — fica fora da trava, e a regra
+do formato entra valendo só para o que for gravado depois. Mas o Postgres confere a regra em toda
+linha que muda: um agendamento desses **não aceita mais cancelar nem concluir** até o horário ser
+corrigido. O boot conta quantos são. No SQLite da sua máquina, nenhum.
+
+**Guarda:** `apps/barbearia/tests/horario-duplo.test.ts` — a recusa sem o código no meio, por
+inserção direta e por duas conexões ao mesmo tempo, sem a fila; o encostado, o outro barbeiro, o
+cancelado que volta, o mover por cima do próprio horário e o de outro; o formato. E, num banco
+montado pelo boot até a 0014 com pares como os do SQLite da sua máquina e um horário torto, o boot de verdade
+aplicando a 0015 sem tocar em nenhum agendamento, o corte, a recusa depois dele, as duas linhas do
+boot e a migration rodando duas vezes; e o par marcado para daqui a dez dias, com o aviso alto e
+o conserto. Em `apps/barbearia/tests/bookAppointment.test.ts`, a corrida: outro caminho grava sem
+a fila e segura a transação aberta; o app passa pela conferência, para na trava esperando, e responde 409 quando a outra confirma — no agendar e no remarcar.
+**19 defeitos reintroduzidos, um por vez:** os 17 que tinham de deixar a suíte vermelha deixaram;
+o que tinha de deixar verde deixou — sem a fila e sem a conferência, o agendamento continua dando
+409, porque o banco segura; e um passou, por ser equivalente com os dados de hoje (tirar o filtro
+de formato da conta do corte não muda nada quando não há horário torto). **Contra o build**, no
+banco de ensaio com o usuário do app — sem superusuário — e o RLS: o boot aplicou a 0015, e
+pelo HTTP, a mesma corrida deu 409 no agendar e no remarcar, com o log do servidor limpo.
+
 ---
 
 ## 3. Operação com vários clientes

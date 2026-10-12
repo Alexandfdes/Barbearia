@@ -11,6 +11,7 @@
  */
 import { sql } from 'drizzle-orm';
 import { db, first } from '../db/index.js';
+import { TRAVA_DE_HORARIO_DUPLO, violouExclusao } from './api.js';
 
 export type ResultadoReagendamento =
   | { ok: true }
@@ -38,12 +39,26 @@ interface Pedido {
 const num = (v: unknown): number => Number(v ?? 0);
 
 export async function reagendarAtomicamente(p: Pedido): Promise<ResultadoReagendamento> {
+  try {
+    return await reagendarNaTransacao(p);
+  } catch (err) {
+    // A trava do banco (migration 0015) pegou o que a checagem deixou passar: a
+    // mesma resposta do conflito, e não um 500.
+    if (violouExclusao(err, TRAVA_DE_HORARIO_DUPLO)) {
+      return { ok: false as const, httpStatus: 409, motivo: 'conflito_agendamento' as const };
+    }
+    throw err;
+  }
+}
+
+function reagendarNaTransacao(p: Pedido): Promise<ResultadoReagendamento> {
   return db.transaction(async (tx) => {
     // Equivalente ao `BEGIN IMMEDIATE` do SQLite: serializa as escritas do MESMO
     // barbeiro, pra que dois reagendamentos simultâneos não passem os dois pela
     // checagem abaixo. Cai sozinho no fim da transação. Mesmo lock usado em
     // `bookAppointment` — de propósito: reagendar e agendar disputam o mesmo
-    // horário, então precisam disputar o mesmo lock.
+    // horário, então precisam disputar o mesmo lock. E o banco recusa sozinho
+    // desde 12/10/2026 (`appointments_sem_horario_duplo`, migration 0015).
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${p.barberId})`);
 
     const conflitoAppt = num((await first(tx.execute<{ c: string }>(sql`

@@ -35,16 +35,17 @@ banco com os dados reais dos clientes. Use `**/data/...` — `docs/MONOREPO.md` 
 
 ## Onde o código está
 
-Na branch **`monorepo`**, os passos 1 a 6 de `docs/ARQUITETURA-MULTI-TENANT-V1.md` §9
-estão aplicados: Postgres, a tabela `tenants` com `tenant_id` nas tabelas de dados, RLS, e
-a sessão e o endereço decidindo a barbearia. Falta a exclusion constraint do passo 7. O
-estado de cada passo: `docs/ESTADO-ATUAL.md` §4.
+Na branch **`monorepo`**, os sete passos de `docs/ARQUITETURA-MULTI-TENANT-V1.md` §9 estão
+aplicados: Postgres, a tabela `tenants` com `tenant_id` nas tabelas de dados, RLS, a sessão e
+o endereço decidindo a barbearia, o login por telefone e — desde 12/10/2026 — o banco
+recusando dois agendamentos do mesmo barbeiro no mesmo horário. O estado de cada passo:
+`docs/ESTADO-ATUAL.md` §4.
 
 ⚠️ **A `main` recebeu a `monorepo` em 09/10/2026** (PR #1), e desde 10/10 o app novo roda
 dela no EasyPanel — com o banco vazio. **O site do Bayron, não:** o serviço dele constrói de
 outro repositório, o `Alexandfdes/Barbearia-Bayron` (a `main` de lá parou em `e50926a`, de
-10/07), em SQLite e Astro 6, até o `docs/ROTEIRO-MIGRACAO-PRODUCAO.md` ser executado — e o §0.2
-de lá diz o que mudou com o app já no ar.
+10/07), em SQLite e Astro 6, até o `docs/ROTEIRO-MIGRACAO-PRODUCAO.md` ser executado — e o
+`docs/ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2 diz o que mudou com o app já no ar.
 
 ⚠️ **Os dois repositórios estão públicos**, este e o `Barbearia-Bayron` (conferido em
 10/10/2026: o clone sem credencial funciona). Enquanto estiverem, nada de credencial, endereço
@@ -75,7 +76,7 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 | Preciso saber | Documento |
 |---|---|
 | **Onde o código está agora** — comece por aqui | `ESTADO-ATUAL.md` |
-| O que ainda não está decidido, e a ordem do trabalho (§6) | `PENDENCIAS-ABERTAS.md` |
+| O que ainda não está decidido, e a ordem do trabalho (`PENDENCIAS-ABERTAS.md` §6) | `PENDENCIAS-ABERTAS.md` |
 | O caminho do dono, da landing ao site no ar — o roteiro do autoatendimento | `JORNADA-DO-BARBEIRO.md` |
 | Por que o produto existe, para quem se vende, o que é agência | `PLANO-PRODUTIZACAO.md` |
 | Preço, margem, concorrentes verificados | `PRECIFICACAO.md` |
@@ -123,6 +124,11 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   `ASAAS_AMBIENTE=producao`, sandbox. ⚠️ **Data em SQL cru vai como texto ISO e volta como
   texto:** o Drizzle desliga a conversão de data do driver na conexão inteira — parâmetro `Date`
   estoura, e `timestamptz` chega como string (`comoData`, no mesmo arquivo).
+- **Horário de agendamento é o texto do `toISOString()`** (`'2026-10-12T13:00:00.000Z'`): o
+  banco recusa outro formato e dois agendamentos do mesmo barbeiro que se cruzam (migration
+  0015). Caminho novo que grava horário traduz a recusa com `violouExclusao`, como
+  `apps/barbearia/src/lib/bookAppointment.ts` — sem isso, o cliente recebe 500
+  (`docs/PENDENCIAS-ABERTAS.md` §2.37).
 - **JSON em SQL cru vai como `${JSON.stringify(x)}::text::jsonb`**, nunca só `::jsonb`: antes de o
   Drizzle tocar a conexão, o driver serializa de novo e o banco grava uma string — o
   `tests/jsonb-parametro.test.ts` reprova (`docs/PENDENCIAS-ABERTAS.md` §2.36).
@@ -143,7 +149,7 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   passar sem barbearia, e o `tests/operador-telas.test.ts` reprova a que não abrir.
 - **O app não precisa de superusuário no banco:** `scripts/usuario-do-app.mjs` faz a troca, e
   migration nova não pode pedir superusuário. **Restaurou um backup?** `scripts/permissoes-do-app.mjs`
-  — o boot recusa subir se o papel do app não ler as tabelas (`docs/PENDENCIAS-ABERTAS.md` §3.10 e §3.11).
+  — o boot recusa subir se o papel do app não ler as tabelas (`docs/PENDENCIAS-ABERTAS.md` §3.10 e `docs/PENDENCIAS-ABERTAS.md` §3.11).
 - **Requisição que muda dado só passa vinda do próprio endereço:** o `src/middleware.ts`
   confere a `Origin` antes de qualquer rota (`src/lib/origem.ts`). Rota nova não faz nada;
   integração de fora, sem navegador, chega sem `Origin` e passa. Não afrouxe para aceitar

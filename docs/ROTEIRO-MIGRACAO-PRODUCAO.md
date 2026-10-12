@@ -413,6 +413,31 @@ Confira: da `0001` à última aplicadas, a linha do papel do app e a do `pg_dump
 troca o hover do par padrão de cores na linha do Bayron, que chega da carga com o antigo — o
 botão passa a escurecer quando o mouse passa, em vez de clarear (`PENDENCIAS-ABERTAS.md` §4.12).
 
+**E a linha do horário duplo** (a `0015`, `PENDENCIAS-ABERTAS.md` §2.37). Duas respostas são
+normais: *"✓ horário duplo: o banco recusa…"*, sem nenhum par sobreposto; ou *"ⓘ horário duplo: o
+banco recusa a partir de …"*, com uma data passada — agendamentos do mesmo barbeiro que já se
+cruzavam, que ficam como estavam, e a trava vale daí em diante. O SQLite da máquina de
+desenvolvimento dá a segunda, por causa dos agendamentos fictícios do gerador de demonstração, que
+gravava sem conferir conflito; se o de produção dá, não se sabe daqui.
+
+**O que não é normal:** *"⚠️ horário duplo: o banco só recusa a partir de …"*, com uma data no
+futuro — dois agendamentos já marcados no mesmo horário, ainda por vir, e a trava sem valer até lá.
+Ache os pares, resolva com o dono — desmarcar um dos dois — e rode a `0015` de novo, à mão, no
+console do app (`psql "$DATABASE_URL" -f drizzle/0015_horario_duplo.sql`); ela pode rodar quantas
+vezes precisar. Os pares, do mais recente para trás:
+
+```sql
+SELECT a.id, b.id, a.starts_at, a.ends_at, b.starts_at, b.ends_at
+  FROM appointments a JOIN appointments b ON b.barber_id = a.barber_id AND b.id > a.id
+ WHERE a.status IN ('confirmed', 'completed') AND b.status IN ('confirmed', 'completed')
+   AND a.starts_at < b.ends_at AND b.starts_at < a.ends_at
+ ORDER BY greatest(a.ends_at, b.ends_at) DESC LIMIT 10;
+```
+
+O aviso *"⚠️ N agendamento(s) com o horário fora do formato do app"* também não é esperado — o
+SQLite da máquina de desenvolvimento não tem nenhum: esses agendamentos não aceitam cancelar nem
+concluir até o horário ser corrigido.
+
 ### 4.5 O endereço
 
 ```sql

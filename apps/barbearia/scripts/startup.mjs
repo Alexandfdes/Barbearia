@@ -199,6 +199,63 @@ function avisarFusoAntigo() {
 }
 
 /**
+ * A trava de horário duplo (migration 0015): o banco recusa dois agendamentos do
+ * mesmo barbeiro no mesmo horário. Num banco que já tinha pares sobrepostos, ela
+ * vale a partir do fim do último — o histórico fica como estava —, e num com
+ * horário fora do formato, esses ficam fora dela. Diz qual é o caso, uma linha.
+ * Nunca derruba o boot: é aviso, e a conferência do código continua de pé.
+ */
+async function avisarTravaDeHorario() {
+  if (ate) return;
+  try {
+    const regras = await sql`
+      SELECT conname, convalidated, pg_get_constraintdef(oid) AS def
+        FROM pg_constraint
+       WHERE conrelid = to_regclass('public.appointments')
+         AND conname IN ('appointments_sem_horario_duplo', 'appointments_horario_utc')`;
+    const trava = regras.find((r) => r.conname === 'appointments_sem_horario_duplo');
+    const formato = regras.find((r) => r.conname === 'appointments_horario_utc');
+    if (!trava) {
+      console.warn('⚠️  A trava de horário duplo não existe neste banco (migration 0015): só a conferência do código segura.');
+      return;
+    }
+    const corte = /starts_at >= '([^']+)'/.exec(trava.def)?.[1];
+    const quando = corte && `${corte.slice(8, 10)}/${corte.slice(5, 7)}/${corte.slice(0, 4)} ${corte.slice(11, 16)} UTC`;
+    if (corte && corte > new Date().toISOString()) {
+      // O par mais recente ainda está por vir: dois clientes marcados na mesma cadeira,
+      // e a trava sem valer até lá.
+      console.warn(
+        `⚠️  horário duplo: o banco só recusa a partir de ${quando} — há agendamentos do mesmo\n` +
+        '   barbeiro no mesmo horário marcados para depois de agora. Desmarque um de cada par e rode\n' +
+        '   a 0015 de novo (docs/ROTEIRO-MIGRACAO-PRODUCAO.md §4.4).',
+      );
+    } else if (corte) {
+      console.log(
+        `ⓘ horário duplo: o banco recusa a partir de ${quando} — antes disso, este banco já tinha agendamentos\n` +
+        '  sobrepostos, que ficaram como estavam (migration 0015).',
+      );
+    } else {
+      console.log('✓ horário duplo: o banco recusa dois agendamentos do mesmo barbeiro no mesmo horário');
+    }
+    if (formato && !formato.convalidated) {
+      const [{ n }] = await sql`
+        SELECT count(*)::int AS n FROM appointments
+         WHERE NOT (starts_at ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[.][0-9]{3}Z$'
+                AND ends_at ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[.][0-9]{3}Z$'
+                AND ends_at > starts_at)`;
+      if (n > 0) {
+        console.warn(
+          `⚠️  ${n} agendamento(s) com o horário fora do formato do app: ficam fora da trava, e não\n` +
+          '   aceitam cancelar nem concluir até o horário ser corrigido (migration 0015).',
+        );
+      }
+    }
+  } catch (erro) {
+    console.warn(`⚠️  Não deu para conferir a trava de horário duplo: ${erro instanceof Error ? erro.message : String(erro)}`);
+  }
+}
+
+/**
  * Confere, no boot de produção, que o e-mail consegue sair — a senha nova e os
  * avisos do teste e da cobrança dependem dele (`src/lib/email.ts`).
  *
@@ -329,6 +386,7 @@ try {
     conferirPgDump();
     conferirEmail();
     avisarFusoAntigo();
+    await avisarTravaDeHorario();
   }
 } catch (erro) {
   // Erro de boot já imprimiu o próprio diagnóstico. Dizer "migration falhou"

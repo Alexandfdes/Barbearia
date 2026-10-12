@@ -81,7 +81,7 @@ O plano tem sete passos, em `ARQUITETURA-MULTI-TENANT-V1.md` §9.
 | 5. Sessão decide a barbearia | ✅ **feito em 09/09** — ver §9.8 |
 | 5.1. Ligar RLS | ✅ **feito em 11/09** — provado com rota sem filtro via HTTP, ver §9.10 |
 | 6. Separar site do painel | ✅ **feito em 11/09** — o host resolve de verdade, ver §9.11. Não vai ao ar sem domínio |
-| 7. Login por telefone e exclusion constraint | ✅ login feito em 09/09; falta a exclusion constraint |
+| 7. Login por telefone e exclusion constraint | ✅ login feito em 09/09; a exclusion constraint em 12/10 — o banco recusa horário duplo (`PENDENCIAS-ABERTAS.md` §2.37) |
 
 ⚠️ **A terceira costura do passo 1 não existia.** Até 06/09/2026 este documento e o
 `CLAUDE.md` afirmavam que `pastaDeMidia()`/`urlDeMidia()` centralizavam o caminho de mídia.
@@ -603,9 +603,9 @@ deixa as linhas carregadas sem `tenant_id`.
 **4. Separar site e painel** (passo 6). É quando `tenantDoHost()` deixa de
 devolver `TENANT_UNICO` e passa a usar o `resolverHost()` que já está pronto.
 
-**5. A exclusion constraint** (passo 7), contra dois agendamentos no mesmo
-horário do mesmo barbeiro. Hoje isso é garantido por `pg_advisory_xact_lock` no
-código; a constraint move a garantia para o banco.
+**5. ~~A exclusion constraint~~** (passo 7) — **feita em 12/10/2026**: o banco recusa dois
+agendamentos do mesmo barbeiro no mesmo horário (`PENDENCIAS-ABERTAS.md` §2.37). O
+`pg_advisory_xact_lock` continua no código — é ele que dá a mensagem certa.
 
 ### 9.10 ✅ O RLS — o banco recusa sozinho (11/09/2026)
 
