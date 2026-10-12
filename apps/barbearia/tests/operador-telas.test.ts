@@ -247,7 +247,16 @@ describe('a tela de sistema não mostra segredo', () => {
     expect(b.ultimo?.arquivo).toBe('barbearia_2026-10-11-03-00-00.sql.gz');
     expect(b.ultimo?.bytes).toBe(2048);
     expect(b.fotos?.arquivo).toBe('barbearia_2026-10-11-03-00-00-fotos.tar.gz');
+    // Arquivos, não dias: o daemon faz um no boot e um às 03:00 — dois podem ser do mesmo dia.
     expect(b.quantos).toBe(2);
+    expect(b.retencaoDias).toBe(30);
+    expect(backupNoPainel(envDe({ BACKUP_RETENTION_DAYS: '7' })).retencaoDias).toBe(7);
+    expect(backupNoPainel(envDe({ BACKUP_RETENTION_DAYS: 'sete' })).retencaoDias).toBe(30);
+    // A hora do diário, como o daemon a lê: 03:00 sem a variável; fora de 0 a 23, o daemon
+    // nunca roda o diário — e a tela não pode dizer uma hora.
+    expect(b.horaDoDiario).toBe(3);
+    expect(backupNoPainel(envDe({ BACKUP_HOUR: '5' })).horaDoDiario).toBe(5);
+    expect(backupNoPainel(envDe({ BACKUP_HOUR: '25' })).horaDoDiario).toBeNull();
     expect(b.foraDoServidor).toBe(true);
     expect(backupNoPainel(envDe({ S3_SECRET_ACCESS_KEY: '' })).foraDoServidor).toBe(false);
     expect(backupNoPainel(envDe({ BACKUP_DIR: join(pasta, 'nao-existe') })).ultimo).toBeNull();
@@ -268,7 +277,7 @@ describe('a tela de sistema não mostra segredo', () => {
     const base = {
       banco: { responde: true, ms: 3, versao: '16.15', tamanho: '9 MB', usuario: 'fadeline', superusuario: true },
       migracoes: { aplicadas: 14, ultima: '0014_anotacoes_do_operador.sql', em: new Date(), noBuild: 14 },
-      backup: { pasta, ultimo: null, fotos: null, quantos: 0, foraDoServidor: false },
+      backup: { pasta, ultimo: null, fotos: null, quantos: 0, retencaoDias: 30, horaDoDiario: 3, foraDoServidor: false },
       ...configuracaoNoPainel(envDe({ SMTP_URL: '', EMAIL_PASTA: '', ASAAS_API_KEY: '' })),
     };
     const textos = alertasDoSistema(base).map((a) => `${a.estado}: ${a.texto}`);
