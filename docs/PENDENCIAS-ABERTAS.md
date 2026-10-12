@@ -36,6 +36,7 @@
 | **11/10** | **A exportação dos dados do dono — também fora do ar, com a data de nascimento e aviso na tela**, decidida por você. E, sem decisão nova, o que estava na fila dos próximos passos: o limite por telefone na área do cliente, a saúde para o monitor externo, a imagem sem as dependências de desenvolvimento e a troca do superusuário do banco, pronta para rodar. No caminho, dois defeitos que ninguém via: o backup restaurado voltava sem as permissões do app, e o provisionador nunca rodou no container | `PENDENCIAS-ABERTAS.md` §3.6, `PENDENCIAS-ABERTAS.md` §3.10, `PENDENCIAS-ABERTAS.md` §3.11 e `PENDENCIAS-ABERTAS.md` §3.12 |
 | **11/10** | **O painel do operador:** a lista das barbearias, com a fase de cada uma, e três ações — estender o teste, tirar do ar, reativar —, cada uma registrada. **Entra só com senha, sem segundo fator: o risco foi dito e aceito por você.** Feito no mesmo dia. E o aviso sobre autorização de quem aparece nas fotos da galeria: não precisa — a responsabilidade vai para o termo | `PENDENCIAS-ABERTAS.md` §3.9 e `PENDENCIAS-ABERTAS.md` §1.2 |
 | **12/10** | **O fuso de cada barbearia: nasce do estado escolhido no cadastro, e o dono troca em Configurações** — escolhido por você em 11/10, feito em 12/10. Rejeitados na implementação: o fuso em `settings`, que sob o RLS o cache das outras barbearias não enxergaria, e o campo livre, onde um nome errado derrubaria toda data. **E o cliente que pede para ser apagado tem os agendamentos anonimizados**, também decidido em 11/10 — não feito | `PENDENCIAS-ABERTAS.md` §2.1 e `PENDENCIAS-ABERTAS.md` §1.2 |
+| **12/10** | **Os três próximos passos, escolhidos por você:** o backup saindo da VPS em partes, sem o arquivo inteiro na memória; o banco recusando dois agendamentos do mesmo barbeiro no mesmo horário; e a limpeza — as entregas antigas fora do repositório, o teste que mantém a cobrança longe das telas da barbearia e a grade de "Mover horário" só com os horários livres. Feitos no mesmo dia. Decidido na implementação — ⚠️ falta você confirmar: num banco que já tinha horário sobreposto, a trava vale a partir do fim do último par, em vez de o boot parar | `PENDENCIAS-ABERTAS.md` §3.3, `PENDENCIAS-ABERTAS.md` §2.37, `PENDENCIAS-ABERTAS.md` §4.6 e `PENDENCIAS-ABERTAS.md` §2.27 |
 | **12/10** | **O painel do operador em telas, como o do barbeiro** — o Início com os números, a ficha de cada barbearia, a Cobrança, o Registro e o Sistema —, **e as anotações na ficha**, escolhidos por você; feitos no mesmo dia. Decididos na implementação — ⚠️ falta você confirmar: a anotação não se edita nem se apaga, e o "pede atenção" do Início mostra o teste a 3 dias do fim e quem cancelou a 15 dias de sair. No caminho, consertado: o JSON que ia ao banco como texto (§2.36) | `PENDENCIAS-ABERTAS.md` §3.9 e `PENDENCIAS-ABERTAS.md` §2.36 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
@@ -1483,7 +1484,8 @@ cada item abaixo foi conferido no código ou nos documentos:
    senha esquecida e os avisos do teste e da cobrança não chegam (§4.17).
 4. **O backup não sai da VPS.** O diário grava em `/data/backups`, no mesmo disco, e só sobe
    para fora com as variáveis `S3_*` (`scripts/backup.mjs`), que o app novo não tem. O backup
-   de volume do EasyPanel também grava na própria VPS. Perdido o disco, vai tudo (§3.3).
+   de volume do EasyPanel também grava na própria VPS. Perdido o disco, vai tudo (§3.3). *Desde
+   12/10/2026 o envio vai em partes, pronto para ligar — faltam as variáveis.*
 
 E dois que não são código:
 
@@ -1805,7 +1807,7 @@ O que segura até lá: cada migration nova tem sido conferida sobre um banco par
 como o de produção, e rodando duas vezes (`ESTADO-ATUAL.md` §8) — a 0009 e a 0013 com teste na
 suíte (`apps/barbearia/tests/hover-padrao.test.ts` e `apps/barbearia/tests/fuso-por-barbearia.test.ts`).
 
-### 3.3 🟠 `[TÉCNICO]` Backup — um só para todas as barbearias; o teste de restauração já foi feito
+### 3.3 🟠 `[TÉCNICO]` Backup — um só para todas as barbearias; o teste de restauração já foi feito, e sair da VPS está pronto no código desde 12/10/2026
 
 ~~O backup diário com upload off-site já funciona por instância.~~ *Corrigido em 12/10/2026 —
 era do desenho de uma instância por barbearia.* O backup roda no container do app
@@ -1834,11 +1836,27 @@ respondia 500. Resolvido, com o reparo para os backups antigos (§3.11).
 credenciais — bucket único ou um por cliente. Com banco único multi-tenant, o backup deixou
 de ser por instância e virou um só, o que torna a decisão mais simples e a falha mais cara.
 
-⚠️ **12/10/2026, achado lendo o código:** o envio para fora lê o arquivo inteiro na memória
+~~⚠️ **12/10/2026, achado lendo o código:** o envio para fora lê o arquivo inteiro na memória
 antes de mandar (`Body: readFileSync(filePath)`, em `apps/barbearia/scripts/backup.mjs`). O
 arquivo das fotos junta a galeria de todas as barbearias e cresce com cada uma — e roda no
 mesmo container que atende os sites. Não medido, e só morde com as `S3_*` ligadas; o conserto
-é mandar em partes, lendo do disco aos pedaços. **Não feito.**
+é mandar em partes, lendo do disco aos pedaços. **Não feito.**~~
+
+✅ **Feito no mesmo dia, escolhido por você:** o envio vai em partes, com uma parte de 16 MiB na
+memória por vez, e o arquivo de até 16 MiB num pedido só (`enviarParaS3`, em
+`apps/barbearia/scripts/backup.mjs`). Parte que não sobe cancela o envio inteiro, para não deixar
+parte órfã ocupando o bucket. Medido contra um S3 local, com um arquivo de 200 MB: o processo
+chegava a 273 MB de memória; agora, 91 MB. E o SDK passou a mandar só o checksum que a operação
+exige — o padrão da versão instalada manda um cabeçalho de checksum novo em todo envio, que
+serviço compatível com S3 pode recusar. Guarda: `apps/barbearia/tests/backup-envio.test.ts`, contra
+um S3 de mentira dentro da suíte. ⚠️ **Não conferido contra o Backblaze de verdade** — só contra
+esse e contra o moto, um S3 local que segue o protocolo da AWS.
+
+⚠️ **O bucket não se limpa sozinho.** Os 30 dias de `BACKUP_RETENTION_DAYS` valem para o disco da
+VPS: o app apaga os arquivos velhos de lá, nunca os do bucket. Sem uma regra de ciclo de vida no
+próprio bucket — apagar o que tem mais de 30 dias em `backups/` —, ele cresce para sempre, e a
+conta junto. **O que falta é seu:** criar o bucket e a chave, pôr as `S3_*` no app de produção e
+a regra no bucket. O passo a passo está no projeto do claude.ai, junto do resto da produção.
 
 **Desde 12/10/2026, o painel do operador mostra o backup** (a tela de Sistema, §3.9): o último
 arquivo do banco, com a idade, e o das fotos; quantos arquivos há, por quantos dias ficam e a hora
@@ -3205,6 +3223,12 @@ anonimizar os agendamentos dele —, ficou para depois e **não está feita** (�
 **12/10/2026, pedido por você no mesmo dia, ✅ feito:** o painel do operador em seis telas, como o
 do barbeiro, com as anotações na ficha (§3.9). Achado no caminho, ✅ consertado: o JSON que ia ao
 banco como texto — o corpo dos eventos da Asaas e o registro do "tirar do ar" (§2.36).
+
+**12/10/2026, escolhidos por você no mesmo dia, ✅ feitos:** o backup saindo da VPS em partes
+(§3.3) — falta ligar em produção, que é seu —; o banco recusando horário duplo, o passo 7 que
+faltava (§2.37); e a limpeza: as entregas antigas e os scripts da época do SQLite fora (§4.6 e
+§3.12), o teste que mantém a cobrança num canto só (`ARQUITETURA-COBRANCA-V1.md` §2) e "Mover
+horário" só com os horários livres (§2.27).
 
 **Onda 2 — antes de abrir o cadastro público.**
 
