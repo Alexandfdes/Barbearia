@@ -292,6 +292,13 @@ dele para nada crítico. Passa a ser o ponto único de falha do produto inteiro.
 **Nenhum deles foi alterado ainda.** Alterar antes de implementar produz documento que
 descreve um sistema que não existe — o problema que este projeto já teve uma vez.
 
+*12/10/2026 — onde cada um está:* o `ARQUITETURA-PRODUTO-V1.md` traz a D1 marcada como
+revertida desde 01/09; o `ARQUITETURA-COBRANCA-V1.md` §1.1, vencido em 24/09; e o
+`ARQUITETURA-PRODUCAO.md` e o `PENDENCIAS-ABERTAS.md` §3.1, o `PENDENCIAS-ABERTAS.md` §3.2 e o
+`PENDENCIAS-ABERTAS.md` §3.3 — que continuavam
+descrevendo uma instância por barbearia, com o multi-tenant no ar desde 10/10 — foram
+reescritos em 12/10.
+
 ---
 
 ## 12. O que a implementação revelou — 06/09/2026

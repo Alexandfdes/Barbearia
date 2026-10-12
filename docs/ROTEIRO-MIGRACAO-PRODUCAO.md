@@ -3,6 +3,8 @@
 > Escrito em 13/09/2026. **Ainda não executado.**
 > ⚠️ **Atualizado em 10/10/2026: o app novo subiu ANTES da migração, com o banco vazio, e o
 > §4.2 não roda mais como está escrito. Leia o §0.2 antes de qualquer passo.**
+> Atualizado em 12/10/2026: o `TZ_BARBEARIA` não entra mais no `.env` (§3.1) — o fuso é de
+> cada barbearia, e o do Bayron sai certo sozinho.
 > Atualizado em 25/09/2026: as migrations 0004 e 0005, o passo 4.8 (a galeria do Bayron),
 > e dois defeitos que derrubariam o dia, já consertados (§0.1).
 > Companheiro de `ESTADO-ATUAL.md` §9 (a fila) e `PENDENCIAS-ABERTAS.md` §2.5 (o ensaio
@@ -171,9 +173,11 @@ docker exec pg-teste pg_isready -U barbearia
 docker run --rm --network rede-teste `
   -e DATABASE_URL="postgres://barbearia:barbearia@pg-teste:5432/barbearia" `
   -e SESSION_SECRET=$(python -c "import secrets;print(secrets.token_hex(32))") `
-  -e TZ_BARBEARIA=America/Fortaleza `
   -p 4321:4321 barbearia-teste
 ```
+
+*12/10/2026: saiu o `-e TZ_BARBEARIA=America/Fortaleza` — a variável não é mais lida; o fuso é
+de cada barbearia (`PENDENCIAS-ABERTAS.md` §2.1). Se ela estiver lá, o boot só avisa.*
 
 **O que tem que aparecer na saída, nesta ordem:**
 
@@ -311,11 +315,16 @@ O que sai, o que entra:
 ```diff
 - DATABASE_PATH=/data/appointments.db
 + DATABASE_URL=postgres://usuario:senha@servico-postgres:5432/barbearia_bayron
-+ TZ_BARBEARIA=America/Fortaleza
   TZ=America/Fortaleza
   SESSION_SECRET=<o MESMO de hoje — trocar desloga todo mundo>
   S3_* (mantém)
 ```
+
+⚠️ **`TZ_BARBEARIA` não entra — desde 12/10/2026.** O fuso é de cada barbearia, na coluna
+`tenants.timezone`, e o do Bayron fica `America/Fortaleza`: é o padrão que a migration 0013 dá
+às barbearias que já existem quando ela roda — e a do Bayron nasce antes, na 0001
+(`PENDENCIAS-ABERTAS.md` §2.1). Se o serviço já tiver a variável, pode tirar; deixada, o boot
+avisa. O `TZ` continua: é só a hora do backup.
 
 ⚠️ **`UPLOAD_ROOT` não precisa entrar:** o `Dockerfile` já define `/data/uploads`. Se o
 EasyPanel tiver uma variável antiga com outro valor, **remova** — ela ganharia do
@@ -495,12 +504,14 @@ estado anterior, e um problema de migração pode demorar dias para aparecer.
 - **O `.env` local de desenvolvimento** ainda tem `DATABASE_PATH` e nenhum
   `DATABASE_URL`. Depois do merge, `npm run dev` na sua máquina para de funcionar até
   você trocar. Não afeta produção.
-- **`ARQUITETURA-PRODUCAO.md` descreve o desenho antigo** — uma instância por cliente,
+- ~~**`ARQUITETURA-PRODUCAO.md` descreve o desenho antigo** — uma instância por cliente,
   SQLite, `DATABASE_PATH`. Depois desta migração ele passa a mentir sobre produção, e
-  precisa ser reescrito. (`PENDENCIAS-ABERTAS.md` §2.4 aconteceu por causa de documento
+  precisa ser reescrito.~~ ✅ Reescrito em 12/10/2026 — com o app novo já no ar, ele mentia
+  antes mesmo desta migração. (`PENDENCIAS-ABERTAS.md` §2.4 aconteceu por causa de documento
   desatualizado; §4.2 quase custou reimplementar o que já existia.)
 - **Deploy em canário** (`ARQUITETURA-PRODUCAO.md` D-P2) é uma decisão 🔴 do próprio
-  documento e **este roteiro não a cumpre**: com um cliente só, "canário" seria subir um
+  documento e **este roteiro não a cumpre** *(12/10/2026: o D-P2 foi reescrito para um
+  container só — o canário possível é exatamente o segundo app com a cópia dos dados)*: com um cliente só, "canário" seria subir um
   segundo container com uma cópia dos dados e testar nele antes. Vale o esforço se você
   puder gastar mais uma hora — com dois clientes, passa a não ser opcional.
 - **O telefone dos três barbeiros** continua vazio (`PENDENCIAS-ABERTAS.md` §1.5). Sem

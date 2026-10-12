@@ -101,9 +101,11 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 3. **As duas paletas são invertidas.** Ver a skill `barbearia-paleta`. Copiar a regra de
    um site para o outro produz botão ilegível — já aconteceu.
 4. **Documento que mente é pior que documento nenhum.** Ver a skill `barbearia-docs`.
-5. **Fuso nunca é conta.** Hora local vira instante por `fromZonedTime` com o fuso de
-   `apps/barbearia/src/lib/timezone.ts`, inclusive no navegador — o fuso desce pelos dados
-   da página. `tests/timezone-unico.test.ts` reprova a zona cravada e a conta de offset.
+5. **Fuso nunca é conta, e é o da barbearia.** Hora local vira instante por `fromZonedTime`
+   com o fuso dela — `fusoDe(barbearia)`, de `apps/barbearia/src/lib/timezone.ts`, que lê
+   `tenants.timezone` (desde 12/10/2026) —, inclusive no navegador: o fuso desce pelos dados da
+   página. `TZ_PADRAO` só onde não há barbearia. `tests/timezone-unico.test.ts` reprova a zona
+   cravada, o fuso do ambiente e a conta de offset.
 
 ## Como trabalhar aqui
 

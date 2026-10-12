@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-11.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-12.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -35,6 +35,7 @@
 | **11/10** | **As quatro decisões do roteiro do dono:** o e-mail ao barbeiro do horário e ao dono quando o cliente agenda, desmarca ou remarca pelo site — cada um desligável na Equipe —; a data de nascimento continua sendo a senha da área do cliente, e o termo tem de dizer; o dono confere o ponto do mapa no Início; e o e-mail que não se troca fora do ar fica como está. O e-mail e o mapa foram feitos no mesmo dia | `PENDENCIAS-ABERTAS.md` §2.33 |
 | **11/10** | **A exportação dos dados do dono — também fora do ar, com a data de nascimento e aviso na tela**, decidida por você. E, sem decisão nova, o que estava na fila dos próximos passos: o limite por telefone na área do cliente, a saúde para o monitor externo, a imagem sem as dependências de desenvolvimento e a troca do superusuário do banco, pronta para rodar. No caminho, dois defeitos que ninguém via: o backup restaurado voltava sem as permissões do app, e o provisionador nunca rodou no container | `PENDENCIAS-ABERTAS.md` §3.6, `PENDENCIAS-ABERTAS.md` §3.10, `PENDENCIAS-ABERTAS.md` §3.11 e `PENDENCIAS-ABERTAS.md` §3.12 |
 | **11/10** | **O painel do operador:** a lista das barbearias, com a fase de cada uma, e três ações — estender o teste, tirar do ar, reativar —, cada uma registrada. **Entra só com senha, sem segundo fator: o risco foi dito e aceito por você.** Feito no mesmo dia. E o aviso sobre autorização de quem aparece nas fotos da galeria: não precisa — a responsabilidade vai para o termo | `PENDENCIAS-ABERTAS.md` §3.9 e `PENDENCIAS-ABERTAS.md` §1.2 |
+| **12/10** | **O fuso de cada barbearia: nasce do estado escolhido no cadastro, e o dono troca em Configurações** — escolhido por você em 11/10, feito em 12/10. Rejeitados na implementação: o fuso em `settings`, que sob o RLS o cache das outras barbearias não enxergaria, e o campo livre, onde um nome errado derrubaria toda data. **E o cliente que pede para ser apagado tem os agendamentos anonimizados**, também decidido em 11/10 — não feito | `PENDENCIAS-ABERTAS.md` §2.1 e `PENDENCIAS-ABERTAS.md` §1.2 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -186,6 +187,10 @@ precisa, decidido por você.** Sem o aviso na tela, sobra o termo: ele tem de di
 autorização é do dono, que tira a foto e a publica — e o que acontece quando um cliente pede
 para tirar a dele (o dono apaga na galeria; a foto sai do site na hora).
 
+**11/10/2026 — o cliente que pede para ser apagado, decidido por você:** os agendamentos dele
+são **anonimizados**, não apagados. **Não está feito** — nem a tela, nem a rota —, e o termo
+tem de dizer como o cliente pede.
+
 Pergunta nova, que o teste grátis cria: **o que acontece com os dados de quem testou e
 não pagou?** Nome, telefone e data de nascimento de clientes de terceiro, guardados sem
 contrato vigente. Guardar para sempre é exposição; apagar cedo demais perde quem só
@@ -319,7 +324,7 @@ perde o acesso — e a rota recusa de propósito, em vez de escolher a barbearia
 
 ## 2. Minas no código (verificadas)
 
-### 2.1 🟡 `[TÉCNICO]` Timezone — centralizado em 10/09/2026, falta o fuso por barbearia
+### 2.1 ✅ `[TÉCNICO]` Timezone — centralizado em 10/09/2026; o fuso de cada barbearia, FEITO em 12/10/2026
 
 **Era:** `America/Fortaleza` aparecia **24 vezes em 20 arquivos de `src/`** como
 constante de código, não lida do ambiente. O `.env.example` tinha `TZ`, mas só
@@ -345,22 +350,80 @@ teste pegou. Sem isso, o problema volta na primeira linha copiada de outro arqui
 Desde 27/09/2026 ele reprova também a **conta** de offset — `h + 3`, `-180`, três horas em
 milissegundos —, que passava livre (§2.11).
 
-⚠️ **O que sobrou — e por isso o item não está fechado:** variável de ambiente vale
-para **o processo inteiro**. Enquanto cada barbearia tem a própria instância, está
-certo. No passo 6 de `ARQUITETURA-MULTI-TENANT-V1.md` §9 — um processo servindo vários
-domínios — uma barbearia em Manaus e outra em Mossoró não cabem numa variável só.
+~~⚠️ **O que sobrou — e por isso o item não está fechado:**~~ ✅ feito em 12/10/2026, logo
+abaixo. O texto de 10/09, de registro: variável de ambiente vale para **o processo inteiro**.
+Enquanto cada barbearia tem a própria instância, está certo. No passo 6 de
+`ARQUITETURA-MULTI-TENANT-V1.md` §9 — um processo servindo vários domínios — uma barbearia
+em Manaus e outra em Mossoró não cabem numa variável só.
 
 A correção definitiva é uma coluna `timezone` em `settings`, com o fuso vindo do tenant
 como a cor de destaque já vem, e o `TZ` do módulo deixando de ser constante para virar
 argumento das funções que formatam data. Centralizar agora é o que torna essa mudança
 **um arquivo, e não vinte** — e o que faz o teste acima falhar se alguém espalhar de
-novo enquanto ela não chega.
+novo enquanto ela não chega. *(12/10/2026: foram 51 arquivos. Centralizar deixou o fuso num
+lugar só, mas cada data teve de passar a dizer de qual barbearia é.)*
 
 Fora de `src/`, dois lugares ainda cravam o fuso e ficaram de fora de propósito:
 `scripts/backup-daemon.mjs` (usa `process.env.TZ` — é o relógio do **container**,
 decidindo a hora do backup, não o horário da barbearia) e
 `scripts/seed-relatorio-demo.mjs` (gerador de dados de demonstração, com o offset
 UTC-3 fixo). Nenhum dos dois afeta agendamento; entram junto com a coluna por tenant.
+
+**Feito em 12/10/2026 — o fuso é da barbearia.** A decisão foi sua, em 11/10: o fuso **nasce
+do estado** escolhido no cadastro, e o dono **troca em Configurações**.
+
+- **Onde mora:** a coluna `tenants.timezone` (migration 0013), e não `settings`, como o
+  parágrafo acima previa. Toda conta de data precisa do fuso — inclusive fora de requisição,
+  como a tarefa dos avisos —, e a linha de `tenants` já fica em memória
+  (`apps/barbearia/src/lib/tenant.ts`), lida sem `await` por `fusoDe(barbearia)`
+  (`apps/barbearia/src/lib/timezone.ts`). Rejeitado: `settings` — sob o RLS, cada requisição
+  só enxerga a linha da própria barbearia, e o cache das outras ficaria com o padrão, errado e
+  calado.
+- **A lista é fechada:** os 16 fusos do Brasil da base da IANA (`FUSOS_DO_BRASIL`), e o banco
+  recusa qualquer outro (o `CHECK` da 0013). Rejeitado: o campo livre — *"America/Manus"*
+  derrubaria toda data da barbearia com um `RangeError`. Dez dos 16 dão hoje a mesma hora
+  (UTC−3), e cada estado fica com o seu mesmo assim: se o horário de verão voltar só no Sul e
+  no Sudeste, muda o `America/Sao_Paulo` e não o `America/Fortaleza`, sem migration.
+- **Os 27 estados** têm cada um o fuso da capital (`ESTADOS`). Os três com mais de um fuso — o
+  Amazonas, o Pará e Pernambuco, com Noronha — ficam com o da capital, e o dono troca.
+- **O cadastro pela web pede o estado**, num select obrigatório ao lado da cidade; sem ele, nem
+  envia. A cidade é guardada como *"Cidade/UF"*, o formato que Configurações pede. O script
+  (`scripts/provisionar.mts`) aceita `--estado`, a sigla no fim da cidade, como sempre, e
+  `--fuso`, para a ponta de estado com outro fuso; sem nenhum dos três, recusa.
+- **Configurações → Endereço → "Fuso horário"**: os 16, com o deslocamento de hoje (*"UTC−4"*)
+  e *"Nesse fuso, agora são 22:41."* para o dono conferir antes de salvar. Grava só na
+  barbearia da sessão, pela conexão do dono do banco — o papel do app só lê `tenants` —, num
+  arquivo que faz só isso (`apps/barbearia/src/lib/fusoDaBarbearia.ts`, na lista fechada de
+  `tests/rls.test.ts`), e descarta o cache: o site muda na hora.
+- **O painel do operador** mostra o fuso de cada barbearia, e as datas de cada uma — o fim do
+  teste, o teste estendido — saem no calendário dela; a hora dos eventos e das ações, no
+  relógio do operador.
+- **`TZ_BARBEARIA` não é mais lida.** O boot avisa se ela continua no servidor — e avisa alto
+  se ela tinha outro fuso que não Fortaleza, porque a 0013 pôs as barbearias que já existiam no
+  padrão da coluna, `America/Fortaleza`, o fuso que o processo usava (`scripts/startup.mjs`).
+- **O `TZ` do módulo deixou de existir**, de propósito: sem ele, os 32 arquivos que o
+  importavam pararam de compilar, e cada um — com os que chamavam as contas de prazo, 51 em
+  `src/` — teve de dizer de qual barbearia é a data. Sobrou `TZ_PADRAO`, que só vale onde não
+  há barbearia: a barbearia única sem requisição, o padrão da coluna e o relógio do operador.
+
+**Achados no caminho, consertados:** na agenda do dia, a ficha do cliente mostrava a hora no
+fuso da barbearia e a **data** no do navegador — um corte às 23:30 saía com a data do dia
+seguinte —; o *"Hoje"* do calendário da agenda era o do navegador, e o botão levava a ele; e o
+rodapé do site destacava o dia de hoje pelo relógio de quem abre o site, como o combo fazia
+até 09/10 (§2.16).
+
+**As guardas:** `tests/timezone-unico.test.ts` reprova, em `src/`, o nome de um fuso cravado,
+o `TZ` exportado ou importado, o `TZ_PADRAO` fora da lista fechada, o fuso tirado do ambiente
+ou do relógio de quem roda (`TZ_BARBEARIA`, `process.env.TZ`, `resolvedOptions().timeZone`) e a
+data mostrada no navegador sem `timeZone`. `tests/fuso-por-barbearia.test.ts` põe Mossoró e
+Manaus no mesmo processo: os horários livres, o agendamento, a agenda e o calendário do mês, a
+remarcação pelo link, o e-mail do agendamento, o fim do teste e da carência, o painel do
+operador, o cadastro, Configurações, o `CHECK` e a 0013 sobre um banco parado na 0012.
+
+**Fora de `src/`:** o `scripts/backup-daemon.mjs` continua no `TZ` do container, de propósito —
+é a hora do backup, não de barbearia nenhuma. E o `scripts/seed-relatorio-demo.mjs`, com o
+offset fixo, é da era SQLite: importa o `better-sqlite3`, que não é mais dependência do app, e
+não roda contra o banco de hoje.
 
 ### 2.2 ✅ `[TÉCNICO]` Wizard obriga escolher barbeiro mesmo havendo um só — RESOLVIDO em 09/10/2026
 
@@ -370,16 +433,16 @@ cria a barbearia com o dono e mais ninguém. O cliente dele passava por uma tela
 só, e o contador anunciava quatro passos quando eram três.
 
 **Feito:** com um barbeiro só no serviço escolhido — ou no serviço do combo —, ele é escolhido
-sozinho e o cliente vai direto ao horário (`pages/agendar.astro:412-416`). O contador e os
+sozinho e o cliente vai direto ao horário (`pages/agendar.astro:415-419`). O contador e os
 pontos saem de `passosDoAgendamento()` (`lib/agendamento.ts:26`): "Passo 1 de 3" na barbearia
 de um barbeiro só, "de 4" quando há escolha. A regra é por serviço — numa barbearia com dois
 barbeiros, o serviço que só um deles faz também pula a tela. O cartão do serviço mostra a
-duração no lugar de "1 barbeiro" (`pages/agendar.astro:278-281`): era a tela do barbeiro que a
+duração no lugar de "1 barbeiro" (`pages/agendar.astro:281-284`): era a tela do barbeiro que a
 mostrava. Na tela do horário, o "Voltar" vira "Alterar serviço", e o do topo volta ao serviço.
 
 De carona, um defeito do mesmo "Voltar", que não estava registrado: no combo, o do topo apagava
 o serviço do combo, e a tela respondia *"Este combo não está mais disponível"* — visto no build
-anterior. Um lugar só limpa o serviço agora, e não no combo (`pages/agendar.astro:138`).
+anterior. Um lugar só limpa o serviço agora, e não no combo (`pages/agendar.astro:141`).
 
 Guarda: `tests/agendar-primeiro-minuto.test.ts` — a regra dos passos como função, e o fonte da
 página usando a regra em vez de reescrevê-la (o script da página não roda no vitest). Na tela,
@@ -695,15 +758,15 @@ bloco recolhido abaixo); os outros três, no mesmo dia, à noite:
 
 | Onde | A conta | O que fazia em Manaus (UTC−4) | Agora |
 |---|---|---|---|
-| Bloqueio de horário (`admin/bloqueios.astro:211`, na época) | `Date.UTC(y, mo - 1, d, h + 3, min)` | o almoço das 12:00–13:00 gravava 11:00–12:00, e o site vendia o meio-dia com o barbeiro almoçando | `fromZonedTime` com o fuso da barbearia (`admin/bloqueios.astro:225-227`), que desce pelos dados da página (`admin/bloqueios.astro:70` e `admin/bloqueios.astro:204`) |
+| Bloqueio de horário (`admin/bloqueios.astro:211`, na época) | `Date.UTC(y, mo - 1, d, h + 3, min)` | o almoço das 12:00–13:00 gravava 11:00–12:00, e o site vendia o meio-dia com o barbeiro almoçando | `fromZonedTime` com o fuso da barbearia (`admin/bloqueios.astro:226-228`), que desce pelos dados da página (`admin/bloqueios.astro:71` e `admin/bloqueios.astro:205`) |
 | Ocupação por faixa (`lib/occupancy.ts:63`, na época) | `utcOffsetMin ?? -180` — e nenhum chamador informava | a manhã (09:00–13:00) era medida uma hora antes: a ocupação do mês no relatório e a faixa ociosa que a agenda sugere para promoção saíam de outro horário | recebe a zona, não o offset, e converte cada horário por `fromZonedTime` (`lib/occupancy.ts:59` e `lib/occupancy.ts:73-87`) |
-| O calendário do cliente, no agendamento (`agendar.astro:329`, na época) | `Date.now() - 3 * 60 * 60 * 1000` | das 23:00 à meia-noite, o calendário começava no dia seguinte — com o rótulo "Hoje" | a data de hoje no fuso da barbearia, pelo `Intl` do navegador (`agendar.astro:337-343`), com o fuso no `data-tz` do wizard (`agendar.astro:59`) |
+| O calendário do cliente, no agendamento (`agendar.astro:329`, na época) | `Date.now() - 3 * 60 * 60 * 1000` | das 23:00 à meia-noite, o calendário começava no dia seguinte — com o rótulo "Hoje" | a data de hoje no fuso da barbearia, pelo `Intl` do navegador (`agendar.astro:340-346`), com o fuso no `data-tz` do wizard (`agendar.astro:62`) |
 
 O do bloqueio não era trocar uma linha: o script daquela tela era `define:vars`, que o Astro
 entrega sem empacotar — sem `import`, sem `lib/timezone.ts`. Virou script processado, como o
 da agenda do dia.
 
-**A guarda passou a pegar a conta.** `tests/timezone-unico.test.ts:92` reprova, em todo `.ts`
+**A guarda passou a pegar a conta.** `tests/timezone-unico.test.ts:156` reprova, em todo `.ts`
 e `.astro` de `src/` — scripts de página inclusive, comentários não —, a hora mais ou menos 3,
 o `Date.UTC` com ± 3, o `utcOffsetMin` e o `-180`, as três horas em milissegundos e o
 `getTimezoneOffset()`. O controle: rodada sobre a árvore de 27/09 de manhã, ela aponta os
@@ -716,9 +779,11 @@ de uma segunda, abriu em *"Ter 29 · Hoje"*. Depois: 16:00–17:00 UTC, e *"Seg 
 
 ⚠️ **O que a guarda ainda não pega:** a classe 3 da skill `barbearia-fuso` — o dia lido no
 fuso do processo com `getDay()`. O caso dela era o `PENDENCIAS-ABERTAS.md` §2.22, fechado em
-09/10/2026; a classe continua sem guarda geral — `tests/semana-do-painel.test.ts` olha o painel. A data
+09/10/2026, e o rodapé do site, em 12/10/2026 (§2.1); a classe continua sem guarda geral —
+`tests/semana-do-painel.test.ts` olha o painel, e `tests/agendar-primeiro-minuto.test.ts`, o
+combo e o rodapé. A data
 lida em UTC com `toISOString().slice(0, 10)` tem a guarda dela (`tests/data-do-fuso.test.ts`).
-E o fuso continua um só por processo (§2.1).
+E o fuso continuou um só por processo até 12/10/2026, quando passou a ser de cada barbearia (§2.1).
 
 <details><summary>Como estava de 25/09 até a tarde de 27/09/2026</summary>
 
@@ -879,9 +944,9 @@ campo, as duas em `lib/dinheiro.ts`.
 - `reais(centavos)` (`lib/dinheiro.ts:16`) mostra **R$ 39,90** quando há centavos e **R$ 40**
   quando não há, como o site sempre mostrou. Passam por ela o site
   (`components/Services.astro`), o agendamento (`agendar.astro`), a confirmação
-  (`a/[token].astro:72-74`), a área do cliente (`cliente/index.astro:103`) e o painel — início,
+  (`a/[token].astro:73-75`), a área do cliente (`cliente/index.astro:104`) e o painel — início,
   reservas, agenda do dia, relatórios e a lista de agendamentos
-  (`api/admin/appointments/index.ts:81`).
+  (`api/admin/appointments/index.ts:82`).
 - `centavosDoCampo(valor)` (`lib/dinheiro.ts:33`) aceita *"39,90"*, *"39.90"* e *"40"*; o que
   não é número vira `NaN`, e quem chama decide a mensagem. A tela de serviços mostra `39.90` no
   campo (`admin/servicos.astro:52`), com passo de centavo no de criar e no de editar (`:98`,
@@ -933,19 +998,19 @@ produto, e entrava no relatório como receita normal.
 para segunda, e não para sexta. *Rejeitado: o dia em que o cliente agenda* — deixaria quem abre
 o link na segunda marcar com desconto para a sexta cheia. ⚠️ **Tomada na implementação, em
 09/10/2026, sem você.** Se a intenção é a outra, a troca está numa linha: a data que
-`api/appointments/index.ts:117` confere passa a ser a de hoje, e não a do horário.
+`api/appointments/index.ts:118` confere passa a ser a de hoje, e não a do horário.
 
 **Feito, nas três pontas, com uma regra só** — `comboValeNaData()` (`lib/combo.ts:34`):
 
-- **O servidor recusa** o horário fora dos dias do combo (`api/appointments/index.ts:117`),
+- **O servidor recusa** o horário fora dos dias do combo (`api/appointments/index.ts:118`),
   com o dia lido no fuso da barbearia: segunda 21h30 em Fortaleza já é terça em UTC, e vale.
   Combo sem dia nenhum marcado não vale em dia nenhum.
-- **O calendário do `/agendar`** só abre os dias do combo (`pages/agendar.astro:474-476`), e o
+- **O calendário do `/agendar`** só abre os dias do combo (`pages/agendar.astro:477-479`), e o
   resumo diz quais são — *"Dias do combo: segunda"*. Quando nenhum dia dos próximos 30 abre —
   combo de domingo numa barbearia que não abre no domingo —, a tela diz isso, em vez de pedir
-  que se escolha um dia (`pages/agendar.astro:495`).
+  que se escolha um dia (`pages/agendar.astro:498`).
 - **A seção do combo na página inicial** acha o dia de hoje no fuso da barbearia
-  (`components/ComboBoris.astro:28-33`). Era `new Date().getDay()`, o relógio de quem abre o
+  (`components/ComboBoris.astro:31-36`). Era `new Date().getDay()`, o relógio de quem abre o
   site: com o navegador num fuso em que já era sábado, o combo da sexta sumia — visto no build
   anterior.
 
@@ -1085,7 +1150,7 @@ produção com `TZ=America/Fortaleza` no container, e com uma barbearia fora de 
 haveria `TZ` que servisse às duas.
 
 **Feito:** a segunda-feira sai de `todayStr`, a data na barbearia, por conta de calendário em
-que o relógio do processo não entra (`admin/index.astro:48`, `lib/calendario.ts:42`).
+que o relógio do processo não entra (`admin/index.astro:49`, `lib/calendario.ts:42`).
 
 **Conferido ao vivo em 09/10/2026**, os dois builds lado a lado contra o mesmo banco, o processo
 em UTC: às 21h01 de sexta, 09/10, em Fortaleza — já 00h01 de sábado em UTC —, o build anterior
@@ -1131,7 +1196,7 @@ papel o `PENDENCIAS-ABERTAS.md` §2.30.
 
 **Feito:** todo nome que vai para o `innerHTML` do wizard passa por `escaparHtml()`
 (`lib/html.ts:15`), e a linha do combo usa o nome do combo que o cliente abriu
-(`pages/agendar.astro:586`).
+(`pages/agendar.astro:589`).
 
 Guarda: `tests/agendar-primeiro-minuto.test.ts` — o fonte do script sem nenhum nome fora de
 `esc(`, com controle de que o guarda pega o nome cru, e nenhum "Boris" no código.
@@ -1148,12 +1213,12 @@ WhatsApp do site usava esse número: o rodapé, a localização, a barra flutuan
 agendamento (`a/[token].astro`) e o link que a API devolve
 (`api/appointments/by-token/[token].ts`). O `schema.org` publicava `+84996658951` para o
 Google. **E o teste travava o defeito:** `tests/cadastro.test.ts` esperava `'84999990000'`. O
-próprio painel pede o número com o 55 (`admin/configuracoes.astro:54`, *"Ex: 5584999051196"*)
+próprio painel pede o número com o 55 (`admin/configuracoes.astro:60`, *"Ex: 5584999051196"*)
 — o cadastro não seguia a regra do painel.
 
 **O que mudou, dos dois lados:**
 
-- **Gravar:** o cadastro grava o número da loja com o 55 (`lib/provisionarBarbearia.ts:347`,
+- **Gravar:** o cadastro grava o número da loja com o 55 (`lib/provisionarBarbearia.ts:383`,
   `:384`). O telefone de login continua sem ele — é outra regra (`PENDENCIAS-ABERTAS.md` §1.5).
 - **Ler:** `numeroDaLojaInternacional()` (`lib/settings.ts:221`) completa o 55 de quem está
   gravado sem ele, e é por ela que passam o `waUrl()` (`lib/settings.ts:200-205`) e o
@@ -1183,17 +1248,17 @@ endereço estavam **escritos**, sem comparação nenhuma:
 
 | Onde | O que saía em toda barbearia | Agora |
 |---|---|---|
-| Lembrete do WhatsApp na agenda do dia | *"aqui da Barbearia Bayron"* (`lib/whatsapp.ts:60`, na época) | assinado com o nome da barbearia da agenda (`lib/whatsapp.ts:57-65`, chamado em `admin/dia/[date].astro:1616`) |
-| Endereço canônico, `og:url`, e o `@id` e o `url` do `schema.org` | `https://bayron.alexandrefdev.tech`, a constante `SITE_URL` de `config.ts` | o endereço da barbearia servida (`lib/tenant.ts:295-299`): domínio próprio, subdomínio do produto ou, em desenvolvimento, o da requisição. Usado em `layouts/Layout.astro:27-28` e `components/Testimonials.astro:16` |
+| Lembrete do WhatsApp na agenda do dia | *"aqui da Barbearia Bayron"* (`lib/whatsapp.ts:60`, na época) | assinado com o nome da barbearia da agenda (`lib/whatsapp.ts:57-65`, chamado em `admin/dia/[date].astro:1622`) |
+| Endereço canônico, `og:url`, e o `@id` e o `url` do `schema.org` | `https://bayron.alexandrefdev.tech`, a constante `SITE_URL` de `config.ts` | o endereço da barbearia servida (`lib/tenant.ts:304-308`): domínio próprio, subdomínio do produto ou, em desenvolvimento, o da requisição. Usado em `layouts/Layout.astro:27-28` e `components/Testimonials.astro:16` |
 | Prévia do link (`og:image`) | a foto do Bayron (`/og.jpg`), no link de quem não subiu imagem | a imagem de compartilhamento da barbearia, senão a capa dela; sem nenhuma das duas, sem imagem. O `/og.jpg` só no site do Bayron (`layouts/Layout.astro:37-40`) |
-| Convite de calendário | link e identificador em `bayron.alexandrefdev.tech`, arquivo `bayron-….ics` | o endereço da barbearia (`api/appointments/by-token/[token]/ics.ts:69-70`), arquivo `agendamento-….ics` (`api/appointments/by-token/[token]/ics.ts:76`) |
-| `/portal`, `/cliente/entrar` e `/cliente` | *"Barbearia Bayron"* no título da aba, na descrição e no topo | o nome da barbearia (`portal.astro:23`, `cliente/entrar.astro:27`, `cliente/index.astro:26`) |
-| Relatório impresso | *"Barbearia Bayron — Relatório"*, com a logo dele | o nome e a logo da barbearia; a logo empacotada, só no Bayron (`admin/relatorios.astro:28-30`, `admin/relatorios.astro:335-337`) |
-| Rodapé do site | o slogan *"Respeito e precisão em cada detalhe."* | só no site do Bayron (`components/Footer.astro:211-216`) |
+| Convite de calendário | link e identificador em `bayron.alexandrefdev.tech`, arquivo `bayron-….ics` | o endereço da barbearia (`api/appointments/by-token/[token]/ics.ts:70-71`), arquivo `agendamento-….ics` (`api/appointments/by-token/[token]/ics.ts:77`) |
+| `/portal`, `/cliente/entrar` e `/cliente` | *"Barbearia Bayron"* no título da aba, na descrição e no topo | o nome da barbearia (`portal.astro:23`, `cliente/entrar.astro:27`, `cliente/index.astro:27`) |
+| Relatório impresso | *"Barbearia Bayron — Relatório"*, com a logo dele | o nome e a logo da barbearia; a logo empacotada, só no Bayron (`admin/relatorios.astro:29-31`, `admin/relatorios.astro:336-338`) |
+| Rodapé do site | o slogan *"Respeito e precisão em cada detalhe."* | só no site do Bayron (`components/Footer.astro:215-220`) |
 
 ⚠️ **O custo aceito:** para o Bayron continuar com a foto de prévia e a logo do relatório,
 entraram duas comparações novas com `"Bayron"` — `layouts/Layout.astro:37` e
-`admin/relatorios.astro:30`. É o padrão que o `PENDENCIAS-ABERTAS.md` §4.7 quer eliminar, e
+`admin/relatorios.astro:31`. É o padrão que o `PENDENCIAS-ABERTAS.md` §4.7 quer eliminar, e
 ele passou de oito para dez lugares. Quando o §4.7 for feito, estas duas entram na mesma
 função. ✅ *Entraram em 09/10/2026, com as outras oito (`PENDENCIAS-ABERTAS.md` §4.7).*
 
@@ -1210,7 +1275,7 @@ inventam um, e a agenda passa o dela.
 
 **Achado ao vivo** no mesmo teste: a barbearia abre às 09:00, a grade de "Mover horário"
 ofereceu 08:00, e a API recusou — *"Horário fora do expediente do barbeiro"*
-(`api/admin/appointments/[id]/reschedule.ts:96`). O dono escolhe um horário que a própria tela
+(`api/admin/appointments/[id]/reschedule.ts:97`). O dono escolhe um horário que a própria tela
 ofereceu e recebe erro. A grade era fixa: `START_HOUR = 8` e *"entre 08:00 e 19:00"*
 (`admin/dia/[date].astro:18` e `:2008-2009`, na época). O contrário também valia: barbearia
 que fecha às 21:00 não conseguia mover para depois das 19:00 pelo painel. E o cabeçalho
@@ -1219,7 +1284,7 @@ que fecha às 21:00 não conseguia mover para depois das 19:00 pelo painel. E o 
 **O que mudou:** `lib/gradeDeHorarios.ts` monta a grade a partir do expediente **do barbeiro**
 no dia da semana escolhido — de 15 em 15 minutos, dentro de cada janela, com o atendimento
 inteiro cabendo antes do fechamento e o almoço de fora no turno partido. A página lê o
-expediente da barbearia (`admin/dia/[date].astro:398-406`) e a grade sai dele (`:2032`); dia
+expediente da barbearia (`admin/dia/[date].astro:399-407`) e a grade sai dele (`:2032`); dia
 sem expediente diz *"O barbeiro não trabalha neste dia."* (`:2034`). O cabeçalho e o "Dia
 livre" mostram o expediente real, ou *"Sem expediente neste dia"* (`:614`, `:626-628`). E a
 conversão do horário escolhido deixou de somar três horas à mão
@@ -1231,7 +1296,7 @@ tempo fixa — linha do tempo que nem existe mais na tela. Visto rodando: o bloq
 20:30 era gravado e não aparecia na lista. Num dia sem agendamento, a tela ainda diria
 *"Nenhum agendamento para este dia · Dia livre"* com a noite bloqueada — isso lido no código,
 não visto. Agora a lista mostra todo bloqueio que toca o dia
-(`admin/dia/[date].astro:268-269`).
+(`admin/dia/[date].astro:269-270`).
 
 Conferido depois, com o build de produção num navegador: grade de 09:00 a 18:00 num
 expediente de 09:00 às 19:00, para um serviço de 60 minutos; mover para 09:15 gravou 12:15
@@ -1243,9 +1308,9 @@ passo natural é a grade sair do mesmo cálculo de vagas do site.
 
 ✅ **O gráfico por hora do relatório, da mesma família, saiu no mesmo dia, à noite.** Contava só os
 atendimentos que começavam entre 09:00 e 19:59 — o das 08:00 ou o das 20:00 sumia, sem
-aviso. Agora conta as 24 horas (`admin/relatorios.astro:117`) e mostra do começo do primeiro
+aviso. Agora conta as 24 horas (`admin/relatorios.astro:118`) e mostra do começo do primeiro
 expediente ao fim do último, mais qualquer hora com atendimento fora dele
-(`lib/gradeDeHorarios.ts:77`, usado em `admin/relatorios.astro:300`). Visto rodando: num
+(`lib/gradeDeHorarios.ts:77`, usado em `admin/relatorios.astro:301`). Visto rodando: num
 expediente de 09:00 às 19:00, as barras vão de 9 a 18 — antes, de 9 a 19, fixo.
 
 ⚠️ **Sobra:** a constante continua no topo da agenda (`admin/dia/[date].astro:21-23`),
@@ -1269,14 +1334,14 @@ coisa falsa.
    e o medidor do próprio painel diz o contrário: *"É a primeira coisa que o cliente lê"*
    (`lib/completude.ts:129`). Quem acredita no aviso deixa o topo genérico. Agora: *"Frase do
    topo"* e *"Texto abaixo da frase"*, com o aviso verdadeiro
-   (`admin/configuracoes.astro:46-47`) — o mesmo nome que o medidor cobra. E o exemplo do nome
-   curto deixou de ser *"Bayron"* (`admin/configuracoes.astro:41`).
+   (`admin/configuracoes.astro:52-53`) — o mesmo nome que o medidor cobra. E o exemplo do nome
+   curto deixou de ser *"Bayron"* (`admin/configuracoes.astro:47`).
 2. **O rodapé tinha "Termos de Uso" e "Políticas de Privacidade" apontando para `#`**, num
    site que coleta nome e telefone. Saíram até os textos existirem
    (`PENDENCIAS-ABERTAS.md` §1.2); o comentário no lugar diz por quê
-   (`components/Footer.astro:204-209`).
+   (`components/Footer.astro:208-213`).
 3. **"1 agendamento considerados"** na agenda do dia — agora concorda
-   (`admin/dia/[date].astro:575`, `:1528`).
+   (`admin/dia/[date].astro:576`, `:1528`).
 
 Guarda: `tests/textos-do-painel.test.ts`, com controle de que o topo do site lê os dois campos
 — sem ele, o caso do aviso passaria mesmo se o topo parasse de ler.
@@ -1449,18 +1514,18 @@ o dado nunca foi preenchido.
 3. **"Agenda do dia" levava ao resumo.** O primeiro item do menu tinha o nome da agenda e o
    endereço `/admin`, que é o resumo; a agenda de verdade ficava atrás de um botão dele. Agora
    "Início" é o resumo, e "Agenda do dia" leva à agenda de hoje no dia da barbearia — o fuso
-   dela, não o do servidor (`apps/barbearia/src/layouts/AdminLayout.astro:28-29`).
+   dela, não o do servidor (`apps/barbearia/src/layouts/AdminLayout.astro:29-30`).
 4. **"Reservas" eram de produto.** O botão do topo do site diz *"Reservar Horário"*, e o dono
    procurou os agendamentos ali. Agora o menu diz "Reservas de produto".
 5. **O cadastro não falava do teste nem do cartão** — só a tela do fim. E quem tem medo de
    cobrança pode desistir antes de enviar. Agora, embaixo do título: *"7 dias grátis, sem cartão: ele
-   só é pedido no fim do teste."* (`apps/barbearia/src/pages/cadastrar.astro:195`).
+   só é pedido no fim do teste."* (`apps/barbearia/src/pages/cadastrar.astro:201`).
 6. **A tela de assinatura sem a Asaas dizia** *"o cartão entra na próxima etapa do sistema"*,
    uma etapa feita no mesmo dia (§4.14). Agora: *"a cobrança pelo cartão ainda não foi
    ligada."*
 7. **Configurações não dizia que os dois campos do mapa são opcionais**, nem que a "Busca do
    mapa embutido" passou a valer também para a rota. Agora diz — e é por ela que o dono
-   conserta o ponto errado (`apps/barbearia/src/pages/admin/configuracoes.astro:70-71`).
+   conserta o ponto errado (`apps/barbearia/src/pages/admin/configuracoes.astro:77-78`).
 8. **No `npm run dev`, a tela final do cadastro diz sempre "quase no ar".** Não é defeito: o
    servidor de desenvolvimento do Astro 7 recusa a imagem que ela pede ao endereço novo — um
    403 *"Cross-origin request blocked"*, de `astro/dist/vite-plugin-astro-server/sec-fetch.js`
@@ -1484,7 +1549,7 @@ Nenhum era defeito de código: cada um era uma escolha de produto, com custo.
 
 1. ✅ **O barbeiro não ficava sabendo de agendamento novo — agora recebe e-mail. Feito em
    11/10/2026.** Até então nada avisava: com a agenda do dia aberta, ela se atualizava
-   sozinha a cada minuto (`apps/barbearia/src/pages/admin/dia/[date].astro:2703`); fechada,
+   sozinha a cada minuto (`apps/barbearia/src/pages/admin/dia/[date].astro:2711`); fechada,
    o dono que não abria o painel descobria o cliente novo quando ele chegava na porta.
 
    **Decidido:** e-mail, por enquanto — o WhatsApp fica para quando for orçado. Sai quando o
@@ -1534,7 +1599,7 @@ Nenhum era defeito de código: cada um era uma escolha de produto, com custo.
    vê a pergunta uma vez.
 4. ✅ **Fora do ar, o e-mail não se troca — fica como está, decidido por você em
    11/10/2026.** A tela de assinatura mostra para onde vão os avisos e esconde o "Trocar"
-   quando o site está fora do ar (`apps/barbearia/src/pages/admin/assinatura.astro:135`),
+   quando o site está fora do ar (`apps/barbearia/src/pages/admin/assinatura.astro:136`),
    porque nessa fase o painel só abre ela. Quem digitou o e-mail errado no cadastro só corrige
    depois de pagar — e pagar funciona fora do ar. *Rejeitado:* um campo para trocar o e-mail
    na própria tela de assinatura.
@@ -1583,22 +1648,53 @@ duas seções —, com o link da Galeria e dos Serviços
 
 ## 3. Operação com vários clientes
 
-### 3.1 🟠 `[DECISÃO]` Onde as instâncias rodam
+### 3.1 🟠 `[DECISÃO]` Onde o app e o banco rodam
 
 O VPS atual é compartilhado com n8n, redis e postgres. Colocar clientes pagantes ali
 significa que todos caem juntos, misturados com suas coisas pessoais. Falta decidir
-separação (VPS dedicado a clientes?) e plano de capacidade — quantas instâncias por
-máquina antes de subir a próxima.
+separação (VPS dedicado ao produto?) e plano de capacidade.
 
-### 3.2 🟠 `[TÉCNICO]` Processo de atualizar N containers
+*Corrigido em 12/10/2026 — este item falava em "instâncias" e em "quantas instâncias por
+máquina", do desenho de uma instância por barbearia.* Com o multi-tenant são um app, um banco
+e o site de vendas para todas (`ARQUITETURA-PRODUCAO.md` §2), e a pergunta da capacidade
+virou outra: quantas barbearias um processo do app e um Postgres aguentam antes de crescer a
+máquina — **não medido** (`ARQUITETURA-PRODUCAO.md` §7).
 
-A arquitetura garante "uma imagem, N instâncias", mas não define **como** subir uma
+### 3.2 🟠 `[TÉCNICO]` Atualizar o app — um deploy, todas as barbearias juntas
+
+~~A arquitetura garante "uma imagem, N instâncias", mas não define **como** subir uma
 versão nova em dez containers, nem o que fazer quando a migração falha em um deles e
-passa nos outros. Clicar dez vezes no EasyPanel não é processo.
+passa nos outros. Clicar dez vezes no EasyPanel não é processo.~~ *Sem objeto desde o
+multi-tenant, e corrigido em 12/10/2026 — o texto acima é do desenho de uma instância por
+barbearia.*
 
-### 3.3 🟠 `[TÉCNICO]` Backup por cliente — o teste de restauração já foi feito
+Hoje é um deploy só: o EasyPanel constrói a imagem da `main`, e o boot aplica as migrations
+antes de o servidor subir (`apps/barbearia/scripts/startup.mjs`) — se uma falha, o servidor
+não sobe. Todas as barbearias ficam sempre na mesma versão, o que acaba com o problema de
+cima; em troca, **uma migration que falha derruba todas de uma vez**, e não uma.
 
-O backup diário com upload off-site já funciona por instância.
+**O que falta:**
+
+- **O verde do CI mandar no deploy** (§3.8). Hoje nada impede a `main` quebrada de ir ao ar.
+- **Saber o que o EasyPanel faz quando o container novo não sobe** — se o antigo continua
+  atendendo ou se os sites caem até alguém agir. **Não conferido.**
+- **Migration pesada para todo mundo junto.** Uma que reescreva uma tabela grande trava todas
+  as barbearias enquanto roda. As de hoje mudam estrutura ou poucas linhas; com o volume de
+  muitas barbearias, não medido.
+
+O que segura até lá: cada migration nova tem sido conferida sobre um banco parado na anterior,
+como o de produção, e rodando duas vezes (`ESTADO-ATUAL.md` §8) — a 0009 e a 0013 com teste na
+suíte (`apps/barbearia/tests/hover-padrao.test.ts` e `apps/barbearia/tests/fuso-por-barbearia.test.ts`).
+
+### 3.3 🟠 `[TÉCNICO]` Backup — um só para todas as barbearias; o teste de restauração já foi feito
+
+~~O backup diário com upload off-site já funciona por instância.~~ *Corrigido em 12/10/2026 —
+era do desenho de uma instância por barbearia.* O backup roda no container do app
+(`apps/barbearia/scripts/backup-daemon.mjs`: um no boot e um por dia, às 03:00 no `TZ` do
+container) e gera dois arquivos — o `pg_dump` do banco inteiro, com todas as barbearias, e as
+fotos de todas —, guardados por 30 dias (`apps/barbearia/scripts/backup.mjs`). O envio para
+fora da VPS, para um armazenamento compatível com S3, existe no código e só liga com as
+variáveis `S3_*`.
 
 ⚠️ **10/10/2026: no app novo em produção, não.** As variáveis `S3_*` não foram configuradas,
 e o backup fica só no disco da VPS (§2.31).
@@ -1618,6 +1714,12 @@ respondia 500. Resolvido, com o reparo para os backups antigos (§3.11).
 **O que continua faltando, e só aparece com N clientes:** estrutura de pastas no bucket e
 credenciais — bucket único ou um por cliente. Com banco único multi-tenant, o backup deixou
 de ser por instância e virou um só, o que torna a decisão mais simples e a falha mais cara.
+
+⚠️ **12/10/2026, achado lendo o código:** o envio para fora lê o arquivo inteiro na memória
+antes de mandar (`Body: readFileSync(filePath)`, em `apps/barbearia/scripts/backup.mjs`). O
+arquivo das fotos junta a galeria de todas as barbearias e cresce com cada uma — e roda no
+mesmo container que atende os sites. Não medido, e só morde com as `S3_*` ligadas; o conserto
+é mandar em partes, lendo do disco aos pedaços. **Não feito.**
 
 ### 3.4 🟠 `[TÉCNICO]` Monitoramento — o lado do app FEITO em 11/10/2026; falta o monitor, que é seu
 
@@ -2283,7 +2385,7 @@ vai pagar.
 
 **Feito:** sem serviço para agendar, a tela diz *"Agende pelo WhatsApp — No momento, os horários
 desta barbearia são marcados direto com ela"*, com o botão do WhatsApp da barbearia, montado
-pela mesma função do rodapé, com o 55 (`pages/agendar.astro:24`, `pages/agendar.astro:293`). Sem
+pela mesma função do rodapé, com o 55 (`pages/agendar.astro:27`, `pages/agendar.astro:296`). Sem
 WhatsApp cadastrado: *"Agendamento indisponível — volte em breve"*, sem link quebrado. "Sem
 serviço" é o `/api/services` vazio: ele só traz serviço ativo com barbeiro ativo, então serviço
 que ninguém faz também conta como nenhum.
@@ -2363,8 +2465,8 @@ vinho, o botão do combo continuava verde — visto no build anterior.
 
 **Feito,** com os sete consertos do primeiro minuto, que você pediu em 09/10/2026; o tom é o que
 o código já tinha como padrão. Os quatro lugares são o `ACCENT_PADRAO` (`styles/global.css:22`,
-`lib/settings.ts:92`, `db/schema.ts:362`), e o botão do combo usa as cores do tema
-(`components/ComboBoris.astro:60`). A **migration 0009** troca o padrão da coluna e conserta as
+`lib/settings.ts:92`, `db/schema.ts:369`), e o botão do combo usa as cores do tema
+(`components/ComboBoris.astro:63`). A **migration 0009** troca o padrão da coluna e conserta as
 linhas gravadas com o par antigo exato — quem escolheu cor não é tocado. ⚠️ **Na migração da
 produção ela roda depois da carga do SQLite, e é ela que conserta o Bayron**
 (`ROTEIRO-MIGRACAO-PRODUCAO.md` §4.4).
@@ -2678,15 +2780,15 @@ fotos por ali está esperando resposta.
 
 No autoatendimento, qualquer um escolhe o endereço e o que escreve, e vai ao ar na hora
 sob o seu domínio. Conferido em 24/09/2026: o provisionador só conferia se o endereço é um
-rótulo de DNS válido (hoje em `lib/provisionarBarbearia.ts:236`) e se já existe (hoje em
-`lib/provisionarBarbearia.ts:282`). Não havia lista de reservados.
+rótulo de DNS válido (hoje em `lib/provisionarBarbearia.ts:250`) e se já existe (hoje em
+`lib/provisionarBarbearia.ts:318`). Não havia lista de reservados.
 
 - ✅ **Reservar — feito em 08/10/2026.** `lib/enderecosReservados.ts` lista 39: as portas
   do produto (`painel`, `admin`, `www`, `api`, `login`…), os nomes de e-mail e de
   infraestrutura que o domínio vai precisar (`mail`, `postmaster`, `ns1`…), os da cobrança,
   do atendimento e dos ambientes, e o nome do produto — lido de `NOME_PRODUTO`, não escrito
   à mão — mais o antigo, `barbearianoar`. O provisionador recusa antes de tocar o banco
-  (`lib/provisionarBarbearia.ts:245`), com a mensagem no campo do endereço; vale para o
+  (`lib/provisionarBarbearia.ts:281`), com a mensagem no campo do endereço; vale para o
   `/cadastrar` e para o script, que usam a mesma função. `demo` ficou de fora de propósito:
   nome reservado fica proibido para você também. Vale para quem se cadastra daqui em diante
   — não confere as barbearias que já existem. Teste: `tests/enderecos-reservados.test.ts`.
@@ -2843,8 +2945,11 @@ no cadastro, a existência não.
   tabela comparativa da página de vendas e sustenta o modelo do §1.1.
 - **R$ 100/mês vende para barbearia sem sistema?** Continua sendo a maior incerteza do
   projeto inteiro, agora com margem mais apertada para errar. Só 5 conversas respondem.
-- **Quantas instâncias cabem na VPS?** Ela já foi comprada e a premissa é que as 10
-  cabem. `docker stats` com 5 containers confirma ou desmente numa tarde.
+- **Quantas barbearias o app e o banco aguentam na VPS?** Ela já foi comprada. *Corrigido em
+  12/10/2026 — a pergunta era "quantas instâncias cabem", com `docker stats` em 5 containers,
+  do desenho de uma instância por barbearia.* Com um app para todas, responde uma carga com
+  dezenas de barbearias de mentira, olhando a memória e o tempo de resposta — não feita
+  (`ARQUITETURA-PRODUCAO.md` §7).
 - ✅ **Restauração de backup** (§3.3) — feita em 06/09 e repetida em 11/09 contra o banco
   com os dados reais do Bayron. As fotos entraram no backup em 11/09 (§3.7), com a
   restauração conferida por comparação de árvore.
@@ -2903,6 +3008,12 @@ Configurações que mentia (§2.35).
 **Achado de 11/10/2026, no mesmo roteiro, ✅ já consertado:** o portal de toda barbearia dizia
 "Portal Bayron" (§2.34). E, pedido por você no mesmo dia, o painel do operador — ver e operar
 as barbearias sem `psql` (§3.9).
+
+**12/10/2026, escolhidos por você na véspera, ✅ feitos:** o fuso de cada barbearia — pelo
+estado, editável em Configurações (§2.1), o que fecha a onda 3 abaixo —, e os documentos que
+ainda descreviam uma instância por barbearia: o `ARQUITETURA-PRODUCAO.md`, reescrito, e os
+§3.1, §3.2 e §3.3 deste. A exclusão do cliente a pedido, decidida na mesma conversa —
+anonimizar os agendamentos dele —, ficou para depois e **não está feita** (§1.2).
 
 **Onda 2 — antes de abrir o cadastro público.**
 
@@ -2964,9 +3075,10 @@ data de nascimento fica, e vai no termo (§2.33 e §1.2).
    depois deles~~ — ✅ feita em 09/10/2026, com um layout só. O print do site sai sem foto, e
    o texto ao lado promete fotos: entra na landing nova (item 6).
 
-**Onda 3 — antes do primeiro cliente fora do UTC-3.** *(Era a onda 2 em 15/09.)*
-~~As contas de offset (§2.11) e o teste de fuso passando a pegá-las~~ — ✅ feitos em
-27/09. Sobra a coluna `timezone` por barbearia (§2.1).
+**Onda 3 — antes do primeiro cliente fora do UTC-3. ✅ FEITA em 12/10/2026.** *(Era a onda 2
+em 15/09.)* ~~As contas de offset (§2.11) e o teste de fuso passando a pegá-las~~ — ✅ feitos
+em 27/09. ~~Sobra a coluna `timezone` por barbearia (§2.1)~~ — ✅ feita em 12/10/2026, em
+`tenants`, pelo estado do cadastro e editável em Configurações.
 
 
 0. ~~**Limpar o seed das migrations** (`PENDENCIAS-ABERTAS.md` §4.6)~~ — **sem objeto desde
@@ -2977,7 +3089,8 @@ data de nascimento fica, e vai no termo (§2.33 e §1.2).
 1. ~~**Decidir o login do painel** (§1.5)~~ — decidido e implementado em 09/09.
    Falta cadastrar o telefone dos barbeiros do Bayron antes do segundo cliente.
 2. ~~**As duas minas** (§2.1, §2.2)~~ — o fuso (§2.1) foi centralizado em 10/09 e
-   está com guarda-corpo; sobrou o fuso por barbearia, que só morde no passo 6.
+   está com guarda-corpo; ~~sobrou o fuso por barbearia, que só morde no passo 6~~ — ✅ feito
+   em 12/10/2026.
    ~~**Falta o wizard (§2.2)**~~ — ✅ feito em 09/10/2026.
 3. ~~**Registrar o domínio** (`PENDENCIAS-ABERTAS.md` §0)~~ — **adiado em 11/09**
    (`PLANO-PRODUTIZACAO.md` §12): o nome ainda não está escolhido.
