@@ -19,7 +19,7 @@ process.env.SESSION_SECRET ??= 'segredo-de-teste-com-mais-de-32-caracteres-ok';
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
 
-const BAYRON = { id: 1, slug: 'bayron', status: 'active', domain: null };
+const BAYRON = { id: 1, slug: 'bayron', status: 'active', domain: null, fuso: 'America/Fortaleza' };
 
 let sql: ReturnType<typeof postgres>;
 let editar: typeof import('../src/pages/api/admin/barbers/[id].ts').PUT;

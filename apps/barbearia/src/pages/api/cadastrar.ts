@@ -70,6 +70,12 @@ const bodySchema = z.object({
   telefone: z.string().min(8).max(30),
   endereco: z.string().min(3).max(200),
   cidade:   z.string().min(2).max(120),
+  /**
+   * A sigla do estado: é dela que sai o fuso dos horários da barbearia
+   * (`fusoDoEstado`, `lib/timezone.ts`). Qual sigla vale é conferido em
+   * `provisionarBarbearia` — aqui só a presença, como o e-mail.
+   */
+  estado:   z.string().trim().min(2).max(2),
   senha:    z.string().min(8).max(200),
   cor:      z.string().max(9).optional(),
   servicos: z.array(servicoSchema).max(30).optional(),
@@ -143,7 +149,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     telefoneLogin: r.telefoneLogin,
     servicosAtivos: r.servicosAtivos,
     /** "15/10", no fuso da barbearia — o navegador de quem cadastra pode estar em outro. */
-    ultimoDiaDoTeste: r.testeAte ? ultimoDia(r.testeAte) : null,
+    ultimoDiaDoTeste: r.testeAte ? ultimoDia(r.testeAte, r.fuso) : null,
     /** O que ainda falta para o site ficar de pé, dito na hora. */
     avisos: r.servicosAtivos === 0
       ? ['Nenhum serviço com preço: ninguém consegue agendar até você preencher um em /admin/servicos.']

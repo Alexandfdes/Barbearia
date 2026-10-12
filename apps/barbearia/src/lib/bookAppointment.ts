@@ -7,7 +7,7 @@ import { barbers, barberServices, products, services, workingHours } from '../db
 import { tenantAtual, type Tenant } from './tenant.js';
 import { normalizePhone } from './phone.js';
 import { applyDiscountPct } from './combo.js';
-import { TZ } from './timezone.js';
+import { fusoDe } from './timezone.js';
 
 
 function weekdayOf(dateStr: string): number {
@@ -173,7 +173,8 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
   // `/api/slots` oferece o horário porque faz a conversão certa; só a criação
   // errava. Os dois caminhos de reagendamento recebem `dateStr` pronto e por isso
   // nunca tiveram o problema.
-  const dateStr = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
+  const fuso = fusoDe(tenant);
+  const dateStr = formatInTimeZone(startsAt, fuso, 'yyyy-MM-dd');
   const dow     = weekdayOf(dateStr);
 
   const whRows = await db
@@ -189,8 +190,8 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
   // O slot precisa caber inteiro dentro de ALGUMA janela de expediente do dia.
   // (O schema permite mais de uma janela por dia — ex: turno manhã + tarde.)
   const fitsAnyWindow = whRows.some(wh => {
-    const open  = fromZonedTime(`${dateStr}T${wh.startTime}:00`, TZ);
-    const close = fromZonedTime(`${dateStr}T${wh.endTime}:00`,   TZ);
+    const open  = fromZonedTime(`${dateStr}T${wh.startTime}:00`, fuso);
+    const close = fromZonedTime(`${dateStr}T${wh.endTime}:00`,   fuso);
     return startsAt >= open && endsAt <= close;
   });
 

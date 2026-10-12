@@ -1,5 +1,6 @@
 import { pgTable, serial, integer, text, boolean, unique, index, timestamp, jsonb } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import { TZ_PADRAO } from '../lib/timezone.js';
 
 /**
  * Passo 3 de docs/ARQUITETURA-MULTI-TENANT-V1.md §9.
@@ -34,6 +35,12 @@ export const tenants = pgTable('tenants', {
   asaasCheckoutIds: text('asaas_checkout_ids').array().notNull().default(sql`'{}'::text[]`),
   /** Assinatura cancelada: no ar até aqui, fora do ar depois. Nulo é o normal. */
   subscriptionEndsAt: timestamp('subscription_ends_at', { withTimezone: true }),
+  /**
+   * O fuso da barbearia (migration 0013): um dos 16 do Brasil, de
+   * `FUSOS_DO_BRASIL` em `lib/timezone.ts`, que o banco também confere. Nasce do
+   * estado no cadastro. Lido por `fusoDe(tenant)`, nunca direto.
+   */
+  timezone: text('timezone').notNull().default(TZ_PADRAO),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

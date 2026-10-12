@@ -8,7 +8,7 @@ import { db } from '../../db/index.js';
 import { tenantDoHost, type Tenant } from '../../lib/tenant.js';
 import { getSettings } from '../../lib/settings.js';
 import { formatInTimeZone } from 'date-fns-tz';
-import { TZ } from '../../lib/timezone.js';
+import { fusoDe } from '../../lib/timezone.js';
 import { reais } from '../../lib/dinheiro.js';
 
 
@@ -20,6 +20,7 @@ const tenant = tenantDoHost(Astro.request);
 // barbearia de quem ler — renderizar mostraria a marca de OUTRO cliente numa
 // página que não é dele (`lib/tenant.ts`, passo 6).
 if (!tenant) return new Response('Barbearia não encontrada', { status: 404 });
+const fuso = fusoDe(tenant);
 
 // ⚠️ O nome é o da barbearia do endereço. Até 27/09/2026 esta página dizia
 // "Barbearia Bayron" no título e no topo para o cliente de qualquer barbearia.
@@ -97,8 +98,8 @@ const cards: Card[] = rows.map(r => ({
   customerName:    r.customer_name,
   serviceName:     r.service_name,
   barberName:      r.barber_name,
-  dateLabel:       formatInTimeZone(new Date(r.starts_at), TZ, "dd 'de' MMM '·' EEE"),
-  timeLabel:       formatInTimeZone(new Date(r.starts_at), TZ, 'HH:mm'),
+  dateLabel:       formatInTimeZone(new Date(r.starts_at), fuso, "dd 'de' MMM '·' EEE"),
+  timeLabel:       formatInTimeZone(new Date(r.starts_at), fuso, 'HH:mm'),
   durationMinutes: r.duration_minutes,
   priceLabel:      reais(r.price_cents),
 }));

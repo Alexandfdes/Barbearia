@@ -11,6 +11,7 @@ import { json } from '../../../../lib/api.js';
 import { getSession, sessaoForaDoAr } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { arquivoDosClientes, nomeDoArquivo, respostaCsv } from '../../../../lib/exportacao.js';
+import { fusoDe } from '../../../../lib/timezone.js';
 
 export const GET: APIRoute = async ({ request }) => {
   const noAr = await getSession(request);
@@ -20,7 +21,7 @@ export const GET: APIRoute = async ({ request }) => {
   if (sessao.role !== 'admin') return json({ error: 'Só o dono da barbearia baixa a lista de clientes.' }, 403);
   const tenant = noAr ? tenantDaSessao(noAr) : fora!.tenant;
 
-  const { conteudo, linhas } = await arquivoDosClientes(tenant.id);
+  const { conteudo, linhas } = await arquivoDosClientes(tenant.id, fusoDe(tenant));
   console.info(`[exportar] ${tenant.slug}: clientes, ${linhas} linha(s)${fora ? ' — com a barbearia fora do ar' : ''}`);
-  return respostaCsv(nomeDoArquivo('clientes', tenant.slug), conteudo);
+  return respostaCsv(nomeDoArquivo('clientes', tenant.slug, fusoDe(tenant)), conteudo);
 };

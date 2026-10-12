@@ -1,6 +1,6 @@
 /**
  * Contas de calendário sobre datas 'YYYY-MM-DD' que JÁ SÃO LOCAIS — o dia na
- * barbearia, convertido com o `TZ` de `lib/timezone.ts` no servidor, ou pelo
+ * barbearia, convertido com o fuso dela (`fusoDe`, `lib/timezone.ts`) no servidor, ou pelo
  * `Intl` com o fuso que desce pela página no navegador.
  *
  * Nenhuma função daqui recebe instante, e é isso que as deixa livres de fuso: a

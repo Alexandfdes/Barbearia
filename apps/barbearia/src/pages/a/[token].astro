@@ -11,7 +11,7 @@ import { getSettings, waUrl } from '../../lib/settings';
 import { linkDoMapa } from '../../lib/mapa';
 import { tenantDoHost } from '../../lib/tenant.js';
 import { reais } from '../../lib/dinheiro.js';
-import { TZ } from '../../lib/timezone.js';
+import { fusoDe } from '../../lib/timezone.js';
 
 const tenant = tenantDoHost(Astro.request);
 
@@ -20,6 +20,7 @@ const tenant = tenantDoHost(Astro.request);
 // barbearia de quem ler — renderizar mostraria a marca de OUTRO cliente numa
 // página que não é dele (`lib/tenant.ts`, passo 6).
 if (!tenant) return new Response('Barbearia não encontrada', { status: 404 });
+const fuso = fusoDe(tenant);
 
 const s = await getSettings();
 const mapa = linkDoMapa(s);
@@ -54,10 +55,10 @@ if (rows.length === 0) return Astro.redirect('/agendar');
 
 const appt = rows[0];
 const startsAt  = new Date(appt.startsAt);
-const dateLocal = formatInTimeZone(startsAt, TZ, 'dd/MM/yyyy');
-const timeLocal = formatInTimeZone(startsAt, TZ, 'HH:mm');
+const dateLocal = formatInTimeZone(startsAt, fuso, 'dd/MM/yyyy');
+const timeLocal = formatInTimeZone(startsAt, fuso, 'HH:mm');
 
-const weekdayRaw = formatInTimeZone(startsAt, TZ, 'EEEE', { locale: ptBR });
+const weekdayRaw = formatInTimeZone(startsAt, fuso, 'EEEE', { locale: ptBR });
 const weekday    = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
 
 // Itens da comanda criados no agendamento (ex.: produto do Combo Boris a retirar).
@@ -82,13 +83,13 @@ const whatsappUrl = isConfirmed
   : '';
 
 const cancelledLabel = isCancelled && appt.cancelledAt
-  ? formatInTimeZone(new Date(appt.cancelledAt), TZ, "dd/MM/yyyy 'às' HH:mm")
+  ? formatInTimeZone(new Date(appt.cancelledAt), fuso, "dd/MM/yyyy 'às' HH:mm")
   : '';
 
 // Datas para o wizard de reagendamento
-const todayStr      = formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
-const maxDateStr    = formatInTimeZone(new Date(Date.now() + 30 * 86400 * 1000), TZ, 'yyyy-MM-dd');
-const apptDateStr   = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
+const todayStr      = formatInTimeZone(new Date(), fuso, 'yyyy-MM-dd');
+const maxDateStr    = formatInTimeZone(new Date(Date.now() + 30 * 86400 * 1000), fuso, 'yyyy-MM-dd');
+const apptDateStr   = formatInTimeZone(startsAt, fuso, 'yyyy-MM-dd');
 ---
 
 <Layout

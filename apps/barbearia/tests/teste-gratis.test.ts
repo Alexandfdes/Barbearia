@@ -166,7 +166,7 @@ describe.skipIf(!TEM_BANCO)('o painel', () => {
 
 describe.skipIf(!TEM_BANCO)('o cadastro nasce no teste', () => {
   const DADOS = {
-    nome: 'Barbearia Nova', dono: 'José', endereco: 'R. A, 1', cidade: 'Mossoró/RN',
+    nome: 'Barbearia Nova', dono: 'José', endereco: 'R. A, 1', cidade: 'Mossoró/RN', estado: 'RN',
     senha: 'segredo123', email: 'ze@exemplo.com.br',
   };
   const local = (quando: string) => fromZonedTime(quando, 'America/Fortaleza');

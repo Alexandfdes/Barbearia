@@ -6,16 +6,17 @@ import { iconeDaAba } from '../lib/iconeDaAba.js';
 import { situacaoDe } from '../lib/situacao.js';
 import { avisoDoPainel, TELA_DE_ASSINATURA } from '../lib/assinatura.js';
 import { formatInTimeZone } from 'date-fns-tz';
-import { TZ } from '../lib/timezone.js';
+import { fusoDe } from '../lib/timezone.js';
 
 const s = await getSettings();
 const barbearia = tenantAtual();
+const fuso = fusoDe(barbearia);
 // Vazio quando não há domínio próprio nem DOMINIO_BASE: aí o link some,
 // em vez de levar o dono para uma página de "barbearia não encontrada".
 const enderecoDoSite = urlDoSite(barbearia);
 // A faixa do teste e da carência, em toda tela do painel: o prazo que ele não
 // vê é o prazo que ele perde (decisão de 08/10/2026, `lib/assinatura.ts`).
-const aviso = avisoDoPainel(situacaoDe(barbearia));
+const aviso = avisoDoPainel(situacaoDe(barbearia), fuso);
 
 interface Props {
   title?:     string;
@@ -26,7 +27,7 @@ const { title = 'Painel', barberName, role } = Astro.props;
 const path = Astro.url.pathname;
 const norm = path.endsWith('/') && path.length > 1 ? path.slice(0, -1) : path;
 // A agenda de hoje é a do dia da barbearia, não a do servidor (regra 5 do `CLAUDE.md`).
-const hoje = formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
+const hoje = formatInTimeZone(new Date(), fuso, 'yyyy-MM-dd');
 
 /**
  * Navegação em grupos, não em fila de abas.

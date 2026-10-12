@@ -10,6 +10,8 @@ import { getSession } from '../../../lib/session.js';
 import { invalidateSettings } from '../../../lib/settings.js';
 import { derivarAccent, isHex } from '../../../lib/accent.js';
 import { tenantDaSessao } from '../../../lib/tenant.js';
+import { ehFusoDoBrasil, fusoDe } from '../../../lib/timezone.js';
+import { definirFusoDaBarbearia } from '../../../lib/fusoDaBarbearia.js';
 
 /** URL opcional: ou vazia, ou começando com http(s). Evita salvar "instagram.com/x"
  *  sem protocolo, que vira link relativo e quebra dentro do próprio site. */
@@ -51,6 +53,9 @@ const updateSchema = z.object({
   // `accentLight` NÃO vêm do cliente — são derivadas aqui (ver D5.2). Assim o
   // banco nunca guarda um trio inconsistente ou que reprove em contraste.
   accentColor:     z.string().refine(isHex, { message: 'Escolha uma cor no formato #rrggbb' }),
+  // O fuso dos horários (12/10/2026). Não é coluna de `settings`: mora em
+  // `tenants.timezone` e se grava à parte (`lib/fusoDaBarbearia.ts`).
+  fuso:            z.string().refine(ehFusoDoBrasil, { message: 'Escolha um dos fusos da lista' }),
 }).partial();
 
 // GET — devolve a linha 1 crua, para o formulário preencher.
@@ -89,7 +94,8 @@ export const PATCH: APIRoute = async ({ request }) => {
   for (const chave of Object.keys(d) as (keyof typeof d)[]) {
     if (d[chave] === undefined) continue;
     // accentColor é tratado à parte logo abaixo: ele gera três colunas, não uma.
-    if (chave === 'accentColor') continue;
+    // E o fuso não é de `settings` — vai para `tenants`, mais abaixo.
+    if (chave === 'accentColor' || chave === 'fuso') continue;
     // businessHours é array na API e TEXT (JSON) no banco.
     updates[chave] = chave === 'businessHours' ? JSON.stringify(d[chave]) : d[chave];
   }
@@ -105,18 +111,33 @@ export const PATCH: APIRoute = async ({ request }) => {
     updates.accentLight = a.light;
   }
 
-  if (Object.keys(updates).length === 0) return json({ error: 'Nenhum campo para atualizar' }, 400);
+  const trocaFuso = d.fuso !== undefined && d.fuso !== fusoDe(tenant);
+  if (Object.keys(updates).length === 0 && d.fuso === undefined) {
+    return json({ error: 'Nenhum campo para atualizar' }, 400);
+  }
 
-  const existe = await first( db.select({ id: settings.id }).from(settings).where(eq(settings.tenantId, tenant.id)));
-  if (!existe) return json({ error: 'Configuração não encontrada (migration 0009 aplicada?)' }, 404);
+  if (Object.keys(updates).length > 0) {
+    const existe = await first( db.select({ id: settings.id }).from(settings).where(eq(settings.tenantId, tenant.id)));
+    if (!existe) return json({ error: 'Configuração não encontrada (migration 0009 aplicada?)' }, 404);
 
-  updates.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    updates.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-  try {
-    await db.update(settings).set(updates).where(eq(settings.tenantId, tenant.id));
-  } catch (err) {
-    console.error('[api/admin/settings PATCH]', err);
-    return json({ error: 'Falha ao salvar a configuração' }, 500);
+    try {
+      await db.update(settings).set(updates).where(eq(settings.tenantId, tenant.id));
+    } catch (err) {
+      console.error('[api/admin/settings PATCH]', err);
+      return json({ error: 'Falha ao salvar a configuração' }, 500);
+    }
+  }
+
+  // O fuso, só quando mudou: a barbearia da SESSÃO, nunca a do corpo.
+  if (trocaFuso) {
+    try {
+      await definirFusoDaBarbearia(tenant.id, d.fuso!);
+    } catch (err) {
+      console.error('[api/admin/settings PATCH] fuso', err);
+      return json({ error: 'Falha ao salvar o fuso horário' }, 500);
+    }
   }
 
   // ⚠️ Sem isto o painel salva e o site continua mostrando o valor velho até o

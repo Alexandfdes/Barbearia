@@ -13,24 +13,25 @@ import { quantasFotos } from '../../lib/galeria.js';
 import { parseBusinessHours } from '../../lib/settings.js';
 import { reais } from '../../lib/dinheiro.js';
 import { segundaFeiraDaSemana } from '../../lib/calendario.js';
-import { TZ } from '../../lib/timezone.js';
+import { fusoDe } from '../../lib/timezone.js';
 import { buscaDoMapa, embedDoMapa, mapaPrecisaConferir } from '../../lib/mapa.js';
 
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
 const tenant = tenantDaSessao(session);
+const fuso = fusoDe(tenant);
 
 const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
   .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
 const nowUtc = new Date();
-const todayStr = formatInTimeZone(nowUtc, TZ, 'yyyy-MM-dd');
+const todayStr = formatInTimeZone(nowUtc, fuso, 'yyyy-MM-dd');
 
 // ─── Janelas de tempo ──────────────────────────────────────────────────────
-const todayStartUtc = fromZonedTime(`${todayStr}T00:00:00`, TZ).toISOString();
-const todayEndUtc   = fromZonedTime(`${todayStr}T23:59:59`, TZ).toISOString();
+const todayStartUtc = fromZonedTime(`${todayStr}T00:00:00`, fuso).toISOString();
+const todayEndUtc   = fromZonedTime(`${todayStr}T23:59:59`, fuso).toISOString();
 
 function addDaysStr(s: string, n: number): string {
   const [y, m, d] = s.split('-').map(Number);
@@ -46,15 +47,15 @@ function addDaysStr(s: string, n: number): string {
 // semana" e o gráfico erravam de semana: visto ao vivo em 25/09/2026, o gráfico
 // mostrou "SEG 20", e 20/09 foi domingo (`PENDENCIAS-ABERTAS.md` §2.22).
 const mondayStr      = segundaFeiraDaSemana(todayStr);
-const weekStartUtc   = fromZonedTime(`${mondayStr}T00:00:00`, TZ).toISOString();
+const weekStartUtc   = fromZonedTime(`${mondayStr}T00:00:00`, fuso).toISOString();
 const weekEndStr     = addDaysStr(mondayStr, 7);
-const weekEndUtc     = fromZonedTime(`${weekEndStr}T00:00:00`, TZ).toISOString();
+const weekEndUtc     = fromZonedTime(`${weekEndStr}T00:00:00`, fuso).toISOString();
 
 const monthStr       = todayStr.slice(0, 7); // YYYY-MM
-const monthStartUtc  = fromZonedTime(`${monthStr}-01T00:00:00`, TZ).toISOString();
+const monthStartUtc  = fromZonedTime(`${monthStr}-01T00:00:00`, fuso).toISOString();
 const [my, mm] = monthStr.split('-').map(Number);
 const nextMonthStr   = mm === 12 ? `${my + 1}-01` : `${my}-${String(mm + 1).padStart(2, '0')}`;
-const monthEndUtc    = fromZonedTime(`${nextMonthStr}-01T00:00:00`, TZ).toISOString();
+const monthEndUtc    = fromZonedTime(`${nextMonthStr}-01T00:00:00`, fuso).toISOString();
 
 const sevenDaysAgo   = new Date(nowUtc.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -219,8 +220,8 @@ const weekDays: DayBar[] = [];
 const semana = await Promise.all(
   Array.from({ length: 7 }, async (_, i) => {
     const dayStr = addDaysStr(mondayStr, i);
-    const dayStartUtc = fromZonedTime(`${dayStr}T00:00:00`, TZ).toISOString();
-    const dayEndUtc   = fromZonedTime(`${addDaysStr(dayStr, 1)}T00:00:00`, TZ).toISOString();
+    const dayStartUtc = fromZonedTime(`${dayStr}T00:00:00`, fuso).toISOString();
+    const dayEndUtc   = fromZonedTime(`${addDaysStr(dayStr, 1)}T00:00:00`, fuso).toISOString();
     return {
       day:     dayStr,
       label:   String(parseInt(dayStr.slice(-2), 10)),
@@ -235,8 +236,8 @@ const maxRevenue = Math.max(...weekDays.map(d => d.revenue), 1);
 
 // ─── Helpers de display ───────────────────────────────────────────────────
 const fmtMoney = reais;
-const fmtTime  = (iso: string) => formatInTimeZone(new Date(iso), TZ, 'HH:mm');
-const fmtDate  = (iso: string) => formatInTimeZone(new Date(iso), TZ, "dd 'de' MMM");
+const fmtTime  = (iso: string) => formatInTimeZone(new Date(iso), fuso, 'HH:mm');
+const fmtDate  = (iso: string) => formatInTimeZone(new Date(iso), fuso, "dd 'de' MMM");
 
 const upcomingFmt = upcomingRows.map(a => ({
   ...a,
@@ -569,7 +570,7 @@ const mapaParaConferir = cfg && mapaPrecisaConferir(cfg, cfg.mapaConferido)
       ) : (
         <div class="space-y-2">
           {upcomingFmt.map(a => {
-            const path = formatInTimeZone(new Date(a.startsAt), TZ, 'yyyy-MM-dd');
+            const path = formatInTimeZone(new Date(a.startsAt), fuso, 'yyyy-MM-dd');
             return (
               <a href={`/admin/dia/${path}#appt-${a.id}`}
                  class="block bg-white border border-slate-200 hover:border-teal/30 rounded-md p-3 transition-colors">

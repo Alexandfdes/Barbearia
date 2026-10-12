@@ -20,6 +20,7 @@ import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { configDaAsaas } from '../../../../lib/asaas.js';
 import { cancelarAssinatura, ErroDeCobranca } from '../../../../lib/cobranca.js';
 import { ultimoDia } from '../../../../lib/situacao.js';
+import { fusoDe } from '../../../../lib/timezone.js';
 
 export const POST: APIRoute = async ({ request }) => {
   const noAr = await getSession(request);
@@ -34,7 +35,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   try {
     const fim = await cancelarAssinatura(tenant.id, cfg);
-    return json({ ok: true, noArAte: ultimoDia(fim) });
+    return json({ ok: true, noArAte: ultimoDia(fim, fusoDe(tenant)) });
   } catch (erro) {
     if (erro instanceof ErroDeCobranca) return json({ error: erro.message }, erro.status);
     console.error(`[cobrança] o cancelamento da barbearia ${tenant.id} falhou:`, erro instanceof Error ? erro.message : erro);

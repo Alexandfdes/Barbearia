@@ -52,7 +52,7 @@
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import type { TransactionSql } from 'postgres';
 import { sqlConn } from '../db/index.js';
-import { TZ } from './timezone.js';
+import { fusoDe } from './timezone.js';
 import { fimDaCarencia, situacaoDe, type Situacao, type StatusDaBarbearia } from './situacao.js';
 import { NOME_PRODUTO, PRECO_MENSAL } from './produto.js';
 import { TELA_DE_ASSINATURA } from './assinatura.js';
@@ -79,6 +79,8 @@ interface LinhaDaBarbearia {
   subscription_ends_at: Date | string | null;
   asaas_customer_id: string | null;
   asaas_subscription_id: string | null;
+  /** O fuso da barbearia (migration 0013): os prazos acabam na meia-noite dela. */
+  timezone: string;
 }
 
 /**
@@ -92,11 +94,14 @@ interface LinhaDaBarbearia {
  */
 const comoData = (v: unknown): Date | null => (v == null ? null : v instanceof Date ? v : new Date(String(v)));
 
+const fusoDaLinha = (t: LinhaDaBarbearia): string => fusoDe({ fuso: t.timezone });
+
 const situacaoDaLinha = (t: LinhaDaBarbearia, agora: Date): Situacao => situacaoDe({
   status: t.status,
   testeAte: comoData(t.trial_ends_at),
   atrasadaDesde: comoData(t.past_due_since),
   encerraEm: comoData(t.subscription_ends_at),
+  fuso: fusoDaLinha(t),
 }, agora);
 
 /**
@@ -127,7 +132,7 @@ export function podeCadastrarCartao(s: Situacao): boolean {
  *
  * ⚠️ Dia no fuso da barbearia, por `formatInTimeZone` — nunca conta de offset.
  */
-export function dataDaPrimeiraCobranca(s: Situacao, agora: Date = new Date(), fuso: string = TZ): string {
+export function dataDaPrimeiraCobranca(s: Situacao, fuso: string, agora: Date = new Date()): string {
   if (s.fase === 'teste') return formatInTimeZone(s.ate, fuso, 'yyyy-MM-dd');
   if (s.fase === 'ativa' && s.encerraEm && s.encerraEm.getTime() > agora.getTime()) {
     return formatInTimeZone(s.encerraEm, fuso, 'yyyy-MM-dd');
@@ -162,7 +167,7 @@ export interface DonoDaBarbearia {
 async function linhaDaBarbearia(id: number): Promise<LinhaDaBarbearia | null> {
   const [t] = await sqlConn<LinhaDaBarbearia[]>`
     SELECT id, status, trial_ends_at, past_due_since, subscription_ends_at,
-           asaas_customer_id, asaas_subscription_id
+           asaas_customer_id, asaas_subscription_id, timezone
     FROM tenants WHERE id = ${id}`;
   return t ?? null;
 }
@@ -214,7 +219,7 @@ export async function abrirCheckout(o: {
       value: PRECO_MENSAL,
       imageBase64: IMAGEM_DO_ITEM,
     }],
-    subscription: { cycle: 'MONTHLY', nextDueDate: dataDaPrimeiraCobranca(s, agora) },
+    subscription: { cycle: 'MONTHLY', nextDueDate: dataDaPrimeiraCobranca(s, fusoDaLinha(t), agora) },
     // Cliente que já existe na Asaas continua o mesmo — é a chave dos eventos.
     // Novo: os dados que o cadastro tem; o CPF ou CNPJ, a página pede.
     ...(t.asaas_customer_id
@@ -281,7 +286,7 @@ const textoOuNulo = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim(
  * próxima cobrança que não vai mais acontecer. Sem data, ou com ela no passado:
  * agora.
  */
-export function fimDoPeriodoPago(proximoVencimento: string | null | undefined, agora: Date = new Date(), fuso: string = TZ): Date {
+export function fimDoPeriodoPago(proximoVencimento: string | null | undefined, fuso: string, agora: Date = new Date()): Date {
   if (proximoVencimento && /^\d{4}-\d{2}-\d{2}$/.test(proximoVencimento)) {
     const fim = fromZonedTime(`${proximoVencimento}T00:00:00`, fuso);
     if (fim.getTime() > agora.getTime()) return fim;
@@ -317,7 +322,7 @@ async function acharBarbearia(tx: Tx, e: EventoAsaas): Promise<{ t: LinhaDaBarbe
     if (!chave) continue;
     const achadas = await tx<LinhaDaBarbearia[]>`
       SELECT id, status, trial_ends_at, past_due_since, subscription_ends_at,
-             asaas_customer_id, asaas_subscription_id
+             asaas_customer_id, asaas_subscription_id, timezone
       FROM tenants WHERE ${chave}
       ORDER BY id LIMIT 2 FOR UPDATE`;
     if (achadas.length === 1) return { t: achadas[0], ambigua: false };
@@ -429,7 +434,7 @@ async function aplicar(tx: Tx, e: EventoAsaas, t: LinhaDaBarbearia, agora: Date,
     // com a cobrança atrasada, que é o fim da carência, não o próximo vencimento.
     if (t.subscription_ends_at) return 'nada muda: a saída já estava marcada pelo cancelamento no painel';
     // Removida na Asaas, por fora do painel: no ar até o fim do período pago.
-    const fim = fimDoPeriodoPago(e.subscription?.nextDueDate, agora);
+    const fim = fimDoPeriodoPago(e.subscription?.nextDueDate, fusoDaLinha(t), agora);
     await tx`UPDATE tenants SET subscription_ends_at = ${fim.toISOString()}::timestamptz WHERE id = ${t.id}`;
     return 'assinatura encerrada: no ar até o fim do período pago';
   }
@@ -545,8 +550,8 @@ export async function cancelarAssinatura(tenantId: number, cfg: asaas.ConfigAsaa
   const maior = (a: Date, b: Date) => (b.getTime() > a.getTime() ? b : a);
   const atrasadaDesde = comoData(t.past_due_since);
   const fim = t.status === 'past_due'
-    ? (atrasadaDesde ? maior(agora, fimDaCarencia(atrasadaDesde)) : agora)
-    : alvos.reduce((m, a) => maior(m, fimDoPeriodoPago(a.nextDueDate, agora)), agora);
+    ? (atrasadaDesde ? maior(agora, fimDaCarencia(atrasadaDesde, fusoDaLinha(t))) : agora)
+    : alvos.reduce((m, a) => maior(m, fimDoPeriodoPago(a.nextDueDate, fusoDaLinha(t), agora)), agora);
 
   for (const a of alvos) await asaas.removerAssinatura(cfg, a.id);
   // Só se nada mudou desde a leitura: um pagamento que chegou no meio já pôs a

@@ -12,9 +12,16 @@
  *     --dono="José da Silva" \
  *     --telefone="84 99999-0000" \
  *     --endereco="Rua das Flores, 42" \
- *     --cidade="Mossoró/RN"
+ *     --cidade="Mossoró" --estado=RN
+ *
+ * O estado decide o fuso dos horários da barbearia (`fusoDoEstado`, em
+ * `src/lib/timezone.ts`). Sem `--estado`, vale a sigla no fim da cidade
+ * ("Mossoró/RN"); sem nenhuma das duas, o script recusa — um fuso calado poria a
+ * barbearia uma hora adiantada em tudo.
  *
  * Opcionais:
+ *   --fuso=America/Eirunepe  o fuso direto, por cima do estado — para a ponta de
+ *                        estado com dois fusos (oeste do Amazonas, Noronha)
  *   --cor=#7c3aed        cor de destaque da marca (o contraste é derivado)
  *   --dominio=x.com.br   domínio próprio; sem isso usa só o subdomínio
  *   --curto="Cortes"     nome curto (o do topo e do rodapé); sem isso, o --nome
@@ -41,6 +48,7 @@
 import postgres from 'postgres';
 import { provisionarBarbearia } from '../src/lib/provisionarBarbearia.js';
 import { ultimoDia } from '../src/lib/situacao.js';
+import { deslocamento, rotuloDoFuso } from '../src/lib/timezone.js';
 
 const BCRYPT_COST = 12;
 
@@ -92,6 +100,8 @@ const dono = arg('dono');
 const telefone = arg('telefone');
 const endereco = arg('endereco');
 const cidade = arg('cidade');
+const estado = arg('estado');
+const fuso = arg('fuso');
 const curto = arg('curto');
 const telefoneDono = arg('telefone-dono');
 const cor = arg('cor');
@@ -118,7 +128,7 @@ const sql = postgres(url, { max: 1, onnotice: () => {} });
 
 try {
   const r = await provisionarBarbearia(sql, {
-    slug, nome, dono, telefone, endereco, cidade, senha,
+    slug, nome, dono, telefone, endereco, cidade, estado, fuso, senha,
     curto, telefoneDono, cor, dominio, semTeste,
   });
 
@@ -126,6 +136,9 @@ try {
     console.error(`\nERRO (${r.campo}): ${r.erro}`);
     if (r.campo === 'telefone-dono' && r.conflito) {
       console.error('Use --telefone-dono com outro número.');
+    }
+    if (r.campo === 'estado') {
+      console.error('Use --estado=RN (a sigla), ou --fuso=America/... para escolher o fuso direto.');
     }
     process.exit(1);
   }
@@ -135,9 +148,10 @@ try {
   console.log(`  dono        ${dono}`);
   console.log(`  entra com   ${r.telefoneLogin}  (WhatsApp, não usuário)`);
   console.log(`  cor         ${r.accent.color}${r.corVeioDoCliente ? '' : ' (padrão)'}`);
+  console.log(`  fuso        ${rotuloDoFuso(r.fuso)} (${r.fuso}, ${deslocamento(r.fuso)})`);
   console.log(`  horário     seg–sex 09:00–19:00, sáb 09:00–18:00`);
   console.log(r.testeAte
-    ? `  teste       até ${ultimoDia(r.testeAte, undefined, 'dd/MM/yyyy')} — depois, 3 dias de carência e fora do ar sem cartão`
+    ? `  teste       até ${ultimoDia(r.testeAte, r.fuso, 'dd/MM/yyyy')} — depois, 3 dias de carência e fora do ar sem cartão`
     : `  teste       nenhum: nasceu pagando (--sem-teste)`);
   console.log(`\n  ⓘ  Se o painel já estiver no ar, ele leva até 30s para enxergar`);
   console.log(`     esta barbearia — é o cache de tenants (src/lib/tenant.ts).`);

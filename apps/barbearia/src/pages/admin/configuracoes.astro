@@ -10,6 +10,7 @@ import { barbers, settings } from '../../db/schema.js';
 import { and, eq } from 'drizzle-orm';
 import { parseBusinessHours } from '../../lib/settings.js';
 import { embedDoMapa } from '../../lib/mapa.js';
+import { FUSOS_DO_BRASIL, deslocamento, fusoDe } from '../../lib/timezone.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
@@ -25,12 +26,17 @@ const cfg = (await first(db.select().from(settings).where(eq(settings.tenantId, 
 const horarios = parseBusinessHours(cfg?.businessHours);
 // O mapa que o site mostra agora — a prévia abaixo do endereço (`lib/mapa.ts`).
 const mapaAgora = cfg ? embedDoMapa(cfg) : null;
+// O fuso dos horários (`tenants.timezone`, 12/10/2026): nasce do estado do
+// cadastro e se troca aqui. A distância do UTC é a de hoje — é ela que muda se o
+// horário de verão voltar num estado e não no outro.
+const fusoAtual = fusoDe(tenant);
+const opcoesDeFuso = FUSOS_DO_BRASIL.map((f) => ({ id: f.id, texto: `${f.rotulo} · ${deslocamento(f.id)}` }));
 
 type Campo = {
   id: string;
   label: string;
   hint?: string;
-  tipo?: 'text' | 'textarea' | 'number';
+  tipo?: 'text' | 'textarea' | 'number' | 'fuso';
   placeholder?: string;
 };
 
@@ -66,6 +72,7 @@ const secoes: { titulo: string; nota?: string; campos: Campo[]; ancora?: string;
     campos: [
       { id: 'addressStreet', label: 'Rua e número', placeholder: 'R. Exemplo, 123' },
       { id: 'addressCity', label: 'Cidade/UF', hint: 'Escreva no formato Cidade/UF — o site divide os dois para o Google.', placeholder: 'Mossoró/RN' },
+      { id: 'fuso', label: 'Fuso horário', tipo: 'fuso', hint: 'Todo horário do site, da agenda e dos e-mails segue este fuso. Ele veio do estado no cadastro; troque se a sua cidade está numa ponta de estado com outro fuso.' },
       // Desde 10/10/2026 os dois são opcionais: em branco, o mapa e a rota saem do endereço
       // (`lib/mapa.ts`). Antes, sem o link, o "Traçar rota" abria o próprio site.
       { id: 'mapsUrl', label: 'Link "traçar rota"', hint: 'Opcional. Em branco, o site monta a rota pelo endereço. Preenchido, é ele que todo botão de mapa do site abre — pode ser do Google Maps ou do Waze.' },
@@ -123,7 +130,18 @@ const valor = (id: string): string => {
             {secao.campos.map((campo) => (
               <div>
                 <label for={campo.id} class="block text-xs font-medium text-slate-500 mb-1.5">{campo.label}</label>
-                {campo.tipo === 'textarea' ? (
+                {campo.tipo === 'fuso' ? (
+                  <>
+                    <select
+                      id={campo.id}
+                      data-campo={campo.id}
+                      class="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-sm text-slate-900 focus:border-teal/50 focus:outline-none transition-colors"
+                    >
+                      {opcoesDeFuso.map((o) => <option value={o.id} selected={o.id === fusoAtual}>{o.texto}</option>)}
+                    </select>
+                    <p id="fuso-agora" class="text-[11px] text-slate-500 mt-1.5" aria-live="polite"></p>
+                  </>
+                ) : campo.tipo === 'textarea' ? (
                   <textarea
                     id={campo.id}
                     data-campo={campo.id}
@@ -308,6 +326,21 @@ const valor = (id: string): string => {
   // aparece aqui ser exatamente o que vai para o site — sem lógica duplicada.
   import { derivarAccent, ACCENT_PADRAO } from '../../lib/accent.js';
   import { embedDoMapa } from '../../lib/mapa.js';
+
+  // O fuso dos horários: a hora de agora no fuso escolhido, para o dono conferir
+  // antes de salvar — "lá são 22:41?" responde melhor que "UTC−4".
+  const seletorDeFuso = document.getElementById('fuso') as HTMLSelectElement | null;
+  const fusoAgora = document.getElementById('fuso-agora');
+  if (seletorDeFuso && fusoAgora) {
+    const dizerAgora = () => {
+      const hora = new Intl.DateTimeFormat('pt-BR', {
+        timeZone: seletorDeFuso.value, hour: '2-digit', minute: '2-digit',
+      }).format(new Date());
+      fusoAgora.textContent = `Nesse fuso, agora são ${hora}.`;
+    };
+    seletorDeFuso.addEventListener('change', dizerAgora);
+    dizerAgora();
+  }
 
   // Prévia do mapa — a MESMA função do site (`lib/mapa.ts`), como a da cor abaixo:
   // o ponto que aparece aqui é o que o site vai mostrar. Espera o dono parar de

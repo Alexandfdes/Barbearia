@@ -3,13 +3,13 @@ import { barberServices, workingHours, appointments, timeOff } from '../db/schem
 import { eq, and, or, isNull, gte, lt, gt, ne } from 'drizzle-orm';
 import { fromZonedTime } from 'date-fns-tz';
 import { computeAvailableSlots } from './slotsCore.js';
-import { TZ } from './timezone.js';
+import { fusoDe } from './timezone.js';
 import { tenantAtual, type Tenant } from './tenant.js';
 
 
-/** Combina "YYYY-MM-DD" + "HH:MM" no fuso de Fortaleza e devolve Date UTC */
-function localToUtc(dateStr: string, timeStr: string): Date {
-  return fromZonedTime(`${dateStr}T${timeStr}:00`, TZ);
+/** Combina "YYYY-MM-DD" + "HH:MM" no fuso DA BARBEARIA e devolve Date UTC */
+function localToUtc(dateStr: string, timeStr: string, fuso: string): Date {
+  return fromZonedTime(`${dateStr}T${timeStr}:00`, fuso);
 }
 
 /** Dia da semana (0=dom…6=sáb) a partir de "YYYY-MM-DD" */
@@ -23,7 +23,7 @@ function weekdayOf(dateStr: string): number {
  * Faz a leitura do banco e delega o cálculo para computeAvailableSlots (puro).
  * @param barberId             ID do barbeiro
  * @param serviceId            ID do serviço
- * @param dateStr              Data "YYYY-MM-DD" (fuso de Fortaleza)
+ * @param dateStr              Data "YYYY-MM-DD", no calendário da barbearia
  * @param excludeAppointmentId Ignora esse appointment no cálculo (reagendamento)
  * @param tenant               De quem é a agenda. Vem do resolvedor, nunca da query.
  *
@@ -88,8 +88,8 @@ async function slotsForWindow(
   duration: number,
   excludeAppointmentId?: number
 ): Promise<Date[]> {
-  const open  = localToUtc(dateStr, startTime);
-  const close = localToUtc(dateStr, endTime);
+  const open  = localToUtc(dateStr, startTime, fusoDe(tenant));
+  const close = localToUtc(dateStr, endTime, fusoDe(tenant));
   const openIso  = open.toISOString();
   const closeIso = close.toISOString();
 

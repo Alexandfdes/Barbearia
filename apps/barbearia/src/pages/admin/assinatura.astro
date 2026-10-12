@@ -32,7 +32,7 @@ import { explicacaoDaSituacao, ROTA_DO_CANCELAMENTO, ROTA_DO_CARTAO } from '../.
 import { configDaAsaas } from '../../lib/asaas.js';
 import { dataDaPrimeiraCobranca, podeCadastrarCartao, temAssinaturaNaAsaas } from '../../lib/cobranca.js';
 import { PRECO_MENSAL } from '../../lib/produto.js';
-import { TZ } from '../../lib/timezone.js';
+import { fusoDe } from '../../lib/timezone.js';
 import { waPhone, waLink } from '../../lib/whatsapp.js';
 
 // No ar, a sessão de sempre; fora do ar, a única que abre esta tela.
@@ -42,6 +42,7 @@ if (!sessaoNoAr && !fora) return Astro.redirect('/admin/login');
 
 const session = sessaoNoAr ?? fora!.sessao;
 const tenant = sessaoNoAr ? tenantDaSessao(sessaoNoAr) : fora!.tenant;
+const fuso = fusoDe(tenant);
 const situacao = situacaoDe(tenant);
 const foraDoAr = situacao.fase === 'suspensa';
 
@@ -89,7 +90,7 @@ const textoDoCancelamento = !atrasada
     'de novo o site volta.'
   : 'Cancelar: a Asaas para de tentar cobrar o cartão, e a mensalidade que não passou deixa de ' +
     'existir. O site não ganha dias a mais: ' +
-    (situacao.fase === 'carencia' ? `fica no ar até ${ultimoDia(situacao.ate)} e depois sai` : 'continua fora do ar') +
+    (situacao.fase === 'carencia' ? `fica no ar até ${ultimoDia(situacao.ate, fuso)} e depois sai` : 'continua fora do ar') +
     '. Nada é apagado, e assinando de novo o site volta.';
 
 const rotuloDoBotao =
@@ -99,8 +100,8 @@ const rotuloDoBotao =
   : 'Cadastrar o cartão';
 
 // Quando cobra, dito antes de ele ir para a página de pagamento.
-const primeira = podeCartao ? dataDaPrimeiraCobranca(situacao) : null;
-const hoje = formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
+const primeira = podeCartao ? dataDaPrimeiraCobranca(situacao, fuso) : null;
+const hoje = formatInTimeZone(new Date(), fuso, 'yyyy-MM-dd');
 const quandoCobra = !primeira ? ''
   : primeira <= hoje ? 'A mensalidade é cobrada hoje, ao cadastrar o cartão.'
   : `A primeira mensalidade é cobrada em ${primeira.slice(8, 10)}/${primeira.slice(5, 7)}; até lá, nada é cobrado.`;
@@ -125,7 +126,7 @@ const titulo = foraDoAr ? 'O site está fora do ar' : 'Assinatura';
 
     <div>
       <h1 class="text-lg font-medium text-slate-900">{titulo}</h1>
-      <p id="situacao" class="text-sm text-slate-600 mt-2 max-w-[65ch]">{explicacaoDaSituacao(situacao)}</p>
+      <p id="situacao" class="text-sm text-slate-600 mt-2 max-w-[65ch]">{explicacaoDaSituacao(situacao, fuso)}</p>
       {/* Para onde vão os avisos por e-mail (`lib/avisos.ts`) — o dono precisa saber, e
           o e-mail digitado errado no cadastro só aparece aqui ou no aviso que não chega. */}
       {dono && (
@@ -218,7 +219,7 @@ const titulo = foraDoAr ? 'O site está fora do ar' : 'Assinatura';
             {proximos.map((p) => (
               <li class="px-4 py-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
                 <span class="tabular-nums font-medium text-slate-900 whitespace-nowrap">
-                  {formatInTimeZone(new Date(p.inicio), TZ, "EEE dd/MM 'às' HH:mm", { locale: ptBR })}
+                  {formatInTimeZone(new Date(p.inicio), fuso, "EEE dd/MM 'às' HH:mm", { locale: ptBR })}
                 </span>
                 <span class="text-slate-700">{p.cliente}</span>
                 <span class="text-slate-500">{p.servico}{dono ? ` · com ${p.barbeiro}` : ''}</span>

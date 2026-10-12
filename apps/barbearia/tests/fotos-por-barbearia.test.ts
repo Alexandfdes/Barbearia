@@ -23,8 +23,8 @@ import { mkdtempSync, existsSync, rmSync, writeFileSync, mkdirSync } from 'node:
 import { tmpdir } from 'node:os';
 import type { Tenant } from '../src/lib/tenant.js';
 
-const BAYRON: Tenant  = { id: 1, slug: 'bayron',  status: 'active', domain: null };
-const VINTAGE: Tenant = { id: 2, slug: 'vintage', status: 'active', domain: null };
+const BAYRON: Tenant  = { id: 1, slug: 'bayron',  status: 'active', domain: null, fuso: 'America/Fortaleza' };
+const VINTAGE: Tenant = { id: 2, slug: 'vintage', status: 'active', domain: null, fuso: 'America/Fortaleza' };
 
 let raiz = '';
 

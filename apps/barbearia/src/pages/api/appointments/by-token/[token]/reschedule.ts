@@ -11,7 +11,7 @@ import { json } from '../../../../../lib/api.js';
 import { reagendarAtomicamente } from '../../../../../lib/reagendar.js';
 import { tenantDoHost } from '../../../../../lib/tenant.js';
 import { avisarMudancaNaAgenda } from '../../../../../lib/avisoDeAgenda.js';
-import { TZ } from '../../../../../lib/timezone.js';
+import { fusoDe } from '../../../../../lib/timezone.js';
 
 
 const bodySchema = z.object({
@@ -28,6 +28,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   // Endereço que não é de barbearia nenhuma. 404 de propósito: servir o site da
   // barbearia errada é pior que não servir nada (`lib/tenant.ts`, passo 6).
   if (!tenant) return json({ error: 'Barbearia não encontrada' }, 404);
+  const fuso = fusoDe(tenant);
   const { token } = params;
   if (!token) return json({ error: 'Token inválido' }, 400);
 
@@ -42,9 +43,9 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   // Limites de janela
   const now        = new Date();
-  const todayStr   = formatInTimeZone(now, TZ, 'yyyy-MM-dd');
-  const maxDateStr = formatInTimeZone(addDays(now, 30), TZ, 'yyyy-MM-dd');
-  const newDateStr = formatInTimeZone(newStart, TZ, 'yyyy-MM-dd');
+  const todayStr   = formatInTimeZone(now, fuso, 'yyyy-MM-dd');
+  const maxDateStr = formatInTimeZone(addDays(now, 30), fuso, 'yyyy-MM-dd');
+  const newDateStr = formatInTimeZone(newStart, fuso, 'yyyy-MM-dd');
 
   if (newStart < now)           return json({ error: 'Não é possível reagendar para o passado' }, 400);
   if (newDateStr < todayStr)    return json({ error: 'Data no passado' }, 400);
@@ -86,8 +87,8 @@ export const POST: APIRoute = async ({ params, request }) => {
   // O slot precisa caber inteiro em ALGUMA janela do dia (o dia pode ter mais de
   // um turno: manhã + tarde). Mesma regra do bookAppointment.
   const fitsAnyWindow = whRows.some(wh => {
-    const open  = fromZonedTime(`${newDateStr}T${wh.startTime}:00`, TZ);
-    const close = fromZonedTime(`${newDateStr}T${wh.endTime}:00`,   TZ);
+    const open  = fromZonedTime(`${newDateStr}T${wh.startTime}:00`, fuso);
+    const close = fromZonedTime(`${newDateStr}T${wh.endTime}:00`,   fuso);
     return newStart >= open && newEnd <= close;
   });
 
@@ -131,8 +132,8 @@ export const POST: APIRoute = async ({ params, request }) => {
       ok: true,
       startsAt:  newStartIso,
       endsAt:    newEndIso,
-      dateLocal: formatInTimeZone(newStart, TZ, 'dd/MM/yyyy'),
-      timeLocal: formatInTimeZone(newStart, TZ, 'HH:mm'),
+      dateLocal: formatInTimeZone(newStart, fuso, 'dd/MM/yyyy'),
+      timeLocal: formatInTimeZone(newStart, fuso, 'HH:mm'),
     });
   } catch (err) {
     console.error('[api/appointments/by-token/reschedule POST]', err);

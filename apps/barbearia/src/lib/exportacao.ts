@@ -33,7 +33,6 @@
 import { sql } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
 import { db } from '../db/index.js';
-import { TZ } from './timezone.js';
 import { formatarTelefone } from './phone.js';
 
 export const ROTA_DOS_CLIENTES = '/api/admin/exportar/clientes.csv';
@@ -72,11 +71,11 @@ export function dataDeCalendario(iso: string | null | undefined): string {
 }
 
 /** Um instante (ISO, ou o "aaaa-mm-dd hh:mm:ss" UTC das colunas `created_at`) no fuso da barbearia. */
-export function noFuso(instante: string | null | undefined, formato: string): string {
+export function noFuso(instante: string | null | undefined, formato: string, fuso: string): string {
   if (!instante) return '';
   const iso = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(instante) ? `${instante.replace(' ', 'T')}Z` : instante;
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : formatInTimeZone(d, TZ, formato);
+  return Number.isNaN(d.getTime()) ? '' : formatInTimeZone(d, fuso, formato);
 }
 
 const SITUACAO: Record<string, string> = {
@@ -86,8 +85,8 @@ const QUEM_DESMARCOU: Record<string, string> = { customer: 'Cliente', barber: 'B
 const QUEM_MARCOU: Record<string, string> = { customer: 'Cliente, pelo site', barber: 'Barbearia, pelo painel' };
 
 /** O nome do arquivo baixado: `clientes-<endereço>-<dia>.csv`. */
-export function nomeDoArquivo(tipo: 'clientes' | 'agendamentos', slug: string, agora: Date = new Date()): string {
-  return `${tipo}-${slug}-${formatInTimeZone(agora, TZ, 'yyyy-MM-dd')}.csv`;
+export function nomeDoArquivo(tipo: 'clientes' | 'agendamentos', slug: string, fuso: string, agora: Date = new Date()): string {
+  return `${tipo}-${slug}-${formatInTimeZone(agora, fuso, 'yyyy-MM-dd')}.csv`;
 }
 
 export function respostaCsv(nome: string, conteudo: string): Response {
@@ -135,18 +134,19 @@ async function agendamentosComExtras(tenantId: number): Promise<{ ags: LinhaDoAg
   return { ags, extras };
 }
 
-export async function arquivoDosAgendamentos(tenantId: number): Promise<{ conteudo: string; linhas: number }> {
+/** `fuso`: o da barbearia — o dia e a hora de cada agendamento são os dela. */
+export async function arquivoDosAgendamentos(tenantId: number, fuso: string): Promise<{ conteudo: string; linhas: number }> {
   const { ags, extras } = await agendamentosComExtras(tenantId);
   const linhas = ags.map((a) => {
     const deste = extras.get(a.id) ?? [];
     return [
-      noFuso(a.starts_at, 'dd/MM/yyyy'), noFuso(a.starts_at, 'HH:mm'), a.duration_minutes,
+      noFuso(a.starts_at, 'dd/MM/yyyy', fuso), noFuso(a.starts_at, 'HH:mm', fuso), a.duration_minutes,
       a.customer_name, formatarTelefone(a.customer_phone), dataDeCalendario(a.customer_birthdate),
       a.servico ?? '', a.barbeiro ?? '', dinheiroDaPlanilha(a.price_cents),
       deste.length ? dinheiroDaPlanilha(deste.reduce((s, i) => s + i.price_cents, 0)) : '',
       deste.map((i) => i.name).join(', '),
       SITUACAO[a.status] ?? a.status, a.cancelled_by ? QUEM_DESMARCOU[a.cancelled_by] ?? a.cancelled_by : '',
-      a.notes ?? '', noFuso(a.created_at, 'dd/MM/yyyy HH:mm'), QUEM_MARCOU[a.created_by] ?? a.created_by,
+      a.notes ?? '', noFuso(a.created_at, 'dd/MM/yyyy HH:mm', fuso), QUEM_MARCOU[a.created_by] ?? a.created_by,
     ];
   });
   return { conteudo: arquivoCsv(CABECALHO_DOS_AGENDAMENTOS, linhas), linhas: linhas.length };
@@ -171,7 +171,7 @@ interface Cliente {
  * cliente e entra na lista. O nome é o do agendamento mais recente: gente
  * corrige o próprio nome entre uma visita e outra.
  */
-export async function arquivoDosClientes(tenantId: number): Promise<{ conteudo: string; linhas: number }> {
+export async function arquivoDosClientes(tenantId: number, fuso: string): Promise<{ conteudo: string; linhas: number }> {
   const { ags, extras } = await agendamentosComExtras(tenantId);
   const reservas = await db.execute(sql`
     SELECT customer_phone, customer_name, created_at FROM reservations
@@ -217,7 +217,7 @@ export async function arquivoDosClientes(tenantId: number): Promise<{ conteudo: 
     .map(([tel, c]) => [
       c.nome, formatarTelefone(tel), dataDeCalendario(c.nascimento), c.agendamentos, c.atendidos, c.faltas,
       c.desmarcados, dinheiroDaPlanilha(c.gastoCentavos), c.reservas,
-      noFuso(c.primeiro, 'dd/MM/yyyy'), noFuso(c.ultimo, 'dd/MM/yyyy'),
+      noFuso(c.primeiro, 'dd/MM/yyyy', fuso), noFuso(c.ultimo, 'dd/MM/yyyy', fuso),
     ]);
   return { conteudo: arquivoCsv(CABECALHO_DOS_CLIENTES, linhas), linhas: linhas.length };
 }

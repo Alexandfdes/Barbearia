@@ -14,7 +14,7 @@ import { comboValeNaData } from '../../../lib/combo.js';
 import { checkRateLimit } from '../../../lib/rateLimit.js';
 import { getClientIp } from '../../../lib/clientIp.js';
 import { tenantDoHost } from '../../../lib/tenant.js';
-import { TZ } from '../../../lib/timezone.js';
+import { fusoDe } from '../../../lib/timezone.js';
 
 // Idade mínima 5 anos, máxima 100 anos — só sanidade
 const MIN_BIRTH_AGE_YEARS = 5;
@@ -47,6 +47,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   // Endereço que não é de barbearia nenhuma. 404 de propósito: servir o site da
   // barbearia errada é pior que não servir nada (`lib/tenant.ts`, passo 6).
   if (!tenant) return json({ error: 'Barbearia não encontrada' }, 404);
+  const fuso = fusoDe(tenant);
   // IP real do cliente atrás do proxy (resistente a spoofing do x-forwarded-for)
   const ip = getClientIp(request, clientAddress);
 
@@ -114,7 +115,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   // o serviço e o produto, e entrava no relatório como receita normal
   // (`PENDENCIAS-ABERTAS.md` §2.16). O calendário do `/agendar` já fecha os
   // outros dias; esta é a regra que o link editado à mão não contorna.
-  if (diasDoCombo !== null && !comboValeNaData(diasDoCombo, formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd'))) {
+  if (diasDoCombo !== null && !comboValeNaData(diasDoCombo, formatInTimeZone(startsAt, fuso, 'yyyy-MM-dd'))) {
     return json({ error: 'Este combo não vale neste dia da semana' }, 400);
   }
 

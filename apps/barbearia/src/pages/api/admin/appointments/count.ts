@@ -7,7 +7,7 @@ import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { fromZonedTime } from 'date-fns-tz';
 import { tenantDaSessao, type Tenant } from '../../../../lib/tenant.js';
-import { TZ } from '../../../../lib/timezone.js';
+import { fusoDe } from '../../../../lib/timezone.js';
 
 /**
  * GET /api/admin/appointments/count?date=YYYY-MM-DD[&barber=N]
@@ -45,6 +45,7 @@ export const GET: APIRoute = async ({ request, url }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
   const tenant = tenantDaSessao(session);
+  const fuso = fusoDe(tenant);
 
   const date = url.searchParams.get('date');
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -62,8 +63,8 @@ export const GET: APIRoute = async ({ request, url }) => {
     barberFilter = session.barberId;
   }
 
-  const startIso = fromZonedTime(`${date}T00:00:00`, TZ).toISOString();
-  const endIso   = fromZonedTime(`${date}T23:59:59`, TZ).toISOString();
+  const startIso = fromZonedTime(`${date}T00:00:00`, fuso).toISOString();
+  const endIso   = fromZonedTime(`${date}T23:59:59`, fuso).toISOString();
 
   const r = await contar(barberFilter, startIso, endIso, tenant);
   return json({ ok: true, count: Number(r?.c ?? 0), maxModified: r?.maxModified ?? '' });

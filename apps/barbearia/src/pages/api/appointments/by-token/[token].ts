@@ -8,7 +8,7 @@ import { appointments, barbers, services } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSettings, waUrl } from '../../../../lib/settings.js';
 import { tenantDoHost } from '../../../../lib/tenant.js';
-import { TZ } from '../../../../lib/timezone.js';
+import { fusoDe } from '../../../../lib/timezone.js';
 
 
 export const GET: APIRoute = async ({ params, request }) => {
@@ -16,6 +16,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   // Endereço que não é de barbearia nenhuma. 404 de propósito: servir o site da
   // barbearia errada é pior que não servir nada (`lib/tenant.ts`, passo 6).
   if (!tenant) return json({ error: 'Barbearia não encontrada' }, 404);
+  const fuso = fusoDe(tenant);
   const { token } = params;
   if (!token) return json({ error: 'Token inválido' }, 400);
 
@@ -48,8 +49,8 @@ export const GET: APIRoute = async ({ params, request }) => {
 
     const appt = rows[0];
     const startsAtDate = new Date(appt.startsAt);
-    const dateLocal = formatInTimeZone(startsAtDate, TZ, 'dd/MM/yyyy');
-    const timeLocal = formatInTimeZone(startsAtDate, TZ, 'HH:mm');
+    const dateLocal = formatInTimeZone(startsAtDate, fuso, 'dd/MM/yyyy');
+    const timeLocal = formatInTimeZone(startsAtDate, fuso, 'HH:mm');
 
     const s = await getSettings();
     const whatsappText = s.whatsappNumber
