@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { sql } from 'drizzle-orm';
 import { db, first } from '../../../db/index.js';
 import { json } from '../../../lib/api.js';
-import { checkRateLimit } from '../../../lib/rateLimit.js';
+import { checkRateLimit, resetRateLimit } from '../../../lib/rateLimit.js';
 import { getClientIp } from '../../../lib/clientIp.js';
 import { makeCustomerSessionCookie, normalizePhone } from '../../../lib/customerSession.js';
 import { tenantDoHost, type Tenant } from '../../../lib/tenant.js';
@@ -74,6 +74,30 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   const compareKey = phone.length >= 11 ? phone.slice(-11) : phone;
   const birthdate  = parsed.data.birthdate;
 
+  // ── Limite por TELEFONE, além do por IP (`PENDENCIAS-ABERTAS.md` §2.33, item 2) ──
+  //
+  // A data de nascimento é a senha da área do cliente (mantido pelo dono em
+  // 11/10/2026), e o limite por IP acima não segura quem troca de endereço: o
+  // alvo é o telefone. Duas janelas: 5 tentativas a cada 15 minutos e 10 por dia.
+  // A conta que importa: são ~23 mil datas possíveis para um adulto, e 10 por dia
+  // são anos para varrer todas. Com o limite só por IP, quem tem muitos endereços
+  // não tinha limite nenhum; com um endereço só, eram umas sete semanas.
+  //
+  // ⚠️ O custo, aceito: qualquer um bloqueia por um dia a área do cliente de um
+  // telefone, errando de propósito. É a área de consulta — agendar pelo site
+  // continua funcionando para ele. E o limite mora na memória do processo
+  // (`lib/rateLimit.ts`): zera a cada deploy. Quem sabe a data (rede social,
+  // aniversário em grupo) entra na primeira tentativa: isto atrasa quem chuta,
+  // não protege de quem sabe.
+  //
+  // A chave leva a barbearia: o mesmo telefone pode ser cliente de duas.
+  // A janela curta vem primeiro, e o que ela recusa não gasta a cota do dia.
+  const chaveCurta = `customer-login-tel:${tenant.id}:${compareKey}`;
+  const chaveDoDia = `customer-login-tel-dia:${tenant.id}:${compareKey}`;
+  const muitas = { error: 'Muitas tentativas com este telefone. Tente novamente mais tarde.' };
+  if (!checkRateLimit(chaveCurta, { maxTries: 5, windowMs: 15 * 60 * 1000 }).ok) return json(muitas, 429);
+  if (!checkRateLimit(chaveDoDia, { maxTries: 10, windowMs: 24 * 60 * 60 * 1000 }).ok) return json(muitas, 429);
+
   const match = await contarComBirthdate(compareKey, birthdate, tenant);
 
   if (match === 0) {
@@ -89,6 +113,11 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     // Resposta genérica: não confirma se o telefone existe ou não
     return json({ error: 'Telefone ou data de nascimento não conferem.' }, 404);
   }
+
+  // Acertou: a cota do telefone volta inteira — quem errou o dia duas vezes antes
+  // de acertar não fica mais perto do bloqueio na próxima visita.
+  resetRateLimit(chaveCurta);
+  resetRateLimit(chaveDoDia);
 
   const cookie = await makeCustomerSessionCookie({ phone: compareKey, birthdate });
   return new Response(JSON.stringify({ ok: true }), {
