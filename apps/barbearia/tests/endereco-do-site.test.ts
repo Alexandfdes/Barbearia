@@ -17,8 +17,8 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { readFileSync, globSync } from 'node:fs';
 import { enderecoPublicoDe, type Tenant } from '../src/lib/tenant.js';
 
-const vintage: Tenant = { id: 7, slug: 'vintage', status: 'active', domain: null };
-const comDominio: Tenant = { id: 8, slug: 'ze', status: 'active', domain: 'barbeariadoze.com.br' };
+const vintage: Tenant = { id: 7, slug: 'vintage', status: 'active', domain: null, fuso: 'America/Fortaleza' };
+const comDominio: Tenant = { id: 8, slug: 'ze', status: 'active', domain: 'barbeariadoze.com.br', fuso: 'America/Fortaleza' };
 
 const baseAntes = process.env.DOMINIO_BASE;
 afterEach(() => {

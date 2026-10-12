@@ -37,7 +37,7 @@ import { appointments, barbers, services } from '../db/schema.js';
 import { enviarEmail, mascararEmail, normalizarEmail, type Email } from './email.js';
 import { getSettings } from './settings.js';
 import { urlDoPainel, type Tenant } from './tenant.js';
-import { TZ } from './timezone.js';
+import { fusoDe } from './timezone.js';
 import { diaDaSemana } from './calendario.js';
 import { formatarTelefone } from './phone.js';
 import { waLink, waPhone } from './whatsapp.js';
@@ -66,18 +66,18 @@ const DIAS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quint
 const DIAS_CURTOS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 
 /** O dia DA BARBEARIA — às 21h30 de Fortaleza já é o dia seguinte em UTC. */
-const diaDe = (iso: string) => formatInTimeZone(new Date(iso), TZ, 'yyyy-MM-dd');
+const diaDe = (iso: string, fuso: string) => formatInTimeZone(new Date(iso), fuso, 'yyyy-MM-dd');
 
 /** "terça-feira, 13/10, às 09:00", no fuso da barbearia. */
-export function quandoPorExtenso(iso: string): string {
+export function quandoPorExtenso(iso: string, fuso: string): string {
   const d = new Date(iso);
-  return `${DIAS[diaDaSemana(diaDe(iso))]}, ${formatInTimeZone(d, TZ, 'dd/MM')}, às ${formatInTimeZone(d, TZ, 'HH:mm')}`;
+  return `${DIAS[diaDaSemana(diaDe(iso, fuso))]}, ${formatInTimeZone(d, fuso, 'dd/MM')}, às ${formatInTimeZone(d, fuso, 'HH:mm')}`;
 }
 
 /** "ter 13/10 às 09:00" — o do assunto, que tem que caber na lista de e-mails. */
-export function quandoCurto(iso: string): string {
+export function quandoCurto(iso: string, fuso: string): string {
   const d = new Date(iso);
-  return `${DIAS_CURTOS[diaDaSemana(diaDe(iso))]} ${formatInTimeZone(d, TZ, 'dd/MM')} às ${formatInTimeZone(d, TZ, 'HH:mm')}`;
+  return `${DIAS_CURTOS[diaDaSemana(diaDe(iso, fuso))]} ${formatInTimeZone(d, fuso, 'dd/MM')} às ${formatInTimeZone(d, fuso, 'HH:mm')}`;
 }
 
 /**
@@ -89,41 +89,43 @@ export function quandoCurto(iso: string): string {
 export function textoDoAvisoDeAgenda(
   tipo: MudancaNaAgenda,
   a: AgendamentoDoAviso,
-  contexto: { destinatario: string; barbearia: string; painel: string; inicioAnterior?: string | null },
+  /** `fuso`: o da barbearia — o dia e a hora do e-mail são os dela. */
+  contexto: { destinatario: string; barbearia: string; painel: string; fuso: string; inicioAnterior?: string | null },
 ): Pick<Email, 'assunto' | 'texto'> {
   const primeiroNome = contexto.destinatario.trim().split(/\s+/)[0];
   const telefone = formatarTelefone(a.telefone);
   const zap = waPhone(a.telefone);
-  const agenda = contexto.painel ? `${contexto.painel}/admin/dia/${diaDe(a.inicio)}` : '';
+  const { fuso } = contexto;
+  const agenda = contexto.painel ? `${contexto.painel}/admin/dia/${diaDe(a.inicio, fuso)}` : '';
 
   const linhas: string[] = [primeiroNome ? `Olá, ${primeiroNome}.` : 'Olá.', ''];
   let assunto: string;
 
   if (tipo === 'novo') {
-    assunto = `Agendamento novo: ${a.cliente}, ${quandoCurto(a.inicio)}`;
+    assunto = `Agendamento novo: ${a.cliente}, ${quandoCurto(a.inicio, fuso)}`;
     linhas.push(
       `${a.cliente} agendou pelo site da ${contexto.barbearia}:`,
       '',
-      `  ${quandoPorExtenso(a.inicio)}`,
+      `  ${quandoPorExtenso(a.inicio, fuso)}`,
       `  ${a.servico} — ${reais(a.precoCentavos)}`,
       `  Com: ${a.barbeiro}`,
     );
   } else if (tipo === 'desmarcado') {
-    assunto = `Desmarcado: ${a.cliente}, ${quandoCurto(a.inicio)}`;
+    assunto = `Desmarcado: ${a.cliente}, ${quandoCurto(a.inicio, fuso)}`;
     linhas.push(
       `${a.cliente} desmarcou, pelo link do agendamento, o horário de`,
-      `${quandoPorExtenso(a.inicio)} — ${a.servico}, com ${a.barbeiro}.`,
+      `${quandoPorExtenso(a.inicio, fuso)} — ${a.servico}, com ${a.barbeiro}.`,
       '',
       'O horário ficou livre no site.',
     );
   } else {
     const antes = contexto.inicioAnterior ?? a.inicio;
-    assunto = `Remarcado: ${a.cliente}, ${quandoCurto(antes)} → ${quandoCurto(a.inicio)}`;
+    assunto = `Remarcado: ${a.cliente}, ${quandoCurto(antes, fuso)} → ${quandoCurto(a.inicio, fuso)}`;
     linhas.push(
       `${a.cliente} remarcou pelo link do agendamento:`,
       '',
-      `  Era:   ${quandoPorExtenso(antes)}`,
-      `  Agora: ${quandoPorExtenso(a.inicio)}`,
+      `  Era:   ${quandoPorExtenso(antes, fuso)}`,
+      `  Agora: ${quandoPorExtenso(a.inicio, fuso)}`,
       `  ${a.servico}, com ${a.barbeiro}`,
     );
   }
@@ -209,7 +211,7 @@ export async function avisarMudancaNaAgenda(p: {
     const painel = urlDoPainel();
     for (const d of destinatarios) {
       const conteudo = textoDoAvisoDeAgenda(p.tipo, appt, {
-        destinatario: d.nome, barbearia, painel, inicioAnterior: p.inicioAnterior,
+        destinatario: d.nome, barbearia, painel, fuso: fusoDe(p.tenant), inicioAnterior: p.inicioAnterior,
       });
       const naoSaiu = (erro: unknown) => console.warn(
         `[agenda] o aviso "${p.tipo}" para ${mascararEmail(d.email)} não saiu:`,

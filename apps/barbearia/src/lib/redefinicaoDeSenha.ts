@@ -87,7 +87,7 @@ export async function pedirRedefinicao(whatsapp: string, agora: Date = new Date(
   if (!quem || !quem.ativo) return 'sem-cadastro';
 
   const barbearia = await first(
-    dbDono.select({ nome: tenants.businessName, status: tenants.status, testeAte: tenants.trialEndsAt, atrasadaDesde: tenants.pastDueSince, encerraEm: tenants.subscriptionEndsAt })
+    dbDono.select({ nome: tenants.businessName, status: tenants.status, testeAte: tenants.trialEndsAt, atrasadaDesde: tenants.pastDueSince, encerraEm: tenants.subscriptionEndsAt, fuso: tenants.timezone })
       .from(tenants).where(eq(tenants.id, quem.barbearia)),
   );
   // Encerrada não entra no painel (`api/auth/login.ts`): senha nova não serviria.

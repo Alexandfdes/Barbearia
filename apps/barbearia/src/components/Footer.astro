@@ -3,6 +3,7 @@ import { getSettings, waUrl } from '../lib/settings';
 import { linkDoMapa } from '../lib/mapa';
 import { tenantAtual } from '../lib/tenant';
 import { ehOBayron } from '../lib/bayron';
+import { fusoDe } from '../lib/timezone';
 import { srcsetDe } from '../lib/uploads';
 import { Image } from 'astro:assets';
 import logoSrc from '../assets/Logo-Bayron3.png';
@@ -13,6 +14,9 @@ const BAYRON = ehOBayron(tenantAtual());
 const temHorario = s.businessHours.length > 0;
 const temLogo = Boolean(s.logoPath) || BAYRON;
 const currentYear = new Date().getFullYear();
+// O dia destacado em "Horários" é o de hoje NA BARBEARIA, como o combo do dia
+// (`ComboBoris.astro`): o fuso desce no `data-tz` do rodapé.
+const fuso = fusoDe(tenantAtual());
 const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário.', s);
 // O que a barbearia não preencheu não aparece — nem como espaço vazio, nem como
 // link que abre o próprio site de novo (achados do roteiro de 10/10/2026).
@@ -21,7 +25,7 @@ const instagram = s.instagramUrl.trim() || null;
 const mapa = linkDoMapa(s);
 ---
 
-<footer id="contato" class="bg-dark relative overflow-hidden">
+<footer id="contato" class="bg-dark relative overflow-hidden" data-tz={fuso}>
   <!-- Linha divisória com gradiente premium no topo -->
   <div class="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
   
@@ -222,7 +226,11 @@ const mapa = linkDoMapa(s);
   // Script para destacar dinamicamente a linha do dia atual da semana
   document.addEventListener('DOMContentLoaded', () => {
     try {
-      const currentDay = new Date().getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
+      // Hoje no fuso da barbearia; até 12/10/2026 era `new Date().getDay()`, o
+      // relógio de quem abre o site. 0 = Domingo, 1 = Segunda, ..., 6 = Sábado.
+      const fuso = document.getElementById('contato')?.dataset.tz;
+      const nomeDoDia = new Intl.DateTimeFormat('en-US', { timeZone: fuso, weekday: 'short' }).format(new Date());
+      const currentDay = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(nomeDoDia);
       let groupToHighlight = "";
 
       if (currentDay >= 1 && currentDay <= 5) {

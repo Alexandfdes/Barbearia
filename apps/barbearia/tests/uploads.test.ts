@@ -103,8 +103,8 @@ describe('onde a mídia da marca é gravada', () => {
   // Escrito DEPOIS da correção, e não junto: foi a verificação por mutação de
   // 24/09/2026 que mostrou a lacuna — com o caminho legado de volta, a suíte
   // inteira continuava verde.
-  const BAYRON: Tenant  = { id: 1, slug: 'bayron',  status: 'active', domain: null };
-  const VINTAGE: Tenant = { id: 2, slug: 'vintage', status: 'active', domain: null };
+  const BAYRON: Tenant  = { id: 1, slug: 'bayron',  status: 'active', domain: null, fuso: 'America/Fortaleza' };
+  const VINTAGE: Tenant = { id: 2, slug: 'vintage', status: 'active', domain: null, fuso: 'America/Fortaleza' };
   let raiz = '';
 
   async function modulo() {
@@ -152,7 +152,7 @@ describe('a foto do celular chega em pé e sem o GPS', () => {
   // ⚠️ Os dois defeitos que `normalizarFoto` conserta, achados em 25/09/2026:
   // variante WebP deitada (a etiqueta de rotação se perdia) e original servido
   // com o EXIF inteiro, GPS incluído. Ver o comentário em `src/lib/uploads.ts`.
-  const VINTAGE: Tenant = { id: 2, slug: 'vintage', status: 'active', domain: null };
+  const VINTAGE: Tenant = { id: 2, slug: 'vintage', status: 'active', domain: null, fuso: 'America/Fortaleza' };
   let raiz = '';
 
   async function modulo() {

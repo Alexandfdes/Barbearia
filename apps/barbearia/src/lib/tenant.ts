@@ -33,6 +33,7 @@ import { db } from '../db/index.js';
 import { armazemTenant } from '../db/contexto.js';
 import { tenants as tenantsTable } from '../db/schema.js';
 import { situacaoDe, noAr, type StatusDaBarbearia } from './situacao.js';
+import { TZ_PADRAO } from './timezone.js';
 
 export interface Tenant {
   id: number;
@@ -48,6 +49,11 @@ export interface Tenant {
   atrasadaDesde?: Date | null;
   /** Assinatura cancelada: no ar até aqui (`subscription_ends_at`). */
   encerraEm?: Date | null;
+  /**
+   * O fuso da barbearia (`tenants.timezone`, migration 0013). Toda conta de data
+   * lê por `fusoDe(tenant)`, de `lib/timezone.ts` — nunca o relógio do processo.
+   */
+  fuso: string;
 }
 
 /** No ar AGORA: pagando, no teste ou na carência. */
@@ -64,6 +70,7 @@ export const TENANT_UNICO: Tenant = {
   slug: 'principal',
   status: 'active',
   domain: null,
+  fuso: TZ_PADRAO,
 };
 
 /** Sessão do painel. O `tenantId` é gravado no login (passo 7). */
@@ -95,6 +102,7 @@ export async function carregarTenants(forcar = false): Promise<void> {
     testeAte: tenantsTable.trialEndsAt,
     atrasadaDesde: tenantsTable.pastDueSince,
     encerraEm: tenantsTable.subscriptionEndsAt,
+    fuso: tenantsTable.timezone,
   }).from(tenantsTable);
 
   const id = new Map<number, Tenant>();
@@ -110,6 +118,7 @@ export async function carregarTenants(forcar = false): Promise<void> {
       testeAte: l.testeAte ?? null,
       atrasadaDesde: l.atrasadaDesde ?? null,
       encerraEm: l.encerraEm ?? null,
+      fuso: l.fuso,
     };
     id.set(t.id, t);
     slug.set(t.slug, t);

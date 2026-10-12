@@ -8,12 +8,13 @@ import { barbers, timeOff } from '../../db/schema.js';
 import { and, eq, isNull, or } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
 import { tenantDaSessao } from '../../lib/tenant.js';
-import { TZ } from '../../lib/timezone.js';
+import { fusoDe } from '../../lib/timezone.js';
 
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
 const tenant = tenantDaSessao(session);
+const fuso = fusoDe(tenant);
 
 const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
   .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
@@ -49,9 +50,9 @@ const entries = rawRows.map(r => ({
   barberName: r.barberName ?? 'Todos',
   reason:     r.reason,
   isPast:     new Date(r.endsAt) < now,
-  dateLabel:  formatInTimeZone(new Date(r.startsAt), TZ, "dd/MM/yyyy"),
-  startTime:  formatInTimeZone(new Date(r.startsAt), TZ, 'HH:mm'),
-  endTime:    formatInTimeZone(new Date(r.endsAt),   TZ, 'HH:mm'),
+  dateLabel:  formatInTimeZone(new Date(r.startsAt), fuso, "dd/MM/yyyy"),
+  startTime:  formatInTimeZone(new Date(r.startsAt), fuso, 'HH:mm'),
+  endTime:    formatInTimeZone(new Date(r.endsAt),   fuso, 'HH:mm'),
   sameDay:    new Date(r.startsAt).toDateString() === new Date(r.endsAt).toDateString(),
 }));
 
@@ -64,10 +65,10 @@ const upcoming = entries.filter(e => !e.isPast);
 const past     = entries.filter(e => e.isPast);
 
 // Hoje, no fuso da barbearia, para o valor inicial do formulário.
-const todayStr = formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
+const todayStr = formatInTimeZone(new Date(), fuso, 'yyyy-MM-dd');
 
 // O fuso desce pelos dados da página, como na agenda do dia (`clientData.tz`).
-const clientData = { role: session.role, sessionBarberId: session.barberId, tz: TZ };
+const clientData = { role: session.role, sessionBarberId: session.barberId, tz: fuso };
 ---
 
 <AdminLayout title="Bloqueios" barberName={barberRow.name} role={session.role}>

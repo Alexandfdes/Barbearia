@@ -34,8 +34,8 @@ if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
 const POOL_ANTES = process.env.DATABASE_POOL_MAX;
 process.env.DATABASE_POOL_MAX = '1';
 
-const BAYRON = { id: 1, slug: 'bayron', status: 'active', domain: null };
-const VINTAGE = { id: 2, slug: 'vintage', status: 'active', domain: null };
+const BAYRON = { id: 1, slug: 'bayron', status: 'active', domain: null, fuso: 'America/Fortaleza' };
+const VINTAGE = { id: 2, slug: 'vintage', status: 'active', domain: null, fuso: 'America/Fortaleza' };
 
 let db: typeof import('../src/db/index.js')['db'];
 let dbDono: typeof import('../src/db/index.js')['dbDono'];

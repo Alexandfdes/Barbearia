@@ -25,7 +25,7 @@ import {
   COOKIE_DO_OPERADOR, DURACAO_DA_SESSAO, SENHA_MINIMA, conferirSenha, cookieDoOperador, ehEnderecoDoPainel,
   ehRotaDoOperador, gerarHash, lerHash, operadorAutenticado, portaoDoOperador,
 } from '../src/lib/operador';
-import { fimDoTeste, fimDoTesteEstendido, situacaoDe, ultimoDia } from '../src/lib/situacao';
+import { fimDoTeste, fimDoTesteEstendido, situacaoDe, ultimoDia, type ComPrazos } from '../src/lib/situacao';
 import { descreverAcao, faseNaTela } from '../src/lib/operadorBarbearias';
 
 process.env.SESSION_SECRET ??= 'segredo-de-teste-com-mais-de-32-caracteres-ok';
@@ -35,6 +35,8 @@ if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
 
 const SENHA = 'frase de teste do operador 2026';
 const HOST_DO_PAINEL = 'painel.test';
+/** O fuso das barbearias do teste: o padrão da coluna (`drizzle/0013`). */
+const FORTALEZA = 'America/Fortaleza';
 const PAINEL_URL = `http://${HOST_DO_PAINEL}`;
 
 /** Custo 14, o menor aceito: o teste não precisa da lentidão de produção. */
@@ -214,13 +216,12 @@ describe('a sessão do operador', () => {
 // ── As contas de data e os textos ───────────────────────────────────────────
 
 describe('estender o teste: a conta (`fimDoTesteEstendido`)', () => {
-  const FORTALEZA = 'America/Fortaleza';
   const noDia = (iso: string) => new Date(iso);
 
   it('teste no prazo: os dias contam do ÚLTIMO dia do teste', () => {
     const fim = fimDoTeste(noDia('2026-10-08T15:00:00-03:00'), FORTALEZA); // até 15/10
     expect(ultimoDia(fim, FORTALEZA)).toBe('15/10');
-    const novo = fimDoTesteEstendido(fim, 7, noDia('2026-10-11T10:00:00-03:00'), FORTALEZA);
+    const novo = fimDoTesteEstendido(fim, 7, FORTALEZA, noDia('2026-10-11T10:00:00-03:00'));
     expect(ultimoDia(novo, FORTALEZA)).toBe('22/10');
     expect(novo.toISOString()).toBe('2026-10-23T03:00:00.000Z'); // meia-noite em Fortaleza
   });
@@ -228,7 +229,7 @@ describe('estender o teste: a conta (`fimDoTesteEstendido`)', () => {
   it('teste vencido: os dias contam de HOJE — o mesmo que um cadastro feito hoje ganharia', () => {
     const vencido = fimDoTeste(noDia('2026-09-20T09:00:00-03:00'), FORTALEZA); // até 27/09
     const hoje = noDia('2026-10-11T22:30:00-03:00');
-    const novo = fimDoTesteEstendido(vencido, 7, hoje, FORTALEZA);
+    const novo = fimDoTesteEstendido(vencido, 7, FORTALEZA, hoje);
     expect(ultimoDia(novo, FORTALEZA)).toBe('18/10');
     expect(novo.getTime()).toBe(fimDoTeste(hoje, FORTALEZA).getTime());
   });
@@ -236,14 +237,14 @@ describe('estender o teste: a conta (`fimDoTesteEstendido`)', () => {
   it('o último dia do teste é hoje: conta de hoje; sem prazo nenhum, também', () => {
     const hoje = noDia('2026-10-11T08:00:00-03:00');
     const acabaHoje = fimDoTeste(noDia('2026-10-04T12:00:00-03:00'), FORTALEZA); // até 11/10
-    expect(ultimoDia(fimDoTesteEstendido(acabaHoje, 1, hoje, FORTALEZA), FORTALEZA)).toBe('12/10');
-    expect(ultimoDia(fimDoTesteEstendido(null, 3, hoje, FORTALEZA), FORTALEZA)).toBe('14/10');
+    expect(ultimoDia(fimDoTesteEstendido(acabaHoje, 1, FORTALEZA, hoje), FORTALEZA)).toBe('12/10');
+    expect(ultimoDia(fimDoTesteEstendido(null, 3, FORTALEZA, hoje), FORTALEZA)).toBe('14/10');
   });
 });
 
 describe('o que a tela diz de cada fase', () => {
   const agora = new Date('2026-10-11T12:00:00-03:00');
-  const tela = (t: Parameters<typeof situacaoDe>[0]) => faseNaTela(situacaoDe(t, agora));
+  const tela = (t: Omit<ComPrazos, 'fuso'>) => faseNaTela(situacaoDe({ ...t, fuso: FORTALEZA }, agora), FORTALEZA);
 
   it('cada fase com o rótulo, o detalhe e o tom', () => {
     expect(tela({ status: 'active' })).toMatchObject({ rotulo: 'Em dia', tom: 'em-dia', fase: 'ativa' });
@@ -260,7 +261,7 @@ describe('o que a tela diz de cada fase', () => {
   });
 
   it('o registro em português', () => {
-    const base = { ip: null, quando: null };
+    const base = { ip: null, quando: null, fuso: FORTALEZA };
     expect(descreverAcao({ ...base, acao: 'entrou', detalhe: {}, slug: null })).toBe('Entrou no painel');
     expect(descreverAcao({ ...base, acao: 'estendeu-teste', slug: 'ze', detalhe: { dias: 7, depois: '2026-10-23T03:00:00.000Z' } }))
       .toBe('Estendeu o teste de ze em 7 dias (até 22/10)');
@@ -269,6 +270,20 @@ describe('o que a tela diz de cada fase', () => {
     expect(descreverAcao({ ...base, acao: 'suspendeu', slug: 'ze', detalhe: { statusAnterior: 'active', motivo: 'pediu' } }))
       .toBe('Tirou ze do ar — estava em dia. Motivo: pediu');
     expect(descreverAcao({ ...base, acao: 'reativou', slug: 'ze', detalhe: { status: 'trial' } })).toBe('Reativou ze — no teste');
+  });
+
+  // Manaus está uma hora atrás de Fortaleza: a meia-noite que encerra o dia 15
+  // lá é 1h da manhã do dia 16 aqui. Contada no relógio do operador, a data da
+  // barbearia de Manaus sairia um dia adiante.
+  it('as datas são do calendário da barbearia, não do relógio do operador', () => {
+    const MANAUS = 'America/Manaus';
+    const teste = { status: 'trial' as const, testeAte: new Date('2026-10-16T04:00:00Z'), fuso: MANAUS };
+    expect(faseNaTela(situacaoDe(teste, agora), MANAUS)).toMatchObject({ detalhe: 'até 15/10' });
+    expect(faseNaTela(situacaoDe(teste, agora), FORTALEZA)).toMatchObject({ detalhe: 'até 16/10' });
+
+    const estendeu = { ip: null, quando: null, acao: 'estendeu-teste' as const, slug: 'ze', detalhe: { dias: 7, depois: '2026-10-23T04:00:00.000Z' } };
+    expect(descreverAcao({ ...estendeu, fuso: MANAUS })).toBe('Estendeu o teste de ze em 7 dias (até 22/10)');
+    expect(descreverAcao({ ...estendeu, fuso: FORTALEZA })).toBe('Estendeu o teste de ze em 7 dias (até 23/10)');
   });
 });
 
@@ -321,7 +336,7 @@ describe.skipIf(!TEM_BANCO)('com banco: entrar, listar e agir', () => {
     const iso = (ms: number) => new Date(ms).toISOString();
     await sql`INSERT INTO tenants (id, slug, business_name, status, trial_ends_at, past_due_since, asaas_subscription_id, created_at) VALUES
       (1, 'em-dia',        'Em Dia',        'active',    NULL, NULL, 'sub_em_dia', ${iso(AGORA.getTime() - 60 * DIA)}),
-      (2, 'no-teste',      'No Teste',      'trial',     ${fimDoTeste(AGORA).toISOString()}, NULL, NULL, ${iso(AGORA.getTime() - 1 * DIA)}),
+      (2, 'no-teste',      'No Teste',      'trial',     ${fimDoTeste(AGORA, FORTALEZA).toISOString()}, NULL, NULL, ${iso(AGORA.getTime() - 1 * DIA)}),
       (3, 'teste-vencido', 'Teste Vencido', 'trial',     ${iso(AGORA.getTime() - 20 * DIA)}, NULL, NULL, ${iso(AGORA.getTime() - 27 * DIA)}),
       (4, 'atrasada',      'Atrasada',      'past_due',  NULL, ${iso(AGORA.getTime() - 1 * DIA)}, 'sub_atrasada', ${iso(AGORA.getTime() - 90 * DIA)}),
       (5, 'tirada-a-mao',  'Tirada à Mão',  'suspended', NULL, NULL, NULL, ${iso(AGORA.getTime() - 30 * DIA)}),
@@ -485,9 +500,9 @@ describe.skipIf(!TEM_BANCO)('com banco: entrar, listar e agir', () => {
     const corpo = await r.json();
     expect(corpo).toMatchObject({ ok: true, slug: 'no-teste', fase: { rotulo: 'Teste' } });
     const depois = await linha(2);
-    const esperado = fimDoTesteEstendido(new Date(antesDela.trial_ends_at), 7);
+    const esperado = fimDoTesteEstendido(new Date(antesDela.trial_ends_at), 7, FORTALEZA);
     expect(new Date(depois.trial_ends_at).getTime()).toBe(esperado.getTime());
-    expect(corpo.fase.detalhe).toBe(`até ${ultimoDia(esperado)}`);
+    expect(corpo.fase.detalhe).toBe(`até ${ultimoDia(esperado, FORTALEZA)}`);
     const [reg] = await registros(2);
     expect(reg).toMatchObject({ acao: 'estendeu-teste', ip: '10.0.0.1', detalhe: { dias: 7, depois: esperado.toISOString() } });
     expect(await linha(3)).toEqual(vizinha);
@@ -500,7 +515,7 @@ describe.skipIf(!TEM_BANCO)('com banco: entrar, listar e agir', () => {
     expect((await r.json()).fase.rotulo).toBe('Teste');
     expect((await doHost('teste-vencido'))?.slug).toBe('teste-vencido'); // sem forçar o cache
     const fim = new Date((await linha(3)).trial_ends_at);
-    expect(ultimoDia(fim)).toBe(ultimoDia(fimDoTesteEstendido(null, 3)));
+    expect(ultimoDia(fim, FORTALEZA)).toBe(ultimoDia(fimDoTesteEstendido(null, 3, FORTALEZA), FORTALEZA));
   });
 
   it('estender o teste de quem paga, de quem está atrasada ou fora do ar à mão: recusado, sem mudar nada', async () => {
@@ -575,7 +590,7 @@ describe.skipIf(!TEM_BANCO)('com banco: entrar, listar e agir', () => {
     expect(ok.status).toBe(200);
     const depois = await linha(5);
     expect(depois.status).toBe('trial');
-    expect(new Date(depois.trial_ends_at).getTime()).toBe(fimDoTeste(new Date()).getTime());
+    expect(new Date(depois.trial_ends_at).getTime()).toBe(fimDoTeste(new Date(), FORTALEZA).getTime());
     expect((await doHost('tirada-a-mao'))?.slug).toBe('tirada-a-mao');
   });
 

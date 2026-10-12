@@ -100,7 +100,8 @@ describe('textos e menus que diziam o que não é', () => {
     const menu = soCodigo(readFileSync('src/layouts/AdminLayout.astro', 'utf8'));
     expect(menu).toMatch(/href: '\/admin',\s+label: 'Início',\s+ativo: norm === '\/admin',/);
     expect(menu).toMatch(/href: `\/admin\/dia\/\$\{hoje\}`, label: 'Agenda do dia'/);
-    expect(menu).toMatch(/const hoje = formatInTimeZone\(new Date\(\), TZ, 'yyyy-MM-dd'\)/);
+    expect(menu).toMatch(/const fuso = fusoDe\(barbearia\)/);
+    expect(menu).toMatch(/const hoje = formatInTimeZone\(new Date\(\), fuso, 'yyyy-MM-dd'\)/);
   });
 
   it('as reservas do menu dizem que são de produto — o site chama o agendamento de "Reservar horário"', () => {

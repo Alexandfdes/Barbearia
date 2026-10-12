@@ -26,7 +26,7 @@ import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { exigirBancoDeTeste } from './guardaBanco.js';
 import { recriarSchema } from './migrations.js';
 import { fimDaCarencia, situacaoDe, type Situacao } from '../src/lib/situacao';
-import { TZ } from '../src/lib/timezone';
+import { TZ_PADRAO as TZ } from '../src/lib/timezone';
 import {
   CHECKOUTS_GUARDADOS, dataDaPrimeiraCobranca, erroDefinitivo, fimDoPeriodoPago, podeCadastrarCartao, referenciaDaBarbearia,
 } from '../src/lib/cobranca';
@@ -97,12 +97,12 @@ describe('o dia da primeira cobrança', () => {
   it('no teste: o dia seguinte ao último dia do teste — nada é cobrado antes', () => {
     // Teste até o fim de 15/10: `ate` é a meia-noite que começa o dia 16, no fuso.
     const ate = meiaNoite('2026-10-16');
-    expect(dataDaPrimeiraCobranca({ fase: 'teste', ate }, agora)).toBe('2026-10-16');
+    expect(dataDaPrimeiraCobranca({ fase: 'teste', ate }, TZ, agora)).toBe('2026-10-16');
   });
 
   it('cancelou e ainda está no período pago: o dia em que ele acaba — o mesmo mês não é cobrado duas vezes', () => {
     const encerraEm = meiaNoite('2026-11-03');
-    expect(dataDaPrimeiraCobranca({ fase: 'ativa', encerraEm }, agora)).toBe('2026-11-03');
+    expect(dataDaPrimeiraCobranca({ fase: 'ativa', encerraEm }, TZ, agora)).toBe('2026-11-03');
   });
 
   it('na carência, fora do ar e com a cobrança atrasada: hoje, no fuso da barbearia', () => {
@@ -111,24 +111,24 @@ describe('o dia da primeira cobrança', () => {
       { fase: 'suspensa', motivo: 'cobranca', desde: agora },
       { fase: 'suspensa', motivo: 'cancelada', desde: agora },
     ] as Situacao[]) {
-      expect(dataDaPrimeiraCobranca(s, agora)).toBe(diaNoFuso(agora));
+      expect(dataDaPrimeiraCobranca(s, TZ, agora)).toBe(diaNoFuso(agora));
     }
   });
 
   it('o dia é o do fuso, não o do servidor: 23h de Fortaleza já é amanhã em UTC', () => {
     const noite = fromZonedTime('2026-10-10T23:30:00', TZ);
-    expect(dataDaPrimeiraCobranca({ fase: 'carencia', motivo: 'teste', ate: noite }, noite)).toBe('2026-10-10');
+    expect(dataDaPrimeiraCobranca({ fase: 'carencia', motivo: 'teste', ate: noite }, TZ, noite)).toBe('2026-10-10');
   });
 });
 
 describe('o fim do período pago', () => {
   const agora = new Date('2026-10-10T15:00:00Z');
   it('a meia-noite, no fuso, do dia da próxima cobrança', () => {
-    expect(fimDoPeriodoPago('2026-11-10', agora).toISOString()).toBe(meiaNoite('2026-11-10').toISOString());
+    expect(fimDoPeriodoPago('2026-11-10', TZ, agora).toISOString()).toBe(meiaNoite('2026-11-10').toISOString());
   });
   it('sem data, com a data no passado ou com lixo: agora', () => {
     for (const v of [undefined, null, '', '2026-01-01', 'amanhã']) {
-      expect(fimDoPeriodoPago(v as string | null | undefined, agora).getTime(), String(v)).toBe(agora.getTime());
+      expect(fimDoPeriodoPago(v as string | null | undefined, TZ, agora).getTime(), String(v)).toBe(agora.getTime());
     }
   });
 });
@@ -136,15 +136,15 @@ describe('o fim do período pago', () => {
 describe('a situação de quem cancelou', () => {
   const encerraEm = meiaNoite('2026-11-10');
   it('antes do fim do período pago: em dia, com a data de saída', () => {
-    expect(situacaoDe({ status: 'active', encerraEm }, new Date(encerraEm.getTime() - 1000)))
+    expect(situacaoDe({ status: 'active', encerraEm, fuso: TZ }, new Date(encerraEm.getTime() - 1000)))
       .toEqual({ fase: 'ativa', encerraEm });
   });
   it('depois: fora do ar, sem carência — foi escolha dele', () => {
-    expect(situacaoDe({ status: 'active', encerraEm }, encerraEm))
+    expect(situacaoDe({ status: 'active', encerraEm, fuso: TZ }, encerraEm))
       .toEqual({ fase: 'suspensa', motivo: 'cancelada', desde: encerraEm });
   });
   it('sem data de saída, em dia como sempre', () => {
-    expect(situacaoDe({ status: 'active', encerraEm: null })).toEqual({ fase: 'ativa' });
+    expect(situacaoDe({ status: 'active', encerraEm: null, fuso: TZ })).toEqual({ fase: 'ativa' });
   });
 });
 
@@ -706,9 +706,9 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
     expect(chamadas.map((c) => `${c.metodo} ${c.caminho}`)).toEqual(['GET /subscriptions/sub_atr', 'DELETE /subscriptions/sub_atr']);
     const depois = await linha(8);
     expect(depois).toMatchObject({ status: 'active', past_due_since: null });
-    expect(depois.subscription_ends_at.toISOString()).toBe(fimDaCarencia(past_due_since).toISOString());
+    expect(depois.subscription_ends_at.toISOString()).toBe(fimDaCarencia(past_due_since, TZ).toISOString());
     // E a tela diz que foi cancelada, com o site no ar até o fim da carência.
-    expect(situacaoDe({ status: 'active', encerraEm: depois.subscription_ends_at })).toEqual({ fase: 'ativa', encerraEm: depois.subscription_ends_at });
+    expect(situacaoDe({ status: 'active', encerraEm: depois.subscription_ends_at, fuso: TZ })).toEqual({ fase: 'ativa', encerraEm: depois.subscription_ends_at });
   });
 
   it('fora do ar pela cobrança: cancela pela sessão de fora do ar — e o site continua fora, agora como cancelado', async () => {
@@ -726,7 +726,7 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
     expect(depois.subscription_ends_at.getTime()).toBeLessThanOrEqual(Date.now());
     await carregarTenants(true);
     expect(tenantSuspensoDoHost('fora.fadeline.com.br')?.id).toBe(11);
-    expect(situacaoDe({ status: 'active', encerraEm: depois.subscription_ends_at })).toMatchObject({ fase: 'suspensa', motivo: 'cancelada' });
+    expect(situacaoDe({ status: 'active', encerraEm: depois.subscription_ends_at, fuso: TZ })).toMatchObject({ fase: 'suspensa', motivo: 'cancelada' });
   });
 
   it('no teste, e tirada do ar à mão: não cancela por aqui — 409, e a Asaas não é chamada', async () => {

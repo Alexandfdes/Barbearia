@@ -9,7 +9,7 @@ import { barbers, productSales } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
-import { TZ } from '../../../../lib/timezone.js';
+import { fusoDe } from '../../../../lib/timezone.js';
 
 
 const bodySchema = z.object({
@@ -26,6 +26,7 @@ export const POST: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
   const tenant = tenantDaSessao(session);
+  const fuso = fusoDe(tenant);
 
   let body: unknown;
   try { body = await request.json(); }
@@ -47,7 +48,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   // soldAt: meio-dia do dia informado (evita virar o dia por fuso); senão, agora.
   const soldAt = date
-    ? fromZonedTime(`${date}T12:00:00`, TZ).toISOString()
+    ? fromZonedTime(`${date}T12:00:00`, fuso).toISOString()
     : new Date().toISOString();
 
   const priceCents = quantity * unitPriceCents;

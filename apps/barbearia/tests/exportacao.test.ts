@@ -27,6 +27,8 @@ process.env.SESSION_SECRET ??= 'segredo-de-teste-com-mais-de-32-caracteres-ok';
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
 
+const FORTALEZA = 'America/Fortaleza';
+
 /** Lê o CSV como o Excel lê: `;`, aspas, CRLF — e exige o BOM. */
 function lerCsv(texto: string): string[][] {
   expect(texto.startsWith('﻿'), 'sem o BOM, o Excel lê "José" como "JosÃ©"').toBe(true);
@@ -82,11 +84,18 @@ describe('o formato (`lib/exportacao.ts`)', () => {
     expect(dataDeCalendario(null)).toBe('');
     expect(dataDeCalendario('20/05/1990')).toBe('');
     // 02:30 em UTC é 23:30 da VÉSPERA em Fortaleza.
-    expect(noFuso('2030-04-02T02:30:00.000Z', 'dd/MM/yyyy HH:mm')).toBe('01/04/2030 23:30');
+    expect(noFuso('2030-04-02T02:30:00.000Z', 'dd/MM/yyyy HH:mm', FORTALEZA)).toBe('01/04/2030 23:30');
     // As colunas `created_at` guardam "aaaa-mm-dd hh:mm:ss" em UTC.
-    expect(noFuso('2030-03-01 12:00:00', 'dd/MM/yyyy HH:mm')).toBe('01/03/2030 09:00');
-    expect(noFuso(null, 'dd/MM')).toBe('');
-    expect(nomeDoArquivo('clientes', 'ze', new Date('2030-04-02T02:30:00Z'))).toBe('clientes-ze-2030-04-01.csv');
+    expect(noFuso('2030-03-01 12:00:00', 'dd/MM/yyyy HH:mm', FORTALEZA)).toBe('01/03/2030 09:00');
+    expect(noFuso(null, 'dd/MM', FORTALEZA)).toBe('');
+    expect(nomeDoArquivo('clientes', 'ze', FORTALEZA, new Date('2030-04-02T02:30:00Z'))).toBe('clientes-ze-2030-04-01.csv');
+  });
+
+  it('o fuso é o da barbearia: o mesmo instante, em Manaus, é uma hora antes — e às vezes outro dia', () => {
+    expect(noFuso('2030-04-02T02:30:00.000Z', 'dd/MM/yyyy HH:mm', 'America/Manaus')).toBe('01/04/2030 22:30');
+    const meiaNoiteEMeiaEmFortaleza = new Date('2030-04-02T03:30:00Z');
+    expect(nomeDoArquivo('clientes', 'ze', FORTALEZA, meiaNoiteEMeiaEmFortaleza)).toBe('clientes-ze-2030-04-02.csv');
+    expect(nomeDoArquivo('clientes', 'ze', 'America/Manaus', meiaNoiteEMeiaEmFortaleza)).toBe('clientes-ze-2030-04-01.csv');
   });
 });
 
@@ -120,9 +129,9 @@ describe.skipIf(!TEM_BANCO)('as rotas, com duas barbearias e uma fora do ar', ()
   let AGENDAMENTOS: typeof import('../src/pages/api/admin/exportar/agendamentos.csv.ts').GET;
   let comTenant: typeof import('../src/db/index.js')['comTenant'];
   const cookies: Record<string, string> = {};
-  const UM = { id: 1, slug: 'export-um', status: 'active' as const, domain: null };
-  const DOIS = { id: 2, slug: 'export-dois', status: 'active' as const, domain: null };
-  const TRES = { id: 3, slug: 'export-tres', status: 'suspended' as const, domain: null };
+  const UM = { id: 1, slug: 'export-um', status: 'active' as const, domain: null, fuso: 'America/Fortaleza' };
+  const DOIS = { id: 2, slug: 'export-dois', status: 'active' as const, domain: null, fuso: 'America/Fortaleza' };
+  const TRES = { id: 3, slug: 'export-tres', status: 'suspended' as const, domain: null, fuso: 'America/Fortaleza' };
 
   type Barbearia = { id: number; slug: string; status: string; domain: string | null };
   const baixar = async (rota: typeof CLIENTES, cookie: string | undefined, tenant: Barbearia = UM) => {
@@ -242,8 +251,8 @@ describe.skipIf(!TEM_BANCO)('as rotas, com duas barbearias e uma fora do ar', ()
     // filtro da barbearia. Fora dela, a conexão é a do dono das tabelas: aqui só o
     // `WHERE tenant_id` separa.
     const { arquivoDosClientes, arquivoDosAgendamentos } = await import('../src/lib/exportacao.js');
-    const clientes = (await arquivoDosClientes(1)).conteudo;
-    const agendamentos = (await arquivoDosAgendamentos(1)).conteudo;
+    const clientes = (await arquivoDosClientes(1, FORTALEZA)).conteudo;
+    const agendamentos = (await arquivoDosAgendamentos(1, FORTALEZA)).conteudo;
     for (const alheio of ['Cliente da Dois', 'Reserva da Dois', 'Cliente da Três']) {
       expect(clientes, alheio).not.toContain(alheio);
       expect(agendamentos, alheio).not.toContain(alheio);

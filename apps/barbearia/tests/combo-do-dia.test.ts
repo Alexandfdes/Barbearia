@@ -23,7 +23,7 @@ import postgres from 'postgres';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { exigirBancoDeTeste } from './guardaBanco.js';
 import { recriarSchema } from './migrations.js';
-import { TZ } from '../src/lib/timezone';
+import { TZ_PADRAO as TZ } from '../src/lib/timezone';
 import { diaDaSemana, somarDias } from '../src/lib/calendario';
 
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);

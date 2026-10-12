@@ -17,7 +17,7 @@ import { NOME_PRODUTO } from '../lib/produto.js';
 import { formatarTelefone } from '../lib/phone.js';
 import { waLink, waPhone } from '../lib/whatsapp.js';
 import { diaDe } from '../lib/situacao.js';
-import { TZ } from '../lib/timezone.js';
+import { TZ_PADRAO, deslocamento, rotuloDoFuso } from '../lib/timezone.js';
 import { formatInTimeZone } from 'date-fns-tz';
 import { naoEncontrado, operadorAutenticado, portaoDoOperador } from '../lib/operador.js';
 import {
@@ -82,7 +82,10 @@ if (alvo && feito === 'estender-teste') {
 }
 
 const hostDe = (url: string) => url.replace(/^https?:\/\//, '');
-const diaDoTextoUtc = (t: string | null) => (t ? diaDe(new Date(`${t.replace(' ', 'T')}Z`)) : null);
+const diaDoTextoUtc = (t: string | null, fuso: string) => (t ? diaDe(new Date(`${t.replace(' ', 'T')}Z`), fuso) : null);
+// O relógio do OPERADOR, para quando o evento e a ação aconteceram — não o de
+// barbearia nenhuma. Os prazos e os dias de cada barbearia saem no fuso DELA.
+const relogioDoOperador = TZ_PADRAO;
 const buscaDe = (b: (typeof lista)[number]) =>
   [b.nome, b.slug, b.dono?.nome, b.dono?.email, b.dono?.telefone].filter(Boolean).join(' ').toLowerCase();
 ---
@@ -166,7 +169,7 @@ const buscaDe = (b: (typeof lista)[number]) =>
               {lista.map((b) => {
                 const noAr = b.situacao.fase === 'ativa' || b.situacao.fase === 'teste' || b.situacao.fase === 'carencia';
                 const wa = b.dono?.telefone ? waPhone(b.dono.telefone) : null;
-                const ultimo = diaDoTextoUtc(b.ultimoAgendamento);
+                const ultimo = diaDoTextoUtc(b.ultimoAgendamento, b.fuso);
                 return (
                   <li id={`barbearia-${b.id}`} data-fase={b.situacao.fase} data-no-ar={noAr ? '1' : '0'} data-busca={buscaDe(b)}
                     class="px-4 py-4 target:bg-teal/5 scroll-mt-4">
@@ -174,7 +177,7 @@ const buscaDe = (b: (typeof lista)[number]) =>
                       <h2 class="font-semibold text-slate-900">{b.nome}</h2>
                       <span class:list={['text-xs font-medium rounded-full px-2 py-0.5 ring-1 ring-inset', PILULA[b.tela.tom]]}>{b.tela.rotulo}</span>
                       <span class="text-xs text-slate-600">{b.tela.detalhe}</span>
-                      {b.criadaEm && <span class="ml-auto text-xs text-slate-500 tabular-nums">desde {diaDe(b.criadaEm, TZ, 'dd/MM/yy')}</span>}
+                      {b.criadaEm && <span class="ml-auto text-xs text-slate-500 tabular-nums">desde {diaDe(b.criadaEm, b.fuso, 'dd/MM/yy')}</span>}
                     </div>
 
                     <dl class="mt-2 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
@@ -197,6 +200,8 @@ const buscaDe = (b: (typeof lista)[number]) =>
                           </span>
                         ) : <span class="text-slate-500">sem dono cadastrado</span>}
                       </dd>
+                      <dt class="text-slate-500">Fuso</dt>
+                      <dd class="text-slate-700">{rotuloDoFuso(b.fuso)} · <span class="tabular-nums">{deslocamento(b.fuso)}</span></dd>
                       <dt class="text-slate-500">Uso</dt>
                       <dd class="text-slate-700">
                         <span class="tabular-nums">{b.barbeirosAtivos}</span> {b.barbeirosAtivos === 1 ? 'barbeiro ativo' : 'barbeiros ativos'} ·
@@ -279,7 +284,7 @@ const buscaDe = (b: (typeof lista)[number]) =>
             <ul id="eventos" class="bg-white border border-slate-200 rounded-md divide-y divide-slate-200 text-sm">
               {eventos.map((e) => (
                 <li class="px-4 py-2.5 flex flex-wrap gap-x-3 gap-y-0.5">
-                  <span class="text-slate-500 tabular-nums">{e.recebidoEm ? formatInTimeZone(e.recebidoEm, TZ, 'dd/MM HH:mm') : '—'}</span>
+                  <span class="text-slate-500 tabular-nums">{e.recebidoEm ? formatInTimeZone(e.recebidoEm, relogioDoOperador, 'dd/MM HH:mm') : '—'}</span>
                   <span class="font-mono text-xs self-center">{e.evento}</span>
                   <span class="text-slate-700">{e.slug ?? 'sem barbearia'}</span>
                   <span class="text-slate-600 basis-full">{e.desfecho}</span>
@@ -298,7 +303,7 @@ const buscaDe = (b: (typeof lista)[number]) =>
             <ul id="acoes" class="bg-white border border-slate-200 rounded-md divide-y divide-slate-200 text-sm">
               {acoes.map((a) => (
                 <li class="px-4 py-2 flex flex-wrap gap-x-3 gap-y-0.5">
-                  <span class="text-slate-500 tabular-nums">{a.quando ? formatInTimeZone(a.quando, TZ, 'dd/MM HH:mm') : '—'}</span>
+                  <span class="text-slate-500 tabular-nums">{a.quando ? formatInTimeZone(a.quando, relogioDoOperador, 'dd/MM HH:mm') : '—'}</span>
                   <span class="text-slate-800">{descreverAcao(a)}</span>
                   {a.ip && <span class="ml-auto text-xs text-slate-500 font-mono">{a.ip}</span>}
                 </li>

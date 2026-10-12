@@ -83,7 +83,9 @@ describe('a data do calendário nunca é lida em UTC', () => {
 
   it('`bookAppointment` monta a data com o fuso, e não com toISOString', () => {
     const s = readFileSync('src/lib/bookAppointment.ts', 'utf8');
-    expect(s).toMatch(/const dateStr\s*=\s*formatInTimeZone\(startsAt, TZ, 'yyyy-MM-dd'\)/);
+    expect(s).toMatch(/const dateStr\s*=\s*formatInTimeZone\(startsAt, fuso, 'yyyy-MM-dd'\)/);
+    // E o fuso é o da barbearia do agendamento.
+    expect(s).toMatch(/const fuso = fusoDe\(tenant\)/);
   });
 });
 

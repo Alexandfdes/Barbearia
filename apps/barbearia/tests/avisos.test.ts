@@ -31,63 +31,63 @@ beforeAll(async () => {
 // Cadastro no dia 8: teste até o fim do dia 15, carência até o fim do dia 18,
 // fora do ar a partir do dia 19 (`tests/situacao.test.ts`).
 const CADASTRO = local('2026-10-08T10:00:00');
-const FIM_DO_TESTE = fimDoTeste(CADASTRO);           // 16/10 00:00
-const FIM_DA_CARENCIA = fimDaCarencia(FIM_DO_TESTE); // 19/10 00:00
-const noTeste = (agora: Date) => situacaoDe({ status: 'trial', testeAte: FIM_DO_TESTE }, agora);
+const FIM_DO_TESTE = fimDoTeste(CADASTRO, FORTALEZA);           // 16/10 00:00
+const FIM_DA_CARENCIA = fimDaCarencia(FIM_DO_TESTE, FORTALEZA); // 19/10 00:00
+const noTeste = (agora: Date) => situacaoDe({ status: 'trial', testeAte: FIM_DO_TESTE, fuso: FORTALEZA }, agora);
 
 describe('qual aviso a fase de agora pede', () => {
   it('no teste, só a partir de 2 dias do fim', () => {
     const dia12 = local('2026-10-12T20:00:00');
     const dia13 = local('2026-10-13T00:30:00');
-    expect(avisos.avisoDevido(noTeste(dia12), dia12)).toBeNull();
-    expect(avisos.avisoDevido(noTeste(dia13), dia13)).toEqual({ tipo: 'teste-acabando', referencia: FIM_DO_TESTE });
+    expect(avisos.avisoDevido(noTeste(dia12), FORTALEZA, dia12)).toBeNull();
+    expect(avisos.avisoDevido(noTeste(dia13), FORTALEZA, dia13)).toEqual({ tipo: 'teste-acabando', referencia: FIM_DO_TESTE });
     const dia15 = local('2026-10-15T23:00:00');
-    expect(avisos.avisoDevido(noTeste(dia15), dia15)?.tipo).toBe('teste-acabando');
+    expect(avisos.avisoDevido(noTeste(dia15), FORTALEZA, dia15)?.tipo).toBe('teste-acabando');
   });
 
   it('teste vencido: "o teste acabou", com o prazo da carência', () => {
     const dia16 = local('2026-10-16T00:10:00');
-    expect(avisos.avisoDevido(noTeste(dia16), dia16)).toEqual({ tipo: 'teste-acabou', referencia: FIM_DA_CARENCIA });
+    expect(avisos.avisoDevido(noTeste(dia16), FORTALEZA, dia16)).toEqual({ tipo: 'teste-acabou', referencia: FIM_DA_CARENCIA });
   });
 
   it('cobrança que falhou: o aviso dela, não o do teste', () => {
     const falhou = local('2026-11-20T10:37:00');
     const agora = local('2026-11-20T11:00:00');
-    const s = situacaoDe({ status: 'past_due', atrasadaDesde: falhou }, agora);
-    expect(avisos.avisoDevido(s, agora)).toEqual({ tipo: 'cobranca-falhou', referencia: fimDaCarencia(falhou) });
+    const s = situacaoDe({ status: 'past_due', atrasadaDesde: falhou, fuso: FORTALEZA }, agora);
+    expect(avisos.avisoDevido(s, FORTALEZA, agora)).toEqual({ tipo: 'cobranca-falhou', referencia: fimDaCarencia(falhou, FORTALEZA) });
   });
 
   it('fora do ar: o aviso sai na semana em que saiu do ar — depois, não mais', () => {
     const dia19 = local('2026-10-19T00:10:00');
-    expect(avisos.avisoDevido(noTeste(dia19), dia19)).toEqual({ tipo: 'fora-do-ar', referencia: FIM_DA_CARENCIA });
+    expect(avisos.avisoDevido(noTeste(dia19), FORTALEZA, dia19)).toEqual({ tipo: 'fora-do-ar', referencia: FIM_DA_CARENCIA });
     // Barbearia abandonada há um mês não recebe, no dia em que esta tarefa entrar
     // no ar, um "o site saiu do ar" de semanas atrás.
     const umMesDepois = local('2026-11-19T10:00:00');
-    expect(avisos.avisoDevido(noTeste(umMesDepois), umMesDepois)).toBeNull();
+    expect(avisos.avisoDevido(noTeste(umMesDepois), FORTALEZA, umMesDepois)).toBeNull();
   });
 
   it('pagando em dia, tirada do ar à mão e encerrada: nenhum aviso automático', () => {
     const agora = local('2026-10-13T10:00:00');
-    expect(avisos.avisoDevido(situacaoDe({ status: 'active' }, agora), agora)).toBeNull();
-    expect(avisos.avisoDevido(situacaoDe({ status: 'suspended' }, agora), agora)).toBeNull();
-    expect(avisos.avisoDevido(situacaoDe({ status: 'cancelled' }, agora), agora)).toBeNull();
+    expect(avisos.avisoDevido(situacaoDe({ status: 'active', fuso: FORTALEZA }, agora), FORTALEZA, agora)).toBeNull();
+    expect(avisos.avisoDevido(situacaoDe({ status: 'suspended', fuso: FORTALEZA }, agora), FORTALEZA, agora)).toBeNull();
+    expect(avisos.avisoDevido(situacaoDe({ status: 'cancelled', fuso: FORTALEZA }, agora), FORTALEZA, agora)).toBeNull();
     // Tirada do ar à mão não ganha aviso nem se um dia a fase trouxer a data:
     // quem tirou é quem conversa.
-    expect(avisos.avisoDevido({ fase: 'suspensa', motivo: 'manual', desde: local('2026-10-12T00:00:00') }, agora)).toBeNull();
+    expect(avisos.avisoDevido({ fase: 'suspensa', motivo: 'manual', desde: local('2026-10-12T00:00:00') }, FORTALEZA, agora)).toBeNull();
   });
 });
 
 describe('o texto do aviso', () => {
-  const d = { barbearia: 'Barbearia do Zé', nome: 'Zé', painel: 'https://painel.exemplo.com.br' };
+  const d = { barbearia: 'Barbearia do Zé', nome: 'Zé', painel: 'https://painel.exemplo.com.br', fuso: FORTALEZA };
 
   it('o miolo é o mesmo parágrafo da tela de assinatura — e o link leva a ela', () => {
     for (const agora of [local('2026-10-13T09:00:00'), local('2026-10-17T09:00:00'), local('2026-10-19T09:00:00')]) {
       const s = noTeste(agora);
-      const devido = avisos.avisoDevido(s, agora)!;
+      const devido = avisos.avisoDevido(s, FORTALEZA, agora)!;
       const { assunto, texto } = avisos.textoDoAviso(devido.tipo, s, d, agora);
       expect(assunto.startsWith('Barbearia do Zé: '), assunto).toBe(true);
       expect(texto).toContain('Olá, Zé.');
-      expect(texto).toContain(explicacaoDaSituacao(s, agora));
+      expect(texto).toContain(explicacaoDaSituacao(s, FORTALEZA, agora));
       expect(texto).toContain('https://painel.exemplo.com.br/admin/assinatura');
     }
   });

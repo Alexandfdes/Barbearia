@@ -13,12 +13,13 @@ import { tenantDaSessao } from '../../lib/tenant.js';
 import { ehOBayron } from '../../lib/bayron.js';
 import { getSettings } from '../../lib/settings.js';
 import { reais } from '../../lib/dinheiro.js';
-import { TZ } from '../../lib/timezone.js';
+import { fusoDe } from '../../lib/timezone.js';
 import { horasDoGrafico } from '../../lib/gradeDeHorarios.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
 const tenant = tenantDaSessao(session);
+const fuso = fusoDe(tenant);
 
 // O cabeçalho da impressão é o DESTA barbearia. Até 27/09/2026 ele dizia
 // "Barbearia Bayron — Relatório", com a logo dele, para qualquer cliente.
@@ -40,8 +41,8 @@ const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Ag
 const DIAS_SEMANA = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 
 const nowUtc = new Date();
-const thisMonth = formatInTimeZone(nowUtc, TZ, 'yyyy-MM');
-const todayLocal = formatInTimeZone(nowUtc, TZ, 'yyyy-MM-dd');
+const thisMonth = formatInTimeZone(nowUtc, fuso, 'yyyy-MM');
+const todayLocal = formatInTimeZone(nowUtc, fuso, 'yyyy-MM-dd');
 const mesParam = Astro.url.searchParams.get('mes');
 const mes = mesParam && /^\d{4}-\d{2}$/.test(mesParam) ? mesParam : thisMonth;
 const [yy, mm] = mes.split('-').map(Number);
@@ -61,8 +62,8 @@ const isCurrent = mes === thisMonth;
 function monthRange(ym: string) {
   const [y, m] = ym.split('-').map(Number);
   return {
-    start: fromZonedTime(`${ym}-01T00:00:00`, TZ).toISOString(),
-    end:   fromZonedTime(`${shiftMonth(y, m, 1)}-01T00:00:00`, TZ).toISOString(),
+    start: fromZonedTime(`${ym}-01T00:00:00`, fuso).toISOString(),
+    end:   fromZonedTime(`${shiftMonth(y, m, 1)}-01T00:00:00`, fuso).toISOString(),
   };
 }
 function weekdayOf(dateStr: string): number {
@@ -120,7 +121,7 @@ async function loadMonth(ym: string): Promise<MonthMetrics> {
   const occAppts: { barberId: number; startsAt: string; endsAt: string }[] = [];
 
   const bumpHora = (startsAt: string) => {
-    porHora[Number(formatInTimeZone(new Date(startsAt), TZ, 'H'))]++;
+    porHora[Number(formatInTimeZone(new Date(startsAt), fuso, 'H'))]++;
   };
 
   for (const r of rows) {
@@ -247,7 +248,7 @@ if (!isCurrentOrFuture || isCurrent) {
 }
 
 const occ = occDays.length
-  ? computeOccupancy({ days: occDays, workingHours: whRows, timeOff: timeOffRows, appointments: cur.occAppts })
+  ? computeOccupancy({ days: occDays, workingHours: whRows, timeOff: timeOffRows, appointments: cur.occAppts, tz: fuso })
   : [];
 
 // Ocupação geral do período medido
@@ -327,7 +328,7 @@ const tituloPainel = isAdmin ? 'Painel' : 'Seu desempenho';
 const subtitulo = isAdmin ? `${MESES[mm - 1]} de ${yy}` : `${barberRow.name.split(' ')[0]} · ${MESES[mm - 1]} de ${yy}`;
 
 // Carimbo de quando o relatório foi gerado — aparece só na versão impressa.
-const geradoEm = formatInTimeZone(nowUtc, TZ, "dd/MM/yyyy 'às' HH:mm");
+const geradoEm = formatInTimeZone(nowUtc, fuso, "dd/MM/yyyy 'às' HH:mm");
 ---
 
 <AdminLayout title="Relatórios" barberName={barberRow.name} role={session.role}>

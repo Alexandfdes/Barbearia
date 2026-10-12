@@ -33,8 +33,8 @@ let dbDono: typeof import('../src/db/index.js')['dbDono'];
 let comTenant: typeof import('../src/db/index.js')['comTenant'];
 
 /** A barbearia como o middleware a entrega: o objeto inteiro, não só o id. */
-const BAYRON = { id: 1, slug: 'bayron', status: 'active', domain: null };
-const VINTAGE = { id: 2, slug: 'vintage', status: 'active', domain: null };
+const BAYRON = { id: 1, slug: 'bayron', status: 'active', domain: null, fuso: 'America/Fortaleza' };
+const VINTAGE = { id: 2, slug: 'vintage', status: 'active', domain: null, fuso: 'America/Fortaleza' };
 
 /** Quantos barbeiros a conexão ENXERGA — a consulta não filtra nada. */
 async function barbeirosVisiveis(qual: typeof db): Promise<number> {
@@ -282,6 +282,8 @@ describe('a rede não tem furo por descuido', () => {
                                           // `tenants`, que o papel do app só lê (0003)
       'src/lib/operadorBarbearias.ts',    // o painel do operador: lista TODAS as barbearias e muda `tenants`;
                                           // atrás da senha do operador (`lib/operador.ts`), sem dado de cliente
+      'src/lib/fusoDaBarbearia.ts',       // o fuso de Configurações mora em `tenants`, que o papel do app só lê
+                                          // (0003): um UPDATE só, com o WHERE na barbearia da sessão
     ];
 
     const arquivos = [...globSync('src/**/*.ts'), ...globSync('src/**/*.astro')]

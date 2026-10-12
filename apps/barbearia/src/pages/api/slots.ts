@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { addDays } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { getAvailableSlots } from '../../lib/slots.js';
-import { TZ } from '../../lib/timezone.js';
+import { fusoDe } from '../../lib/timezone.js';
 import { tenantDoHost } from '../../lib/tenant.js';
 
 
@@ -29,6 +29,7 @@ export const GET: APIRoute = async ({ request }) => {
   // `barberId` da query passaria a alcançar a agenda de qualquer cliente.
   const tenant = tenantDoHost(request);
   if (!tenant) return json({ error: 'Barbearia não encontrada' }, 404);
+  const fuso = fusoDe(tenant);
 
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
@@ -45,8 +46,8 @@ export const GET: APIRoute = async ({ request }) => {
   const { barberId, serviceId, date, excludeAppointmentId } = parsed.data;
 
   const now        = new Date();
-  const todayStr   = formatInTimeZone(now, TZ, 'yyyy-MM-dd');
-  const maxDateStr = formatInTimeZone(addDays(now, 30), TZ, 'yyyy-MM-dd');
+  const todayStr   = formatInTimeZone(now, fuso, 'yyyy-MM-dd');
+  const maxDateStr = formatInTimeZone(addDays(now, 30), fuso, 'yyyy-MM-dd');
 
   if (date < todayStr)   return json({ error: 'Data no passado' }, 400);
   if (date > maxDateStr) return json({ error: 'Data além do limite de 30 dias' }, 400);
@@ -56,10 +57,10 @@ export const GET: APIRoute = async ({ request }) => {
 
     return json({
       date,
-      timezone: TZ,
+      timezone: fuso,
       slots: slots.map(s => ({
         utc:  s.toISOString(),
-        time: formatInTimeZone(s, TZ, 'HH:mm'),
+        time: formatInTimeZone(s, fuso, 'HH:mm'),
       })),
     });
   } catch (err) {

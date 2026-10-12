@@ -18,6 +18,7 @@ export const prerender = false;
 import { CATALOGO_SUGERIDO } from '../lib/catalogoSugerido.js';
 import { NOME_PRODUTO } from '../lib/produto.js';
 import { DIAS_DE_TESTE } from '../lib/situacao.js';
+import { ESTADOS } from '../lib/timezone.js';
 /**
  * As cores prontas — e as regras que elas cumprem — moram em
  * `lib/coresDoCadastro.ts`. Qualquer cor, pronta ou a "outra", passa pela mesma
@@ -25,6 +26,10 @@ import { DIAS_DE_TESTE } from '../lib/situacao.js';
  * gravar.
  */
 import { CORES_DO_CADASTRO as CORES } from '../lib/coresDoCadastro.js';
+
+// O estado decide o fuso dos horários da barbearia (`fusoDoEstado`, em
+// `lib/timezone.ts`). Em ordem de nome, que é como se procura numa lista.
+const estadosPorNome = [...ESTADOS].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 
 if (process.env.CADASTRO_ABERTO !== '1') {
   return new Response('Not found', { status: 404 });
@@ -87,14 +92,15 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     legend { font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
              color: var(--ink-fraco); padding: 0 6px; }
     label { display: block; font-size: 12px; color: var(--ink-suave); margin: 12px 0 4px; }
-    input, textarea {
+    input, textarea, select {
       width: 100%; padding: 10px 12px; border: 1px solid var(--line-forte); border-radius: 6px;
       font-size: 15px; background: var(--ground); color: var(--ink); font-family: inherit;
     }
     textarea { resize: vertical; }
     input::placeholder, textarea::placeholder { color: #7b8798; }
-    input:focus, textarea:focus { outline: 2px solid var(--brand-claro); outline-offset: 1px;
+    input:focus, textarea:focus, select:focus { outline: 2px solid var(--brand-claro); outline-offset: 1px;
                                   border-color: var(--brand-claro); }
+    .local { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     input:disabled { opacity: .45; }
     .dica { font-size: 11px; color: var(--ink-fraco); margin-top: 4px; }
     .linha { display: grid; grid-template-columns: 1fr 108px 92px; gap: 8px; align-items: end; }
@@ -210,8 +216,20 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
         <label for="endereco">Rua e número</label>
         <input id="endereco" required maxlength="200" placeholder="R. das Flores, 42" />
 
-        <label for="cidade">Cidade</label>
-        <input id="cidade" required maxlength="120" placeholder="Mossoró/RN" />
+        <div class="local">
+          <div>
+            <label for="cidade">Cidade</label>
+            <input id="cidade" required maxlength="120" placeholder="Mossoró" />
+          </div>
+          <div>
+            <label for="estado">Estado</label>
+            <select id="estado" required>
+              <option value="">Escolha</option>
+              {estadosPorNome.map((e) => <option value={e.uf}>{e.nome}</option>)}
+            </select>
+          </div>
+        </div>
+        <p class="dica">Os horários do seu site seguem o fuso do estado. Dá para ajustar depois, em Configurações.</p>
       </fieldset>
 
       <fieldset>
@@ -374,6 +392,7 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
       senha: 'A senha precisa de pelo menos 8 caracteres.',
       telefone: 'Confira o WhatsApp, com DDD.',
       frase: 'A frase do topo passa de 200 caracteres.',
+      estado: 'Escolha o estado — é por ele que os horários do site seguem o fuso certo.',
     };
 
     /** Sugere o endereço a partir do nome, até a pessoa mexer no campo. */
@@ -585,6 +604,7 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
             slug: $('slug').value.trim(), nome: $('nome').value.trim(),
             dono: $('dono').value.trim(), telefone: $('telefone').value.trim(),
             endereco: $('endereco').value.trim(), cidade: $('cidade').value.trim(),
+            estado: ($('estado') as HTMLSelectElement).value,
             senha: $('senha').value, servicos,
             email: ($('email') as HTMLInputElement).value.trim(),
             frase: ($('frase') as HTMLInputElement).value.trim() || undefined,

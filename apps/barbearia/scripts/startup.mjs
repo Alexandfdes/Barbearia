@@ -173,6 +173,32 @@ function conferirPgDump() {
 }
 
 /**
+ * `TZ_BARBEARIA` deixou de ser lida em 12/10/2026: o fuso é de cada barbearia,
+ * a coluna `tenants.timezone` (migration 0013, `src/lib/timezone.ts`). Quem a
+ * deixou nas variáveis do servidor pode achar que ela ainda manda — e trocá-la
+ * não mudaria hora nenhuma. Avisa no boot, sem derrubar nada.
+ *
+ * Mais alto se ela tinha OUTRO fuso: a 0013 pôs as barbearias que já existiam no
+ * padrão, Fortaleza — e um servidor que rodava em Manaus mudaria a hora de todas.
+ */
+function avisarFusoAntigo() {
+  const antigo = process.env.TZ_BARBEARIA?.trim();
+  if (!antigo) return;
+  if (antigo !== 'America/Fortaleza') {
+    console.warn(
+      `⚠️  TZ_BARBEARIA=${antigo} não é mais lida: cada barbearia tem o fuso dela, e as que já\n` +
+      '   existiam ficaram em America/Fortaleza (migration 0013). Se estavam no outro fuso,\n' +
+      '   troque em Configurações → Fuso horário. Depois, tire a variável do servidor.',
+    );
+    return;
+  }
+  console.log(
+    'ⓘ TZ_BARBEARIA não é mais lida: o fuso é de cada barbearia (Configurações, ou a\n' +
+    '  coluna tenants.timezone). Pode tirar a variável do servidor.',
+  );
+}
+
+/**
  * Confere, no boot de produção, que o e-mail consegue sair — a senha nova e os
  * avisos do teste e da cobrança dependem dele (`src/lib/email.ts`).
  *
@@ -302,6 +328,7 @@ try {
   if (!soMigrations) {
     conferirPgDump();
     conferirEmail();
+    avisarFusoAntigo();
   }
 } catch (erro) {
   // Erro de boot já imprimiu o próprio diagnóstico. Dizer "migration falhou"

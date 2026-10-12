@@ -14,7 +14,7 @@ import { tenantDaSessao } from '../../../lib/tenant.js';
 import { getSettings } from '../../../lib/settings.js';
 import { reais } from '../../../lib/dinheiro.js';
 import { diaDaSemana, faixaDoDia, type Semana } from '../../../lib/gradeDeHorarios.js';
-import { TZ } from '../../../lib/timezone.js';
+import { fusoDe } from '../../../lib/timezone.js';
 
 
 // Janela da timeline (hardcoded por enquanto — pode virar dinâmico via working_hours depois).
@@ -28,6 +28,7 @@ const TOTAL_HOURS = END_HOUR - START_HOUR;
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
 const tenant = tenantDaSessao(session);
+const fuso = fusoDe(tenant);
 
 const { date } = Astro.params;
 if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -49,8 +50,8 @@ if (session.role === 'admin') {
   filterBarberId = session.barberId;
 }
 
-const dayStart = fromZonedTime(`${date}T00:00:00`, TZ).toISOString();
-const dayEnd   = fromZonedTime(`${date}T23:59:59`, TZ).toISOString();
+const dayStart = fromZonedTime(`${date}T00:00:00`, fuso).toISOString();
+const dayEnd   = fromZonedTime(`${date}T23:59:59`, fuso).toISOString();
 
 const apptRows = (await db
   .select({
@@ -210,8 +211,8 @@ function formatPhoneDisplay(phone: string): string {
 // Calcula topMin/durationMin pra qualquer faixa de horário tocando este dia.
 // O posicionamento visual é feito em CSS via calc(var(--hour-px) * topMin / 60).
 function timelinePos(startsAtUtc: string, endsAtUtc: string) {
-  const sLocal = formatInTimeZone(new Date(startsAtUtc), TZ, 'yyyy-MM-dd HH:mm');
-  const eLocal = formatInTimeZone(new Date(endsAtUtc),   TZ, 'yyyy-MM-dd HH:mm');
+  const sLocal = formatInTimeZone(new Date(startsAtUtc), fuso, 'yyyy-MM-dd HH:mm');
+  const eLocal = formatInTimeZone(new Date(endsAtUtc),   fuso, 'yyyy-MM-dd HH:mm');
   const sParts = sLocal.split(' ')[1].split(':').map(Number);
   const eParts = eLocal.split(' ')[1].split(':').map(Number);
   const sIsBefore = sLocal.split(' ')[0] < date;
@@ -226,8 +227,8 @@ function timelinePos(startsAtUtc: string, endsAtUtc: string) {
 
 const apptList: ApptView[] = apptRows.map(a => {
   const pos = timelinePos(a.startsAt, a.endsAt);
-  const time     = formatInTimeZone(new Date(a.startsAt), TZ, 'HH:mm');
-  const endTime  = formatInTimeZone(new Date(a.endsAt),   TZ, 'HH:mm');
+  const time     = formatInTimeZone(new Date(a.startsAt), fuso, 'HH:mm');
+  const endTime  = formatInTimeZone(new Date(a.endsAt),   fuso, 'HH:mm');
   const wa       = waPhone(a.customerPhone);
   const digits   = (a.customerPhone ?? '').replace(/\D/g, '');
   const telDigits = wa ?? (digits.startsWith('55') ? digits : `55${digits}`);
@@ -243,7 +244,7 @@ const apptList: ApptView[] = apptRows.map(a => {
     customerBirthdate: a.customerBirthdate,
     notes:           a.notes,
     lastModifiedLabel: a.lastModifiedAt && a.lastModifiedById
-      ? `${barberNameById.get(a.lastModifiedById) ?? '—'} · ${formatInTimeZone(new Date(a.lastModifiedAt), TZ, "dd/MM 'às' HH:mm")}`
+      ? `${barberNameById.get(a.lastModifiedById) ?? '—'} · ${formatInTimeZone(new Date(a.lastModifiedAt), fuso, "dd/MM 'às' HH:mm")}`
       : null,
     barberName:      a.barberName,
     barberId:        a.barberId,
@@ -274,8 +275,8 @@ const blockList: BlockView[] = timeOffRows
     reason:       b.reason ?? 'Bloqueado',
     topMin:       pos.topMin,
     durationMin:  pos.durationMin,
-    timeLocal:    formatInTimeZone(new Date(b.startsAt), TZ, 'HH:mm'),
-    endTimeLocal: formatInTimeZone(new Date(b.endsAt),   TZ, 'HH:mm'),
+    timeLocal:    formatInTimeZone(new Date(b.startsAt), fuso, 'HH:mm'),
+    endTimeLocal: formatInTimeZone(new Date(b.endsAt),   fuso, 'HH:mm'),
   };
 });
 
@@ -292,11 +293,11 @@ const revenueCount = apptRows.filter(a => a.status === 'confirmed' || a.status =
 const nextAppt = apptList.find(a => a.status === 'confirmed' && !a.isPast) ?? null;
 
 // Linha "Agora" (em minutos desde START_HOUR)
-const todayStr = formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
+const todayStr = formatInTimeZone(new Date(), fuso, 'yyyy-MM-dd');
 const isToday  = date === todayStr;
 let nowTopMin: number | null = null;
 if (isToday) {
-  const nowHm = formatInTimeZone(nowUtc, TZ, 'HH:mm');
+  const nowHm = formatInTimeZone(nowUtc, fuso, 'HH:mm');
   const [nh, nm] = nowHm.split(':').map(Number);
   const minutesFromStart = (nh - START_HOUR) * 60 + nm;
   if (minutesFromStart >= 0 && minutesFromStart <= TOTAL_HOURS * 60) {
@@ -329,8 +330,8 @@ if (session.role === 'admin' && isToday) {
     const [yy, mm, dd] = ds.split('-').map(Number);
     return { dateStr: ds, weekday: new Date(Date.UTC(yy, mm - 1, dd, 12)).getUTCDay() };
   });
-  const weekStartIso = fromZonedTime(`${nextDays[0].dateStr}T00:00:00`, TZ).toISOString();
-  const weekEndIso   = fromZonedTime(`${nextDays[6].dateStr}T23:59:59`, TZ).toISOString();
+  const weekStartIso = fromZonedTime(`${nextDays[0].dateStr}T00:00:00`, fuso).toISOString();
+  const weekEndIso   = fromZonedTime(`${nextDays[6].dateStr}T23:59:59`, fuso).toISOString();
 
   const whRows = (await db
     .select({ barberId: workingHours.barberId, weekday: workingHours.weekday, startTime: workingHours.startTime, endTime: workingHours.endTime })
@@ -349,7 +350,7 @@ if (session.role === 'admin' && isToday) {
     .where(and(lt(timeOff.startsAt, weekEndIso), gt(timeOff.endsAt, weekStartIso), eq(timeOff.tenantId, tenant.id)))
     );
 
-  const occ  = computeOccupancy({ days: nextDays, workingHours: whRows, timeOff: weekTimeOff, appointments: weekAppts });
+  const occ  = computeOccupancy({ days: nextDays, workingHours: whRows, timeOff: weekTimeOff, appointments: weekAppts, tz: fuso });
   const pick = pickEmptiestBand(occ);
   if (pick) {
     const ddmm = pick.dateStr.split('-').reverse().slice(0, 2).join('/');
@@ -423,7 +424,7 @@ const clientData = {
   products:          productListForSale,
   // O fuso vai para o navegador por aqui, e não por `define:vars` — ver o
   // comentário no <script> lá embaixo.
-  tz:                TZ,
+  tz:                fuso,
   // Assina as mensagens prontas de WhatsApp (`buildWaMessages`).
   businessName:      (await getSettings(tenant)).businessName,
   expediente,
@@ -1246,11 +1247,16 @@ const clientData = {
     let viewYear  = py;
     let viewMonth = pm - 1; // 0-based
 
-    // Hoje no fuso local do navegador (basta pra destacar visualmente)
-    const now = new Date();
-    const todayY = now.getFullYear();
-    const todayM = now.getMonth();
-    const todayD = now.getDate();
+    // Hoje NA BARBEARIA (`TZ`, de `clientData.tz`) — o mesmo dia do "Agenda do
+    // dia" do menu. Até 12/10/2026 era o relógio do navegador: perto da meia-noite,
+    // um celular noutro fuso destacava outro dia, e o botão "Hoje" levava a ele.
+    const partesDeHoje = new Intl.DateTimeFormat('en-US', {
+      timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date());
+    const parteDeHoje = (tipo: string) => Number(partesDeHoje.find((p) => p.type === tipo)?.value);
+    const todayY = parteDeHoje('year');
+    const todayM = parteDeHoje('month') - 1; // 0-based, como viewMonth
+    const todayD = parteDeHoje('day');
 
     function pad(n) { return String(n).padStart(2, '0'); }
     function fmt(y, m, d) { return `${y}-${pad(m + 1)}-${pad(d)}`; }
@@ -1732,15 +1738,15 @@ const clientData = {
     if (changed) dmEditStatus.textContent = '';
   }
 
-  // Selo de aniversário no header (compara dia/mês no fuso de Fortaleza).
+  // Selo de aniversário no header (compara dia/mês no fuso da barbearia).
   function setBirthdayBadge(iso) {
     if (!dmBirthday) return;
     dmBirthday.classList.add('hidden');
     dmBirthday.textContent = '';
     if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
     const [, bm, bd] = iso.split('-').map(Number);
-    const fortNow = new Date(new Date().toLocaleString('en-US', { timeZone: TZ }));
-    const tMonth = fortNow.getMonth() + 1, tDay = fortNow.getDate();
+    const agoraNaBarbearia = new Date(new Date().toLocaleString('en-US', { timeZone: TZ }));
+    const tMonth = agoraNaBarbearia.getMonth() + 1, tDay = agoraNaBarbearia.getDate();
     if (bm === tMonth && bd === tDay) {
       dmBirthday.textContent = '🎂 Aniversário hoje!';
       dmBirthday.classList.remove('hidden');
@@ -1812,7 +1818,9 @@ const clientData = {
       if (dmHistoryCount) dmHistoryCount.textContent = `${data.total} no total`;
       dmHistory.innerHTML = data.history.map(h => {
         const d = new Date(h.startsAt);
-        const dateLabel = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit' });
+        // O dia também no fuso da barbearia, como a hora: sem ele, o navegador usa
+        // o fuso de quem abre — e um corte às 23:30 saía com a data do dia seguinte.
+        const dateLabel = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit', timeZone: TZ });
         const timeLabel = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
         const price = reais(h.priceCents);
         const statusColor = h.status === 'completed' ? 'text-teal'

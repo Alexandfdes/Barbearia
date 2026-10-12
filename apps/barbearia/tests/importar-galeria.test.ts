@@ -18,7 +18,7 @@ import { metadadosDoArquivo } from './imagemEmDisco.js';
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
 
-const BAYRON = { id: 1, slug: 'bayron', status: 'active', domain: null };
+const BAYRON = { id: 1, slug: 'bayron', status: 'active', domain: null, fuso: 'America/Fortaleza' };
 const RAIZ_ANTES = process.env.UPLOAD_ROOT;
 const raiz = mkdtempSync(join(tmpdir(), 'import-raiz-'));
 const origem = mkdtempSync(join(tmpdir(), 'import-fotos-'));

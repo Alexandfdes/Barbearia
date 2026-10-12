@@ -11,7 +11,7 @@ import {
   DIAS_DE_TESTE, DIAS_DE_CARENCIA,
 } from '../src/lib/situacao';
 
-const FORTALEZA = 'America/Fortaleza'; // UTC-3 — o fuso padrão de lib/timezone.ts
+const FORTALEZA = 'America/Fortaleza'; // UTC-3
 const MANAUS = 'America/Manaus';       // UTC-4
 
 const local = (quando: string, fuso = FORTALEZA) => fromZonedTime(quando, fuso);
@@ -25,15 +25,15 @@ describe('o fim do teste', () => {
 
   it('cadastrou no dia 8, a qualquer hora: o teste vai até o fim do dia 15', () => {
     for (const hora of ['00:00:30', '09:15:00', '21:28:00', '23:59:59']) {
-      const fim = fimDoTeste(local(`2026-10-08T${hora}`));
+      const fim = fimDoTeste(local(`2026-10-08T${hora}`), FORTALEZA);
       expect(fim.toISOString(), hora).toBe(local('2026-10-16T00:00:00').toISOString());
-      expect(ultimoDia(fim), hora).toBe('15/10');
+      expect(ultimoDia(fim, FORTALEZA), hora).toBe('15/10');
     }
   });
 
   it('vira o mês e o ano no calendário, não em conta de horas', () => {
-    expect(ultimoDia(fimDoTeste(local('2026-10-28T10:00:00')))).toBe('04/11');
-    expect(ultimoDia(fimDoTeste(local('2026-12-28T10:00:00')), FORTALEZA, 'dd/MM/yyyy')).toBe('04/01/2027');
+    expect(ultimoDia(fimDoTeste(local('2026-10-28T10:00:00'), FORTALEZA), FORTALEZA)).toBe('04/11');
+    expect(ultimoDia(fimDoTeste(local('2026-12-28T10:00:00'), FORTALEZA), FORTALEZA, 'dd/MM/yyyy')).toBe('04/01/2027');
   });
 
   it('o dia é o do fuso da barbearia, não o do servidor', () => {
@@ -46,21 +46,21 @@ describe('o fim do teste', () => {
 
 describe('a carência', () => {
   it('depois do teste: três dias inteiros, o primeiro já é o dia seguinte ao último', () => {
-    const fim = fimDaCarencia(local('2026-10-16T00:00:00'));
+    const fim = fimDaCarencia(local('2026-10-16T00:00:00'), FORTALEZA);
     expect(fim.toISOString()).toBe(local('2026-10-19T00:00:00').toISOString());
-    expect(ultimoDia(fim)).toBe('18/10');
+    expect(ultimoDia(fim, FORTALEZA)).toBe('18/10');
   });
 
   it('cobrança que falhou no meio do dia: o resto daquele dia não conta', () => {
-    const fim = fimDaCarencia(local('2026-11-20T10:37:00'));
+    const fim = fimDaCarencia(local('2026-11-20T10:37:00'), FORTALEZA);
     expect(fim.toISOString()).toBe(local('2026-11-24T00:00:00').toISOString());
-    expect(ultimoDia(fim)).toBe('23/11');
+    expect(ultimoDia(fim, FORTALEZA)).toBe('23/11');
   });
 });
 
 describe('a fase, ao longo do tempo', () => {
   const cadastro = local('2026-10-08T21:28:00');
-  const emTeste = { status: 'trial' as const, testeAte: fimDoTeste(cadastro) };
+  const emTeste = { status: 'trial' as const, testeAte: fimDoTeste(cadastro, FORTALEZA), fuso: FORTALEZA };
 
   it('no teste até o último segundo do dia 15', () => {
     expect(situacaoDe(emTeste, cadastro).fase).toBe('teste');
@@ -71,7 +71,7 @@ describe('a fase, ao longo do tempo', () => {
     for (const quando of ['2026-10-16T00:00:00', '2026-10-17T12:00:00', '2026-10-18T23:59:59']) {
       const s = situacaoDe(emTeste, local(quando));
       expect(s, quando).toMatchObject({ fase: 'carencia', motivo: 'teste' });
-      if (s.fase === 'carencia') expect(ultimoDia(s.ate)).toBe('18/10');
+      if (s.fase === 'carencia') expect(ultimoDia(s.ate, FORTALEZA)).toBe('18/10');
     }
   });
 
@@ -83,20 +83,20 @@ describe('a fase, ao longo do tempo', () => {
   });
 
   it('cobrança que falhou: carência, depois fora do ar, com o motivo certo', () => {
-    const atrasada = { status: 'past_due' as const, atrasadaDesde: local('2026-11-20T10:37:00') };
+    const atrasada = { status: 'past_due' as const, atrasadaDesde: local('2026-11-20T10:37:00'), fuso: FORTALEZA };
     expect(situacaoDe(atrasada, local('2026-11-23T23:59:59'))).toMatchObject({ fase: 'carencia', motivo: 'cobranca' });
     expect(situacaoDe(atrasada, local('2026-11-24T00:00:00'))).toMatchObject({ fase: 'suspensa', motivo: 'cobranca' });
   });
 
   it('pagando, tirada à mão e encerrada', () => {
-    expect(situacaoDe({ status: 'active' })).toEqual({ fase: 'ativa' });
-    expect(situacaoDe({ status: 'suspended' })).toMatchObject({ fase: 'suspensa', motivo: 'manual' });
-    expect(situacaoDe({ status: 'cancelled' })).toEqual({ fase: 'cancelada' });
+    expect(situacaoDe({ status: 'active', fuso: FORTALEZA })).toEqual({ fase: 'ativa' });
+    expect(situacaoDe({ status: 'suspended', fuso: FORTALEZA })).toMatchObject({ fase: 'suspensa', motivo: 'manual' });
+    expect(situacaoDe({ status: 'cancelled', fuso: FORTALEZA })).toEqual({ fase: 'cancelada' });
   });
 
   it('prazo faltando derruba em vez de dar o produto de graça', () => {
-    expect(situacaoDe({ status: 'trial', testeAte: null }).fase).toBe('suspensa');
-    expect(situacaoDe({ status: 'past_due', atrasadaDesde: null }).fase).toBe('suspensa');
+    expect(situacaoDe({ status: 'trial', testeAte: null, fuso: FORTALEZA }).fase).toBe('suspensa');
+    expect(situacaoDe({ status: 'past_due', atrasadaDesde: null, fuso: FORTALEZA }).fase).toBe('suspensa');
   });
 
   it('no ar: pagando, no teste e na carência; fora: suspensa e encerrada', () => {
@@ -113,9 +113,9 @@ describe('quantos dias faltam', () => {
   const fim = local('2026-10-16T00:00:00');
 
   it('7 no dia do cadastro, 1 na véspera, 0 no último dia', () => {
-    expect(diasAte(fim, local('2026-10-08T21:28:00'))).toBe(7);
-    expect(diasAte(fim, local('2026-10-14T08:00:00'))).toBe(1);
-    expect(diasAte(fim, local('2026-10-15T00:00:00'))).toBe(0);
-    expect(diasAte(fim, local('2026-10-15T23:59:59'))).toBe(0);
+    expect(diasAte(fim, FORTALEZA, local('2026-10-08T21:28:00'))).toBe(7);
+    expect(diasAte(fim, FORTALEZA, local('2026-10-14T08:00:00'))).toBe(1);
+    expect(diasAte(fim, FORTALEZA, local('2026-10-15T00:00:00'))).toBe(0);
+    expect(diasAte(fim, FORTALEZA, local('2026-10-15T23:59:59'))).toBe(0);
   });
 });

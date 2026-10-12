@@ -183,7 +183,20 @@ describe('a seção do combo na página inicial', () => {
 
   it('acha o dia de hoje no fuso da barbearia, e não no relógio de quem abre o site', () => {
     expect(codigo(COMBO)).not.toMatch(/getDay\(\)/);
-    expect(COMBO).toMatch(/data-tz=\{TZ\}/);
+    // O fuso é o DESTA barbearia (`tenants.timezone`, desde 12/10/2026), não um do processo.
+    expect(COMBO).toMatch(/const fuso = fusoDe\(tenantAtual\(\)\)/);
+    expect(COMBO).toMatch(/data-tz=\{fuso\}/);
     expect(COMBO).toMatch(/comboValeNaData\(c\.weekdays, hoje\)/);
+  });
+});
+
+describe('o dia destacado nos horários do rodapé', () => {
+  const RODAPE = readFileSync('src/components/Footer.astro', 'utf8');
+
+  it('é o de hoje no fuso da barbearia, como o combo — não o do relógio de quem abre o site', () => {
+    expect(codigo(RODAPE)).not.toMatch(/getDay\(\)/);
+    expect(RODAPE).toMatch(/const fuso = fusoDe\(tenantAtual\(\)\)/);
+    expect(RODAPE).toMatch(/<footer id="contato"[^>]*data-tz=\{fuso\}/);
+    expect(codigo(RODAPE)).toMatch(/timeZone: fuso, weekday: 'short'/);
   });
 });

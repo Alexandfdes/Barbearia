@@ -82,7 +82,7 @@ describe.skipIf(!TEM_BANCO)('a confirmação (`api/admin/mapa-conferido.ts`)', (
   let sql: ReturnType<typeof postgres>;
   let POST: typeof import('../src/pages/api/admin/mapa-conferido.ts').POST;
   let comTenant: typeof import('../src/db/index.js')['comTenant'];
-  const UM = { id: 1, slug: 'um', status: 'active' as const, domain: null };
+  const UM = { id: 1, slug: 'um', status: 'active' as const, domain: null, fuso: 'America/Fortaleza' };
   const cookies: Record<string, string> = {};
 
   const conferir = (busca: unknown, cookie = cookies.donoUm, tenant = UM) =>
@@ -146,7 +146,7 @@ describe.skipIf(!TEM_BANCO)('a confirmação (`api/admin/mapa-conferido.ts`)', (
   });
 
   it('o dono de outra barbearia confirma a dele — a do vizinho não muda', async () => {
-    const DOIS = { id: 2, slug: 'dois', status: 'active' as const, domain: null };
+    const DOIS = { id: 2, slug: 'dois', status: 'active' as const, domain: null, fuso: 'America/Fortaleza' };
     expect((await conferir(buscaDoMapa({ addressStreet: 'Rua B, 2', addressCity: 'Natal/RN' }), cookies.donoDois, DOIS)).status).toBe(200);
     expect(await conferidoDe(2)).toBe('Rua B, 2, Natal/RN');
     expect(await conferidoDe(1)).toBe('Barbearia Um, Nova Betânia, Natal');
@@ -159,7 +159,7 @@ describe.skipIf(!TEM_BANCO)('a confirmação (`api/admin/mapa-conferido.ts`)', (
 
   it('sem endereço não há mapa: 400, sem gravar', async () => {
     await sql`UPDATE settings SET address_street = '', address_city = '', maps_embed_query = NULL WHERE tenant_id = 2`;
-    expect((await conferir('', cookies.donoDois, { id: 2, slug: 'dois', status: 'active' as const, domain: null })).status).toBe(400);
+    expect((await conferir('', cookies.donoDois, { id: 2, slug: 'dois', status: 'active' as const, domain: null, fuso: 'America/Fortaleza' })).status).toBe(400);
     expect(await conferidoDe(2)).toBe('Rua B, 2, Natal/RN');
   });
 });

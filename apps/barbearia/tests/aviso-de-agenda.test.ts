@@ -21,7 +21,7 @@ import postgres from 'postgres';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { exigirBancoDeTeste } from './guardaBanco.js';
 import { recriarSchema } from './migrations.js';
-import { TZ } from '../src/lib/timezone';
+import { TZ_PADRAO as TZ } from '../src/lib/timezone';
 import { somarDias, diaDaSemana } from '../src/lib/calendario';
 import { caixaDeSaida } from '../src/lib/email';
 import { quandoCurto, quandoPorExtenso, textoDoAvisoDeAgenda } from '../src/lib/avisoDeAgenda';
@@ -31,7 +31,7 @@ process.env.SESSION_SECRET ??= 'segredo-de-teste-com-mais-de-32-caracteres-ok';
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
 
-const NAVALHA = { id: 1, slug: 'navalha', status: 'active' as const, domain: null };
+const NAVALHA = { id: 1, slug: 'navalha', status: 'active' as const, domain: null, fuso: 'America/Fortaleza' };
 const HOST = 'navalha.test';
 
 // Uma terça ao menos dois dias à frente — a rota recusa o passado e além de 30 dias.
@@ -155,11 +155,11 @@ describe('o texto do aviso', () => {
     // 21:30 de terça em Fortaleza — 00:30 de quarta em UTC.
     inicio: '2026-10-14T00:30:00.000Z', precoCentavos: 3990,
   };
-  const ctx = { destinatario: 'Ana Maria', barbearia: 'Barbearia Navalha', painel: 'https://painel.exemplo' };
+  const ctx = { destinatario: 'Ana Maria', barbearia: 'Barbearia Navalha', painel: 'https://painel.exemplo', fuso: TZ };
 
   it('a data e a hora são as da barbearia, não as de UTC', () => {
-    expect(quandoPorExtenso(appt.inicio)).toBe('terça-feira, 13/10, às 21:30');
-    expect(quandoCurto(appt.inicio)).toBe('ter 13/10 às 21:30');
+    expect(quandoPorExtenso(appt.inicio, TZ)).toBe('terça-feira, 13/10, às 21:30');
+    expect(quandoCurto(appt.inicio, TZ)).toBe('ter 13/10 às 21:30');
   });
 
   it('agendamento novo: quem, quando, o quê, o WhatsApp e o link da agenda do dia', () => {
@@ -238,7 +238,7 @@ describe.skipIf(!TEM_BANCO)('o aviso de agenda, pelas rotas do cliente', () => {
   it('o e-mail é o do agendamento gravado — e não leva nascimento nem o link de desmarcar', async () => {
     const r = await agendar(2, as(terca, '11:00'));
     const e = caixaDeSaida[0];
-    expect(e.assunto).toBe(`Agendamento novo: Cliente Teste, ${quandoCurto(as(terca, '11:00'))}`);
+    expect(e.assunto).toBe(`Agendamento novo: Cliente Teste, ${quandoCurto(as(terca, '11:00'), TZ)}`);
     expect(e.texto).toContain('Corte — R$ 40');
     expect(e.texto).toContain(`/admin/dia/${terca}`);
     expect(e.texto).not.toMatch(/1990|20\/05/);
@@ -272,7 +272,7 @@ describe.skipIf(!TEM_BANCO)('o aviso de agenda, pelas rotas do cliente', () => {
     const r = await porToken('cancel', tokenDaAna);
     expect(r.status).toBe(200);
     expect(para()).toEqual(['ana@navalha.com', 'vera@navalha.com']);
-    expect(caixaDeSaida[0].assunto).toBe(`Desmarcado: Cliente Teste, ${quandoCurto(as(terca, '10:00'))}`);
+    expect(caixaDeSaida[0].assunto).toBe(`Desmarcado: Cliente Teste, ${quandoCurto(as(terca, '10:00'), TZ)}`);
 
     caixaDeSaida.length = 0;
     expect((await porToken('cancel', tokenDaAna)).status).toBe(409);
@@ -294,8 +294,8 @@ describe.skipIf(!TEM_BANCO)('o aviso de agenda, pelas rotas do cliente', () => {
     expect(r.status).toBe(200);
     expect(para()).toEqual(['ana@navalha.com', 'vera@navalha.com']);
     const e = caixaDeSaida[0];
-    expect(e.assunto).toBe(`Remarcado: Cliente Teste, ${quandoCurto(as(terca, '16:00'))} → ${quandoCurto(as(quarta, '09:00'))}`);
-    expect(e.texto).toContain(`Era:   ${quandoPorExtenso(as(terca, '16:00'))}`);
+    expect(e.assunto).toBe(`Remarcado: Cliente Teste, ${quandoCurto(as(terca, '16:00'), TZ)} → ${quandoCurto(as(quarta, '09:00'), TZ)}`);
+    expect(e.texto).toContain(`Era:   ${quandoPorExtenso(as(terca, '16:00'), TZ)}`);
     expect(e.texto).toContain(`/admin/dia/${quarta}`);
 
     caixaDeSaida.length = 0;

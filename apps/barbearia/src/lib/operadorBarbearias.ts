@@ -26,6 +26,7 @@ import {
   type Situacao, type StatusDaBarbearia,
 } from './situacao.js';
 import { invalidarTenants, urlDoSite } from './tenant.js';
+import { fusoDe } from './timezone.js';
 
 /** Até quantos dias o operador estende o teste de uma vez. Mais que isso não é teste. */
 export const DIAS_MAXIMOS_DE_EXTENSAO = 60;
@@ -51,22 +52,23 @@ export interface FaseNaTela {
   tom: Tom;
 }
 
-export function faseNaTela(s: Situacao): FaseNaTela {
+/** As datas no calendário DA BARBEARIA (`fuso`): o prazo é dela, não do operador. */
+export function faseNaTela(s: Situacao, fuso: string): FaseNaTela {
   switch (s.fase) {
     case 'ativa':
       return s.encerraEm
-        ? { fase: s.fase, rotulo: 'Cancelou', detalhe: `no ar até ${ultimoDia(s.encerraEm)}`, tom: 'atencao' }
+        ? { fase: s.fase, rotulo: 'Cancelou', detalhe: `no ar até ${ultimoDia(s.encerraEm, fuso)}`, tom: 'atencao' }
         : { fase: s.fase, rotulo: 'Em dia', detalhe: 'pagando', tom: 'em-dia' };
     case 'teste':
-      return { fase: s.fase, rotulo: 'Teste', detalhe: `até ${ultimoDia(s.ate)}`, tom: 'teste' };
+      return { fase: s.fase, rotulo: 'Teste', detalhe: `até ${ultimoDia(s.ate, fuso)}`, tom: 'teste' };
     case 'carencia':
       return {
         fase: s.fase, rotulo: 'Carência', tom: 'atencao',
-        detalhe: `${s.motivo === 'teste' ? 'o teste venceu' : 'a cobrança falhou'} · no ar até ${ultimoDia(s.ate)}`,
+        detalhe: `${s.motivo === 'teste' ? 'o teste venceu' : 'a cobrança falhou'} · no ar até ${ultimoDia(s.ate, fuso)}`,
       };
     case 'suspensa': {
       const porque = { teste: 'o teste venceu', cobranca: 'a cobrança não foi paga', cancelada: 'cancelou a assinatura', manual: 'tirada do ar à mão' }[s.motivo];
-      return { fase: s.fase, rotulo: 'Fora do ar', detalhe: s.desde ? `${porque} · desde ${diaDe(s.desde)}` : porque, tom: 'fora' };
+      return { fase: s.fase, rotulo: 'Fora do ar', detalhe: s.desde ? `${porque} · desde ${diaDe(s.desde, fuso)}` : porque, tom: 'fora' };
     }
     case 'cancelada':
       return { fase: s.fase, rotulo: 'Encerrada', detalhe: 'saiu do produto', tom: 'encerrada' };
@@ -88,6 +90,8 @@ export interface BarbeariaNoPainel {
   slug: string;
   nome: string;
   status: StatusDaBarbearia;
+  /** O fuso da barbearia (`tenants.timezone`). */
+  fuso: string;
   situacao: Situacao;
   tela: FaseNaTela;
   /** O endereço do site; vazio sem domínio próprio nem `DOMINIO_BASE`. */
@@ -110,6 +114,7 @@ interface LinhaDaLista {
   id: number; slug: string; business_name: string; nome_no_site: string | null;
   status: StatusDaBarbearia; domain: string | null;
   trial_ends_at: unknown; past_due_since: unknown; subscription_ends_at: unknown; created_at: unknown;
+  timezone: string;
   tem_assinatura: boolean;
   dono_nome: string | null; dono_telefone: string | null; dono_email: string | null;
   barbeiros_ativos: number; agendamentos_30_dias: number; ultimo_agendamento: string | null;
@@ -119,7 +124,7 @@ interface LinhaDaLista {
 export async function listarBarbearias(agora: Date = new Date()): Promise<BarbeariaNoPainel[]> {
   const linhas = await sqlConn<LinhaDaLista[]>`
     SELECT t.id, t.slug, t.business_name, s.business_name AS nome_no_site, t.status, t.domain,
-           t.trial_ends_at, t.past_due_since, t.subscription_ends_at, t.created_at,
+           t.trial_ends_at, t.past_due_since, t.subscription_ends_at, t.created_at, t.timezone,
            (t.asaas_subscription_id IS NOT NULL) AS tem_assinatura,
            dono.name AS dono_nome, dono.phone AS dono_telefone, dono.email AS dono_email,
            (SELECT count(*)::int FROM barbers b WHERE b.tenant_id = t.id AND b.active) AS barbeiros_ativos,
@@ -148,6 +153,7 @@ export async function listarBarbearias(agora: Date = new Date()): Promise<Barbea
     const tenant = {
       id: l.id, slug: l.slug, status: l.status, domain: l.domain,
       testeAte: comoData(l.trial_ends_at), atrasadaDesde: comoData(l.past_due_since), encerraEm: comoData(l.subscription_ends_at),
+      fuso: fusoDe({ fuso: l.timezone }),
     };
     const situacao = situacaoDe(tenant, agora);
     const antes = l.antes_da_suspensao as StatusDaBarbearia | null;
@@ -156,8 +162,9 @@ export async function listarBarbearias(agora: Date = new Date()): Promise<Barbea
       slug: l.slug,
       nome: l.nome_no_site?.trim() || l.business_name,
       status: l.status,
+      fuso: tenant.fuso,
       situacao,
-      tela: faseNaTela(situacao),
+      tela: faseNaTela(situacao, tenant.fuso),
       site: urlDoSite(tenant),
       criadaEm: comoData(l.created_at),
       dono: l.dono_nome ? { nome: l.dono_nome, telefone: l.dono_telefone, email: l.dono_email } : null,
@@ -228,11 +235,13 @@ export interface AcaoRegistrada {
   ip: string | null;
   quando: Date | null;
   slug: string | null;
+  /** O fuso da barbearia da ação: o "até 18/10" do teste estendido é o dia dela. */
+  fuso: string | null;
 }
 
 export async function ultimasAcoes(limite = 30): Promise<AcaoRegistrada[]> {
-  const linhas = await sqlConn<{ acao: Acao; detalhe: unknown; ip: string | null; criada_em: unknown; slug: string | null }[]>`
-    SELECT o.acao, o.detalhe, o.ip, o.criada_em, t.slug
+  const linhas = await sqlConn<{ acao: Acao; detalhe: unknown; ip: string | null; criada_em: unknown; slug: string | null; fuso: string | null }[]>`
+    SELECT o.acao, o.detalhe, o.ip, o.criada_em, t.slug, t.timezone AS fuso
       FROM acoes_do_operador o
       LEFT JOIN tenants t ON t.id = o.tenant_id
      ORDER BY o.criada_em DESC, o.id DESC
@@ -240,7 +249,7 @@ export async function ultimasAcoes(limite = 30): Promise<AcaoRegistrada[]> {
   return linhas.map((l) => ({
     acao: l.acao,
     detalhe: (typeof l.detalhe === 'string' ? JSON.parse(l.detalhe) : l.detalhe ?? {}) as Record<string, unknown>,
-    ip: l.ip, quando: comoData(l.criada_em), slug: l.slug,
+    ip: l.ip, quando: comoData(l.criada_em), slug: l.slug, fuso: l.fuso,
   }));
 }
 
@@ -252,7 +261,7 @@ export function descreverAcao(a: AcaoRegistrada): string {
     case 'entrou':
       return 'Entrou no painel';
     case 'estendeu-teste': {
-      const ate = typeof d.depois === 'string' ? ` (até ${ultimoDia(new Date(d.depois))})` : '';
+      const ate = typeof d.depois === 'string' ? ` (até ${ultimoDia(new Date(d.depois), fusoDe(a))})` : '';
       return `Estendeu o teste de ${quem} em ${d.dias === 1 ? '1 dia' : `${String(d.dias ?? '?')} dias`}${ate}`;
     }
     case 'suspendeu': {
@@ -283,6 +292,7 @@ export interface ResultadoDaAcao {
 interface LinhaDaBarbearia {
   id: number; slug: string; status: StatusDaBarbearia;
   trial_ends_at: unknown; past_due_since: unknown; subscription_ends_at: unknown;
+  timezone: string;
 }
 
 // ⚠️ Não `Parameters<typeof sqlConn.begin>`: o `begin` tem duas assinaturas, e o
@@ -291,18 +301,19 @@ type Tx = TransactionSql<{}>;
 
 async function travar(tx: Tx, tenantId: number): Promise<LinhaDaBarbearia> {
   const [t] = await tx<LinhaDaBarbearia[]>`
-    SELECT id, slug, status, trial_ends_at, past_due_since, subscription_ends_at
+    SELECT id, slug, status, trial_ends_at, past_due_since, subscription_ends_at, timezone
       FROM tenants WHERE id = ${tenantId} FOR UPDATE`;
   if (!t) throw new ErroDoOperador('Barbearia não encontrada.', 404);
   return t;
 }
 
 function resultado(t: LinhaDaBarbearia, agora: Date): ResultadoDaAcao {
+  const fuso = fusoDe({ fuso: t.timezone });
   const situacao = situacaoDe({
     status: t.status, testeAte: comoData(t.trial_ends_at),
-    atrasadaDesde: comoData(t.past_due_since), encerraEm: comoData(t.subscription_ends_at),
+    atrasadaDesde: comoData(t.past_due_since), encerraEm: comoData(t.subscription_ends_at), fuso,
   }, agora);
-  return { slug: t.slug, situacao, tela: faseNaTela(situacao) };
+  return { slug: t.slug, situacao, tela: faseNaTela(situacao, fuso) };
 }
 
 /**
@@ -323,7 +334,7 @@ export async function estenderTeste(tenantId: number, dias: number, ip: string, 
       throw new ErroDoOperador(`Só dá para estender o teste de quem está no teste — esta está ${statusPorExtenso(t.status)}.`, 409);
     }
     const antes = comoData(t.trial_ends_at);
-    const depois = fimDoTesteEstendido(antes, dias, agora);
+    const depois = fimDoTesteEstendido(antes, dias, fusoDe({ fuso: t.timezone }), agora);
     await tx`UPDATE tenants SET trial_ends_at = ${depois.toISOString()}::timestamptz WHERE id = ${tenantId}`;
     const detalhe = { dias, antes: antes?.toISOString() ?? null, depois: depois.toISOString() };
     await tx`INSERT INTO acoes_do_operador (tenant_id, acao, detalhe, ip)
@@ -416,7 +427,7 @@ export async function reativar(
     }
 
     // As travas da 0007: teste tem fim, atraso tem começo.
-    const testeAte = novo === 'trial' ? comoData(t.trial_ends_at) ?? fimDoTeste(agora) : comoData(t.trial_ends_at);
+    const testeAte = novo === 'trial' ? comoData(t.trial_ends_at) ?? fimDoTeste(agora, fusoDe({ fuso: t.timezone })) : comoData(t.trial_ends_at);
     const atrasadaDesde = novo === 'past_due' ? comoData(t.past_due_since) ?? agora : comoData(t.past_due_since);
     await tx`
       UPDATE tenants SET status = ${novo},

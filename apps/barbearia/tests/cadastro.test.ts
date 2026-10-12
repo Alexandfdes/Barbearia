@@ -32,6 +32,7 @@ const BASE = {
   telefone: '84 99999-0000',
   endereco: 'R. das Flores, 42',
   cidade: 'Mossoró/RN',
+  estado: 'RN',
   senha: 'segredo123',
   email: 'ze@exemplo.com.br',
 };

@@ -60,11 +60,14 @@ export const DIAS_DE_ANTECEDENCIA = 2;
  */
 const FORA_DO_AR_HA_NO_MAXIMO_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** O aviso que a fase de agora pede, ou `null`. Sem banco: é a regra. */
-export function avisoDevido(s: Situacao, agora: Date = new Date()): AvisoDevido | null {
+/**
+ * O aviso que a fase de agora pede, ou `null`. Sem banco: é a regra. Os dias que
+ * faltam se contam no calendário da barbearia (`fuso`).
+ */
+export function avisoDevido(s: Situacao, fuso: string, agora: Date = new Date()): AvisoDevido | null {
   switch (s.fase) {
     case 'teste':
-      return diasAte(s.ate, agora) <= DIAS_DE_ANTECEDENCIA ? { tipo: 'teste-acabando', referencia: s.ate } : null;
+      return diasAte(s.ate, fuso, agora) <= DIAS_DE_ANTECEDENCIA ? { tipo: 'teste-acabando', referencia: s.ate } : null;
     case 'carencia':
       return { tipo: s.motivo === 'teste' ? 'teste-acabou' : 'cobranca-falhou', referencia: s.ate };
     case 'suspensa':
@@ -85,20 +88,21 @@ export function avisoDevido(s: Situacao, agora: Date = new Date()): AvisoDevido 
 export function textoDoAviso(
   tipo: TipoDeAviso,
   s: Situacao,
-  d: { barbearia: string; nome: string; painel: string },
+  /** `fuso`: o da barbearia — as datas do e-mail são as do calendário dela. */
+  d: { barbearia: string; nome: string; painel: string; fuso: string },
   agora: Date = new Date(),
 ): { assunto: string; texto: string } {
-  const assunto = `${d.barbearia}: ${resumoDoAssunto(tipo, s, agora)}`;
+  const assunto = `${d.barbearia}: ${resumoDoAssunto(tipo, s, d.fuso, agora)}`;
 
   const abertura = tipo === 'teste-acabando' && s.fase === 'teste'
-    ? [quantoFalta(diasAte(s.ate, agora)), '']
+    ? [quantoFalta(diasAte(s.ate, d.fuso, agora)), '']
     : [];
 
   const texto = [
     `Olá, ${d.nome}.`,
     '',
     ...abertura,
-    explicacaoDaSituacao(s, agora),
+    explicacaoDaSituacao(s, d.fuso, agora),
     '',
     'A tela de assinatura, no painel:',
     `${d.painel}${TELA_DE_ASSINATURA}`,
@@ -109,10 +113,10 @@ export function textoDoAviso(
   return { assunto, texto };
 }
 
-function resumoDoAssunto(tipo: TipoDeAviso, s: Situacao, agora: Date): string {
+function resumoDoAssunto(tipo: TipoDeAviso, s: Situacao, fuso: string, agora: Date): string {
   switch (tipo) {
     case 'teste-acabando': {
-      const dias = s.fase === 'teste' ? diasAte(s.ate, agora) : 0;
+      const dias = s.fase === 'teste' ? diasAte(s.ate, fuso, agora) : 0;
       return `o teste grátis termina ${dias <= 0 ? 'hoje' : dias === 1 ? 'amanhã' : `em ${dias} dias`}`;
     }
     case 'teste-acabou':
@@ -163,6 +167,7 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
       status: tenants.status,
       testeAte: tenants.trialEndsAt,
       atrasadaDesde: tenants.pastDueSince,
+      fuso: tenants.timezone,
     })
     .from(tenants)
     .where(inArray(tenants.status, ['trial', 'past_due']))
@@ -171,7 +176,7 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
   for (const b of barbearias) {
     resumo.avaliadas++;
     const s = situacaoDe(b, agora);
-    const devido = avisoDevido(s, agora);
+    const devido = avisoDevido(s, b.fuso, agora);
     if (!devido) continue;
 
     const donos = await dbDono
@@ -199,7 +204,7 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
       // desfeita e o primeiro recebe de novo na rodada seguinte — raro, e melhor
       // que o segundo não receber nunca.
       for (const dono of donos) {
-        await enviarEmail({ para: dono.email!, ...textoDoAviso(devido.tipo, s, { barbearia: b.nome, nome: dono.nome, painel }, agora) });
+        await enviarEmail({ para: dono.email!, ...textoDoAviso(devido.tipo, s, { barbearia: b.nome, nome: dono.nome, painel, fuso: b.fuso }, agora) });
       }
       resumo.enviados++;
     } catch (erro) {
