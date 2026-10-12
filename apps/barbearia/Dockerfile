@@ -6,7 +6,20 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Estágio 2: Produção (Node.js — Astro standalone com @astrojs/node)
+# Estágio 2: só as dependências de PRODUÇÃO.
+#
+# Até 11/10/2026 a imagem levava o `node_modules` inteiro do build — TypeScript,
+# vitest, drizzle-kit e o esbuild antigo que vem com ele, com 4 falhas de segurança
+# moderadas conhecidas (`npm audit`). Nada disso roda em produção. Instalado à parte,
+# a partir do mesmo lock, só com o que o app e os scripts de suporte usam: o
+# `npm audit --omit=dev` dá zero. O `tsx` é dependência de produção de propósito:
+# é com ele que o provisionador roda no console do container.
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Estágio 3: Produção (Node.js — Astro standalone com @astrojs/node)
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
@@ -29,8 +42,15 @@ RUN apk add --no-cache postgresql16-client
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/scripts ./scripts
-COPY --from=build /app/node_modules ./node_modules
+COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
+
+# O provisionador (`npm run db:provisionar`, `scripts/provisionar.mts`) importa o
+# código de `src/lib` e `src/db` — e o `src/` não entrava na imagem: o script nunca
+# rodou no container, e o documento de produção mandava rodá-lo lá. Só as duas
+# pastas: o resto do `src/` já está compilado no `dist/`.
+COPY --from=build /app/src/lib ./src/lib
+COPY --from=build /app/src/db ./src/db
 
 # As 20 fotos do carrossel do Bayron, para `scripts/importar-galeria-bayron.mjs`
 # levar para a galeria do banco (migration 0005). O `src/` não entra na imagem, e
