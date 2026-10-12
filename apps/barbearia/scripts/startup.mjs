@@ -254,6 +254,46 @@ async function conferirPapelDoApp() {
     throw new ErroDeBoot('barbearia_app não pode ser assumido por ' + usuario);
   }
   console.log(`✓ papel do app: ${usuario} pode assumir barbearia_app`);
+
+  // ⚠️ ASSUMIR O PAPEL NÃO BASTA — e até 11/10/2026 esta conferência parava acima.
+  //
+  // Banco restaurado de um backup sem os privilégios — todo backup feito até essa
+  // data rodava `pg_dump --no-privileges` — passa no SET ROLE e não lê tabela
+  // nenhuma: o site responderia 500 em tudo, com o boot verde. E num servidor novo,
+  // sem o papel na hora de restaurar, as políticas de RLS nem chegam a ser criadas.
+  // Achado restaurando de verdade, no ensaio da troca do usuário do banco. As duas
+  // coisas se conferem aqui: o papel lê as tabelas que toda tela usa, e toda tabela
+  // de barbearia tem a rede (a mesma conferência de `tests/rls.test.ts`).
+  const ESSENCIAIS = ['tenants', 'settings', 'barbers', 'services', 'appointments'];
+  const semLeitura = (await sql`
+    SELECT t FROM unnest(${ESSENCIAIS}::text[]) AS t
+     WHERE NOT COALESCE(has_table_privilege('barbearia_app', to_regclass('public.' || t), 'SELECT'), false)
+     ORDER BY 1`).map((r) => r.t);
+  const semRede = (await sql`
+    SELECT c.relname FROM pg_class c
+     WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p')
+       AND EXISTS (SELECT 1 FROM pg_attribute a
+                    WHERE a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped)
+       AND (NOT c.relrowsecurity OR NOT EXISTS (
+             SELECT 1 FROM pg_policies p
+              WHERE p.schemaname = 'public' AND p.tablename = c.relname AND p.policyname = 'tenant_isolado'))
+     ORDER BY 1`).map((r) => r.relname);
+  if (semLeitura.length || semRede.length) {
+    console.error(
+      '\n' +
+      '  ┌──────────────────────────────────────────────────────────────┐\n' +
+      '  │  ✗  O PAPEL DO APP NÃO LÊ AS TABELAS, OU FALTA A REDE DE RLS  │\n' +
+      '  └──────────────────────────────────────────────────────────────┘\n' +
+      (semLeitura.length ? `  barbearia_app sem leitura em: ${semLeitura.join(', ')}\n` : '') +
+      (semRede.length ? `  Sem RLS ou sem a política tenant_isolado: ${semRede.join(', ')}\n` : '') +
+      '\n  É o banco restaurado de um backup sem as permissões (todo backup feito até\n' +
+      '  11/10/2026), ou restaurado num servidor novo. Toda tela responderia 500 —\n' +
+      '  por isso o boot para aqui. Resolve com:\n\n' +
+      '      node scripts/permissoes-do-app.mjs\n'
+    );
+    throw new ErroDeBoot('barbearia_app sem acesso às tabelas, ou tabela sem a rede de RLS');
+  }
+  console.log('✓ papel do app: lê as tabelas, e toda tabela de barbearia tem a rede de RLS');
 }
 
 try {
