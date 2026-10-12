@@ -14,6 +14,11 @@ npm run dev
 ```
 
 Páginas públicas: `/` (vendas) · `/demo` · `/obrigado` (pós-pagamento) · `/onboarding` (formulário).
+`/acessar` leva à tela de entrar do painel central (`URL_PAINEL`), desde 12/10/2026.
+
+Em produção, três variáveis decidem para onde os botões levam: `CADASTRO_ABERTO=1` (a mesma do
+app da barbearia), `URL_CADASTRO` e `URL_PAINEL`. Sem as duas últimas, eles apontam para o
+`localhost` — ver `src/config.ts`.
 
 Área fechada: `/entrar` → `/envios` (caixa de entrada das implantações).
 
