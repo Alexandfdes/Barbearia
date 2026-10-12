@@ -141,14 +141,85 @@ export function ehEnderecoDoPainel(host: string | null, painel: string): boolean
   }
 }
 
-/** As rotas do painel do operador — o `src/middleware.ts` as deixa passar sem barbearia. */
+/**
+ * As rotas do painel do operador — o `src/middleware.ts` as deixa passar sem barbearia.
+ *
+ * Desde 12/10/2026 o painel tem telas (`/operador/barbearias`, `/operador/sistema`…),
+ * e por isso o prefixo inteiro. ⚠️ O preço: TODA página que nascer em
+ * `src/pages/operador/` roda sem barbearia, como dono do banco — e por isso cada
+ * uma abre com `exigirOperador` (ou `abrirPorta`, a de entrar), e
+ * `tests/operador-telas.test.ts` reprova a que não abrir.
+ */
 export function ehRotaDoOperador(caminho: string): boolean {
-  return caminho === '/operador' || caminho === '/operador/' || caminho.startsWith('/api/operador/');
+  return caminho === '/operador' || caminho.startsWith('/operador/') || caminho.startsWith('/api/operador/');
 }
 
 /** O 404 do operador: o mesmo texto de qualquer endereço que não existe. */
 export function naoEncontrado(): Response {
   return new Response('Não encontrado', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } });
+}
+
+// ── As telas ────────────────────────────────────────────────────────────────
+
+/**
+ * Os cabeçalhos de toda tela do operador: nada vai para cache, aparece dentro de
+ * outro site ou entra em busca.
+ *
+ * `Referrer-Policy: same-origin`, e NÃO `no-referrer`: com `no-referrer`, o
+ * navegador manda `Origin: null` no POST de formulário — e o "Sair" (um
+ * `<form method="post">`) era recusado pela conferência de origem do
+ * `src/middleware.ts`. Achado no E2E de 11/10/2026. `same-origin` dá o mesmo
+ * resultado para fora: o site da barbearia e o WhatsApp abertos daqui não ficam
+ * sabendo de onde o clique veio.
+ */
+export function protegerTela(cabecalhos: Headers): void {
+  cabecalhos.set('Cache-Control', 'no-store');
+  cabecalhos.set('X-Frame-Options', 'DENY');
+  cabecalhos.set('Content-Security-Policy', "frame-ancestors 'none'");
+  cabecalhos.set('Referrer-Policy', 'same-origin');
+  cabecalhos.set('X-Robots-Tag', 'noindex, nofollow');
+}
+
+/**
+ * A porta da tela de ENTRAR (`/operador`): fechada é o 404; aberta diz se quem
+ * pede já está dentro — e a tela mostra o Início ou a senha.
+ */
+export async function abrirPorta(
+  request: Request, cabecalhos: Headers, env: Ambiente = process.env,
+): Promise<{ resposta: Response } | { dentro: boolean }> {
+  if (portaoDoOperador(request, env) !== 'aberto') return { resposta: naoEncontrado() };
+  protegerTela(cabecalhos);
+  return { dentro: await operadorAutenticado(request, env) };
+}
+
+/**
+ * A porta de TODA outra tela do operador. Devolve a resposta que encerra a
+ * requisição — o 404, com a porta fechada; a tela de entrar, sem sessão —, ou
+ * `null`, e aí a tela segue. É a primeira coisa de cada página, antes de
+ * qualquer consulta: o `src/middleware.ts` deixa `/operador/…` passar sem
+ * barbearia, e quem decide é isto.
+ */
+export async function exigirOperador(
+  request: Request, cabecalhos: Headers, env: Ambiente = process.env,
+): Promise<Response | null> {
+  const porta = await abrirPorta(request, cabecalhos, env);
+  if ('resposta' in porta) return porta.resposta;
+  if (porta.dentro) return null;
+  const volta = voltaValida(new URL(request.url).pathname);
+  return new Response(null, {
+    status: 303,
+    headers: { Location: volta ? `/operador?volta=${encodeURIComponent(volta)}` : '/operador', 'Cache-Control': 'no-store' },
+  });
+}
+
+/**
+ * Para onde voltar depois de entrar — só uma tela do próprio painel. Qualquer
+ * outra coisa, inclusive endereço de fora (`//outro.site`), é `null`: a tela de
+ * entrar não pode virar redirecionamento para onde quem mandou o link quiser.
+ */
+export function voltaValida(caminho: string | null | undefined): string | null {
+  if (!caminho) return null;
+  return /^\/operador(?:\/(?:barbearias(?:\/[1-9]\d{0,8})?|cobranca|registro|sistema))?$/.test(caminho) ? caminho : null;
 }
 
 // ── A sessão ────────────────────────────────────────────────────────────────

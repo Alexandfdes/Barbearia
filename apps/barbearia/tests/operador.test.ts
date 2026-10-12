@@ -133,10 +133,13 @@ describe('o endereço: só o do painel', () => {
   });
 
   it('as rotas do operador são estas, e só estas', () => {
-    for (const r of ['/operador', '/operador/', '/api/operador/entrar', '/api/operador/acao', '/api/operador/sair']) {
+    // Desde 12/10/2026, as telas: o prefixo `/operador/` inteiro — e por isso cada
+    // página dele abre com `exigirOperador` (`tests/operador-telas.test.ts`).
+    for (const r of ['/operador', '/operador/', '/operador/barbearias', '/operador/barbearias/3', '/operador/cobranca',
+      '/operador/registro', '/operador/sistema', '/api/operador/entrar', '/api/operador/acao', '/api/operador/sair']) {
       expect(ehRotaDoOperador(r), r).toBe(true);
     }
-    for (const r of ['/operadores', '/admin', '/api/admin/settings', '/', '/api/operadorx']) {
+    for (const r of ['/operadores', '/operadorx/barbearias', '/admin', '/api/admin/settings', '/', '/api/operadorx']) {
       expect(ehRotaDoOperador(r), r).toBe(false);
     }
   });

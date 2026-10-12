@@ -1,0 +1,184 @@
+---
+export const prerender = false;
+
+/**
+ * O Início do painel do operador — ou a tela de entrar, para quem ainda não entrou
+ * (decisões de 11/10 e 12/10/2026, `docs/PENDENCIAS-ABERTAS.md` §3.9).
+ *
+ * Os números do negócio e o que pede atenção hoje: `lib/operadorNumeros.ts`.
+ * Quem entra: `lib/operador.ts`. Nenhum dado de cliente de barbearia passa por
+ * esta tela — só o contato do dono e contagens.
+ */
+import OperadorLayout from '../../layouts/OperadorLayout.astro';
+import Entrar from '../../components/operador/Entrar.astro';
+import Numero from '../../components/operador/Numero.astro';
+import { abrirPorta, voltaValida } from '../../lib/operador.js';
+import { descreverAcao } from '../../lib/operadorBarbearias.js';
+import { numerosDoNegocio } from '../../lib/operadorNumeros.js';
+import { dinheiro, nomeDoMes, quando } from '../../lib/operadorTela.js';
+import { formatarTelefone } from '../../lib/phone.js';
+import { waLink, waPhone } from '../../lib/whatsapp.js';
+
+const porta = await abrirPorta(Astro.request, Astro.response.headers);
+if ('resposta' in porta) return porta.resposta;
+
+const volta = voltaValida(Astro.url.searchParams.get('volta')) ?? '/operador';
+const agora = new Date();
+const n = porta.dentro ? await numerosDoNegocio(agora) : null;
+
+const fases = n ? [
+  { rotulo: 'Em dia', n: n.resumo.ativa, cor: 'bg-emerald-500' },
+  { rotulo: 'No teste', n: n.resumo.teste, cor: 'bg-sky-500' },
+  { rotulo: 'Na carência', n: n.resumo.carencia, cor: 'bg-amber-500' },
+  { rotulo: 'Fora do ar', n: n.resumo.suspensa, cor: 'bg-red-600' },
+  { rotulo: 'Encerradas', n: n.resumo.cancelada, cor: 'bg-slate-400' },
+] : [];
+const maiorSemana = n ? Math.max(1, ...n.cadastros.porSemana.map((s) => s.quantos)) : 1;
+const conversao = n && n.conversao.terminaram > 0
+  ? Math.round((n.conversao.cadastraramCartao / n.conversao.terminaram) * 100)
+  : null;
+const ambiente = n?.cobranca.ambiente === 'producao' ? 'produção' : n?.cobranca.ambiente === 'sandbox' ? 'teste (sandbox)' : null;
+---
+{!n ? <Entrar volta={volta} /> : (
+  <OperadorLayout titulo="Início" ativo="inicio">
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-label="Os números">
+      <Numero rotulo="No ar" valor={String(n.resumo.noAr)} href="/operador/barbearias"
+        detalhe={`de ${n.resumo.total} ${n.resumo.total === 1 ? 'cadastrada' : 'cadastradas'} · ${n.resumo.teste} no teste`} />
+      <Numero rotulo="Pagando" valor={String(n.pagando)}
+        detalhe={`${dinheiro(n.receitaPrevista)} por mês, previstos${n.cancelando ? ` · ${n.cancelando} saindo` : ''}`} />
+      <Numero rotulo={`Confirmado em ${nomeDoMes(agora)}`} valor={dinheiro(n.pagamentosDoMes.total)} href="/operador/cobranca"
+        alerta={!n.cobranca.ligada}
+        detalhe={n.cobranca.ligada
+          ? `${n.pagamentosDoMes.quantos} ${n.pagamentosDoMes.quantos === 1 ? 'pagamento' : 'pagamentos'} · Asaas em ${ambiente}`
+          : 'a cobrança está desligada neste servidor'} />
+      <Numero rotulo="Cadastros em 30 dias" valor={String(n.cadastros.ultimos30Dias)}
+        detalhe={`${n.cadastros.ultimos7Dias} nos últimos 7 dias`} />
+    </section>
+
+    {n.resumo.total > 0 && (
+      <section class="bg-white border border-slate-200 rounded-lg p-5" aria-labelledby="titulo-fases">
+        <h2 id="titulo-fases" class="text-sm font-semibold text-slate-900">Onde cada barbearia está</h2>
+        <div class="mt-3 flex h-3 rounded-full overflow-hidden bg-slate-100" aria-hidden="true">
+          {fases.filter((f) => f.n > 0).map((f) => (
+            <div class={f.cor} style={`width: ${(f.n / n.resumo.total) * 100}%`}></div>
+          ))}
+        </div>
+        <ul class="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+          {fases.map((f) => (
+            <li class="flex items-center gap-2 text-slate-700">
+              <span class:list={['w-2.5 h-2.5 rounded-full', f.cor]} aria-hidden="true"></span>
+              {f.rotulo} <span class="tabular-nums font-semibold text-slate-900">{f.n}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    <div class="grid lg:grid-cols-3 gap-6">
+      <section class="lg:col-span-2 bg-white border border-slate-200 rounded-lg" aria-labelledby="titulo-atencao">
+        <div class="px-5 py-4 border-b border-slate-200">
+          <h2 id="titulo-atencao" class="text-sm font-semibold text-slate-900">Pede atenção</h2>
+          <p class="text-xs text-slate-500 mt-0.5">Testes que acabam em até 3 dias, carências, quem cancelou e o que o sistema não resolveu sozinho.</p>
+        </div>
+        {n.atencao.length === 0 && n.alertasDoSistema.length === 0 ? (
+          <p class="px-5 py-8 text-sm text-slate-500 text-center">Nada pedindo atenção agora.</p>
+        ) : (
+          <ul id="atencao" class="divide-y divide-slate-200">
+            {n.atencao.map((i) => {
+              const wa = i.telefoneDoDono ? waPhone(i.telefoneDoDono) : null;
+              return (
+                <li class="px-5 py-3.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <span class:list={['w-2 h-2 rounded-full shrink-0 ring-4', {
+                    'bg-sky-500 ring-sky-100': i.tom === 'teste',
+                    'bg-amber-500 ring-amber-100': i.tom === 'atencao',
+                    'bg-red-600 ring-red-100': i.tom === 'fora',
+                    'bg-emerald-500 ring-emerald-100': i.tom === 'em-dia',
+                    'bg-slate-400 ring-slate-100': i.tom === 'encerrada',
+                  }]} aria-hidden="true"></span>
+                  <a href={i.href} class="min-w-[14rem] flex-1 group">
+                    <span class="block text-sm font-medium text-slate-900 group-hover:text-teal">{i.titulo}</span>
+                    <span class="block text-sm text-slate-600">{i.texto}</span>
+                  </a>
+                  {wa && (
+                    <a href={waLink(wa)} target="_blank" rel="noopener noreferrer"
+                      class="text-xs font-medium border border-slate-300 hover:border-teal/50 rounded-md px-2.5 py-1.5 text-slate-700 whitespace-nowrap">
+                      WhatsApp do dono · <span class="tabular-nums">{formatarTelefone(i.telefoneDoDono!)}</span>
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+            {n.alertasDoSistema.length > 0 && (
+              <li class="px-5 py-3.5 flex items-start gap-3">
+                <span class:list={['w-2 h-2 mt-1.5 rounded-full shrink-0 ring-4',
+                  n.alertasDoSistema.some((a) => a.estado === 'problema') ? 'bg-red-600 ring-red-100' : 'bg-amber-500 ring-amber-100']} aria-hidden="true"></span>
+                <a href="/operador/sistema" class="min-w-0 flex-1 group">
+                  <span class="block text-sm font-medium text-slate-900 group-hover:text-teal">
+                    Sistema — {n.alertasDoSistema.length} {n.alertasDoSistema.length === 1 ? 'aviso' : 'avisos'}
+                  </span>
+                  <span class="block text-sm text-slate-600">{n.alertasDoSistema.map((a) => a.texto).join(' ')}</span>
+                </a>
+              </li>
+            )}
+          </ul>
+        )}
+      </section>
+
+      <div class="space-y-6">
+        <section class="bg-white border border-slate-200 rounded-lg p-5" aria-labelledby="titulo-conversao">
+          <h2 id="titulo-conversao" class="text-sm font-semibold text-slate-900">Do teste para o cartão</h2>
+          {conversao === null ? (
+            <p class="text-sm text-slate-500 mt-2">Nenhum teste terminou ainda.</p>
+          ) : (
+            <>
+              <p class="mt-2 text-2xl font-bold text-slate-900 tabular-nums">{conversao}%</p>
+              <div class="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden" aria-hidden="true">
+                <div class="h-full bg-teal" style={`width: ${conversao}%`}></div>
+              </div>
+              <p class="text-xs text-slate-500 mt-2">
+                Das {n.conversao.terminaram} {n.conversao.terminaram === 1 ? 'barbearia que já passou' : 'barbearias que já passaram'} do teste,
+                {' '}{n.conversao.cadastraramCartao} {n.conversao.cadastraramCartao === 1 ? 'cadastrou' : 'cadastraram'} o cartão.
+              </p>
+            </>
+          )}
+        </section>
+
+        <section class="bg-white border border-slate-200 rounded-lg p-5" aria-labelledby="titulo-semanas">
+          <h2 id="titulo-semanas" class="text-sm font-semibold text-slate-900">Cadastros por semana</h2>
+          <ol class="mt-4 flex items-end gap-1.5 h-28">
+            {n.cadastros.porSemana.map((s) => (
+              <li class="flex-1 flex flex-col items-center justify-end h-full gap-1">
+                <span class="text-[11px] tabular-nums text-slate-600">{s.quantos}</span>
+                <span class="w-full rounded-t bg-teal/80" style={`height: ${Math.max(4, (s.quantos / maiorSemana) * 72)}px`} aria-hidden="true"></span>
+                <span class="text-[10px] tabular-nums text-slate-500">{s.rotulo}</span>
+              </li>
+            ))}
+          </ol>
+          <p class="sr-only">Cada barra é uma semana, de segunda a domingo; o número é quantas barbearias se cadastraram nela.</p>
+        </section>
+      </div>
+    </div>
+
+    <section class="bg-white border border-slate-200 rounded-lg" aria-labelledby="titulo-acoes">
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+        <h2 id="titulo-acoes" class="text-sm font-semibold text-slate-900">Últimas ações</h2>
+        <a href="/operador/registro" class="text-xs font-medium text-teal hover:underline">Ver o registro →</a>
+      </div>
+      {n.ultimasAcoes.length === 0 ? (
+        <p class="px-5 py-6 text-sm text-slate-500">Nenhuma ainda.</p>
+      ) : (
+        <ul class="divide-y divide-slate-200 text-sm">
+          {n.ultimasAcoes.map((a) => (
+            <li class="px-5 py-2.5 flex flex-wrap gap-x-3 gap-y-0.5">
+              <span class="text-slate-500 tabular-nums">{quando(a.quando)}</span>
+              {a.tenantId
+                ? <a href={`/operador/barbearias/${a.tenantId}`} class="text-slate-800 hover:text-teal">{descreverAcao(a)}</a>
+                : <span class="text-slate-800">{descreverAcao(a)}</span>}
+              {a.ip && <span class="ml-auto text-xs text-slate-500 font-mono">{a.ip}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  </OperadorLayout>
+)}

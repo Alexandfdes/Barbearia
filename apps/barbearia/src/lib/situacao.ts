@@ -165,8 +165,11 @@ export function diasAte(fim: Date, fuso: string, agora: Date = new Date()): numb
   return Math.round((meioDia(ultimo) - meioDia(hoje)) / (24 * 60 * 60 * 1000));
 }
 
-/** Soma dias a uma data de calendário ("2026-10-08" + 8 = "2026-10-16"). */
-function somarDias(dia: string, n: number): string {
+/**
+ * Soma dias a uma data de calendário ("2026-10-08" + 8 = "2026-10-16"). Exportada
+ * desde 12/10/2026 para as semanas do painel do operador (`lib/operadorTela.ts`).
+ */
+export function somarDias(dia: string, n: number): string {
   const d = new Date(meioDia(dia));
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);

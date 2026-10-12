@@ -342,9 +342,15 @@ async function acharBarbearia(tx: Tx, e: EventoAsaas): Promise<{ t: LinhaDaBarbe
  */
 export async function processarEventoDaAsaas(e: EventoAsaas, agora: Date = new Date()): Promise<ResultadoDoEvento> {
   return sqlConn.begin(async (tx) => {
+    // ⚠️ `::text::jsonb`, e NÃO só `::jsonb` (achado em 12/10/2026): com o parâmetro
+    // tipado jsonb, o driver serializa o texto DE NOVO enquanto o Drizzle não tiver
+    // tocado o pool — e o webhook pode ser a primeira requisição depois de um deploy
+    // (a Asaas reenvia a fila assim que o app volta). O corpo ficava gravado como
+    // uma STRING JSON, e `payload->'payment'` não achava nada. Pelo texto, o banco
+    // sempre recebe o JSON e o lê como objeto (`tests/jsonb-parametro.test.ts`).
     const [novo] = await tx<{ id: number }[]>`
       INSERT INTO webhook_events (gateway, gateway_event_id, event, payload)
-      VALUES ('asaas', ${e.id}, ${e.event}, ${JSON.stringify(e)}::jsonb)
+      VALUES ('asaas', ${e.id}, ${e.event}, ${JSON.stringify(e)}::text::jsonb)
       ON CONFLICT (gateway, gateway_event_id) DO NOTHING
       RETURNING id`;
     if (!novo) return { duplicado: true } as const;
@@ -500,7 +506,7 @@ export async function registrarEventoComFalha(e: EventoAsaas, erro: unknown): Pr
   try {
     await sqlConn`
       INSERT INTO webhook_events (gateway, gateway_event_id, event, payload, outcome)
-      VALUES ('asaas', ${e.id}, ${e.event}, ${bruto}::jsonb, ${motivo})
+      VALUES ('asaas', ${e.id}, ${e.event}, ${bruto}::text::jsonb, ${motivo})
       ON CONFLICT (gateway, gateway_event_id) DO NOTHING`;
   } catch (doCorpo) {
     if (!erroDefinitivo(doCorpo)) throw doCorpo;
