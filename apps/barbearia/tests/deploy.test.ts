@@ -16,7 +16,7 @@
 // Nenhum teste de unidade pega isso, porque nenhum deles lê o Dockerfile.
 // Estes leem.
 import { describe, it, expect, vi } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 
 const dockerfile = readFileSync('Dockerfile', 'utf8');
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
@@ -230,5 +230,91 @@ describe('a suíte roda na máquina de quem não tem banco', () => {
     const cmd = dockerfile.match(/CMD \[([^\]]+)\]/s)?.[1] ?? '';
     expect(cmd).toMatch(/startup\.mjs/);
     expect(cmd).toMatch(/startup\.mjs\s*&&/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A IMAGEM LEVA SÓ O QUE RODA EM PRODUÇÃO (11/10/2026)
+//
+// Até essa data, o estágio final copiava o `node_modules` inteiro do build:
+// TypeScript, vitest, drizzle-kit e o esbuild antigo que vem com ele — 4 falhas de
+// segurança moderadas conhecidas, nada disso usado em produção. Agora um estágio
+// à parte instala só as dependências de produção, do mesmo lock.
+//
+// O risco dessa troca é um script de produção importar um pacote que é só de
+// desenvolvimento: o build passa, a imagem sobe, e o script quebra no console do
+// container no dia em que alguém precisar dele. Foi conferido rodando: com o
+// `npm ci --omit=dev`, o boot, as migrations, o backup, o provisionador e o
+// roteiro E2E inteiro funcionam. Os casos abaixo impedem a volta.
+
+/** Os pacotes importados por um arquivo — `node:` e caminhos relativos fora. */
+function pacotesImportados(arquivo: string): string[] {
+  const fonte = readFileSync(arquivo, 'utf8');
+  const nomes = new Set<string>();
+  // `from 'x'`, `import('x')` e o import só pelo efeito, `import 'x'`.
+  for (const m of fonte.matchAll(/(?:from\s*|import\s*\(\s*|import\s+)['"]([^'"]+)['"]/g)) {
+    const spec = m[1];
+    if (spec.startsWith('.') || spec.startsWith('node:')) continue;
+    nomes.add(spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0]);
+  }
+  return [...nomes];
+}
+
+/** O que o provisionador importa de `src/`, seguindo os imports relativos. */
+function fechoDoProvisionador(): string[] {
+  const vistos = new Set<string>();
+  const fila = ['scripts/provisionar.mts'];
+  while (fila.length) {
+    const arquivo = fila.pop()!;
+    if (vistos.has(arquivo)) continue;
+    vistos.add(arquivo);
+    for (const m of readFileSync(arquivo, 'utf8').matchAll(/(?:from\s*|import\s*\(\s*|import\s+)['"](\.[^'"]+)['"]/g)) {
+      const base = new URL(m[1], `file:///${arquivo}`).pathname.slice(1);
+      const real = [base, base.replace(/\.js$/, '.ts'), `${base}.ts`].find((c) => existsSync(c));
+      if (real) fila.push(real);
+    }
+  }
+  return [...vistos].sort();
+}
+
+/**
+ * Pacotes que scripts importam e que NÃO estão em `dependencies` — de propósito,
+ * cada um com o motivo. A lista fecha: pacote novo aqui precisa de justificativa.
+ */
+const FORA_DA_PRODUCAO: Record<string, string> = {
+  'better-sqlite3':
+    'só os scripts da época do SQLite (seed-relatorio-demo, wipe-appointments), que não rodam desde o porte para Postgres',
+};
+
+describe('a imagem leva só o que roda em produção', () => {
+  it('o node_modules da imagem vem de um `npm ci --omit=dev` à parte, não do build', () => {
+    expect(dockerfile).toMatch(/FROM node:22-alpine AS deps[\s\S]*?RUN npm ci --omit=dev/);
+    expect(dockerfile).toMatch(/COPY --from=deps \/app\/node_modules \.\/node_modules/);
+    expect(dockerfile).not.toMatch(/COPY --from=build \/app\/node_modules/);
+  });
+
+  it('todo pacote que um script importa está em `dependencies` — ou fora de propósito, com o motivo', () => {
+    const deps = new Set(Object.keys(pkg.dependencies ?? {}));
+    const arquivos = [
+      ...readdirSync('scripts').filter((f) => /\.(mjs|mts)$/.test(f)).map((f) => `scripts/${f}`),
+      ...fechoDoProvisionador().filter((f) => f.startsWith('src/')),
+    ];
+    expect(arquivos.length).toBeGreaterThan(15); // o recorte achou os scripts
+    const faltando = arquivos.flatMap((a) => pacotesImportados(a)
+      .filter((p) => !deps.has(p) && !(p in FORA_DA_PRODUCAO))
+      .map((p) => `${a} → ${p}`));
+    expect(faltando, 'mova o pacote para dependencies, ou justifique em FORA_DA_PRODUCAO').toEqual([]);
+  });
+
+  it('o provisionador roda no container: o tsx é de produção, e o `src/` que ele importa entra na imagem', () => {
+    expect(pkg.dependencies?.tsx, 'o `npm run db:provisionar` roda com o tsx').toBeTruthy();
+    expect(pkg.devDependencies?.tsx).toBeUndefined();
+    expect(pkg.scripts['db:provisionar']).toMatch(/^tsx scripts\/provisionar\.mts$/);
+    const pastas = [...new Set(fechoDoProvisionador().filter((f) => f.startsWith('src/'))
+      .map((f) => f.split('/').slice(0, 2).join('/')))].sort();
+    expect(pastas).toEqual(['src/db', 'src/lib']);
+    for (const pasta of pastas) {
+      expect(dockerfile).toContain(`COPY --from=build /app/${pasta} ./${pasta}`);
+    }
   });
 });
