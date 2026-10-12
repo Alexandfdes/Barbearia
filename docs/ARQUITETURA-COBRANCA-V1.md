@@ -140,6 +140,12 @@ RLS como segunda parede. Está na skill `barbearia-multi-tenant`, e não é opci
 > só grava o evento cru e responde 200, e o processamento vem depois (§5.1); e um teste vai
 > impedir que tela de barbearia importe o módulo de cobrança. O ganho: um deploy só, e o
 > status muda sem costurar dois bancos. O texto de 28/08 fica abaixo, como histórico.
+>
+> *12/10/2026, conferido no código: o webhook implementado em 10/10 grava o evento cru e o
+> processa **na mesma transação**, e o 200 só sai depois do commit (§5.3) — não "processa
+> depois". A garantia vem de onde o módulo é usado: só a tela de assinatura, as rotas dela e o
+> webhook, que não é rota de barbearia. O teste que impediria uma tela de barbearia de importar
+> o módulo não existe.*
 
 **A instância da barbearia nunca sabe que dinheiro existe.**
 

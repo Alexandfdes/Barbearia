@@ -14,6 +14,10 @@
 > três, três e quatro. O que funciona está fechado atrás de `CADASTRO_ABERTO=1`; nada disto
 > está aberto em produção.
 >
+> *12/10/2026: o cadastro passou a pedir o estado, que decide o fuso (§2.2). As referências
+> `arquivo:linha` que isso deslocou — do cadastro, da rota e do provisionador — acompanharam a
+> mudança; as outras ficaram como estavam.*
+>
 > Companheiros: `PENDENCIAS-ABERTAS.md` §6 (a ordem de trabalho, que o §5 abaixo detalha),
 > `PENDENCIAS-ABERTAS.md` §4.14 (o teste e a cobrança), `ARQUITETURA-COBRANCA-V1.md` (a
 > Asaas) e `FLUXO-COMPLETO.md` (o caminho antigo, com montagem, que este substitui quando
@@ -119,18 +123,20 @@ prazo.
 ### 2.2 Passo 2 — Ele cria a conta
 
 **O que ele vê.** O `/cadastrar`, com a marca do produto e não a da barbearia, que ainda não
-existe (`apps/barbearia/src/pages/cadastrar.astro:50-56`). Embaixo do título, *"No fim, o seu
-site nasce — com os seus serviços e a sua cor."* (`cadastrar.astro:192`), e logo abaixo *"7
-dias grátis, sem cartão: ele só é pedido no fim do teste."* (`cadastrar.astro:195`). A
+existe (`apps/barbearia/src/pages/cadastrar.astro:55-61`). Embaixo do título, *"No fim, o seu
+site nasce — com os seus serviços e a sua cor."* (`cadastrar.astro:198`), e logo abaixo *"7
+dias grátis, sem cartão: ele só é pedido no fim do teste."* (`cadastrar.astro:201`). A
 primeira era *"Leva dois minutos"* até 08/10, quando deixou de ser verdade com o bloco da
 marca maior, e *"o seu site já está no ar"* até 10/10, sem ninguém conferir (§2.8). A segunda
 entrou em 10/10: até então o teste e o cartão só apareciam na tela do fim, e quem tem medo de
 cobrança pode desistir antes de enviar (`PENDENCIAS-ABERTAS.md` §2.32). Uma página só, em cinco
-blocos (`cadastrar.astro:199-309`):
+blocos (`cadastrar.astro:205-327`):
 
-- **A barbearia:** nome, **endereço do site** com a prévia de como vai ficar, rua, cidade.
+- **A barbearia:** nome, **endereço do site** com a prévia de como vai ficar, rua, cidade e
+  **o estado**, obrigatório desde 12/10 — é dele que sai o fuso dos horários do site, e o dono
+  troca em Configurações (`cadastrar.astro:219-232`, `PENDENCIAS-ABERTAS.md` §2.1).
 - **Você:** o nome dele, **o WhatsApp** — que é o login e o contato do site ao mesmo tempo
-  (`cadastrar.astro:222-223`) —, **o e-mail**, obrigatório desde 08/10 (`cadastrar.astro:226-227`),
+  (`cadastrar.astro:240-241`) —, **o e-mail**, obrigatório desde 08/10 (`cadastrar.astro:244-245`),
   e a senha.
 - **Sua marca:** a frase do topo e a cor, com a prévia do topo do site — o passo 4 —, o
   Instagram e *"Como você descreveria a sua barbearia?"*. Tudo opcional.
@@ -140,14 +146,15 @@ blocos (`cadastrar.astro:199-309`):
 
 | Conferência | Onde |
 |---|---|
-| A tela responde 404 sem a chave | `apps/barbearia/src/pages/cadastrar.astro:29` |
-| No máximo 5 cadastros por hora por endereço de rede | `apps/barbearia/src/pages/api/cadastrar.ts:91` |
-| Só aceita JSON — página de outro site não cria conta nem loga ninguém | `apps/barbearia/src/pages/api/cadastrar.ts:102` |
-| O endereço tem que servir de subdomínio | `apps/barbearia/src/lib/provisionarBarbearia.ts:236` |
-| **O endereço não pode ser reservado** — `painel`, `admin`, `www`, `api`, o nome do produto e outros, 39 ao todo; desde 08/10 | `apps/barbearia/src/lib/provisionarBarbearia.ts:245`, com a lista e o porquê de cada grupo em `apps/barbearia/src/lib/enderecosReservados.ts` |
-| O endereço não pode estar tomado | `apps/barbearia/src/lib/provisionarBarbearia.ts:282` |
-| O WhatsApp não pode ser o login de outro barbeiro, em barbearia nenhuma | `apps/barbearia/src/lib/provisionarBarbearia.ts:287` |
-| **O e-mail é obrigatório pela web** e tem que ter forma de e-mail; grava em minúsculas; desde 08/10 | `apps/barbearia/src/pages/api/cadastrar.ts:81` e `apps/barbearia/src/lib/provisionarBarbearia.ts:252-255` |
+| A tela responde 404 sem a chave | `apps/barbearia/src/pages/cadastrar.astro:34` |
+| No máximo 5 cadastros por hora por endereço de rede | `apps/barbearia/src/pages/api/cadastrar.ts:97` |
+| Só aceita JSON — página de outro site não cria conta nem loga ninguém | `apps/barbearia/src/pages/api/cadastrar.ts:108` |
+| O endereço tem que servir de subdomínio | `apps/barbearia/src/lib/provisionarBarbearia.ts:250` |
+| **O endereço não pode ser reservado** — `painel`, `admin`, `www`, `api`, o nome do produto e outros, 39 ao todo; desde 08/10 | `apps/barbearia/src/lib/provisionarBarbearia.ts:281`, com a lista e o porquê de cada grupo em `apps/barbearia/src/lib/enderecosReservados.ts` |
+| O endereço não pode estar tomado | `apps/barbearia/src/lib/provisionarBarbearia.ts:318` |
+| O WhatsApp não pode ser o login de outro barbeiro, em barbearia nenhuma | `apps/barbearia/src/lib/provisionarBarbearia.ts:323` |
+| **O e-mail é obrigatório pela web** e tem que ter forma de e-mail; grava em minúsculas; desde 08/10 | `apps/barbearia/src/pages/api/cadastrar.ts:87` e `apps/barbearia/src/lib/provisionarBarbearia.ts:288-291` |
+| **O estado é obrigatório pela web** e decide o fuso; sigla desconhecida, recusa; a cidade é gravada como "Cidade/UF"; desde 12/10 | `apps/barbearia/src/pages/api/cadastrar.ts:78` e `apps/barbearia/src/lib/provisionarBarbearia.ts:263` |
 
 **O que falta:**
 
@@ -170,8 +177,8 @@ blocos (`cadastrar.astro:199-309`):
   até existir o provedor de envio.
 - **Um WhatsApp para duas coisas.** Quem entra com o número pessoal e quer o da loja no
   site não tem como separar. O provisionador aceita um segundo número (`telefoneDono`,
-  `apps/barbearia/src/lib/provisionarBarbearia.ts:53`), mas nem a tela nem a rota do
-  cadastro o recebem (`apps/barbearia/src/pages/api/cadastrar.ts:62-82`).
+  `apps/barbearia/src/lib/provisionarBarbearia.ts:65`), mas nem a tela nem a rota do
+  cadastro o recebem (`apps/barbearia/src/pages/api/cadastrar.ts:62-88`).
 - ~~**Não pedimos e-mail**~~ — ✅ pedimos desde 08/10/2026, e desde 09/10 ele é usado: a
   senha nova, os avisos e o e-mail de boas-vindas (`PENDENCIAS-ABERTAS.md` §4.17).
 - **E-mail digitado errado continua difícil de perceber.** A forma é conferida, a existência
@@ -212,24 +219,24 @@ saem as vagas do site.
 > `PENDENCIAS-ABERTAS.md` §4.13). As três miniaturas de layout que este passo descrevia
 > saíram do lançamento. E o cartão não vem mais logo depois: foi para o fim do teste.
 
-**O que ele vê.** No bloco "Sua marca" (`apps/barbearia/src/pages/cadastrar.astro:236-270`):
+**O que ele vê.** No bloco "Sua marca" (`apps/barbearia/src/pages/cadastrar.astro:254-288`):
 a frase do topo; oito cores prontas e uma "outra", livre
 (`apps/barbearia/src/lib/coresDoCadastro.ts:18-27`); e embaixo, **a prévia do topo do site
 dele** — o nome, a frase e o botão "Agendar horário" na cor escolhida, sobre o fundo do site
-(`cadastrar.astro:252-259`). Sem frase, a prévia mostra o nome, que é o que o site mostra.
+(`cadastrar.astro:270-277`). Sem frase, a prévia mostra o nome, que é o que o site mostra.
 
 **Hoje: ✅, desde 08/10/2026.**
 
 - A cor passa pela mesma derivação do painel (`lib/accent.ts`), no navegador e no servidor.
   Clara demais para o texto branco do botão, o site usa o mesmo tom mais escuro; cinza,
   preto ou branco — sem tom para preservar —, fica a cor padrão. Nos dois casos a prévia
-  mostra o resultado e diz por quê, antes de gravar (`cadastrar.astro:331-354`).
+  mostra o resultado e diz por quê, antes de gravar (`cadastrar.astro:349-372`).
 - As oito prontas passam no contraste sem ajuste, e nenhuma é a cor padrão — que o medidor
   do painel não conta. As duas regras têm teste (`tests/cores-do-cadastro.test.ts`): a
   primeira versão da lista tinha o "Petróleo" igual à padrão, e quem o escolhesse ouviria do
   painel que faltava escolher a cor.
 - A frase vai para a `tagline` da configuração, até 200 caracteres
-  (`apps/barbearia/src/lib/provisionarBarbearia.ts:257-260`). Foi a recomendação de 27/09
+  (`apps/barbearia/src/lib/provisionarBarbearia.ts:293-296`). Foi a recomendação de 27/09
   para este passo: é a primeira coisa que o visitante lê, e o medidor a cobra com 15 pontos
   (`apps/barbearia/src/lib/completude.ts:127`).
 - Sem escolher cor, o site nasce com a padrão, e o medidor cobra depois.
@@ -344,12 +351,12 @@ primeiros no código em 10/10 (`ARQUITETURA-COBRANCA-V1.md` §5.3); as decisões
 ### 2.6 Passo 6 — A barbearia nasce
 
 **O que o sistema faz, hoje: ✅**, numa transação só
-(`apps/barbearia/src/lib/provisionarBarbearia.ts:358-429`): a barbearia, a configuração com
+(`apps/barbearia/src/lib/provisionarBarbearia.ts:394-465`): a barbearia, a configuração com
 a marca — a cor e a frase do topo inclusive —, o dono como administrador, com o e-mail, o
 expediente, os serviços e o vínculo de cada serviço com o dono. Depois, o endereço entra no
 ar na hora — o cache de endereços é recarregado
-(`apps/barbearia/src/pages/api/cadastrar.ts:125`) em vez de esperar até 30 segundos
-(`apps/barbearia/src/lib/tenant.ts:72`).
+(`apps/barbearia/src/pages/api/cadastrar.ts:131`) em vez de esperar até 30 segundos
+(`apps/barbearia/src/lib/tenant.ts:79`).
 
 **Nasce no teste, desde 08/10/2026:** status `trial`, com o fim do teste gravado — a
 meia-noite que começa o 8º dia depois do cadastro, no fuso da barbearia
@@ -367,12 +374,12 @@ cadastro.
 ### 2.7 Passo 7 — O painel na hora
 
 **O que ele vê.** O fim da tela de fim do cadastro — a do passo 8, abaixo: o botão "Abrir o
-meu painel" (`cadastrar.astro:527`) e o aviso de que já está dentro do painel e de que da
+meu painel" (`cadastrar.astro:546`) e o aviso de que já está dentro do painel e de que da
 próxima vez entra com o WhatsApp, escrito do jeito que ele vai digitar, e a senha. Até 08/10
 era só isso, sob o título *"Pronto. A sua barbearia existe."*
 
 **Hoje: ✅**, desde 25/09/2026: o cadastro abre a sessão do dono novo e substitui qualquer
-outra que houvesse no aparelho (`apps/barbearia/src/pages/api/cadastrar.ts:163`).
+outra que houvesse no aparelho (`apps/barbearia/src/pages/api/cadastrar.ts:169`).
 
 No painel, **o medidor de completude** diz o que falta, do mais pesado para o mais leve:
 logo, texto sobre, frase do topo, capa, **fotos dos cortes**, cor, Instagram, avaliações do
@@ -426,10 +433,10 @@ deixou de prometer *"no ar"*, e o e-mail de boas-vindas também: o servidor não
 endereço, e três botões — abrir o site, mandar no WhatsApp com o texto pronto e copiar o
 texto para a bio do Instagram. Embaixo, os próximos passos, cada um com o link que leva lá:
 pôr preço num serviço (só quando nenhum tem), subir as fotos dos cortes, subir a logo e a
-capa (o código da tela do fim, hoje: `apps/barbearia/src/pages/cadastrar.astro:442-557`).
+capa (o código da tela do fim, hoje: `apps/barbearia/src/pages/cadastrar.astro:461-576`).
 
 O endereço vem do resolvedor, não de uma conta feita à parte
-(`apps/barbearia/src/pages/api/cadastrar.ts:132-133`): se ele não achar a barbearia pelo
+(`apps/barbearia/src/pages/api/cadastrar.ts:138-139`): se ele não achar a barbearia pelo
 endereço, o link daria 404, e a tela não mostra link nenhum. Sem `DOMINIO_BASE`, também não
 — o título vira *"A sua barbearia existe."*, e a tela diz que o endereço aparece quando o
 domínio estiver configurado.
@@ -442,8 +449,8 @@ domínio estiver configurado.
   (`PENDENCIAS-ABERTAS.md` §2.19).
 - **Mas não existe endereço de verdade.** O domínio do produto não foi registrado, e o nome
   ainda é provisório: Fadeline, desde 08/10 (`PENDENCIAS-ABERTAS.md` §0.1). Sem `DOMINIO_BASE`, o
-  sistema não inventa um endereço (`apps/barbearia/src/lib/tenant.ts:275`), e o painel
-  esconde o "Ver meu site" (`apps/barbearia/src/layouts/AdminLayout.astro:141-145`).
+  sistema não inventa um endereço (`apps/barbearia/src/lib/tenant.ts:284`), e o painel
+  esconde o "Ver meu site" (`apps/barbearia/src/layouts/AdminLayout.astro:142-146`).
 - Para cada barbearia nova funcionar sem trabalho seu, falta o registro DNS curinga e o
   certificado emitido por endereço (`ARQUITETURA-COBRANCA-V1.md` §7.4).
 - ✅ **Consertado em 27/09/2026, no primeiro teste na máquina do dono:** o botão de WhatsApp de
@@ -583,11 +590,11 @@ O que A exige — é a costura que o `PENDENCIAS-ABERTAS.md` §4.14 diz que ning
 
 ~~⚠️ **Hoje o resolvedor só serve barbearia `active`**~~ — ✅ desde 08/10/2026 ele serve pela
 fase, não pelo status: no teste e na carência, o site está no ar
-(`apps/barbearia/src/lib/tenant.ts:196`, nas linhas 201 e 205), e `tests/teste-gratis.test.ts`
+(`apps/barbearia/src/lib/tenant.ts:205`, nas linhas 201 e 205), e `tests/teste-gratis.test.ts`
 confere as oito combinações de status e prazo.
 
 ⚠️ **A pendente prende o próprio dono.** O WhatsApp de login é único no mundo
-(`provisionarBarbearia.ts:287-295`): quem fecha a aba do Checkout e tenta se cadastrar de novo
+(`provisionarBarbearia.ts:323-331`): quem fecha a aba do Checkout e tenta se cadastrar de novo
 uma hora depois ouve *"Este WhatsApp já é o login de outro barbeiro"* — sobre o cadastro
 dele mesmo. O `/cadastrar` precisa reconhecer esse caso e mandá-lo entrar e terminar, em
 vez de recusar.

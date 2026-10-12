@@ -33,7 +33,7 @@
 |---|---|---|
 | `ARQUITETURA-MULTI-TENANT-V1.md` | ✅ **vigente** | Como o sistema é montado: um banco, `tenant_id`, RLS, três aplicações. **Manda em tudo que for código novo.** `ARQUITETURA-MULTI-TENANT-V1.md` §12 registra as quatro coisas que o desenho não previa |
 | `ARQUITETURA-COBRANCA-V1.md` | ⚠️ premissas vencidas | Asaas, estados do tenant, os dois aplicativos. Números recalculados em 06/09; o raciocínio de `ARQUITETURA-COBRANCA-V1.md` §1.1 dependia do setup abolido |
-| `ARQUITETURA-PRODUCAO.md` | ✅ vigente | Como fica com N barbearias: VPS, capacidade, custo |
+| `ARQUITETURA-PRODUCAO.md` | ✅ reescrito em 12/10/2026 | O que roda onde com N barbearias: o app, o banco, o volume, o roteamento, o deploy e o raio de dano. Até 12/10 descrevia uma instância por barbearia |
 | `ARQUITETURA-PRODUTO-V1.md` | ⚠️ D1 revertida | D2 a D7 continuam valendo (settings, SSR, mídia, cor de destaque). **A D1 foi substituída** |
 | `MONOREPO.md` | ✅ implementado | Por que os dois projetos viraram um repositório, e as três alternativas rejeitadas |
 

@@ -531,11 +531,13 @@ modelo de instância por cliente.
 
 **🟠 Compatibilidade de caminhos de mídia.** Ver §7.
 
-**🔴 `America/Fortaleza` está escrito em 19 arquivos de `src/`** (22 ocorrências), como
+**✅ ~~`America/Fortaleza` está escrito em 19 arquivos de `src/`~~** (22 ocorrências), como
 constante de código e não lido de `process.env.TZ` — só `scripts/backup-daemon.mjs`
 respeita o ambiente. Funciona por coincidência enquanto o cliente for UTC-3 (Nordeste,
 Sudeste, Sul); Manaus e Cuiabá são UTC-4 e o Acre é UTC-5. Vender para lá gera horário
 errado em silêncio. Corrigir antes de sair do UTC-3 — ver `PENDENCIAS-ABERTAS.md` §2.1.
+*Centralizado em 10/09/2026; desde 12/10/2026 o fuso é de cada barbearia, escolhido pelo
+estado no cadastro e editável em Configurações.*
 
 **✅ O wizard obrigava a escolher barbeiro mesmo com um só** — resolvido em 09/10/2026: com
 um barbeiro só, o agendamento tem três passos. Ver `PENDENCIAS-ABERTAS.md` §2.2.
