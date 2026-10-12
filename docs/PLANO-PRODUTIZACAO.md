@@ -280,7 +280,9 @@ pagante, em vez de suposição.
 ## 10. Armadilhas registradas
 
 - **Os dados do banco local são sintéticos.** Os 617 agendamentos vêm de
-  `scripts/seed-relatorio-demo.mjs`: nomes como "Alexandre Fernandes 2" e taxa de
+  `scripts/seed-relatorio-demo.mjs` *(apagado em 12/10/2026; os agendamentos que ele gerou
+  continuam no SQLite da máquina de desenvolvimento, marcados `[FICTICIO]` — 606 dos 617,
+  conferido nesse dia)*: nomes como "Alexandre Fernandes 2" e taxa de
   no-show **fixada em 8% na linha 194 do script**. Não usar esses números em material
   de venda — a taxa de no-show é ótimo argumento de ROI nessa categoria, mas o número
   precisa vir de uma barbearia real.

@@ -28,7 +28,6 @@ barbearia-no-ar/
   apps/barbearia/     site público + painel (ainda juntos; separam no passo 6)
   apps/vendas/        landing, /onboarding, /envios, cobrança
   docs/               decisões de produto e arquitetura
-  migracao-postgres/  o porte para Postgres, pronto e não aplicado
   CLAUDE.md           orientação de trabalho
 ```
 

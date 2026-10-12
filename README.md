@@ -30,7 +30,6 @@ Cada app também funciona sozinho: `cd apps/barbearia && npm run dev`.
 | Orientação para trabalhar no projeto | `CLAUDE.md` |
 | Decisões de produto e arquitetura | `docs/` |
 | Por que o monorepo é assim | `docs/MONOREPO.md` |
-| Migração para Postgres (pronta, não aplicada) | `migracao-postgres/` |
 
 ## Deploy
 

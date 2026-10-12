@@ -144,8 +144,8 @@ export async function getSettings(tenant: Tenant = tenantAtual()): Promise<Setti
   if (!row) {
     console.error(
       `[settings] tenant ${tenant.id} (${tenant.slug}) sem linha em \`settings\`. ` +
-      'Usando TEMPLATE_DEFAULTS. Indica banco sem a carga de dados — ver o §6 do ' +
-      'migracao-postgres/LEIA-ME.md.'
+      'Usando TEMPLATE_DEFAULTS. Indica barbearia criada sem a linha — a carga do SQLite ' +
+      '(docs/ROTEIRO-MIGRACAO-PRODUCAO.md) ou o provisionamento não rodaram inteiros.'
     );
     cache.set(tenant.id, TEMPLATE_DEFAULTS);
     return TEMPLATE_DEFAULTS;

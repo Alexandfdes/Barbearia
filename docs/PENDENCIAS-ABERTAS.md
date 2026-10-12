@@ -424,7 +424,7 @@ operador, o cadastro, Configurações, o `CHECK` e a 0013 sobre um banco parado 
 **Fora de `src/`:** o `scripts/backup-daemon.mjs` continua no `TZ` do container, de propósito —
 é a hora do backup, não de barbearia nenhuma. E o `scripts/seed-relatorio-demo.mjs`, com o
 offset fixo, é da era SQLite: importa o `better-sqlite3`, que não é mais dependência do app, e
-não roda contra o banco de hoje.
+não roda contra o banco de hoje. *Apagado em 12/10/2026 (§3.12).*
 
 ### 2.2 ✅ `[TÉCNICO]` Wizard obriga escolher barbeiro mesmo havendo um só — RESOLVIDO em 09/10/2026
 
@@ -1303,9 +1303,22 @@ Conferido depois, com o build de produção num navegador: grade de 09:00 a 18:0
 expediente de 09:00 às 19:00, para um serviço de 60 minutos; mover para 09:15 gravou 12:15
 UTC; e o bloqueio das 19:30 aparece.
 
-⚠️ **O que não mudou:** a grade não conhece os outros agendamentos nem os bloqueios — nunca
+~~⚠️ **O que não mudou:** a grade não conhece os outros agendamentos nem os bloqueios — nunca
 conheceu. Horário ocupado aparece como livre, e o servidor recusa ao confirmar. O próximo
-passo natural é a grade sair do mesmo cálculo de vagas do site.
+passo natural é a grade sair do mesmo cálculo de vagas do site.~~
+
+✅ **Feito em 12/10/2026, escolhido por você:** a grade mostra só os horários livres — sem outro
+atendimento confirmado ou concluído do barbeiro, nem bloqueio dele ou da casa, no caminho. A
+agenda do dia escolhido vem do servidor — pode ser outro dia que não o da tela —, e a conta é a da
+conferência do reagendamento, num lugar só (`horariosLivres` e `ocupacaoDoBarbeiro`, em
+`apps/barbearia/src/lib/gradeDeHorarios.ts`). Mover 15 minutos por cima do próprio horário pode; o
+horário em que ele já está aparece apagado. O servidor continua conferindo ao confirmar — e, desde
+o mesmo dia, o banco (§2.37). Rejeitado: o cálculo de vagas do site (`/api/slots`), que responde
+pelo endereço da barbearia, não pelo do painel, e conta a duração do serviço de hoje, não a do
+atendimento. Visto num navegador, contra o build: no dia do atendimento, o horário de outro cliente
+e o bloqueio do barbeiro saem da grade; noutro dia, saem os de lá — o cliente e o bloqueio da casa
+toda — e os do dia da tela voltam; e o horário escolhido grava. Guarda: os casos novos de
+`tests/grade-de-horarios.test.ts`, com 4 defeitos reintroduzidos que eles pegaram.
 
 ✅ **O gráfico por hora do relatório, da mesma família, saiu no mesmo dia, à noite.** Contava só os
 atendimentos que começavam entre 09:00 e 19:59 — o das 08:00 ou o das 20:00 sumia, sem
@@ -1718,7 +1731,7 @@ a recusa no mesmo 409 do conflito — *"Horário não está mais disponível"* �
   (`apps/barbearia/data/appointments.db`, de 06/09) tem **617 agendamentos e 7 pares do mesmo
   barbeiro que se cruzam**, de 25/05 a 03/06/2026, e nenhum horário fora do formato — conferido em
   12/10/2026. ⚠️ **Não é o histórico do Bayron:** 606 dos 617 são fictícios, do gerador de dados de
-  demonstração (`seed-relatorio-demo.mjs`, marcados `[FICTICIO]`), e cada par é um agendamento de
+  demonstração (o `seed-relatorio-demo.mjs`, apagado no mesmo dia; marcados `[FICTICIO]`), e cada par é um agendamento de
   verdade e um fictício — o gerador gravava sem conferir conflito. Com pares assim, a trava não
   nasceria, e o boot pararia: todas as barbearias fora do ar pelo histórico de uma. Em vez disso,
   ela passa a valer a partir do fim do último par — ali, **03/06/2026 14:10 UTC** —, o histórico
@@ -2203,7 +2216,8 @@ deploy é a prova, e o build fica um pouco mais longo: são dois `npm ci`.
 
 **De carona, registrado e não mexido:** `seed-relatorio-demo.mjs` e `wipe-appointments.mjs`
 importam o `better-sqlite3`, que saiu das dependências no porte para Postgres — não rodam desde
-então.
+então. ✅ **Apagados em 12/10/2026**, com o `docs/WIPE-APPOINTMENTS.md`, e a exceção do
+`better-sqlite3` saiu da guarda — que agora também reprova exceção sem uso.
 
 Guarda: `apps/barbearia/tests/deploy.test.ts` — o estágio de produção; todo pacote que um script
 importa em `dependencies`, com o provisionador seguido até o `src/`; e o `src/` que ele usa
@@ -2455,10 +2469,13 @@ Coberto pelo teste *"banco novo NÃO nasce com o tenant do Bayron"*.
 ⚠️ **Duas pontas soltas que estavam penduradas aqui, e não são esta seção:**
 
 - O discriminador `shortName === "Bayron"` continua no código. Virou o §4.7 abaixo.
-- `migracao-postgres/` e `migracao-tenants/`, na raiz do monorepo, estão **versionadas** e
+- ✅ ~~`migracao-postgres/` e `migracao-tenants/`, na raiz do monorepo, estão **versionadas** e
   guardam cópias das migrations — a `0001` de lá **diverge** da que está em `drizzle/` —
   mais dois patches de 388 KB e 196 KB. Eram entregas de passo. Hoje são a armadilha de
-  alguém aplicar a cópia errada. Apagar, ou mover para `docs/historico/`.
+  alguém aplicar a cópia errada. Apagar, ou mover para `docs/historico/`.~~ **Apagadas em
+  12/10/2026**, escolhido por você: continuam no histórico do git, e o que apontava para elas —
+  documentos, comentários de teste e a mensagem de erro de `apps/barbearia/src/lib/settings.ts` —
+  passou a apontar para o lugar de hoje.
 
 ### 4.7 ✅ `[TÉCNICO]` `shortName === "Bayron"` decide o que aparece no site — RESOLVIDO em 09/10/2026
 

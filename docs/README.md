@@ -1,6 +1,6 @@
 # Documentação do Fadeline
 
-> Índice de tudo que existe em `docs/`. Atualizado: 27/09/2026.
+> Índice de tudo que existe em `docs/`. Atualizado: 12/10/2026.
 >
 > **Se você está chegando agora ou voltando depois de um tempo, leia
 > `ESTADO-ATUAL.md` primeiro.** Ele diz onde o código está e qual é o próximo
@@ -62,23 +62,12 @@ Servem para entender por que o código é como é.
 | `PLANO-HORARIOS-TRABALHO.md` | 📦 implantado |
 | `PLANO-PORTAL-CLIENTE-V3.md` | 📦 implantado |
 
-## Migrações escritas e não aplicadas
+## Entregas antigas — saíram em 12/10/2026
 
-Duas pastas fora de `docs/`, cada uma com o próprio LEIA-ME. Nenhuma foi aplicada; a
-branch `monorepo` não tem nada delas.
-
-| Pasta | O que é | Estado |
-|---|---|---|
-| `migracao-postgres/` | Passo 2: o porte de SQLite para Postgres, 101 arquivos | testado contra um Postgres 16 real |
-| `migracao-tenants/` | Passos 3, 3.5 e 4: `tenants`, `tenant_id`, rede de testes e o escopo de 53 de 54 rotas e páginas, 63 arquivos | testado; aplica **em cima** do passo 2 |
-
-A ordem de aplicação e o que trava o quê estão em `ESTADO-ATUAL.md` §9.
-
-## Procedimentos
-
-| Documento | O que faz |
-|---|---|
-| `WIPE-APPOINTMENTS.md` | ⚠️ Apaga agendamentos reais. Confira o backup antes |
+`migracao-postgres/` (o passo 2, o porte para Postgres) e `migracao-tenants/` (os passos 3,
+3.5 e 4) eram pastas fora de `docs/`, com patches e LEIA-ME próprios. Foram aplicadas em
+06/09/2026 e saíram do repositório em 12/10/2026, com o `WIPE-APPOINTMENTS.md` — o
+procedimento de um script da época do SQLite, apagado junto. Continuam no histórico do git.
 
 ---
 

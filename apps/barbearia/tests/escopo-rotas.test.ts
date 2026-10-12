@@ -33,7 +33,6 @@ const TABELAS = [
 
 /**
  * Rotas ainda não escopadas. **Só encolhe.**
- * Ver `migracao-tenants/LEIA-ME.md` para a ordem sugerida.
  */
 const PENDENTES = new Set<string>([
   // ✅ VAZIA desde 09/09/2026. Com o glob e o regex consertados em 22/09 e os

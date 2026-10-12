@@ -52,9 +52,9 @@ outro repositório, o `Alexandfdes/Barbearia-Bayron` (a `main` de lá parou em `
 de servidor, usuário de banco ou configuração de produção em `docs/` — isso mora no projeto do
 claude.ai, em `claude/ESTADO-EASYPANEL-FADELINE.md`.
 
-⚠️ **`migracao-postgres/` e `migracao-tenants/`, na raiz, são entregas antigas** — o
-conteúdo já está aplicado em `apps/barbearia/`, e a `0001` de lá diverge da de `drizzle/`
-(`docs/PENDENCIAS-ABERTAS.md` §4.6). Não aplique nada de lá.
+*`migracao-postgres/` e `migracao-tenants/`, as entregas dos passos 2 a 4, saíram da raiz em
+12/10/2026 — já estavam aplicadas em `apps/barbearia/`, e a `0001` de lá divergia da de
+`drizzle/` (`docs/PENDENCIAS-ABERTAS.md` §4.6). Continuam no histórico do git.*
 
 ## Skills do projeto
 
@@ -121,7 +121,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   `monorepo` — e teste pulado reprova. Ele só manda no deploy depois do que o
   `docs/PENDENCIAS-ABERTAS.md` §3.8 pede.
 - **Cobrança:** `apps/barbearia/src/lib/cobranca.ts`. Sem `ASAAS_API_KEY`, desligada; sem
-  `ASAAS_AMBIENTE=producao`, sandbox. ⚠️ **Data em SQL cru vai como texto ISO e volta como
+  `ASAAS_AMBIENTE=producao`, sandbox. Tela ou rota de barbearia não chega a ela, nem por um
+  arquivo do meio — só a assinatura e o webhook; o `tests/cobranca-isolada.test.ts` reprova
+  (`docs/ARQUITETURA-COBRANCA-V1.md` §2). ⚠️ **Data em SQL cru vai como texto ISO e volta como
   texto:** o Drizzle desliga a conversão de data do driver na conexão inteira — parâmetro `Date`
   estoura, e `timestamptz` chega como string (`comoData`, no mesmo arquivo).
 - **Horário de agendamento é o texto do `toISOString()`** (`'2026-10-12T13:00:00.000Z'`): o

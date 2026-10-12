@@ -9,7 +9,7 @@
 // instante somando 3 horas à mão (`PENDENCIAS-ABERTAS.md` §2.11).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { diaDaSemana, faixaDoDia, horariosParaMover, horasDoGrafico } from '../src/lib/gradeDeHorarios.js';
+import { diaDaSemana, faixaDoDia, horariosLivres, horariosParaMover, horasDoGrafico, ocupacaoDoBarbeiro } from '../src/lib/gradeDeHorarios.js';
 
 describe('horariosParaMover()', () => {
   const nove = [{ inicio: '09:00', fim: '19:00' }];
@@ -48,6 +48,69 @@ describe('horariosParaMover()', () => {
   });
 });
 
+// ── Só os horários livres — 12/10/2026 ──────────────────────────────────────
+//
+// A grade oferecia o horário de outro cliente: o dono escolhia, confirmava, e só
+// então o servidor recusava ("Horário não está mais disponível").
+describe('horariosLivres() e ocupacaoDoBarbeiro()', () => {
+  // 15/03/2030 em Fortaleza (UTC−3): 09:00 local = 12:00Z.
+  const grade = (...horas: string[]) => horas.map((rotulo) => {
+    const [h, m] = rotulo.split(':').map(Number);
+    return { rotulo, inicio: new Date(Date.UTC(2030, 2, 15, h + 3, m)).toISOString() };
+  });
+  const z = (h: number, m = 0) => new Date(Date.UTC(2030, 2, 15, h + 3, m)).toISOString();
+  const rotulos = (xs: { rotulo: string }[]) => xs.map((x) => x.rotulo);
+
+  it('tira o horário que cruza outro atendimento — e o que termina depois de ele começar', () => {
+    const ocupados = [{ startsAt: z(10), endsAt: z(10, 30) }];
+    // 30 minutos: 09:45 termina 10:15, cruza; 09:30 termina 10:00, encosta — livre.
+    expect(rotulos(horariosLivres(grade('09:30', '09:45', '10:00', '10:15', '10:30'), 30, ocupados)))
+      .toEqual(['09:30', '10:30']);
+  });
+
+  it('atendimento longo: 60 minutos às 09:15 batem no das 10:00', () => {
+    const ocupados = [{ startsAt: z(10), endsAt: z(10, 30) }];
+    expect(rotulos(horariosLivres(grade('09:00', '09:15'), 60, ocupados))).toEqual(['09:00']);
+  });
+
+  it('sem nada ocupado, a grade inteira', () => {
+    expect(rotulos(horariosLivres(grade('09:00', '09:15'), 30, []))).toEqual(['09:00', '09:15']);
+  });
+
+  it('ocupa: os outros confirmados e concluídos do barbeiro, e os bloqueios dele e da casa', () => {
+    const atendimentos = [
+      { id: 1, barberId: 7, status: 'confirmed', startsAt: z(9), endsAt: z(9, 30) },  // o que está sendo movido
+      { id: 2, barberId: 7, status: 'confirmed', startsAt: z(10), endsAt: z(10, 30) },
+      { id: 3, barberId: 7, status: 'completed', startsAt: z(11), endsAt: z(11, 30) },
+      { id: 4, barberId: 7, status: 'cancelled', startsAt: z(12), endsAt: z(12, 30) },
+      { id: 5, barberId: 7, status: 'no_show', startsAt: z(13), endsAt: z(13, 30) },
+      { id: 6, barberId: 8, status: 'confirmed', startsAt: z(14), endsAt: z(14, 30) }, // outro barbeiro
+    ];
+    const bloqueios = [
+      { barberId: 7, startsAt: z(15), endsAt: z(16) },
+      { barberId: null, startsAt: z(16), endsAt: z(17) },  // a casa toda
+      { barberId: 8, startsAt: z(17), endsAt: z(18) },     // outro barbeiro
+    ];
+    expect(ocupacaoDoBarbeiro(7, 1, atendimentos, bloqueios)).toEqual([
+      { startsAt: z(10), endsAt: z(10, 30) },
+      { startsAt: z(11), endsAt: z(11, 30) },
+      { startsAt: z(15), endsAt: z(16) },
+      { startsAt: z(16), endsAt: z(17) },
+    ]);
+  });
+
+  it('o id e o barbeiro chegam como número ou texto — tanto faz', () => {
+    const atendimentos = [{ id: 1, barberId: 7, status: 'confirmed', startsAt: z(9), endsAt: z(9, 30) }];
+    expect(ocupacaoDoBarbeiro('7' as unknown as number, '1' as unknown as number, atendimentos, [])).toEqual([]);
+  });
+
+  it('mover 15 minutos, por cima do próprio horário: livre', () => {
+    const atendimentos = [{ id: 1, barberId: 7, status: 'confirmed', startsAt: z(9), endsAt: z(9, 30) }];
+    const ocupados = ocupacaoDoBarbeiro(7, 1, atendimentos, []);
+    expect(rotulos(horariosLivres(grade('09:00', '09:15'), 30, ocupados))).toEqual(['09:00', '09:15']);
+  });
+});
+
 describe('faixaDoDia() e diaDaSemana()', () => {
   it('do primeiro início ao último fim', () => {
     expect(faixaDoDia([{ inicio: '14:00', fim: '18:00' }, { inicio: '08:00', fim: '12:00' }]))
@@ -68,6 +131,13 @@ describe('a agenda do dia usa o expediente real', () => {
   it('a grade de mover vem do expediente do barbeiro', () => {
     expect(agenda).toMatch(/horariosParaMover\(janelas, appt\.durationMinutes\)/);
     expect(agenda).not.toMatch(/clientData\.startHour \+ 11/);
+  });
+
+  it('e mostra só os livres, com a agenda do dia ESCOLHIDO — não a da tela', () => {
+    expect(agenda).toMatch(/callApi\(`\/api\/admin\/appointments\?date=\$\{targetDate\}&barberId=\$\{appt\.barberId\}`, 'GET'\)/);
+    expect(agenda).toMatch(/callApi\('\/api\/admin\/time-off', 'GET'\)/);
+    expect(agenda).toMatch(/ocupacaoDoBarbeiro\(appt\.barberId, appt\.id, agenda\.data, bloqueios\.data\)/);
+    expect(agenda).toMatch(/for \(const \{ rotulo: label, inicio: utc \} of livres\)/);
   });
 
   it('a faixa do topo e o "dia livre" não são mais 08:00 → 19:00 fixo', () => {
