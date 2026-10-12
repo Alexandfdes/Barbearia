@@ -1,7 +1,7 @@
 ---
 /**
- * As ações sobre UMA barbearia, na ficha dela: estender o teste, tirar do ar,
- * reativar (`lib/operadorBarbearias.ts`). Os botões que aparecem dependem do
+ * As ações sobre UMA barbearia, na ficha dela: estender o teste ou a carência,
+ * tirar do ar, reativar (`lib/operadorBarbearias.ts`). Os botões que aparecem dependem do
  * status — o mesmo critério das funções, que recusam o resto de qualquer jeito.
  *
  * O envio é do script da ficha (`pages/operador/barbearias/[id].astro`): ele lê
@@ -24,6 +24,23 @@ const nenhuma = !(b.status === 'trial' || b.status === 'active' || b.status === 
         <input id={`dias-${b.id}`} name="dias" type="number" min="1" max={DIAS_MAXIMOS_DE_EXTENSAO} value="7" required
           class="w-24 bg-white border border-slate-300 rounded px-2 py-1.5 text-sm tabular-nums focus:outline-none focus:border-teal" />
         <p class="text-xs text-slate-500">Contados do último dia do teste — ou de hoje, se ele já venceu. Se ela estava fora do ar pelo teste, volta na hora.</p>
+        <button type="submit" class="text-xs px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded transition-colors">Estender</button>
+        <p data-erro role="alert" class="hidden text-sm text-red-700"></p>
+      </form>
+    </details>
+  )}
+
+  {b.status === 'past_due' && (
+    <details class="group" data-painel-acao>
+      <summary class="cursor-pointer select-none text-sm font-medium border border-slate-300 rounded-md px-3 py-2 hover:border-slate-400 flex items-center justify-between">
+        Estender a carência <span class="text-slate-400 group-open:rotate-90 transition-transform" aria-hidden="true">›</span>
+      </summary>
+      <form data-acao="estender-carencia" data-barbearia={b.id} class="mt-2 bg-slate-50 border border-slate-200 rounded-md p-3 space-y-2">
+        <label for={`dias-carencia-${b.id}`} class="block text-xs text-slate-600">Quantos dias a mais para pagar</label>
+        <input id={`dias-carencia-${b.id}`} name="dias" type="number" min="1" max={DIAS_MAXIMOS_DE_EXTENSAO} value="3" required
+          class="w-24 bg-white border border-slate-300 rounded px-2 py-1.5 text-sm tabular-nums focus:outline-none focus:border-teal" />
+        <p class="text-xs text-slate-600">Contados do último dia da carência — ou de hoje, se ela já venceu. Se ela estava fora do ar pela cobrança, volta na hora.</p>
+        <p class="text-xs text-slate-500">A Asaas continua tentando o cartão nos dias dela; o pagamento que passar põe a barbearia em dia, e a extensão deixa de importar.</p>
         <button type="submit" class="text-xs px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded transition-colors">Estender</button>
         <p data-erro role="alert" class="hidden text-sm text-red-700"></p>
       </form>

@@ -15,6 +15,9 @@
  *  - **Cancelou** (10/10/2026, `lib/cobranca.ts`): no ar até o fim do período
  *    pago, e fora do ar depois — sem carência, porque foi escolha dele. Assinando
  *    de novo, volta.
+ *  - **A carência da cobrança se estende** (12/10/2026): o operador dá mais dias a
+ *    quem pediu prazo (`lib/operadorBarbearias.ts`). O banco guarda o FIM novo,
+ *    `carencia_ate`, e ele vale só para aquele atraso (migration 0016).
  *
  * ⚠️ A FASE É CALCULADA, NÃO GRAVADA. O banco guarda o começo de cada prazo
  * (`trial_ends_at`, `past_due_since`), e a fase sai daqui, a cada requisição —
@@ -41,6 +44,11 @@ export interface ComPrazos {
   testeAte?: Date | null;
   /** `past_due_since`. */
   atrasadaDesde?: Date | null;
+  /**
+   * `carencia_ate`: o fim da carência da cobrança, estendido pelo operador. Só
+   * conta se for depois dos 3 dias de `atrasadaDesde` — estender não encurta.
+   */
+  carenciaAte?: Date | null;
   /** `subscription_ends_at`: assinatura cancelada, no ar até aqui. */
   encerraEm?: Date | null;
   /** O fuso da barbearia (`tenants.timezone`): a carência acaba na meia-noite DELA. */
@@ -50,7 +58,7 @@ export interface ComPrazos {
 export type Situacao =
   | { fase: 'ativa'; encerraEm?: Date }
   | { fase: 'teste'; ate: Date }
-  | { fase: 'carencia'; motivo: 'teste' | 'cobranca'; ate: Date }
+  | { fase: 'carencia'; motivo: 'teste' | 'cobranca'; ate: Date; estendida?: true }
   | { fase: 'suspensa'; motivo: 'teste' | 'cobranca' | 'cancelada' | 'manual'; desde: Date | null }
   | { fase: 'cancelada' };
 
@@ -79,8 +87,12 @@ export function situacaoDe(t: ComPrazos, agora: Date = new Date()): Situacao {
 
     case 'past_due': {
       if (!t.atrasadaDesde) return { fase: 'suspensa', motivo: 'cobranca', desde: null };
-      const fim = fimDaCarencia(t.atrasadaDesde, fusoDe(t));
-      if (ms < fim.getTime()) return { fase: 'carencia', motivo: 'cobranca', ate: fim };
+      const fuso = fusoDe(t);
+      const fim = fimDaCarenciaDoAtraso({ atrasadaDesde: t.atrasadaDesde, carenciaAte: t.carenciaAte, fuso });
+      const estendida = fim.getTime() !== fimDaCarencia(t.atrasadaDesde, fuso).getTime();
+      if (ms < fim.getTime()) {
+        return { fase: 'carencia', motivo: 'cobranca', ate: fim, ...(estendida ? { estendida: true as const } : {}) };
+      }
       return { fase: 'suspensa', motivo: 'cobranca', desde: fim };
     }
 
@@ -111,14 +123,13 @@ export function fimDoTeste(cadastro: Date, fuso: string): Date {
 }
 
 /**
- * O fim do teste estendido pelo operador em `dias` (`lib/operadorBarbearias.ts`):
- * `dias` a mais depois do último dia do teste — ou depois de HOJE, se ele já
- * acabou. Teste até o dia 15 estendido em 7: até o dia 22. Teste vencido, dia 11,
- * estendido em 7: até o dia 18 — o mesmo que um cadastro feito hoje ganharia.
+ * Um prazo estendido pelo operador em `dias` (`lib/operadorBarbearias.ts`): `dias`
+ * a mais depois do último dia do prazo — ou depois de HOJE, se ele já acabou.
+ * Vale para o teste e para a carência da cobrança.
  *
  * Uma meia-noite no fuso, como `fimDoTeste`: a tela continua dizendo "até 18/10".
  */
-export function fimDoTesteEstendido(
+export function fimDoPrazoEstendido(
   fimAtual: Date | null | undefined, dias: number, fuso: string, agora: Date = new Date(),
 ): Date {
   const hoje = formatInTimeZone(agora, fuso, 'yyyy-MM-dd');
@@ -126,6 +137,17 @@ export function fimDoTesteEstendido(
   // Datas "aaaa-mm-dd" comparam como texto.
   const base = ultimo > hoje ? ultimo : hoje;
   return fromZonedTime(`${somarDias(base, dias + 1)}T00:00:00`, fuso);
+}
+
+/**
+ * O fim do teste estendido pelo operador em `dias`. Teste até o dia 15 estendido
+ * em 7: até o dia 22. Teste vencido, dia 11, estendido em 7: até o dia 18 — o
+ * mesmo que um cadastro feito hoje ganharia.
+ */
+export function fimDoTesteEstendido(
+  fimAtual: Date | null | undefined, dias: number, fuso: string, agora: Date = new Date(),
+): Date {
+  return fimDoPrazoEstendido(fimAtual, dias, fuso, agora);
 }
 
 /**
@@ -139,6 +161,16 @@ export function fimDaCarencia(inicio: Date, fuso: string): Date {
   const meiaNoite = fromZonedTime(`${dia}T00:00:00`, fuso);
   const resto = inicio.getTime() === meiaNoite.getTime() ? 0 : 1;
   return fromZonedTime(`${somarDias(dia, DIAS_DE_CARENCIA + resto)}T00:00:00`, fuso);
+}
+
+/**
+ * O fim da carência de um atraso de cobrança: os três dias inteiros de
+ * `fimDaCarencia` — ou o fim que o operador estendeu (`carenciaAte`), se for mais
+ * tarde. Mais tarde e nunca mais cedo: estender não encurta.
+ */
+export function fimDaCarenciaDoAtraso(t: { atrasadaDesde: Date; carenciaAte?: Date | null; fuso: string }): Date {
+  const padrao = fimDaCarencia(t.atrasadaDesde, t.fuso);
+  return t.carenciaAte && t.carenciaAte.getTime() > padrao.getTime() ? t.carenciaAte : padrao;
 }
 
 /**

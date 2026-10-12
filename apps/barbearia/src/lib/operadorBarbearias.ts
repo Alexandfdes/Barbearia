@@ -28,7 +28,7 @@
 import type { TransactionSql } from 'postgres';
 import { sqlConn } from '../db/index.js';
 import {
-  situacaoDe, fimDoTeste, fimDoTesteEstendido, ultimoDia, diaDe,
+  situacaoDe, fimDoTeste, fimDoTesteEstendido, fimDoPrazoEstendido, fimDaCarenciaDoAtraso, ultimoDia, diaDe,
   type Situacao, type StatusDaBarbearia,
 } from './situacao.js';
 import { invalidarTenants, urlDoSite } from './tenant.js';
@@ -37,7 +37,10 @@ import { calcularCompletude, type Completude } from './completude.js';
 import { parseBusinessHours } from './settings.js';
 import { dinheiro, rotuloDoEvento } from './operadorTela.js';
 
-/** Até quantos dias o operador estende o teste de uma vez. Mais que isso não é teste. */
+/**
+ * Até quantos dias o operador estende o teste — ou a carência — de uma vez. Mais
+ * que isso não é teste, nem prazo para pagar.
+ */
 export const DIAS_MAXIMOS_DE_EXTENSAO = 60;
 
 /** Os status que tirar do ar sobrescreve — e que reativar devolve. */
@@ -73,7 +76,8 @@ export function faseNaTela(s: Situacao, fuso: string): FaseNaTela {
     case 'carencia':
       return {
         fase: s.fase, rotulo: 'Carência', tom: 'atencao',
-        detalhe: `${s.motivo === 'teste' ? 'o teste venceu' : 'a cobrança falhou'} · no ar até ${ultimoDia(s.ate, fuso)}`,
+        detalhe: `${s.motivo === 'teste' ? 'o teste venceu' : 'a cobrança falhou'} · no ar até ${ultimoDia(s.ate, fuso)}`
+          + (s.estendida ? ' (estendida)' : ''),
       };
     case 'suspensa': {
       const porque = { teste: 'o teste venceu', cobranca: 'a cobrança não foi paga', cancelada: 'cancelou a assinatura', manual: 'tirada do ar à mão' }[s.motivo];
@@ -122,7 +126,7 @@ export interface BarbeariaNoPainel {
 interface LinhaDaLista {
   id: number; slug: string; business_name: string; nome_no_site: string | null;
   status: StatusDaBarbearia; domain: string | null;
-  trial_ends_at: unknown; past_due_since: unknown; subscription_ends_at: unknown; created_at: unknown;
+  trial_ends_at: unknown; past_due_since: unknown; carencia_ate: unknown; subscription_ends_at: unknown; created_at: unknown;
   timezone: string;
   tem_assinatura: boolean;
   dono_nome: string | null; dono_telefone: string | null; dono_email: string | null;
@@ -135,7 +139,7 @@ export async function listarBarbearias(agora: Date = new Date(), apenas?: number
   const so = apenas === undefined ? sqlConn`` : sqlConn`WHERE t.id = ${apenas}`;
   const linhas = await sqlConn<LinhaDaLista[]>`
     SELECT t.id, t.slug, t.business_name, s.business_name AS nome_no_site, t.status, t.domain,
-           t.trial_ends_at, t.past_due_since, t.subscription_ends_at, t.created_at, t.timezone,
+           t.trial_ends_at, t.past_due_since, t.carencia_ate, t.subscription_ends_at, t.created_at, t.timezone,
            (t.asaas_subscription_id IS NOT NULL) AS tem_assinatura,
            dono.name AS dono_nome, dono.phone AS dono_telefone, dono.email AS dono_email,
            (SELECT count(*)::int FROM barbers b WHERE b.tenant_id = t.id AND b.active) AS barbeiros_ativos,
@@ -164,7 +168,8 @@ export async function listarBarbearias(agora: Date = new Date(), apenas?: number
   return linhas.map((l) => {
     const tenant = {
       id: l.id, slug: l.slug, status: l.status, domain: l.domain,
-      testeAte: comoData(l.trial_ends_at), atrasadaDesde: comoData(l.past_due_since), encerraEm: comoData(l.subscription_ends_at),
+      testeAte: comoData(l.trial_ends_at), atrasadaDesde: comoData(l.past_due_since),
+      carenciaAte: comoData(l.carencia_ate), encerraEm: comoData(l.subscription_ends_at),
       fuso: fusoDe({ fuso: l.timezone }),
     };
     const situacao = situacaoDe(tenant, agora);
@@ -239,7 +244,7 @@ export async function eventosQuePedemOlho(limite = 20): Promise<EventoQuePedeOlh
 
 // ── O registro ──────────────────────────────────────────────────────────────
 
-export type Acao = 'entrou' | 'estendeu-teste' | 'suspendeu' | 'reativou' | 'anotou';
+export type Acao = 'entrou' | 'estendeu-teste' | 'estendeu-carencia' | 'suspendeu' | 'reativou' | 'anotou';
 
 export interface AcaoRegistrada {
   acao: Acao;
@@ -264,7 +269,7 @@ export type FiltroDoRegistro = 'tudo' | 'entradas' | 'acoes' | 'anotacoes';
 
 const ACOES_DO_FILTRO: Record<Exclude<FiltroDoRegistro, 'tudo'>, Acao[]> = {
   entradas: ['entrou'],
-  acoes: ['estendeu-teste', 'suspendeu', 'reativou'],
+  acoes: ['estendeu-teste', 'estendeu-carencia', 'suspendeu', 'reativou'],
   anotacoes: ['anotou'],
 };
 
@@ -325,9 +330,11 @@ export function descreverAcao(a: AcaoRegistrada): string {
       return `Anotou em ${quem}: ${resumo(typeof d.texto === 'string' ? d.texto : '')}`;
     case 'entrou':
       return 'Entrou no painel';
-    case 'estendeu-teste': {
+    case 'estendeu-teste':
+    case 'estendeu-carencia': {
       const ate = typeof d.depois === 'string' ? ` (até ${ultimoDia(new Date(d.depois), fusoDe(a))})` : '';
-      return `Estendeu o teste de ${quem} em ${d.dias === 1 ? '1 dia' : `${String(d.dias ?? '?')} dias`}${ate}`;
+      const prazo = a.acao === 'estendeu-teste' ? 'o teste' : 'a carência';
+      return `Estendeu ${prazo} de ${quem} em ${d.dias === 1 ? '1 dia' : `${String(d.dias ?? '?')} dias`}${ate}`;
     }
     case 'suspendeu': {
       const antes = typeof d.statusAnterior === 'string' ? ` — estava ${statusPorExtenso(d.statusAnterior)}` : '';
@@ -376,7 +383,7 @@ export interface ResultadoDaAcao {
 
 interface LinhaDaBarbearia {
   id: number; slug: string; status: StatusDaBarbearia;
-  trial_ends_at: unknown; past_due_since: unknown; subscription_ends_at: unknown;
+  trial_ends_at: unknown; past_due_since: unknown; carencia_ate: unknown; subscription_ends_at: unknown;
   timezone: string;
 }
 
@@ -386,7 +393,7 @@ type Tx = TransactionSql<{}>;
 
 async function travar(tx: Tx, tenantId: number): Promise<LinhaDaBarbearia> {
   const [t] = await tx<LinhaDaBarbearia[]>`
-    SELECT id, slug, status, trial_ends_at, past_due_since, subscription_ends_at, timezone
+    SELECT id, slug, status, trial_ends_at, past_due_since, carencia_ate, subscription_ends_at, timezone
       FROM tenants WHERE id = ${tenantId} FOR UPDATE`;
   if (!t) throw new ErroDoOperador('Barbearia não encontrada.', 404);
   return t;
@@ -396,7 +403,8 @@ function resultado(t: LinhaDaBarbearia, agora: Date): ResultadoDaAcao {
   const fuso = fusoDe({ fuso: t.timezone });
   const situacao = situacaoDe({
     status: t.status, testeAte: comoData(t.trial_ends_at),
-    atrasadaDesde: comoData(t.past_due_since), encerraEm: comoData(t.subscription_ends_at), fuso,
+    atrasadaDesde: comoData(t.past_due_since), carenciaAte: comoData(t.carencia_ate),
+    encerraEm: comoData(t.subscription_ends_at), fuso,
   }, agora);
   return { slug: t.slug, situacao, tela: faseNaTela(situacao, fuso) };
 }
@@ -429,6 +437,44 @@ export async function estenderTeste(tenantId: number, dias: number, ip: string, 
   // O cache de barbearias (`lib/tenant.ts`) segura o status por até 30 s: sem
   // isto, o site que voltou continuaria fora do ar, e o operador acharia que a
   // ação não pegou.
+  invalidarTenants();
+  return r as ResultadoDaAcao;
+}
+
+/**
+ * Dá mais `dias` de carência a quem está com a COBRANÇA ATRASADA (status
+ * `past_due`): depois do último dia da carência de agora, ou de hoje, se ela já
+ * venceu — e aí o site que tinha saído do ar pela cobrança volta na hora.
+ *
+ * Grava o FIM novo em `carencia_ate` (migration 0016); `past_due_since` continua
+ * dizendo quando a cobrança falhou. A extensão vale para este atraso: pagou, ou
+ * atrasou de novo, o banco a apaga.
+ *
+ * ⚠️ Não mexe na Asaas: ela continua tentando o cartão nos vencimentos dela, e o
+ * pagamento que passar põe a barbearia em dia — com ou sem a carência estendida.
+ */
+export async function estenderCarencia(tenantId: number, dias: number, ip: string, agora: Date = new Date()): Promise<ResultadoDaAcao> {
+  if (!Number.isInteger(dias) || dias < 1 || dias > DIAS_MAXIMOS_DE_EXTENSAO) {
+    throw new ErroDoOperador(`Estenda de 1 a ${DIAS_MAXIMOS_DE_EXTENSAO} dias.`, 400);
+  }
+  const r = await sqlConn.begin(async (tx) => {
+    const t = await travar(tx, tenantId);
+    const atrasadaDesde = comoData(t.past_due_since);
+    if (t.status !== 'past_due' || !atrasadaDesde) {
+      throw new ErroDoOperador(
+        `Só dá para estender a carência de quem está com a cobrança atrasada — esta está ${statusPorExtenso(t.status)}.`
+        + (t.status === 'trial' ? ' No teste, estenda o teste.' : ''), 409);
+    }
+    const fuso = fusoDe({ fuso: t.timezone });
+    const antes = fimDaCarenciaDoAtraso({ atrasadaDesde, carenciaAte: comoData(t.carencia_ate), fuso });
+    const depois = fimDoPrazoEstendido(antes, dias, fuso, agora);
+    await tx`UPDATE tenants SET carencia_ate = ${depois.toISOString()}::timestamptz WHERE id = ${tenantId}`;
+    const detalhe = { dias, antes: antes.toISOString(), depois: depois.toISOString() };
+    await tx`INSERT INTO acoes_do_operador (tenant_id, acao, detalhe, ip)
+             VALUES (${tenantId}, 'estendeu-carencia', ${JSON.stringify(detalhe)}::text::jsonb, ${ip})`;
+    return resultado({ ...t, carencia_ate: depois }, agora);
+  });
+  // O cache de barbearias segura o status por até 30 s — o mesmo motivo de `estenderTeste`.
   invalidarTenants();
   return r as ResultadoDaAcao;
 }

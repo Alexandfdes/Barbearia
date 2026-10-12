@@ -1,5 +1,6 @@
 // O painel do operador (decisão de 11/10/2026, `docs/PENDENCIAS-ABERTAS.md` §3.9):
-// a lista das barbearias e as três ações — estender o teste, tirar do ar, reativar.
+// a lista das barbearias e as ações — estender o teste ou a carência, tirar do ar,
+// reativar.
 //
 // ── O QUE ISTO PROTEGE ───────────────────────────────────────────────────────
 //
@@ -25,7 +26,9 @@ import {
   COOKIE_DO_OPERADOR, DURACAO_DA_SESSAO, SENHA_MINIMA, conferirSenha, cookieDoOperador, ehEnderecoDoPainel,
   ehRotaDoOperador, gerarHash, lerHash, operadorAutenticado, portaoDoOperador,
 } from '../src/lib/operador';
-import { fimDoTeste, fimDoTesteEstendido, situacaoDe, ultimoDia, type ComPrazos } from '../src/lib/situacao';
+import {
+  fimDaCarencia, fimDoPrazoEstendido, fimDoTeste, fimDoTesteEstendido, situacaoDe, ultimoDia, type ComPrazos,
+} from '../src/lib/situacao';
 import { descreverAcao, faseNaTela } from '../src/lib/operadorBarbearias';
 
 process.env.SESSION_SECRET ??= 'segredo-de-teste-com-mais-de-32-caracteres-ok';
@@ -630,5 +633,79 @@ describe.skipIf(!TEM_BANCO)('com banco: entrar, listar e agir', () => {
       recusa = `${erro.message ?? ''} ${erro.cause?.message ?? ''}`;
     }
     expect(recusa).toMatch(/permission denied/i);
+  });
+
+  // ── Estender a carência (12/10/2026) ──
+
+  const carencia = async (id: number) =>
+    (await sql`SELECT past_due_since, carencia_ate FROM tenants WHERE id = ${id}`)[0];
+
+  it('estender a carência de quem está atrasada: conta do último dia dela, a data da falha não muda, e fica registrado', async () => {
+    const antesDela = await carencia(4);
+    expect(antesDela.carencia_ate).toBeNull();
+    const padrao = fimDaCarencia(new Date(antesDela.past_due_since), FORTALEZA);
+    const vizinha = await linha(1);
+
+    const r = await agir({ acao: 'estender-carencia', barbearia: 4, dias: 5 });
+    expect(r.status).toBe(200);
+    const esperado = fimDoPrazoEstendido(padrao, 5, FORTALEZA);
+    expect(await r.json()).toMatchObject({
+      ok: true, slug: 'atrasada',
+      fase: { rotulo: 'Carência', detalhe: `a cobrança falhou · no ar até ${ultimoDia(esperado, FORTALEZA)} (estendida)` },
+    });
+    const depois = await carencia(4);
+    expect(new Date(depois.carencia_ate).getTime()).toBe(esperado.getTime());
+    expect(new Date(depois.past_due_since).getTime()).toBe(new Date(antesDela.past_due_since).getTime());
+    expect((await registros(4)).at(-1)).toMatchObject({
+      acao: 'estendeu-carencia', ip: '10.0.0.1', detalhe: { dias: 5, antes: padrao.toISOString(), depois: esperado.toISOString() },
+    });
+    expect(await linha(1)).toEqual(vizinha);
+
+    // De novo: conta do fim já estendido.
+    expect((await agir({ acao: 'estender-carencia', barbearia: 4, dias: 1 })).status).toBe(200);
+    expect(new Date((await carencia(4)).carencia_ate).getTime()).toBe(fimDoPrazoEstendido(esperado, 1, FORTALEZA).getTime());
+  });
+
+  it('carência VENCIDA: estender põe o site de volta NA HORA, sem esperar o cache de 30 s', async () => {
+    // A cobrança falhou há 10 dias: outro atraso — e a extensão do caso acima, que
+    // era do atraso de antes, cai junto (o gatilho da 0016).
+    await sql`UPDATE tenants SET past_due_since = ${new Date(Date.now() - 10 * DIA).toISOString()} WHERE id = 4`;
+    expect((await carencia(4)).carencia_ate).toBeNull();
+    await tenant.carregarTenants(true);
+    expect(await doHost('atrasada')).toBeNull();
+
+    const r = await agir({ acao: 'estender-carencia', barbearia: 4, dias: 2 });
+    expect(r.status).toBe(200);
+    expect((await r.json()).fase.rotulo).toBe('Carência');
+    expect((await doHost('atrasada'))?.slug).toBe('atrasada'); // sem forçar o cache
+    expect(ultimoDia(new Date((await carencia(4)).carencia_ate), FORTALEZA))
+      .toBe(ultimoDia(fimDoPrazoEstendido(null, 2, FORTALEZA), FORTALEZA));
+    // A lista e a ficha dizem o mesmo que o site: no ar, na carência estendida.
+    const [naLista] = await mod.listarBarbearias(new Date(), 4);
+    expect(naLista.situacao).toMatchObject({ fase: 'carencia', motivo: 'cobranca', estendida: true });
+    expect((await mod.fichaDaBarbearia(4))?.tela).toMatchObject({ rotulo: 'Carência', detalhe: expect.stringMatching(/\(estendida\)$/) });
+  });
+
+  it('estender a carência de quem não está atrasada: recusado, sem mudar nada — no teste, o caminho é estender o teste', async () => {
+    for (const id of [1, 2, 6]) {
+      const antesDela = await linha(id);
+      const r = await agir({ acao: 'estender-carencia', barbearia: id, dias: 3 });
+      expect(r.status, String(id)).toBe(409);
+      expect((await r.json()).error).toMatch(/Só dá para estender a carência de quem está com a cobrança atrasada/);
+      expect(await linha(id)).toEqual(antesDela);
+    }
+    const noTeste = await agir({ acao: 'estender-carencia', barbearia: 2, dias: 3 });
+    expect((await noTeste.json()).error).toMatch(/No teste, estenda o teste\./);
+    expect((await agir({ acao: 'estender-carencia', barbearia: 4, dias: 0 })).status).toBe(400);
+    expect((await agir({ acao: 'estender-carencia', barbearia: 4, dias: 61 })).status).toBe(400);
+    expect((await agir({ acao: 'estender-carencia', barbearia: 999, dias: 1 })).status).toBe(404);
+    await expect(mod.estenderCarencia(4, 61, 'x')).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('o registro conta cada extensão, com o texto da tela — e o filtro de ações a inclui', async () => {
+    const acoes = await mod.ultimasAcoes();
+    expect(mod.descreverAcao(acoes[0])).toMatch(/^Estendeu a carência de atrasada em 2 dias \(até \d\d\/\d\d\)$/);
+    const doFiltro = await mod.registro({ filtro: 'acoes', tenantId: 4 });
+    expect(doFiltro.itens.map((a) => a.acao)).toEqual(['estendeu-carencia', 'estendeu-carencia', 'estendeu-carencia']);
   });
 });

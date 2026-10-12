@@ -232,6 +232,22 @@ describe.skipIf(!TEM_BANCO)('a tarefa, contra o banco', () => {
     expect(daAcabando.map((e) => e.assunto)).toEqual(['Barbearia Acabando: o teste grátis acabou']);
   });
 
+  it('a carência estendida pelo operador: no lugar de "saiu do ar", o prazo novo — e, no fim dele, aí sim', async () => {
+    // A 4 saiu do ar no dia 16 (a rodada acima mandou "o site saiu do ar"). O
+    // operador deu prazo até o fim do dia 19 (migration 0016): o site volta, e o
+    // dono recebe a data nova — o mesmo e-mail da carência.
+    await sql`UPDATE tenants SET carencia_ate = ${local('2026-10-20T00:00:00').toISOString()} WHERE id = 4`;
+    await avisos.enviarAvisosPendentes(local('2026-10-17T08:00:00'));
+    const doAtraso = () => email.caixaDeSaida.filter((e) => e.para === 'dono@atrasada.com');
+    expect(doAtraso().map((e) => e.assunto)).toEqual(['Barbearia Atrasada: a cobrança do cartão não passou']);
+    expect(doAtraso()[0].texto).toContain('O site continua no ar até 19/10.');
+
+    email.caixaDeSaida.length = 0;
+    await avisos.enviarAvisosPendentes(local('2026-10-20T08:00:00'));
+    expect(doAtraso().map((e) => e.assunto)).toEqual(['Barbearia Atrasada: o site saiu do ar']);
+    expect(doAtraso()[0].texto).toContain('desde 20/10');
+  });
+
   it('sem envio de e-mail, a tarefa recusa com o motivo — em vez de um resumo de zeros', async () => {
     vi.stubEnv('VITEST', '');
     vi.stubEnv('NODE_ENV', 'production');
