@@ -53,7 +53,8 @@
  * Dockerfile. Se ele quebrar, o backup diário para **em silêncio**. É o que
  * `PENDENCIAS-ABERTAS.md` §3.3 chama de "backup que não existe".
  */
-import { createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createGzip } from 'node:zlib';
@@ -251,36 +252,132 @@ export async function runBackup(opts = {}) {
 }
 
 /**
+ * O tamanho de cada parte no envio para fora da VPS. O mínimo do S3 — e do
+ * Backblaze — é 5 MiB por parte (menos a última); 16 MiB faz um arquivo de 1 GB
+ * subir em 64 partes, com no máximo 16 MiB na memória por vez.
+ */
+export const PARTE_DO_ENVIO = 16 * 1024 * 1024;
+
+/**
  * Upload off-site opcional (S3-compatível, ex: Backblaze B2).
  * Ativa somente se S3_ENDPOINT/S3_BUCKET/S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY existirem.
  * Falha de upload NÃO derruba o backup local — loga e segue.
  */
 async function maybeUploadToS3(filePath) {
-  const { S3_ENDPOINT, S3_REGION, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } = process.env;
+  const { S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } = process.env;
   if (!S3_ENDPOINT || !S3_BUCKET || !S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) return false;
 
   try {
-    const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
-    // Backblaze mostra o endpoint sem esquema; o SDK exige URL completa.
-    const endpoint = /^https?:\/\//.test(S3_ENDPOINT) ? S3_ENDPOINT : `https://${S3_ENDPOINT}`;
-    const client = new S3Client({
-      endpoint,
-      region: S3_REGION ?? 'us-east-1',
-      credentials: { accessKeyId: S3_ACCESS_KEY_ID, secretAccessKey: S3_SECRET_ACCESS_KEY },
-      forcePathStyle: true,
-    });
-    await client.send(new PutObjectCommand({
-      Bucket: S3_BUCKET,
-      Key: `backups/${basename(filePath)}`,
-      Body: readFileSync(filePath),
-      ContentType: 'application/gzip',
-    }));
+    await enviarParaS3(filePath);
     console.log(`✓ Upload off-site: s3://${S3_BUCKET}/backups/${basename(filePath)}`);
     return true;
   } catch (err) {
     console.error('✕ Upload off-site falhou (backup local preservado):', err.message);
     return false;
   }
+}
+
+/**
+ * Manda `caminho` para `backups/<nome>` no bucket — EM PARTES, lidas do disco uma
+ * de cada vez.
+ *
+ * ── POR QUE EM PARTES (12/10/2026) ───────────────────────────────────────────
+ *
+ * Até aqui o arquivo inteiro ia para a memória (`Body: readFileSync(...)`) antes
+ * de sair. O das fotos junta a galeria de todas as barbearias e cresce com cada
+ * uma, e o daemon do backup roda no mesmo container que atende os sites, numa
+ * VPS que divide a memória com o banco (`PENDENCIAS-ABERTAS.md` §3.3). Agora:
+ * arquivo de até uma parte vai num pedido só; maior, no envio em partes do S3
+ * (`CreateMultipartUpload` → `UploadPart` → `CompleteMultipartUpload`), com uma
+ * parte na memória por vez. Parte que falha, depois das novas tentativas do
+ * próprio SDK, cancela o envio inteiro (`AbortMultipartUpload`): parte órfã fica
+ * no bucket ocupando espaço — e sendo cobrada — sem virar arquivo nenhum.
+ *
+ * ⚠️ `requestChecksumCalculation: 'WHEN_REQUIRED'`: desde o começo de 2025 o SDK
+ * manda, por padrão, um checksum novo (CRC32) em todo envio — e serviços
+ * compatíveis com S3 que não o conhecem recusam o pedido. Com `WHEN_REQUIRED`, só
+ * vai quando a operação exige, como antes. A integridade continua garantida: o
+ * pedido é assinado com o SHA-256 do corpo. *Não conferido contra o Backblaze de
+ * verdade — conferido contra um S3 local (`tests/backup-envio.test.ts`).*
+ *
+ * `opcoes.parte` existe para o teste; em produção é sempre `PARTE_DO_ENVIO`.
+ */
+export async function enviarParaS3(caminho, opcoes = {}) {
+  const env = opcoes.env ?? process.env;
+  const parte = opcoes.parte ?? PARTE_DO_ENVIO;
+  const {
+    S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand,
+    CompleteMultipartUploadCommand, AbortMultipartUploadCommand,
+  } = await import('@aws-sdk/client-s3');
+  // Backblaze mostra o endpoint sem esquema; o SDK exige URL completa.
+  const endpoint = /^https?:\/\//.test(env.S3_ENDPOINT) ? env.S3_ENDPOINT : `https://${env.S3_ENDPOINT}`;
+  const client = new S3Client({
+    endpoint,
+    region: env.S3_REGION ?? 'us-east-1',
+    credentials: { accessKeyId: env.S3_ACCESS_KEY_ID, secretAccessKey: env.S3_SECRET_ACCESS_KEY },
+    forcePathStyle: true,
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
+  });
+  const Bucket = env.S3_BUCKET;
+  const Key = `backups/${basename(caminho)}`;
+  const ContentType = 'application/gzip';
+
+  try {
+    const arquivo = await open(caminho, 'r');
+    try {
+      const { size: tamanho } = await arquivo.stat();
+
+      // Até uma parte: um pedido só, como antes — o arquivo cabe na parte.
+      if (tamanho <= parte) {
+        const corpo = Buffer.alloc(tamanho);
+        await lerTudo(arquivo, corpo, 0);
+        await client.send(new PutObjectCommand({ Bucket, Key, Body: corpo, ContentLength: tamanho, ContentType }));
+        return { partes: 1, bytes: tamanho };
+      }
+
+      const { UploadId } = await client.send(new CreateMultipartUploadCommand({ Bucket, Key, ContentType }));
+      if (!UploadId) throw new Error('o armazenamento não devolveu o identificador do envio em partes');
+      try {
+        const buffer = Buffer.alloc(parte);
+        const Parts = [];
+        for (let posicao = 0, PartNumber = 1; posicao < tamanho; PartNumber++) {
+          const lidos = await lerTudo(arquivo, buffer, posicao);
+          if (lidos === 0) throw new Error(`o arquivo encolheu durante o envio (${posicao} de ${tamanho} bytes)`);
+          // O mesmo buffer serve todas as partes: o `await` termina o envio desta
+          // — com as novas tentativas do SDK — antes de a próxima leitura escrever nele.
+          const { ETag } = await client.send(new UploadPartCommand({
+            Bucket, Key, UploadId, PartNumber, Body: buffer.subarray(0, lidos), ContentLength: lidos,
+          }));
+          if (!ETag) throw new Error(`a parte ${PartNumber} voltou sem ETag`);
+          Parts.push({ ETag, PartNumber });
+          posicao += lidos;
+        }
+        await client.send(new CompleteMultipartUploadCommand({ Bucket, Key, UploadId, MultipartUpload: { Parts } }));
+        return { partes: Parts.length, bytes: tamanho };
+      } catch (erro) {
+        await client.send(new AbortMultipartUploadCommand({ Bucket, Key, UploadId })).catch((e) => {
+          console.error(`✕ Não deu para cancelar o envio em partes ${UploadId} — apague as partes no painel do armazenamento:`, e.message);
+        });
+        throw erro;
+      }
+    } finally {
+      await arquivo.close();
+    }
+  } finally {
+    client.destroy();
+  }
+}
+
+/** Lê do arquivo até encher `buffer` ou o arquivo acabar; devolve quantos bytes leu. */
+async function lerTudo(arquivo, buffer, posicao) {
+  let total = 0;
+  while (total < buffer.length) {
+    const { bytesRead } = await arquivo.read(buffer, total, buffer.length - total, posicao + total);
+    if (bytesRead === 0) break;
+    total += bytesRead;
+  }
+  return total;
 }
 
 // Execução direta via CLI
