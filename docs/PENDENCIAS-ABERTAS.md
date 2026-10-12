@@ -1960,9 +1960,11 @@ toda tela que a usasse, com o deploy verde. O script repete.
 
 **Ensaiado em 11/10/2026** no estado de produção — migrations aplicadas pelo superusuário, uma
 barbearia dentro: a troca; rodar de novo sem estragar nada; o boot com a URL nova; o roteiro E2E
-inteiro; o backup e o provisionador com ela; uma migration futura criando tabela que o app lê e
-grava; e a recusa de tudo que é de superusuário — criar papel, ler arquivo do servidor, mudar a
-configuração, criar banco, rodar programa.
+inteiro — e, com o servidor falando pelo usuário novo, os E2E do painel do operador, da cobrança e
+da exportação, os três que mais usam o caminho do dono do banco; o backup e o provisionador com
+ela; uma migration futura criando tabela que o app lê e grava; e a recusa de tudo que é de
+superusuário — criar papel, ler arquivo do servidor, mudar a configuração, criar banco, rodar
+programa.
 
 ⚠️ **O que muda daqui em diante:**
 
