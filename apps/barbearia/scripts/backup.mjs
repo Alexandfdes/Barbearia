@@ -36,8 +36,12 @@
  *
  * Três consequências práticas:
  *
- *  1. O arquivo agora é `.sql.gz`, não `.db`. Restaura com
- *     `gunzip -c arquivo.sql.gz | psql "$DATABASE_URL"`.
+ *  1. O arquivo agora é `.sql.gz`, não `.db`. Restaura num banco VAZIO com
+ *     `gunzip -c arquivo.sql.gz | psql "$DATABASE_URL"` — e depois
+ *     `node scripts/permissoes-do-app.mjs`, que devolve ao papel do app o que a
+ *     restauração não trouxer (backup de antes de 11/10/2026, ou um servidor
+ *     novo, onde o papel `barbearia_app` ainda não existia). O boot confere e
+ *     recusa subir sem isso (`conferirPapelDoApp`, em `scripts/startup.mjs`).
  *  2. **`pg_dump` precisa estar instalado na imagem do app.** Sem ele o backup
  *     falha. Este script confere na primeira execução e diz isso na cara, em
  *     vez de morrer com "command not found".
@@ -97,7 +101,12 @@ export function newestBackupAgeMs() {
  */
 function pgDumpPara(dest, url) {
   return new Promise((resolve, reject) => {
-    const proc = spawn('pg_dump', ['--no-owner', '--no-privileges', url], {
+    // `--no-owner`: quem restaura vira dono das tabelas. Os PRIVILÉGIOS vão no
+    // arquivo — e até 11/10/2026 não iam (`--no-privileges`): o banco restaurado
+    // voltava com os dados e sem nenhum GRANT ao papel `barbearia_app`, e toda tela
+    // respondia 500 com o boot verde. Achado restaurando de verdade, no ensaio da
+    // troca do usuário do banco. Backup antigo, sem eles: `scripts/permissoes-do-app.mjs`.
+    const proc = spawn('pg_dump', ['--no-owner', url], {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
