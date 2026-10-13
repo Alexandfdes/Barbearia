@@ -144,6 +144,11 @@ const ESTRELA = 'M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.
     const carousel = document.getElementById("reviews-carousel");
     if (!carousel) return;
 
+    // Quem pediu ao sistema menos movimento não ganha carrossel andando sozinho — como na
+    // galeria. As setas e o arrastar continuam funcionando. Até 13/10/2026 este andava
+    // sempre (`docs/PENDENCIAS-ABERTAS.md` §2.41).
+    const semMovimento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     const originalCount = parseInt(carousel.getAttribute("data-count") || "0", 10);
     let paused = false;          // hover / setas
     let touching = false;        // dedo na tela
@@ -210,7 +215,7 @@ const ESTRELA = 'M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.
       setTimeout(() => { paused = false; }, 2000);
     });
 
-    requestAnimationFrame(tick);
+    if (!semMovimento) requestAnimationFrame(tick);
   });
 </script>
 )}
