@@ -1,12 +1,18 @@
 export const prerender = false;
 
 /**
- * A entrada no painel do operador — só a senha (decisão de 11/10/2026, risco
- * aceito: `lib/operador.ts`).
+ * A entrada no painel do operador — a senha e, com `OPERADOR_SEGUNDO_FATOR`, o código
+ * de 6 dígitos do aplicativo (13/10/2026, `lib/segundoFator.ts`). Sem a variável, só a
+ * senha, como desde 11/10 (`lib/operador.ts`).
+ *
+ * Com o segundo fator, a resposta não diz qual dos dois errou: "senha ou código
+ * errado". O log diz — e "senha certa, código errado" é o aviso de que a senha vazou.
+ * O código só é conferido com a senha certa: um código roubado com a senha errada não
+ * gasta o código de quem é dono dele.
  *
  * Duas camadas de limite, como no login do painel (`api/auth/login.ts`), mas mais
- * apertadas — aqui não há segundo fator, então o limite é a única coisa entre
- * quem testa senhas e a senha:
+ * apertadas — sem o segundo fator, o limite é a única coisa entre quem testa senhas
+ * e a senha:
  *
  *  1. **Por IP:** 5 tentativas a cada 15 minutos.
  *  2. **No total:** 20 a cada 15 minutos, de qualquer IP. É o que segura quem
@@ -30,8 +36,9 @@ import {
   conferirSenha, cookieDoOperador, naoEncontrado, portaoDoOperador, VARIAVEL_DA_SENHA,
 } from '../../../lib/operador.js';
 import { registrarEntrada } from '../../../lib/operadorBarbearias.js';
+import { conferirCodigo, lerSegundoFator } from '../../../lib/segundoFator.js';
 
-const corpoSchema = z.object({ senha: z.string().min(1).max(200) });
+const corpoSchema = z.object({ senha: z.string().min(1).max(200), codigo: z.string().max(20).optional() });
 
 export const POST: APIRoute = async ({ request, clientAddress }) => {
   if (portaoDoOperador(request) !== 'aberto') return naoEncontrado();
@@ -58,9 +65,18 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   const porIp = checkRateLimit(chave, { maxTries: 5 });
   if (!porIp.ok) return json({ error: `Muitas tentativas. Tente em ${porIp.retryAfterSecs}s.` }, 429);
 
+  const fator = lerSegundoFator();
+  if (fator.ligado === true && !parsed.data.codigo?.trim()) {
+    return json({ error: 'Digite o código do aplicativo.' }, 400);
+  }
+
   if (!(await conferirSenha(parsed.data.senha, process.env[VARIAVEL_DA_SENHA]))) {
     console.warn(`[operador] senha errada (ip ${ip})`);
-    return json({ error: 'Senha errada.' }, 401);
+    return json({ error: fator.ligado === true ? 'Senha ou código errado.' : 'Senha errada.' }, 401);
+  }
+  if (fator.ligado === true && !conferirCodigo(parsed.data.codigo!, fator)) {
+    console.warn(`[operador] ⚠️ senha CERTA e código errado (ip ${ip}) — se não foi você, a senha vazou: troque-a (npm run operador:senha)`);
+    return json({ error: 'Senha ou código errado.' }, 401);
   }
 
   resetRateLimit(chave);

@@ -18,6 +18,7 @@ import { sqlConn } from '../db/index.js';
 import { configDaAsaas, type AmbienteAsaas } from './asaas.js';
 import { transporteDeEmail, type Transporte } from './email.js';
 import { urlDoPainel } from './tenant.js';
+import { lerSegundoFator } from './segundoFator.js';
 
 type Ambiente = Record<string, string | undefined>;
 
@@ -60,6 +61,8 @@ export interface SistemaNoPainel {
   cobranca: { ligada: boolean; ambiente: AmbienteAsaas | null; tokenDoWebhook: boolean };
   cadastro: { aberto: boolean };
   enderecos: { painel: string; dominioBase: string | null };
+  /** A entrada do próprio painel do operador pede o código do aplicativo (`lib/segundoFator.ts`). */
+  operador: { segundoFator: boolean };
   processo: { noArDesde: Date; memoriaMb: number; node: string; ambiente: string };
   alertas: AlertaDoSistema[];
 }
@@ -106,6 +109,7 @@ export function configuracaoNoPainel(env: Ambiente = process.env, agora: Date = 
     cobranca: { ligada: cfg !== null, ambiente: cfg?.ambiente ?? null, tokenDoWebhook: Boolean(env.ASAAS_WEBHOOK_TOKEN?.trim()) },
     cadastro: { aberto: env.CADASTRO_ABERTO === '1' },
     enderecos: { painel: urlDoPainel(env), dominioBase: env.DOMINIO_BASE?.trim() || null },
+    operador: { segundoFator: lerSegundoFator(env).ligado === true },
     processo: {
       noArDesde: new Date(agora.getTime() - Math.round(process.uptime() * 1000)),
       memoriaMb: Math.round(process.memoryUsage().rss / (1024 * 1024)),
@@ -194,5 +198,8 @@ export function alertasDoSistema(s: Omit<SistemaNoPainel, 'alertas'>, agora: Dat
     if (!s.cobranca.tokenDoWebhook) a.push({ estado: 'problema', texto: 'Falta o token do webhook da Asaas: todo aviso de pagamento é recusado.' });
   }
   if (s.banco.superusuario) a.push({ estado: 'atencao', texto: 'O app fala com o banco como superusuário — a troca do usuário está pronta e falta rodar.' });
+  if (producao && !s.operador.segundoFator) {
+    a.push({ estado: 'atencao', texto: 'Este painel entra só com a senha: ligue o código do aplicativo (npm run operador:segundo-fator).' });
+  }
   return a.sort((x, y) => (x.estado === y.estado ? 0 : x.estado === 'problema' ? -1 : 1));
 }

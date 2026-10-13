@@ -91,6 +91,20 @@ const quadros: Quadro[] = [
     ],
   },
   {
+    titulo: 'Este painel',
+    estado: s.operador.segundoFator ? 'ok' : producao ? 'atencao' : 'neutro',
+    linhas: [
+      {
+        rotulo: 'Para entrar',
+        valor: s.operador.segundoFator ? 'senha e código do aplicativo' : 'só a senha',
+        estado: s.operador.segundoFator ? 'ok' : producao ? 'atencao' : 'neutro',
+      },
+    ],
+    nota: s.operador.segundoFator
+      ? 'Perdeu o celular? Rode npm run operador:segundo-fator e troque a variável: o código antigo para de valer.'
+      : 'Com o código, quem descobrir a senha ainda não entra: npm run operador:segundo-fator.',
+  },
+  {
     titulo: 'Processo',
     estado: 'neutro',
     linhas: [

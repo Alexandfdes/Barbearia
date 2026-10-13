@@ -217,6 +217,8 @@ const SEGREDOS: Record<string, string> = {
   DATABASE_URL_APP: 'postgres://fadeline_app:SEGREDO-senha-app@banco.test:5432/fadeline',
   ADMIN_INITIAL_PASSWORD: 'SEGREDO-senha-inicial',
   EMAIL_REMETENTE: 'nao-responda@dominio.test',
+  // Base32 de verdade (A–Z e 2–7), para ligar o segundo fator — e com a marca.
+  OPERADOR_SEGUNDO_FATOR: 'totp:SEGREDOQUENAOAPARECEAAAAAAAAAAAA',
 };
 
 describe('a tela de sistema não mostra segredo', () => {
@@ -271,6 +273,7 @@ describe('a tela de sistema não mostra segredo', () => {
     expect(config.cobranca).toEqual({ ligada: true, ambiente: 'sandbox', tokenDoWebhook: true });
     expect(config.cadastro.aberto).toBe(true);
     expect(config.enderecos).toEqual({ painel: 'https://painel.exemplo.test', dominioBase: 'exemplo.test' });
+    expect(config.operador).toEqual({ segundoFator: true });
   });
 
   it('os alertas, do mais grave para o menos', () => {
@@ -295,6 +298,13 @@ describe('a tela de sistema não mostra segredo', () => {
       .toEqual(['A cobrança está no ambiente de teste da Asaas: o dinheiro não é de verdade.']);
     const velho = { ...emOrdem, backup: { ...emOrdem.backup, ultimo: { arquivo: 'b.sql.gz', bytes: 1, em: new Date(Date.now() - 30 * 3600_000) } } };
     expect(alertasDoSistema(velho)[0].texto).toMatch(/backup diário parou/);
+
+    // Sem o segundo fator, em produção, o painel avisa; no desenvolvimento, não.
+    const soSenha = { ...emOrdem, ...configuracaoNoPainel(envDe({ OPERADOR_SEGUNDO_FATOR: '' })) };
+    expect(alertasDoSistema(soSenha).map((a) => `${a.estado}: ${a.texto}`)).toContain(
+      'atencao: Este painel entra só com a senha: ligue o código do aplicativo (npm run operador:segundo-fator).');
+    const naMaquina = { ...emOrdem, ...configuracaoNoPainel(envDe({ OPERADOR_SEGUNDO_FATOR: '', NODE_ENV: 'development' })) };
+    expect(alertasDoSistema(naMaquina).map((a) => a.texto).join(' ')).not.toMatch(/segundo-fator/);
   });
 });
 

@@ -13,10 +13,11 @@
  * o painel no desenvolvimento, no `apps/barbearia/.env`. Depois, reinicie o app.
  *
  * ⚠️ O que vai para o servidor é o HASH, nunca a senha. A senha fica só com você.
- * ⚠️ Não há segundo fator (decisão de 11/10/2026): a senha é a única coisa entre
- *    quem a descobrir e o poder de tirar qualquer barbearia do ar. Use uma frase de
- *    quatro ou cinco palavras que não esteja em lugar nenhum — o mínimo aceito é 12
- *    caracteres, e o mínimo não é o recomendado.
+ * ⚠️ Sem o segundo fator ligado (`npm run operador:segundo-fator`, desde 13/10/2026),
+ *    a senha é a única coisa entre quem a descobrir e o poder de tirar qualquer
+ *    barbearia do ar. Com ou sem ele, use uma frase de quatro ou cinco palavras que não
+ *    esteja em lugar nenhum — o mínimo aceito é 12 caracteres, e o mínimo não é o
+ *    recomendado.
  * ⚠️ Trocar o hash derruba toda sessão de operador aberta. É assim que se tira de
  *    dentro quem soube a senha velha.
  *
