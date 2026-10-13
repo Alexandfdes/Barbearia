@@ -34,7 +34,7 @@ const { businessName } = await getSettings(tenantDoHost(Astro.request)!);
   <div class="min-h-screen bg-dark flex flex-col">
 
     <!-- Header -->
-    <div class="border-b border-white/5 px-4 py-4">
+    <header class="border-b border-white/5 px-4 py-4">
       <div class="max-w-lg mx-auto flex items-center justify-between">
         <a href="/" class="text-neutral-400 hover:text-neutral-200 text-sm flex items-center gap-1.5 transition-colors">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -44,7 +44,7 @@ const { businessName } = await getSettings(tenantDoHost(Astro.request)!);
         </a>
         <span class="text-neutral-400 text-sm font-medium">{businessName}</span>
       </div>
-    </div>
+    </header>
 
     <main class="max-w-lg w-full mx-auto px-4 py-10 flex-1">
 
