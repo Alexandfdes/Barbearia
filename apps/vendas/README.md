@@ -11,6 +11,7 @@ projeto da barbearia, seção 2.
 ```bash
 npm install
 npm run dev
+npm run check   # o conferidor de tipos: zero erro, e o CI reprova o primeiro que aparecer
 ```
 
 Páginas públicas: `/` (vendas) · `/demo` · `/obrigado` (pós-pagamento) · `/onboarding` (formulário).

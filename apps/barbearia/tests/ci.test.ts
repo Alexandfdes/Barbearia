@@ -79,6 +79,22 @@ describe('o workflow', () => {
     expect(b.indexOf('npm run check')).toBeLessThan(b.indexOf('npm run build'));
   });
 
+  it('e no job do site de vendas — ligado em 13/10/2026, também com zero erro', () => {
+    // Até então o site de vendas nunca tinha sido conferido: eram 24 erros, todos da
+    // descrição das funções do Node que faltava instalar.
+    const pacote = JSON.parse(readFileSync('../vendas/package.json', 'utf8')) as {
+      scripts: Record<string, string>; devDependencies?: Record<string, string>;
+    };
+    expect(pacote.scripts.check).toBe('astro check');
+    expect(Object.keys(pacote.devDependencies ?? {})).toEqual(
+      expect.arrayContaining(['@astrojs/check', 'typescript', '@types/node', '@types/better-sqlite3']),
+    );
+    const v = job('vendas');
+    expect(v).toMatch(/\n\s+run: npm run check\n/);
+    expect(v.indexOf('npm run check')).toBeGreaterThan(v.indexOf('npm ci'));
+    expect(v.indexOf('npm run check')).toBeLessThan(v.indexOf('npm run build'));
+  });
+
   it('o CI só lê o repositório', () => {
     expect(WORKFLOW).toMatch(/\npermissions:\n\s+contents: read\n/);
   });

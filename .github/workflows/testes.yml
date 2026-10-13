@@ -117,6 +117,10 @@ jobs:
       - name: Dependências
         run: npm ci
 
+      # Ligado em 13/10/2026, com zero erro — como no app (`docs/PENDENCIAS-ABERTAS.md` §2.29).
+      - name: Conferidor de tipos — nenhum erro
+        run: npm run check
+
       - name: Build
         run: npm run build
 
