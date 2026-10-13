@@ -72,7 +72,7 @@ const clientData = { role: session.role, sessionBarberId: session.barberId, tz: 
 ---
 
 <AdminLayout title="Bloqueios" barberName={barberRow.name} role={session.role}>
-  <main class="max-w-3xl mx-auto px-4 py-6 space-y-6">
+  <div class="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
     <div class="flex items-center justify-between">
       <div>
@@ -201,7 +201,7 @@ const clientData = { role: session.role, sessionBarberId: session.barberId, tz: 
       </section>
     )}
 
-  </main>
+  </div>
   <div id="bloqueios-dados" data-client={JSON.stringify(clientData)} class="hidden"></div>
 </AdminLayout>
 

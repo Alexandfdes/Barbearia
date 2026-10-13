@@ -103,7 +103,7 @@ const clientData = { selectedBarberId, isAdmin };
 ---
 
 <AdminLayout title="Horários" barberName={barberRow.name} role={session.role}>
-  <main class="max-w-3xl mx-auto px-4 py-6 space-y-6">
+  <div class="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
     <div>
       <h1 class="text-lg font-medium text-slate-900">Horários de Expediente</h1>
@@ -258,7 +258,7 @@ const clientData = { selectedBarberId, isAdmin };
       </div>
     </form>
 
-  </main>
+  </div>
 </AdminLayout>
 
 <script define:vars={{ clientData }}>

@@ -34,7 +34,7 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
 ---
 
 <AdminLayout title="Barbeiros" barberName={barberRow.name} role="admin">
-  <main class="max-w-3xl mx-auto px-4 py-6">
+  <div class="max-w-3xl mx-auto px-4 py-6">
 
     <div class="flex items-center justify-between mb-6 gap-3">
       <div>
@@ -229,7 +229,7 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
       ))}
     </div>
 
-  </main>
+  </div>
 </AdminLayout>
 
 <script>

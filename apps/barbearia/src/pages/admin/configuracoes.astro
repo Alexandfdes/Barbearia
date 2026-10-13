@@ -105,7 +105,7 @@ const valor = (id: string): string => {
 ---
 
 <AdminLayout title="Configurações" barberName={barberRow.name} role="admin">
-  <main class="max-w-3xl mx-auto px-4 py-6 pb-24">
+  <div class="max-w-3xl mx-auto px-4 py-6 pb-24">
 
     <div class="mb-6">
       <h1 class="text-lg font-medium text-slate-900">Configurações da barbearia</h1>
@@ -316,7 +316,7 @@ const valor = (id: string): string => {
 
     <!-- Fora do formulário: baixar não é salvar. -->
     <div class="mt-5"><ExportarDados /></div>
-  </main>
+  </div>
 
   <!-- Barra de salvar fixa: o formulário é longo e o botão não pode sumir no fim da rolagem -->
   <div class="fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-slate-50/95 backdrop-blur px-4 py-3 z-30">

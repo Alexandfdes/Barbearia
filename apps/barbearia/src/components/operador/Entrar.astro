@@ -25,7 +25,7 @@ const { volta, pedeCodigo = false } = Astro.props;
     <title>Operador — {NOME_PRODUTO}</title>
   </head>
   <body class="bg-dark text-cream min-h-screen flex items-center justify-center px-4">
-    <div class="w-full max-w-sm">
+    <main class="w-full max-w-sm">
       <div class="text-center mb-8">
         <p class="text-xs text-gray uppercase tracking-widest mb-1">{NOME_PRODUTO}</p>
         <h1 class="font-serif text-2xl font-medium text-white">Operador</h1>
@@ -50,7 +50,7 @@ const { volta, pedeCodigo = false } = Astro.props;
           Entrar
         </button>
       </form>
-    </div>
+    </main>
 
     <script>
       const entrar = document.getElementById('entrar') as HTMLFormElement | null;

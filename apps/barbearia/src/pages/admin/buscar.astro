@@ -23,7 +23,7 @@ if (!barberRow) return Astro.redirect('/admin/login');
 
 <AdminLayout title="Buscar cliente" barberName={barberRow.name} role={session.role}>
 
-  <main class="max-w-3xl mx-auto px-4 py-6 space-y-6 pb-20">
+  <div class="max-w-3xl mx-auto px-4 py-6 space-y-6 pb-20">
 
     <section>
       <label for="search-input" class="block text-xs text-slate-500 uppercase tracking-widest mb-2">
@@ -58,7 +58,7 @@ if (!barberRow) return Astro.redirect('/admin/login');
       <div id="results" class="hidden space-y-2"></div>
     </section>
 
-  </main>
+  </div>
 
 </AdminLayout>
 

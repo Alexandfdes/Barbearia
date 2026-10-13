@@ -329,7 +329,7 @@ const geradoEm = formatInTimeZone(nowUtc, fuso, "dd/MM/yyyy 'às' HH:mm");
 ---
 
 <AdminLayout title="Relatórios" barberName={barberRow.name} role={session.role}>
-  <main id="relatorio" class="max-w-3xl mx-auto px-4 py-6 space-y-5">
+  <div id="relatorio" class="max-w-3xl mx-auto px-4 py-6 space-y-5">
 
     <!-- Cabeçalho que aparece SÓ na impressão -->
     <div class="print-only" id="print-head">
@@ -586,7 +586,7 @@ const geradoEm = formatInTimeZone(nowUtc, fuso, "dd/MM/yyyy 'às' HH:mm");
       </>
     )}
 
-  </main>
+  </div>
 
   <style is:global>
     .print-only { display: none; }
