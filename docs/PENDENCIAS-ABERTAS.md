@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-12.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-13.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -40,6 +40,7 @@
 | **12/10** | **O painel do operador em telas, como o do barbeiro** — o Início com os números, a ficha de cada barbearia, a Cobrança, o Registro e o Sistema —, **e as anotações na ficha**, escolhidos por você; feitos no mesmo dia. Decididos na implementação — ⚠️ falta você confirmar: a anotação não se edita nem se apaga, e o "pede atenção" do Início mostra o teste a 3 dias do fim e quem cancelou a 15 dias de sair. No caminho, consertado: o JSON que ia ao banco como texto (§2.36) | `PENDENCIAS-ABERTAS.md` §3.9 e `PENDENCIAS-ABERTAS.md` §2.36 |
 | **12/10** | **Depois da vasculhada geral, três escolhidos por você:** o conferidor de tipos zerado e no CI; estender a carência pelo painel do operador; e o rascunho da landing do autoatendimento, com o `/acessar` levando ao painel central — feitos no mesmo dia. Decididos na implementação: a carência estendida grava o fim novo e vale para um atraso só — o banco a apaga quando o atraso muda —; e o plano anual fora do rascunho. **O botão de apagar o cliente a pedido saiu da lista, por decisão sua — *"ninguém pede isso"*** | `PENDENCIAS-ABERTAS.md` §2.29, `PENDENCIAS-ABERTAS.md` §3.9, `PENDENCIAS-ABERTAS.md` §4.15 e `PENDENCIAS-ABERTAS.md` §1.2 |
 | **13/10** | **Depois da explicação detalhada, seis escolhidos por você:** as quatro travas pequenas — o dia da semana sem o fuso do servidor, o `.env.example` completo, a sobra das 08:00–19:00 na agenda do dia e a nota "0,0" —; o aviso ao e-mail antigo quando o e-mail muda; o conferidor de tipos no site de vendas; as cores sugeridas da logo; o código de 6 dígitos no painel do operador, que você tinha deixado de fora em 11/10; e o ensaio da migração do Bayron com as 17 migrations — feitos no mesmo dia. O teste de carga ficou de fora, por escolha sua. **Decididos na implementação — ⚠️ falta você confirmar:** a nota do Google passa a aparecer no site de toda barbearia que preencher a nota e a quantidade, e não só no do Bayron, e sem JSON-LD de nota; e, com o segundo fator, a tela não diz se errou a senha ou o código. **Achado no caminho, consertado:** o encaixe manual da agenda do dia e a comanda pediam os serviços e as vagas à rota do site — no painel central, 404 em toda barbearia | `PENDENCIAS-ABERTAS.md` §2.1, `PENDENCIAS-ABERTAS.md` §2.27, `PENDENCIAS-ABERTAS.md` §2.38, `PENDENCIAS-ABERTAS.md` §4.11, `PENDENCIAS-ABERTAS.md` §4.17, `PENDENCIAS-ABERTAS.md` §2.29, `PENDENCIAS-ABERTAS.md` §4.2, `PENDENCIAS-ABERTAS.md` §3.9 e `ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2 |
+| **13/10** | **Uma área principal por tela**, pedido por você: treze telas do painel do dono tinham duas — uma dentro da outra, que o leitor de tela anuncia como duas —, e as quatro telas de entrar, nenhuma. Agora cada tela tem uma, e a aparência não mudou: o CSS e o JavaScript saíram idênticos, e as fotos de antes e depois batem pixel a pixel, fora o que é dado vivo | `PENDENCIAS-ABERTAS.md` §2.39 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -1843,6 +1844,41 @@ chamando rota que acha a barbearia pelo endereço.
 
 ---
 
+### 2.39 ✅ `[TÉCNICO]` Duas áreas principais, uma dentro da outra, em treze telas do painel — e nenhuma nas telas de entrar — RESOLVIDO em 13/10/2026
+
+**O que era.** A área principal de uma página — a `<main>` — é a que o leitor de tela anuncia
+como o conteúdo principal, e para onde ele pula quando a pessoa pede. O `AdminLayout` já tinha a
+dele, em volta de toda tela do painel do dono; e treze telas — Início, Agenda do dia, Buscar
+cliente, Reservas de produto, Serviços, Expediente, Bloqueios, Produtos, Combos, Galeria, Equipe,
+Configurações e Relatórios — abriam outra por dentro: duas áreas principais, uma dentro da outra,
+que o leitor de tela anuncia como duas. A regra do HTML é uma só por página, e nunca dentro de
+outra. Já as quatro telas de entrar — a do dono (`/admin/login`), a da senha esquecida, a da senha
+nova e a do operador — não tinham nenhuma: o atalho para o conteúdo não levava a lugar nenhum. As
+telas do operador, a Assinatura e as do site já tinham uma só.
+
+**O que mudou** (pedido por você em 13/10): a `<main>` de cada uma das treze telas virou um bloco
+comum, com as mesmas classes — fica a do `AdminLayout`, a única. Nas quatro telas de entrar, o
+bloco do formulário virou a `<main>`. Na tela, nada muda: o CSS e o JavaScript que vão ao navegador
+saíram idênticos, byte a byte. *Rejeitado:* tirar a `<main>` do `AdminLayout` e deixar a de cada
+tela — a Assinatura e toda tela nova ficariam sem nenhuma. Com ela no layout, a regra vale para
+todas sem ninguém lembrar, como já era no painel do operador.
+
+**Visto rodando**, no build, contra o banco de ensaio, no computador e no celular — as 24 telas do
+painel, 4 de entrar, 14 do dono e 6 do operador: cada uma com uma área principal só, e o axe-core,
+um verificador de acessibilidade de fora, sem nenhuma acusação nas regras das áreas da página —
+antes, 34 das 48 fotos eram acusadas. As fotos de antes e de depois, comparadas pixel a pixel: 48
+de 56 idênticas; as 8 diferentes mudaram só no que é dado vivo — o relógio de Configurações, o
+processo na tela Sistema e as entradas no registro do operador, que as próprias fotos geram.
+Guarda: `apps/barbearia/tests/area-principal.test.ts` — o layout que traz a `<main>` é o dono
+dela, a página sem esse layout traz a sua, uma só, e componente nenhum abre outra.
+
+**Visto e não mexido:** no site, três telas têm conteúdo fora de qualquer área — o botão
+flutuante do WhatsApp na página inicial, um texto do `/agendar` e o topo do `/cliente/entrar`. É
+a regra `region` do axe-core, de boa prática: o leitor de tela lê, mas quem navega pelas áreas
+pula esses trechos.
+
+---
+
 ## 3. Operação com vários clientes
 
 ### 3.1 🟠 `[DECISÃO]` Onde o app e o banco rodam
@@ -3464,6 +3500,9 @@ sobra das 08:00–19:00 na agenda do dia (§2.27) e a nota "0,0" (§4.11) —; o
 no painel do operador (§3.9); e o ensaio da migração do Bayron com as 17 migrations
 (`ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2). Achado no caminho, ✅ consertado: o encaixe manual e a
 comanda no painel central (§2.38). O teste de carga ficou de fora, por escolha sua (§5).
+
+**13/10/2026, depois, pedido por você, ✅ feito:** uma área principal por tela — duas, uma
+dentro da outra, em treze telas do painel do dono, e nenhuma nas quatro de entrar (§2.39).
 
 **Onda 2 — antes de abrir o cadastro público.**
 
