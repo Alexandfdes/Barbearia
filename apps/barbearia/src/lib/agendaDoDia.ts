@@ -43,8 +43,6 @@ export interface DadosDaAgenda {
   allBarbers: { id: number; name: string }[];
   todayStr: string;
   appts: AtendimentoDaAgenda[];
-  startHour: number;
-  totalHours: number;
   salesCents: number;
   products: { name: string; priceCents: number }[];
   /** O fuso da barbearia (`lib/timezone.ts`). */

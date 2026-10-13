@@ -15,6 +15,7 @@ import { getSettings } from '../../lib/settings.js';
 import { reais } from '../../lib/dinheiro.js';
 import { fusoDe } from '../../lib/timezone.js';
 import { horasDoGrafico } from '../../lib/gradeDeHorarios.js';
+import { diaDaSemana } from '../../lib/calendario.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
@@ -65,10 +66,6 @@ function monthRange(ym: string) {
     start: fromZonedTime(`${ym}-01T00:00:00`, fuso).toISOString(),
     end:   fromZonedTime(`${shiftMonth(y, m, 1)}-01T00:00:00`, fuso).toISOString(),
   };
-}
-function weekdayOf(dateStr: string): number {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay();
 }
 
 // Filtro por barbeiro (undefined = todos, pra drizzle ignorar a condição)
@@ -243,7 +240,7 @@ if (!isCurrentOrFuture || isCurrent) {
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${mes}-${String(d).padStart(2, '0')}`;
     if (isCurrent && dateStr > todayLocal) break; // só dias já decorridos
-    occDays.push({ dateStr, weekday: weekdayOf(dateStr) });
+    occDays.push({ dateStr, weekday: diaDaSemana(dateStr) });
   }
 }
 
@@ -275,7 +272,7 @@ const weekdaysWorked = new Set(whRows.map(w => w.weekday));
 let totalOpenDays = 0, elapsedOpenDays = 0;
 for (let d = 1; d <= daysInMonth; d++) {
   const dateStr = `${mes}-${String(d).padStart(2, '0')}`;
-  if (!weekdaysWorked.has(weekdayOf(dateStr))) continue;
+  if (!weekdaysWorked.has(diaDaSemana(dateStr))) continue;
   totalOpenDays++;
   if (dateStr <= todayLocal) elapsedOpenDays++;
 }

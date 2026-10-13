@@ -152,6 +152,19 @@ describe('a agenda do dia usa o expediente real', () => {
     expect(agenda).toMatch(/timeOffRows\s*\.filter\(b => new Date\(b\.endsAt\) > new Date\(dayStart\)\)/);
   });
 
+  it('a linha do tempo de 08:00 às 19:00 saiu inteira — a janela fixa e o que só ela usava', () => {
+    // Até 13/10/2026 a janela fixa continuava no topo da página, alimentando a posição de
+    // cada atendimento, a linha do "agora", as linhas de hora e o clique num espaço vazio,
+    // com o menu que ele abria — tudo de uma linha do tempo que saiu da tela antes de
+    // 06/09. Sem ninguém usando, bastava alguém reaproveitar para o 08:00 → 19:00 voltar.
+    const restos = [
+      /\bSTART_HOUR\b/, /\bEND_HOUR\b/, /\bTOTAL_HOURS\b/, /timelinePos/, /nowTopMin/, /hourLines/,
+      /--hour-px/, /timeline-root/, /empty-click-area/, /express-modal/, /__preferredSlotTime/,
+    ];
+    for (const resto of restos) expect(agenda, String(resto)).not.toMatch(resto);
+    expect(readFileSync('src/lib/agendaDoDia.ts', 'utf8')).not.toMatch(/\b(startHour|totalHours)\b/);
+  });
+
   it('nenhuma conversão de hora soma ou subtrai 3 horas à mão', () => {
     expect(agenda).not.toMatch(/h \+ 3/);
     expect(agenda).not.toMatch(/h - 3 \+ 24/);
