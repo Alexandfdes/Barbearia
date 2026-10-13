@@ -1,55 +1,53 @@
 ---
 import depoimentos from '../data/depoimentos.json';
 import { getSettings } from '../lib/settings';
-import { jsonLdSeguro } from '../lib/jsonLd.js';
-import { enderecoPublico, tenantAtual } from '../lib/tenant.js';
+import { tenantAtual } from '../lib/tenant.js';
 import { ehOBayron } from '../lib/bayron';
+import { notaDoGoogle, quantasAvaliacoes } from '../lib/avaliacao.js';
 
 const s = await getSettings();
 const GOOGLE_REVIEWS_URL = s.googleReviewsUrl;
-const RATING = Number(s.googleRating);
-const REVIEW_COUNT = s.googleReviewCount;
-
-const ldJson = {
-  "@context": "https://schema.org",
-  "@type": "HairSalon",
-  // O mesmo `@id` do `Layout.astro`: é assim que o Google liga a nota ao negócio.
-  "@id": `${enderecoPublico(Astro.request, Astro.url)}/#business`,
-  "name": s.businessName,
-  "aggregateRating": {
-    "@type": "AggregateRating",
-    "ratingValue": String(RATING),
-    "reviewCount": String(REVIEW_COUNT)
-  },
-  "review": depoimentos.map(d => ({
-    "@type": "Review",
-    "author": { "@type": "Person", "name": d.name },
-    "reviewRating": { "@type": "Rating", "ratingValue": String(d.rating) },
-    "reviewBody": d.text
-  }))
-};
 
 /**
- * ⚠️ Esta seção só aparece na instância do Bayron.
+ * A nota do Google, a de cada barbearia — Configurações, "Avaliações do Google". Sem
+ * nota de 1 a 5 ou sem nenhuma avaliação, `null`, e o bloco não aparece
+ * (`lib/avaliacao.ts`; `PENDENCIAS-ABERTAS.md` §4.11).
  *
- * O conteúdo dela está cravado no repositório e é **dele**: seis depoimentos com **nome de pessoa real**, que avaliaram a barbearia dele. Numa
- * barbearia nova isso não seria "seção vazia" — seria a barbearia mostrando
- * conteúdo de outra como se fosse o próprio.
+ * Até 13/10/2026 a seção inteira era só do Bayron: a nota que todo dono digita em
+ * Configurações não aparecia em site nenhum, embora o medidor de completude dissesse
+ * "Mostra sua nota real no site". Agora a nota vale para todos; os depoimentos, não.
+ */
+const nota = notaDoGoogle(s.googleRating, s.googleReviewCount);
+
+/**
+ * ⚠️ Os depoimentos só aparecem no site do Bayron.
+ *
+ * Estão cravados no repositório e são **dele**: seis depoimentos com **nome de pessoa
+ * real**, que avaliaram a barbearia dele. Numa barbearia nova isso não seria "seção
+ * vazia" — seria a barbearia mostrando conteúdo de outra como se fosse o próprio.
  *
  * Regra do `PENDENCIAS-ABERTAS.md` §4.1: nenhuma seção meia-boca — ou tem
  * conteúdo do cliente, ou não é renderizada.
  *
- * Para generalizar, cada barbearia precisa das próprias avaliações — hoje não há onde guardá-las.
+ * Para generalizar, cada barbearia precisa dos próprios depoimentos — hoje não há onde guardá-los.
  */
 const BAYRON = ehOBayron(tenantAtual());
-// Arquivo vazio = seção vazia. Nem o Bayron mostra carrossel sem avaliação.
-const mostrar = BAYRON && depoimentos.length > 0;
+// Arquivo vazio = sem carrossel. Nem o Bayron mostra carrossel sem avaliação.
+const comDepoimentos = BAYRON && depoimentos.length > 0;
+const mostrar = nota !== null || comDepoimentos;
 
+// Sem JSON-LD de nota, de propósito. Até 13/10/2026 esta seção punha no HTML a nota e os
+// depoimentos do Google como `AggregateRating` e `Review` — e a regra do Google proíbe:
+// "Don't aggregate reviews or ratings from other websites". Página de negócio falando
+// de si mesmo nem é elegível às estrelas na busca
+// (developers.google.com/search/docs/appearance/structured-data/review-snippet).
+// Não trazia estrela nenhuma, e arriscava uma penalidade que tira os resultados
+// enriquecidos do site inteiro.
+
+const ESTRELA = 'M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z';
 ---
 
 {mostrar && (
-<script type="application/ld+json" set:html={jsonLdSeguro(ldJson)} />
-
 <section id="depoimentos" class="py-12 md:py-20 bg-dark-alt">
   <div class="max-w-6xl mx-auto px-4">
     <div class="text-center mb-16">
@@ -59,21 +57,25 @@ const mostrar = BAYRON && depoimentos.length > 0;
       <p class="text-neutral-400 max-w-lg mx-auto">Avaliações reais de quem já passou pela cadeira.</p>
     </div>
 
-    <!-- Nota média -->
-    <div class="flex flex-col sm:flex-row items-center justify-center gap-6 mb-14">
+    <!-- Nota média: as estrelas seguem a nota — 4,8 pinta 80% da quinta -->
+    {nota && (
+    <div class:list={['flex flex-col sm:flex-row items-center justify-center gap-6', { 'mb-14': comDepoimentos }]}>
       <div class="flex items-center gap-4 bg-dark-card border border-white/5 rounded-md px-7 py-5">
-        <span class="text-5xl font-bold text-teal-light leading-none">{RATING.toFixed(1).replace('.', ',')}</span>
+        <span class="text-5xl font-bold text-teal-light leading-none">{nota.texto}</span>
         <div>
-          <div class="flex gap-1 mb-1.5" aria-label={`${RATING} de 5 estrelas`}>
-            {Array.from({ length: 5 }).map(() => (
-              <svg class="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+          <div class="flex gap-1 mb-1.5" role="img" aria-label={`${nota.texto} de 5 estrelas`}>
+            {nota.estrelas.map((pintado, i) => (
+              <svg class="w-5 h-5" viewBox="0 0 20 20" aria-hidden="true">
+                <defs><clipPath id={`nota-estrela-${i}`}><rect width={20 * pintado} height="20" /></clipPath></defs>
+                <path class="text-neutral-600" fill="currentColor" d={ESTRELA} />
+                <path class="text-yellow-400" fill="currentColor" clip-path={`url(#nota-estrela-${i})`} d={ESTRELA} />
               </svg>
             ))}
           </div>
-          <p class="text-xs text-neutral-400">Baseado em {REVIEW_COUNT} avaliações</p>
+          <p class="text-xs text-neutral-400">Baseado em {quantasAvaliacoes(nota.quantidade)}</p>
         </div>
       </div>
+      {GOOGLE_REVIEWS_URL && (
       <a
         href={GOOGLE_REVIEWS_URL}
         target="_blank"
@@ -85,9 +87,12 @@ const mostrar = BAYRON && depoimentos.length > 0;
           <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
         </svg>
       </a>
+      )}
     </div>
+    )}
 
     <!-- Carrossel de avaliações (auto-scroll, igual ao das fotos) -->
+    {comDepoimentos && (<div>
     <div class="relative">
       <div id="reviews-carousel" data-count={depoimentos.length} class="flex gap-4 sm:gap-6 overflow-x-auto no-scrollbar pb-2">
       {[...depoimentos, ...depoimentos].map((d) => (
@@ -130,6 +135,7 @@ const mostrar = BAYRON && depoimentos.length > 0;
     </div>
 
     <p class="md:hidden text-center text-[11px] text-neutral-600 mt-3">Deslize para ver mais →</p>
+    </div>)}
   </div>
 </section>
 

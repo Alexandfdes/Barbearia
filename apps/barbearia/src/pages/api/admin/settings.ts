@@ -12,6 +12,7 @@ import { derivarAccent, isHex } from '../../../lib/accent.js';
 import { tenantDaSessao } from '../../../lib/tenant.js';
 import { ehFusoDoBrasil, fusoDe } from '../../../lib/timezone.js';
 import { definirFusoDaBarbearia } from '../../../lib/fusoDaBarbearia.js';
+import { FORMA_DA_NOTA } from '../../../lib/avaliacao.js';
 
 /** URL opcional: ou vazia, ou começando com http(s). Evita salvar "instagram.com/x"
  *  sem protocolo, que vira link relativo e quebra dentro do próprio site. */
@@ -46,7 +47,7 @@ const updateSchema = z.object({
   seoTitle:        z.string().max(200),
   seoDescription:  z.string().max(300),
   googleReviewsUrl: urlOuVazio(600),
-  googleRating:    z.string().regex(/^$|^[0-5](\.\d)?$/, 'A nota deve ser um número de 0 a 5 (ex: 4.8)'),
+  googleRating:    z.string().regex(FORMA_DA_NOTA, 'A nota deve ser um número de 0 a 5 (ex: 4.8)'),
   googleReviewCount: z.number().int().min(0).max(1_000_000),
   productsSectionTitle: z.string().min(1, 'O título da seção de produtos não pode ficar vazio').max(60),
   // Cor de marca escolhida no painel. Só ela é aceita: `accentHover` e

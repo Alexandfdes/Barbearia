@@ -612,7 +612,7 @@ interface LinhaDaFicha {
   trial_ends_at: unknown; past_due_since: unknown; subscription_ends_at: unknown;
   address_city: string | null; address_street: string | null; whatsapp_number: string | null;
   logo_path: string | null; hero_path: string | null; tagline: string | null; about_text: string | null;
-  instagram_url: string | null; google_reviews_url: string | null; seo_title: string | null;
+  instagram_url: string | null; google_rating: string | null; google_review_count: number | null; seo_title: string | null;
   seo_description: string | null; accent_color: string | null; business_hours: string | null;
   equipe_total: number; servicos_ativos: number; servicos_com_preco: number; barbeiros_com_agenda: number;
   fotos: number; agendamentos_total: number; agendamentos_7_dias: number; proximos: number;
@@ -647,7 +647,7 @@ export async function fichaDaBarbearia(tenantId: number, agora: Date = new Date(
     SELECT t.domain, t.asaas_customer_id, t.asaas_subscription_id,
            t.trial_ends_at, t.past_due_since, t.subscription_ends_at,
            s.address_city, s.address_street, s.whatsapp_number, s.logo_path, s.hero_path, s.tagline,
-           s.about_text, s.instagram_url, s.google_reviews_url, s.seo_title, s.seo_description,
+           s.about_text, s.instagram_url, s.google_rating, s.google_review_count, s.seo_title, s.seo_description,
            s.accent_color, s.business_hours,
            (SELECT count(*)::int FROM barbers b WHERE b.tenant_id = t.id) AS equipe_total,
            (SELECT count(*)::int FROM services sv WHERE sv.tenant_id = t.id AND sv.active) AS servicos_ativos,
@@ -667,7 +667,7 @@ export async function fichaDaBarbearia(tenantId: number, agora: Date = new Date(
   const completude = calcularCompletude({
     logoPath: f.logo_path, heroPath: f.hero_path, tagline: f.tagline, aboutText: f.about_text,
     whatsappNumber: f.whatsapp_number, addressStreet: f.address_street, addressCity: f.address_city,
-    instagramUrl: f.instagram_url, googleReviewsUrl: f.google_reviews_url,
+    instagramUrl: f.instagram_url, googleRating: f.google_rating, googleReviewCount: f.google_review_count,
     seoTitle: f.seo_title, seoDescription: f.seo_description, accentColor: f.accent_color,
     horariosPublicados: parseBusinessHours(f.business_hours).length,
     servicosAtivos: f.servicos_ativos,

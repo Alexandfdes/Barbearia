@@ -23,6 +23,7 @@
  *   2. `pendencias` + `percentual` — o que falta para ficar APRESENTÁVEL.
  */
 import { MINIMO_PARA_APARECER } from './galeria.js';
+import { notaDoGoogle } from './avaliacao.js';
 
 /** O estado da barbearia, do jeito que o medidor precisa ver. */
 export interface EstadoDaBarbearia {
@@ -34,7 +35,9 @@ export interface EstadoDaBarbearia {
   addressStreet: string | null;
   addressCity: string | null;
   instagramUrl: string | null;
-  googleReviewsUrl: string | null;
+  /** A nota do Google e quantas avaliações — o que faz o bloco aparecer no site (`lib/avaliacao.ts`). */
+  googleRating: string | null;
+  googleReviewCount: number | null;
   seoTitle: string | null;
   seoDescription: string | null;
   /** Cor de marca escolhida pelo dono; o padrão do template não conta. */
@@ -150,7 +153,9 @@ function pendenciasDe(e: EstadoDaBarbearia): { faltando: Item[]; total: number }
       porque: 'O botão do rodapé leva o cliente para o seu perfil.',
       href: '/admin/configuracoes' },
 
-    { id: 'avaliacoes', peso: 5, ok: !vazio(e.googleReviewsUrl),
+    // A nota e a quantidade, e não o link: é com as duas que o site mostra a nota. Até
+    // 13/10/2026 bastava o link — e a nota não aparecia em site nenhum (§4.11).
+    { id: 'avaliacoes', peso: 5, ok: notaDoGoogle(e.googleRating, e.googleReviewCount) !== null,
       titulo: 'Ligue as avaliações do Google',
       porque: 'Mostra sua nota real no site — quem tem avaliação boa vende mais.',
       href: '/admin/configuracoes' },
