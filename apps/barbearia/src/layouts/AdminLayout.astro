@@ -159,6 +159,9 @@ const grupos: { titulo: string; itens: { href: string; label: string; ativo: boo
           </div>
         )}
 
+        {/* A única área principal da tela, a que o leitor de tela anuncia e para onde ele
+            pula: as páginas do painel não abrem outra. Até 13/10/2026, treze abriam —
+            duas, uma dentro da outra (tests/area-principal.test.ts). */}
         <main class="flex-1"><slot /></main>
       </div>
     </div>
