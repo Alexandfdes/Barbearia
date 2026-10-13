@@ -106,7 +106,8 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
    com o fuso dela — `fusoDe(barbearia)`, de `apps/barbearia/src/lib/timezone.ts`, que lê
    `tenants.timezone` (desde 12/10/2026) —, inclusive no navegador: o fuso desce pelos dados da
    página. `TZ_PADRAO` só onde não há barbearia. `tests/timezone-unico.test.ts` reprova a zona
-   cravada, o fuso do ambiente e a conta de offset.
+   cravada, o fuso do ambiente, a conta de offset e o `getDay()` — o dia da semana sai de
+   `diaDaSemana` (`apps/barbearia/src/lib/calendario.ts`).
 
 ## Como trabalhar aqui
 
@@ -114,8 +115,15 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   `DATABASE_URL`, os testes de banco **pulam em silêncio** — o número certo é o da linha
   mais recente do `docs/ESTADO-ATUAL.md` §8. Teste de escopo se escreve junto com a rota,
   nunca depois.
-- **Conferidor de tipos:** `npm run check` (o `astro check`) tem de dar **zero erro** — zerado
-  em 12/10/2026, e o CI reprova o primeiro que aparecer (`docs/PENDENCIAS-ABERTAS.md` §2.29).
+- **Conferidor de tipos:** `npm run check` (o `astro check`) tem de dar **zero erro**, nos dois
+  apps — zerado em 12/10/2026 (o site de vendas, em 13/10), e o CI reprova o primeiro que
+  aparecer (`docs/PENDENCIAS-ABERTAS.md` §2.29). ⚠️ Comentário HTML dentro de `{cond && (...)}`
+  faz o conferidor ler o resto como texto — dezenas de erros falsos: ponha o comentário fora.
+- **Variável de ambiente nova entra no `apps/barbearia/.env.example`**, explicada — é a lista de
+  configurar o EasyPanel; o `tests/env-exemplo.test.ts` reprova a que o código ler e ele não contar.
+- **Tela do painel não chama rota do site** (`/api/services`, `/api/slots`…): elas acham a
+  barbearia pelo endereço, e o painel é central — dá 404. Use a de `/api/admin/`, pela sessão
+  (`tests/vagas-do-painel.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.38).
 - **Migrations:** `apps/barbearia/drizzle/NNNN_nome.sql`, escritas à mão e aplicadas por
   `scripts/startup.mjs`, que confere o hash de cada uma — e que o `npm run dev` roda antes de
   subir (`predev`). Não há journal do Drizzle, e `db:push` e `db:generate` recusam de propósito.
@@ -151,8 +159,10 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   dos dois tem que passar (`docs/PENDENCIAS-ABERTAS.md` §2.29).
 - **Painel do operador:** `/operador` e as telas em `apps/barbearia/src/pages/operador/`, só no
   endereço do painel e só com `OPERADOR_SENHA_HASH` (gere com `npm run operador:senha`); sem ela,
-  404. Roda como dono do banco: o que ele pode mostrar está em
-  `apps/barbearia/src/lib/operadorBarbearias.ts` (`docs/PENDENCIAS-ABERTAS.md` §3.9). **Tela nova
+  404. Com `OPERADOR_SEGUNDO_FATOR` (`npm run operador:segundo-fator`), pede também o código de 6
+  dígitos do celular; essa variável fora do formato desliga o painel. Roda como dono do banco: o
+  que ele pode mostrar está em `apps/barbearia/src/lib/operadorBarbearias.ts`
+  (`docs/PENDENCIAS-ABERTAS.md` §3.9). **Tela nova
   abre com `exigirOperador`, antes de qualquer consulta:** o middleware deixa `/operador/` inteiro
   passar sem barbearia, e o `tests/operador-telas.test.ts` reprova a que não abrir.
 - **O app não precisa de superusuário no banco:** `scripts/usuario-do-app.mjs` faz a troca, e

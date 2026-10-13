@@ -39,6 +39,7 @@
 | **12/10** | **Os três próximos passos, escolhidos por você:** o backup saindo da VPS em partes, sem o arquivo inteiro na memória; o banco recusando dois agendamentos do mesmo barbeiro no mesmo horário; e a limpeza — as entregas antigas fora do repositório, o teste que mantém a cobrança longe das telas da barbearia e a grade de "Mover horário" só com os horários livres. Feitos no mesmo dia. Decidido na implementação — ⚠️ falta você confirmar: num banco que já tinha horário sobreposto, a trava vale a partir do fim do último par, em vez de o boot parar | `PENDENCIAS-ABERTAS.md` §3.3, `PENDENCIAS-ABERTAS.md` §2.37, `PENDENCIAS-ABERTAS.md` §4.6 e `PENDENCIAS-ABERTAS.md` §2.27 |
 | **12/10** | **O painel do operador em telas, como o do barbeiro** — o Início com os números, a ficha de cada barbearia, a Cobrança, o Registro e o Sistema —, **e as anotações na ficha**, escolhidos por você; feitos no mesmo dia. Decididos na implementação — ⚠️ falta você confirmar: a anotação não se edita nem se apaga, e o "pede atenção" do Início mostra o teste a 3 dias do fim e quem cancelou a 15 dias de sair. No caminho, consertado: o JSON que ia ao banco como texto (§2.36) | `PENDENCIAS-ABERTAS.md` §3.9 e `PENDENCIAS-ABERTAS.md` §2.36 |
 | **12/10** | **Depois da vasculhada geral, três escolhidos por você:** o conferidor de tipos zerado e no CI; estender a carência pelo painel do operador; e o rascunho da landing do autoatendimento, com o `/acessar` levando ao painel central — feitos no mesmo dia. Decididos na implementação: a carência estendida grava o fim novo e vale para um atraso só — o banco a apaga quando o atraso muda —; e o plano anual fora do rascunho. **O botão de apagar o cliente a pedido saiu da lista, por decisão sua — *"ninguém pede isso"*** | `PENDENCIAS-ABERTAS.md` §2.29, `PENDENCIAS-ABERTAS.md` §3.9, `PENDENCIAS-ABERTAS.md` §4.15 e `PENDENCIAS-ABERTAS.md` §1.2 |
+| **13/10** | **Depois da explicação detalhada, seis escolhidos por você:** as quatro travas pequenas — o dia da semana sem o fuso do servidor, o `.env.example` completo, a sobra das 08:00–19:00 na agenda do dia e a nota "0,0" —; o aviso ao e-mail antigo quando o e-mail muda; o conferidor de tipos no site de vendas; as cores sugeridas da logo; o código de 6 dígitos no painel do operador, que você tinha deixado de fora em 11/10; e o ensaio da migração do Bayron com as 17 migrations — feitos no mesmo dia. O teste de carga ficou de fora, por escolha sua. **Decididos na implementação — ⚠️ falta você confirmar:** a nota do Google passa a aparecer no site de toda barbearia que preencher a nota e a quantidade, e não só no do Bayron, e sem JSON-LD de nota; e, com o segundo fator, a tela não diz se errou a senha ou o código. **Achado no caminho, consertado:** o encaixe manual da agenda do dia e a comanda pediam os serviços e as vagas à rota do site — no painel central, 404 em toda barbearia | `PENDENCIAS-ABERTAS.md` §2.1, `PENDENCIAS-ABERTAS.md` §2.27, `PENDENCIAS-ABERTAS.md` §2.38, `PENDENCIAS-ABERTAS.md` §4.11, `PENDENCIAS-ABERTAS.md` §4.17, `PENDENCIAS-ABERTAS.md` §2.29, `PENDENCIAS-ABERTAS.md` §4.2, `PENDENCIAS-ABERTAS.md` §3.9 e `ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -442,6 +443,19 @@ operador, o cadastro, Configurações, o `CHECK` e a 0013 sobre um banco parado 
 é a hora do backup, não de barbearia nenhuma. E o `scripts/seed-relatorio-demo.mjs`, com o
 offset fixo, é da era SQLite: importa o `better-sqlite3`, que não é mais dependência do app, e
 não roda contra o banco de hoje. *Apagado em 12/10/2026 (§3.12).*
+
+✅ **13/10/2026 — o dia da semana também saía do relógio de quem roda**, escolhido por você
+entre as travas pequenas. Cinco lugares — o cálculo de vagas, o agendamento, os dois
+reagendamentos e o título da agenda do dia — faziam `new Date(Date.UTC(y, m - 1, d, 12)).getDay()`:
+o meio-dia UTC lido no fuso do PROCESSO. Certo com o servidor no Brasil ou em UTC; num servidor
+com fuso de +12 horas ou mais (Fiji, Nova Zelândia), segunda virava terça — e o expediente que
+decide as vagas era o de terça. **Visto rodando:** a suíte do commit anterior, com o processo em
+`Pacific/Kiritimati` (+14), reprovava 9 testes do agendamento; depois da troca, as 1064 passam
+assim. Os cinco usam `diaDaSemana` (`apps/barbearia/src/lib/calendario.ts`), que lê com
+`getUTCDay`; o relatório e a grade de horários, que tinham cópias dela, também; e o
+mini-calendário da agenda, no navegador — a regra não tem exceção para lembrar. A guarda:
+`tests/timezone-unico.test.ts` reprova `getDay()` em `src/`, com um controle que põe o processo em
+Kiritimati e mostra o erro de verdade.
 
 ### 2.2 ✅ `[TÉCNICO]` Wizard obriga escolher barbeiro mesmo havendo um só — RESOLVIDO em 09/10/2026
 
@@ -1344,9 +1358,17 @@ expediente ao fim do último, mais qualquer hora com atendimento fora dele
 (`lib/gradeDeHorarios.ts:77`, usado em `admin/relatorios.astro:301`). Visto rodando: num
 expediente de 09:00 às 19:00, as barras vão de 9 a 18 — antes, de 9 a 19, fixo.
 
-⚠️ **Sobra:** a constante continua no topo da agenda (`admin/dia/[date].astro:21-23`),
+~~⚠️ **Sobra:** a constante continua no topo da agenda (`admin/dia/[date].astro:21-23`),
 alimentando cálculos que a tela não usa mais — a linha do "agora" e as linhas de hora da
-linha do tempo antiga.
+linha do tempo antiga.~~ ✅ **Tirada em 13/10/2026**, entre as travas pequenas, escolhidas por
+você: a janela fixa, a conta da posição de cada atendimento, a linha do "agora", as linhas de
+hora, a altura da hora no CSS e o clique num espaço vazio — com o menu que ele abria
+("encaixar cliente", "bloquear 30 min", "bloquear 1 hora"), inalcançável desde antes de 06/09: o
+elemento que ele escutava não existia mais. Agendar e bloquear continuam pelos botões de baixo
+da agenda; o atalho está no histórico do git, se um dia quiser de volta. Visto no navegador,
+contra o build: o título e o calendário do mês, o encaixe e o "Mover horário" — e foi conferindo
+o encaixe que apareceu o §2.38. Guarda: `tests/grade-de-horarios.test.ts` reprova a volta de
+qualquer um deles.
 
 Guarda: `tests/grade-de-horarios.test.ts` — a grade começa na abertura, termina a tempo,
 alcança a noite, respeita o turno partido e o dia de folga; a página usa o expediente, não
@@ -1423,7 +1445,13 @@ navegador, conferido nos dois lados. O site construído ficou **idêntico ao de 
 por arquivo** (fora a chave aleatória que o Astro gera a cada build); a mesma comparação acusa
 um ponto de exclamação a mais num aviso. E a conferência entrou no CI, antes da suíte: erro
 novo reprova, e o deploy espera (`.github/workflows/testes.yml`; `apps/barbearia/tests/ci.test.ts`
-reprova se ela sair). Rode com `npm run check`. O site de vendas não tem o conferidor instalado.
+reprova se ela sair). Rode com `npm run check`. ~~O site de vendas não tem o conferidor instalado.~~
+
+✅ **13/10/2026, no site de vendas também**, escolhido por você. Eram 24 erros, todos do mesmo
+tipo: faltava a descrição das funções do Node (`@types/node`) e a do `better-sqlite3` — nenhum
+era defeito. Com as duas, zero; e o job do site de vendas no CI confere antes do build
+(`apps/barbearia/tests/ci.test.ts` reprova se sair). Os quatro pacotes novos são só de
+desenvolvimento; o lock foi gerado com o npm 11 e regravado com o 10, e o `npm ci` dos dois passa.
 
 ⚠️ **10/10/2026:** a `main` recebeu a correção com o merge do PR #1, em 09/10, e o app novo no
 ar roda dela. **O site do Bayron, não** — e nunca rodou da `main` deste repositório, ao
@@ -1789,6 +1817,30 @@ de formato da conta do corte não muda nada quando não há horário torto). **C
 banco de ensaio com o usuário do app — sem superusuário — e o RLS: o boot aplicou a 0015, e
 pelo HTTP, a mesma corrida deu 409 no agendar e no remarcar, com o log do servidor limpo.
 
+### 2.38 ✅ `[TÉCNICO]` O encaixe manual e a comanda pediam à rota do site — no painel central, 404 em toda barbearia — RESOLVIDO em 13/10/2026
+
+**Achado no navegador**, conferindo a agenda do dia depois da limpeza do §2.27. O "Novo
+agendamento" da agenda do dia — o encaixe de quem liga ou chega sem marcar — pedia os serviços a
+`/api/services` e as vagas a `/api/slots`; a comanda (fechar o atendimento com serviço extra)
+pedia os serviços à mesma `/api/services`. As duas rotas são do SITE: acham a barbearia pelo
+endereço, de propósito — endereço desconhecido não calcula horário de ninguém. O painel mora num
+endereço só, o `painel.<DOMINIO_BASE>`, que para elas não é barbearia nenhuma: a resposta era
+**404 "Barbearia não encontrada"**, em toda barbearia. Na tela, o seletor de serviço ficava só com
+"Selecione" — o dono não conseguia encaixar ninguém pelo painel —, e a comanda abria sem os
+serviços extras, sem erro nenhum. As chamadas são de antes do monorepo (06/09), e nenhum teste
+abria o encaixe.
+
+**O que mudou:** a agenda pede os serviços a `/api/admin/services`, que já existia, e as vagas a
+`apps/barbearia/src/pages/api/admin/slots.ts`, nova — as duas pela sessão (`tenantDaSessao`),
+como toda rota do painel. As regras do dia são as da rota do site: de hoje a 30 dias, no fuso da
+barbearia; barbeiro de outra barbearia é 404. *Rejeitado:* fazer as rotas do site aceitarem a
+sessão — mexeria no portão que impede o site de calcular horário sem barbearia.
+
+**Visto rodando**, no build, pelo painel central: o encaixe carrega o serviço e as vagas do dia (20)
+e grava; a rota dos serviços da comanda responde com a lista. Guarda:
+`apps/barbearia/tests/vagas-do-painel.test.ts` — o escopo da rota nova, e nenhuma tela do painel
+chamando rota que acha a barbearia pelo endereço.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -2035,7 +2087,8 @@ imagem do Postgres é a do `docker-compose.test.yml` — mas é a primeira vez q
 tem algum painel?"* Não tinha. O painel de cada barbearia mostra só a dela, e a única visão do
 todo era o `psql` em produção — que também era o único jeito de estender um teste, tirar do ar
 (§4.16) ou religar (§3.5). **Decidido por você no mesmo dia:** um painel já com as ações, cada
-uma registrada; **entrar só com a senha**.
+uma registrada; **entrar só com a senha** — *desde 13/10/2026, também com o código do celular,
+se a variável estiver ligada (abaixo)*.
 
 **As telas, pedidas por você em 12/10** — *"um painel de respeito, parecido com a interface do
 painel do barbeiro, com várias telas"*; você escolheu as cinco abaixo e as anotações. O painel
@@ -2110,8 +2163,9 @@ aqui: este repositório é público.
   quem quiser — e, desde 12/10, vê os números do negócio. O que existe em volta: hash lento
   (scrypt), no máximo 5 tentativas por IP e 20 no total a cada 15 minutos, sessão de 8 horas, e
   **toda entrada gravada com o IP** — olhe o Registro de vez em quando: uma entrada que não foi
-  sua aparece ali. Trocar a senha (o hash) derruba quem estiver dentro. *Rejeitado por você:* o
-  segundo fator.
+  sua aparece ali. Trocar a senha (o hash) derruba quem estiver dentro. ~~*Rejeitado por você:* o
+  segundo fator.~~ *Desde 13/10/2026, escolhido por você: o código de 6 dígitos, opcional — abaixo.
+  Sem a variável ligada, este risco continua igual.*
 - **O limite mora na memória do processo** (`apps/barbearia/src/lib/rateLimit.ts`): zera a
   cada deploy. E qualquer um pode gastar as 20 tentativas do total e te deixar 15 minutos sem
   entrar — a troca de segurar quem testa senhas de muitos IPs.
@@ -2124,7 +2178,7 @@ aqui: este repositório é público.
 - **A lista e o Início carregam todas as barbearias de uma vez:** servem para dezenas, não para
   milhares. O Registro e a Cobrança vão de 50 em 50.
 
-*Não feito, sugestões:* o segundo fator; ~~estender a carência de quem tem a cobrança
+*Não feito, sugestões:* ~~o segundo fator~~ — ✅ feito em 13/10/2026, abaixo —; ~~estender a carência de quem tem a cobrança
 atrasada~~ — ✅ feito em 12/10/2026, abaixo —; cancelar a assinatura na Asaas pelo próprio
 painel; encerrar uma barbearia; e o alerta no celular (§3.4) — o painel mostra, mas não chama.
 
@@ -2154,6 +2208,39 @@ esquecer reprova) e o banco; e casos em `apps/barbearia/tests/operador.test.ts`,
 reintroduzidos, os 18 vermelhos. No navegador, contra o build, com a migration aplicada pelo
 usuário do app sem superusuário: a barbearia fora do ar pela cobrança volta na hora — 14
 conferências, no computador e no celular.
+
+**13/10/2026 — o código de 6 dígitos**, escolhido por você: o segundo fator que tinha ficado de
+fora em 11/10. Opcional, por variável: com `OPERADOR_SEGUNDO_FATOR`, a tela de entrar pede a senha
+**e** o código de um aplicativo no celular (Google Authenticator, Microsoft Authenticator,
+1Password…); sem ela, só a senha, como antes — e o Sistema avisa, em produção
+(`apps/barbearia/src/lib/segundoFator.ts`).
+
+- **Como liga:** `npm run operador:segundo-fator`, na sua máquina. Ele gera o segredo, mostra o QR
+  code no terminal — e a chave, para digitar se o celular não ler —, **pede um código do
+  aplicativo e só imprime a linha da variável se ele conferir**: QR lido errado não vira variável
+  no servidor. Cole no EasyPanel e reinicie. O QR é feito no próprio repositório
+  (`apps/barbearia/scripts/qr.mjs`), sem pacote de fora tocando no segredo; conferido lendo de
+  volta e, em 13/10, por um leitor de fora (o jsQR): as oito máscaras, das versões 1 a 10, 72 de 72.
+- **A conta:** TOTP, a da RFC 6238 — HMAC-SHA1, 6 dígitos, 30 segundos —, o padrão que todo
+  aplicativo entende. Vale o código de agora e o de 30 segundos para cada lado (relógio torto).
+  **O mesmo código não entra duas vezes** — o último aceito fica guardado; ⚠️ na memória do
+  processo, como o limite de tentativas: um deploy esquece.
+- **A resposta não diz qual dos dois errou:** "Senha ou código errado". ⚠️ Decidido na
+  implementação — falta você confirmar. O log diz: "senha CERTA e código errado" é o aviso de que
+  a senha vazou — troque-a. O código só é conferido com a senha certa, para um código roubado
+  com a senha errada não gastar o seu.
+- **A sessão nasce da porta:** ligar, trocar ou tirar a variável derruba toda sessão de operador
+  aberta, como trocar a senha. E **variável fora do formato desliga o painel do operador (404)**,
+  como o hash torto: quem pensa que ligou o código não pode estar, sem saber, só com a senha.
+- ⚠️ **Perdeu o celular?** Rode o script de novo e troque a variável — o segredo antigo para de
+  valer. Sem acesso ao EasyPanel, o painel do operador fica fechado: é o preço.
+
+**Guarda:** `apps/barbearia/tests/segundo-fator.test.ts` — os exemplos da própria RFC, no app e no
+script; a variável e a porta; a janela e o código usado; a sessão; o script de verdade, com o
+código certo e com o errado; e, com banco, a rota. `apps/barbearia/tests/qr.test.ts` — o QR contra a
+tabela da norma e lido de volta, máscara a máscara. No navegador, contra o build, com a variável
+gerada pelo script: 12 conferências — a tela pede o código, o errado não entra, o certo entra, o
+mesmo código de novo não, a variável torta dá 404, e tirá-la derruba a sessão aberta.
 
 **Guarda:** `apps/barbearia/tests/operador.test.ts` — 40 casos (39 em 11/10; o fuso de 12/10 pôs
 mais um): a senha certa e só ela, o hash do script aceito pelo app, os 404 fora do endereço e sem
@@ -2374,7 +2461,7 @@ nome, o endereço e as avaliações de outra barbearia, a promessa quebra no pri
 minuto — e era exatamente isso que as migrations de SQLite faziam, até saírem do
 repositório (§4.6).
 
-### 4.2 🟡 `[TÉCNICO]` Cor de destaque — o dono já escolhe a dele
+### 4.2 ✅ `[TÉCNICO]` Cor de destaque — o dono escolhe a dele, e a logo sugere desde 13/10/2026
 
 ⚠️ **Correção de 11/09/2026: esta seção estava desatualizada.** Ela listava "campo de
 cor em `/admin/configuracoes`" e "decidir se o painel também vira a cor do cliente"
@@ -2400,9 +2487,20 @@ comportamento. Ver `ARQUITETURA-PRODUTO-V1.md` D5.1 e D5.2.
 de cada cliente, ele deixa de parecer o seu produto — suas capturas de tela, tutoriais e
 suporte ficam diferentes a cada cliente. O site é a marca dele; o painel é a sua.
 
-**Falta só uma ponta, e é melhoria, não bloqueio:** extrair cores candidatas da logo no
+~~**Falta só uma ponta, e é melhoria, não bloqueio:** extrair cores candidatas da logo no
 onboarding (sugerir, nunca aplicar sozinho). Sem isso o dono digita o hex ou usa o
-seletor — o que já resolve.
+seletor — o que já resolve.~~
+
+✅ **13/10/2026, escolhida por você: as cores da logo.** Em Configurações — e não no cadastro, que
+não recebe logo: ela sobe depois, na mesma página —, com a logo enviada aparecem até quatro cores
+tiradas dela, da mais presente para a menos (`apps/barbearia/src/lib/coresDaLogo.ts`). Ficam de
+fora o fundo transparente, o que não tem cor — preto, branco, cinza, o quase-preto com um tom —,
+a borda serrilhada e o tom quase igual a um já escolhido. Tocar numa só preenche o campo, pelo
+mesmo caminho do seletor: a prévia e o aviso de *"clara demais"* vêm junto, e o site só muda
+depois de Salvar. A conta roda no navegador, sobre a logo reduzida a 96 px. **Visto rodando**,
+com uma logo dourada e preta: as sugestões foram o dourado e o vinho de um filete, o preto não;
+tocar no dourado mostrou o aviso e a prévia em `#8d721b`; recarregar sem salvar não mudou nada;
+salvar gravou `#8d721b`. Guarda: `apps/barbearia/tests/cores-da-logo.test.ts`.
 
 ### 4.3 ✅ `[TÉCNICO]` Painel administrativo com resumo de verdade — CONFERIDO em 13/09/2026
 
@@ -2679,7 +2777,7 @@ texto, ou entra o print de um cliente com foto, com a autorização dele.
 ⚠️ **Refazer os prints** — o layout mudou, o painel ganhou tela — é remontar a barbearia de
 exemplo. O que a montou e tirou os prints ficou na sessão de 09/10, fora do repositório.
 
-### 4.11 🟠 `[TÉCNICO]` A avaliação publica "0,0" e as estrelas são enfeite
+### 4.11 ✅ `[TÉCNICO]` A avaliação publica "0,0" e as estrelas são enfeite — RESOLVIDO em 13/10/2026
 
 Dois defeitos na mesma seção, vistos servindo o site em 15/09/2026.
 
@@ -2695,6 +2793,31 @@ cheias. No Bayron (5.0) parece certo por coincidência.
 Hoje nenhum dos dois está no ar, porque a seção inteira só aparece no site do Bayron — desde
 09/10/2026 decidido pelo endereço, `ehOBayron()` (§4.7). Os dois acordam no dia em que a seção
 for generalizada.
+
+✅ **13/10/2026, escolhido por você entre as travas pequenas.** A conta saiu para
+`apps/barbearia/src/lib/avaliacao.ts`: nota de 1 a 5 e pelo menos uma avaliação, ou o bloco não
+aparece; e as estrelas pintam o que a nota manda — 4,8 pinta 80% da quinta —, pelo recorte do
+próprio SVG. E, no caminho, três coisas da mesma seção:
+
+- **A nota não aparecia em site nenhum fora o do Bayron**, embora Configurações tenha o bloco
+  "Avaliações do Google" para todo dono e o medidor de completude dissesse *"Mostra sua nota real
+  no site"*. Agora o bloco da nota vale para toda barbearia que preencher a nota e a quantidade;
+  os depoimentos continuam só no site do Bayron — são dele. E o medidor pede a nota e a
+  quantidade; antes bastava o link, que sozinho não mostra nada. ⚠️ **Decidido na implementação —
+  falta você confirmar.**
+- **O JSON-LD de nota saiu.** A seção punha no HTML a nota e os depoimentos do Google como
+  `AggregateRating` e `Review`, e a regra do Google proíbe: *"Don't aggregate reviews or ratings
+  from other websites"* — e página de negócio falando de si mesmo nem é elegível às estrelas na
+  busca (developers.google.com/search/docs/appearance/structured-data/review-snippet, lido em
+  13/10/2026). Não trazia estrela nenhuma, e arriscava uma penalidade que tira os resultados
+  enriquecidos do site inteiro.
+- **Configurações aceitava a nota 5,9:** o primeiro dígito ia até 5, e a casa decimal, livre.
+  Agora vai até 5,0 (`FORMA_DA_NOTA`, no mesmo arquivo).
+
+**Visto rodando**, contra o build: sem nota, a seção não aparece; com 4,8 e 127, "4,8 — Baseado em
+127 avaliações", com a quinta estrela em 80% e o link do Google; o 5,9 recusado em Configurações; o
+medidor deixando de pedir a nota quando ela está lá; e o site do Bayron sem nota, com os
+depoimentos e sem "0,0". Guarda: `apps/barbearia/tests/avaliacao.test.ts`.
 
 ### 4.12 ✅ `[TÉCNICO]` O hover do botão padrão reprova no contraste — RESOLVIDO em 09/10/2026
 
@@ -3164,6 +3287,11 @@ barbeiro da equipe também pode pedir a senha nova, se tiver e-mail.
    e `EMAIL_REMETENTE` (ex.: `Fadeline <nao-responda@fadeline.com.br>`, do domínio verificado
    no provedor). `PAINEL_URL` só se o painel não morar em `painel.<DOMINIO_BASE>`.
    `EMAIL_RESPONDER_PARA` é opcional — sem ela, quem responde o e-mail fala com ninguém.
+   *Desde 13/10/2026 as quatro — e todas as outras que o app lê — estão explicadas no
+   `apps/barbearia/.env.example`; até então ele não contava sete delas (`DOMINIO_BASE`,
+   `PAINEL_URL`, `CADASTRO_ABERTO`, `SMTP_URL`, `EMAIL_REMETENTE`, `EMAIL_RESPONDER_PARA` e
+   `EMAIL_PASTA`). `apps/barbearia/tests/env-exemplo.test.ts` reprova variável que o código leia e o
+   exemplo não conte.*
 4. **Testar de um celular:** pedir a senha nova e ver o e-mail chegar na caixa de entrada,
    não no spam.
 
@@ -3172,8 +3300,18 @@ barbeiro da equipe também pode pedir a senha nova, se tiver e-mail.
 - **Confirmar o e-mail por um link**, recomendado aqui antes. No lugar dele: o e-mail de
   boas-vindas e o e-mail à vista no painel. O que sobra: e-mail digitado errado só aparece
   quando o dono nota que não recebeu nada.
-- **Avisar o e-mail antigo quando o e-mail muda.** Quem roubar a sessão do dono pode trocar
-  o e-mail e, depois, a senha. Hoje a troca de e-mail não avisa ninguém.
+- ~~**Avisar o e-mail antigo quando o e-mail muda.** Quem roubar a sessão do dono pode trocar
+  o e-mail e, depois, a senha. Hoje a troca de e-mail não avisa ninguém.~~ ✅ **Feito em
+  13/10/2026**, escolhido por você. Quando o e-mail de alguém da equipe muda — ou é apagado —, o
+  endereço antigo recebe o aviso: quando, por quem (o próprio acesso, ou o nome de quem trocou),
+  o novo mascarado (`r***@…`) e o que fazer se não foi ele — o dono entra, põe uma senha nova na
+  própria linha da Equipe, o que derruba os outros aparelhos, e volta o e-mail; o barbeiro fala
+  com o dono (`apps/barbearia/src/lib/avisoDeEmailTrocado.ts`). Salvar sem mexer no e-mail não
+  avisa; quem não tinha e-mail não tem a quem avisar. A Equipe diz, embaixo do campo, que o
+  e-mail de agora recebe o aviso. ⚠️ Só sai de verdade com o envio de e-mail ligado — o que falta,
+  acima. Visto rodando, com o e-mail em arquivo: trocado pela Equipe, o aviso foi para o
+  endereço antigo, com o novo mascarado. Guarda: os casos novos de
+  `apps/barbearia/tests/email-da-equipe.test.ts`.
 - **Quem não tem e-mail** — o dono do Bayron, e quase toda a equipe — continua dependendo de
   alguém: o barbeiro, do dono, pela tela da equipe; o dono, de você, pelo
   `scripts/set-admin-password.mjs`. ⚠️ A regra manual continua: só troque a senha se o pedido
@@ -3318,6 +3456,14 @@ horário" só com os horários livres (§2.27).
 de tipos zerado e no CI (§2.29); estender a carência pelo painel do operador (§3.9); e o
 rascunho da landing, com o `/acessar` levando ao painel central (§4.15). O botão de apagar o
 cliente a pedido (§1.2) saiu da lista, por decisão sua: *"ninguém pede isso"*.
+
+**13/10/2026, escolhidos por você depois da explicação detalhada, ✅ feitos:** as quatro travas
+pequenas — o dia da semana sem o fuso do servidor (§2.1), o `.env.example` completo (§4.17), a
+sobra das 08:00–19:00 na agenda do dia (§2.27) e a nota "0,0" (§4.11) —; o aviso ao e-mail antigo
+(§4.17); o conferidor no site de vendas (§2.29); as cores da logo (§4.2); o código de 6 dígitos
+no painel do operador (§3.9); e o ensaio da migração do Bayron com as 17 migrations
+(`ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2). Achado no caminho, ✅ consertado: o encaixe manual e a
+comanda no painel central (§2.38). O teste de carga ficou de fora, por escolha sua (§5).
 
 **Onda 2 — antes de abrir o cadastro público.**
 

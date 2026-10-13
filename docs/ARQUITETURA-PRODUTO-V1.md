@@ -503,8 +503,10 @@ novos de apresentação (D6.1) · AdminLayout deixa de dizer "Bayron Admin".
 `Layout.astro` injeta `<style>` com a sobrescrita dos três tokens.
 *Verificado no navegador:* a cor derivada retinge o `background-color` real do botão e
 o `color` real do texto — `#1b2a5a` → `rgb(27,42,90)`, `#c9a227` → `rgb(141,114,27)`.
-**Falta:** campo de cor na tela `/admin/configuracoes` chamando `derivarAccent()` na
-gravação, e a extração de cores candidatas a partir da logo no onboarding.
+~~**Falta:** campo de cor na tela `/admin/configuracoes` chamando `derivarAccent()` na
+gravação, e a extração de cores candidatas a partir da logo no onboarding.~~ *Feitos: o campo,
+conferido em 11/09/2026, e as cores da logo em 13/10/2026 — em Configurações, e não no cadastro,
+que não recebe logo (`PENDENCIAS-ABERTAS.md` §4.2).*
 
 **Fase 6 — Provisionamento**
 `scripts/provision.mjs --slug --name --whatsapp --domain` · parametrizar `seed.mjs`

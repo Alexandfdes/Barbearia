@@ -63,6 +63,32 @@ papel é do servidor e sobrevive ao banco apagado — está respondida: aguenta 
 e a `0004` também. O SQLite do ensaio é o mesmo de mentira do teste de carga: **dado torto do
 banco real só aparece com o banco real** — ensaie com uma cópia dele antes do dia (§2).
 
+**Ensaiado de novo em 13/10/2026, com as 17 migrations** — escolhido por você, com dado de
+mentira —, pela cópia da imagem do app, como no console do container, e na ordem do dia, com a
+troca do superusuário no fim. Desde 10/10 tinham entrado sete migrations (a `0010` à `0016`: a
+cobrança, o aviso de agenda e o mapa, o painel do operador, o fuso por barbearia, as anotações,
+a trava do horário duplo e a carência estendida). O SQLite de mentira foi montado do schema da
+`0000`, com 3 barbeiros, 3 serviços, 272 agendamentos em dois meses e meio — e um par sobreposto
+no passado, de propósito, como os da máquina de desenvolvimento —, o par de cor padrão antigo e
+as outras oito tabelas:
+
+| Passo | Resultado |
+|---|---|
+| O banco vazio e o boot completo — a produção de hoje | 17 migrations, nenhuma barbearia |
+| A carga nesse banco | **recusa**, com a explicação |
+| Apagar e recriar o banco, com o papel `barbearia_app` já no servidor | — |
+| `--ate=0000` e a carga (§4.2 e §4.3) | 361 linhas, a contagem confere nas 12 tabelas |
+| O boot completo (§4.4) | da `0001` à `0016`; o papel do app e o `pg_dump` conferidos; a `0009` trocou o hover do par padrão; a `0015` disse *"ⓘ horário duplo: o banco recusa a partir de"* uma data passada — o par de propósito |
+| Rodar de novo | *"Banco já estava em dia"* |
+| As conferências do §4.6 | nenhum órfão, 272 agendamentos dos dois lados, a sequence em 273, nenhum fictício |
+| A galeria, duas vezes (§4.8) | 20 fotos — 19 com a variante de 640 px —; na segunda, *"nada a fazer"* |
+| A troca do superusuário (`PENDENCIAS-ABERTAS.md` §3.10) e o boot com o usuário novo | as oito conferências do `scripts/usuario-do-app.mjs`, e o boot em dia, sem superusuário |
+| Pelo papel do app | a barbearia 1 vê os 272; a 2, nenhum; sem barbearia, nenhum |
+| O app no ar sobre esse banco, pelo usuário novo | o site do Bayron responde, com a galeria e as vagas de segunda-feira; o painel abre |
+
+Nada quebrou, e nada mudou no roteiro. Continua valendo o aviso de cima: o banco real pode ter o
+que o de mentira não tem.
+
 ⚠️ **11/10/2026 — se o app já tiver trocado o superusuário por um usuário só dele**
 (`PENDENCIAS-ABERTAS.md` §3.10): os passos 4 e 5 abaixo rodam com o `DATABASE_URL` do
 **superusuário** — o banco recriado é dele, e a `0004` só concede o papel do app com ele (conferido:
