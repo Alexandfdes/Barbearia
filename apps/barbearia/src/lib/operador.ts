@@ -17,12 +17,15 @@
  *     nasce num endereço de cliente, e nenhum site de cliente anuncia que a página
  *     existe. Não é a trava que protege: o `Host` é escrito por quem pede. Quem
  *     protege é a senha.
- *  3. **A senha.** Só ela — decisão do dono em 11/10/2026, com o risco dito e
- *     aceito: é a tela mais poderosa do produto, e não tem segundo fator. Quem
- *     tiver a senha tira qualquer barbearia do ar. Por isso: hash lento (scrypt),
- *     limite de tentativas por IP e no total, sessão de 8 horas, e toda entrada
- *     gravada (`registrarEntrada`, em `lib/operadorBarbearias.ts`) — uma entrada
- *     que não foi sua aparece lá. Este arquivo não toca o banco.
+ *  3. **A senha — e o código do aplicativo.** Até 13/10/2026, só a senha (decisão
+ *     do dono em 11/10, com o risco dito e aceito): é a tela mais poderosa do
+ *     produto, e quem tivesse a senha tirava qualquer barbearia do ar. Desde 13/10,
+ *     com `OPERADOR_SEGUNDO_FATOR`, a senha sozinha não abre: pede também o código de
+ *     6 dígitos do celular (`lib/segundoFator.ts`). Sem a variável, continua só a
+ *     senha — e a tela de Sistema avisa. Em todo caso: hash lento (scrypt), limite de
+ *     tentativas por IP e no total, sessão de 8 horas, e toda entrada gravada
+ *     (`registrarEntrada`, em `lib/operadorBarbearias.ts`) — uma entrada que não foi
+ *     sua aparece lá. Este arquivo não toca o banco.
  *
  * ── POR QUE SCRYPT, E NÃO O BCRYPT DAS SENHAS DOS BARBEIROS ──────────────────
  *
@@ -40,6 +43,7 @@
 import { scrypt, randomBytes, timingSafeEqual, createHash } from 'node:crypto';
 import { sealData, unsealData } from 'iron-session';
 import { urlDoPainel } from './tenant.js';
+import { lerSegundoFator } from './segundoFator.js';
 
 type Ambiente = Record<string, string | undefined>;
 
@@ -49,7 +53,7 @@ export const COOKIE_DO_OPERADOR = '__fadeline_operador';
 /** 8 horas: um dia de trabalho. Fechou e voltou no dia seguinte, entra de novo. */
 export const DURACAO_DA_SESSAO = 8 * 60 * 60;
 
-/** A senha mínima que o script aceita. Sem segundo fator, a senha é tudo. */
+/** A senha mínima que o script aceita. Sem o segundo fator ligado, a senha é tudo. */
 export const SENHA_MINIMA = 12;
 
 interface Parametros { custo: number; r: number; p: number; sal: Buffer; chave: Buffer }
@@ -122,6 +126,9 @@ export type Portao = 'desligado' | 'fora-do-painel' | 'aberto';
  */
 export function portaoDoOperador(request: Request, env: Ambiente = process.env): Portao {
   if (!lerHash(env[VARIAVEL_DA_SENHA])) return 'desligado';
+  // O segundo fator torto também fecha a porta: quem pensa que ligou o código não pode
+  // estar, sem saber, só com a senha (`lib/segundoFator.ts`).
+  if (lerSegundoFator(env).ligado === 'invalido') return 'desligado';
   return ehEnderecoDoPainel(request.headers.get('host'), urlDoPainel(env)) ? 'aberto' : 'fora-do-painel';
 }
 
@@ -152,6 +159,11 @@ export function ehEnderecoDoPainel(host: string | null, painel: string): boolean
  */
 export function ehRotaDoOperador(caminho: string): boolean {
   return caminho === '/operador' || caminho.startsWith('/operador/') || caminho.startsWith('/api/operador/');
+}
+
+/** A tela de entrar pede o código do aplicativo? Só com o segundo fator ligado e certo. */
+export function pedeCodigo(env: Ambiente = process.env): boolean {
+  return lerSegundoFator(env).ligado === true;
 }
 
 /** O 404 do operador: o mesmo texto de qualquer endereço que não existe. */
@@ -227,16 +239,19 @@ export function voltaValida(caminho: string | null | undefined): string | null {
 interface SessaoDoOperador {
   operador: true;
   /**
-   * De QUAL hash esta sessão nasceu. Trocar a senha troca o hash, e toda sessão
-   * aberta com o anterior deixa de valer — é assim que se tira de dentro quem
-   * soube a senha velha.
+   * De QUAL hash — e de qual segundo fator — esta sessão nasceu. Trocar a senha troca o
+   * hash, e toda sessão aberta com o anterior deixa de valer: é assim que se tira de
+   * dentro quem soube a senha velha. Ligar, trocar ou tirar o segundo fator, também.
    */
   impressao: string;
   emitidaEm: number;
 }
 
-function impressaoDoHash(hash: string): string {
-  return createHash('sha256').update(hash.trim()).digest('base64url').slice(0, 22);
+function impressaoDaPorta(hash: string, env: Ambiente): string {
+  const fator = lerSegundoFator(env);
+  return createHash('sha256')
+    .update(`${hash.trim()}|${fator.ligado === true ? fator.impressao : ''}`)
+    .digest('base64url').slice(0, 22);
 }
 
 /**
@@ -253,7 +268,7 @@ function chaveDoLacre(env: Ambiente): string {
 export async function cookieDoOperador(env: Ambiente = process.env): Promise<string> {
   const hash = env[VARIAVEL_DA_SENHA];
   if (!lerHash(hash)) throw new Error(`${VARIAVEL_DA_SENHA} ausente: não há sessão de operador para abrir.`);
-  const dados: SessaoDoOperador = { operador: true, impressao: impressaoDoHash(hash!), emitidaEm: Date.now() };
+  const dados: SessaoDoOperador = { operador: true, impressao: impressaoDaPorta(hash!, env), emitidaEm: Date.now() };
   const selo = await sealData(dados, { password: chaveDoLacre(env), ttl: DURACAO_DA_SESSAO });
   const secure = env.NODE_ENV === 'production' ? '; Secure' : '';
   // `SameSite=Strict`: nenhum link de fora chega já logado. Sem `Domain`: o cookie
@@ -274,7 +289,7 @@ export async function operadorAutenticado(request: Request, env: Ambiente = proc
     const m = (request.headers.get('cookie') ?? '').match(new RegExp(`(?:^|;\\s*)${COOKIE_DO_OPERADOR}=([^;]+)`));
     if (!m) return false;
     const s = await unsealData<Partial<SessaoDoOperador>>(m[1], { password: chaveDoLacre(env), ttl: DURACAO_DA_SESSAO });
-    if (s.operador !== true || s.impressao !== impressaoDoHash(hash!)) return false;
+    if (s.operador !== true || s.impressao !== impressaoDaPorta(hash!, env)) return false;
     // O lacre vencido já volta como objeto vazio (iron-session 8, conferido em
     // 11/10/2026), e o `operador !== true` acima recusa. O prazo conferido aqui é a
     // regra de 8 horas escrita onde se lê, sem depender dessa escolha da biblioteca.

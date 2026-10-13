@@ -18,6 +18,7 @@
     "db:galeria-bayron": "node --env-file-if-exists=.env scripts/importar-galeria-bayron.mjs",
     "db:studio": "drizzle-kit studio",
     "operador:senha": "node scripts/operador-senha.mjs",
+    "operador:segundo-fator": "node scripts/operador-segundo-fator.mjs",
     "db:generate": "node scripts/drizzle-kit-desativado.mjs",
     "db:push": "node scripts/drizzle-kit-desativado.mjs",
     "test": "vitest run",

@@ -12,7 +12,7 @@ export const prerender = false;
 import OperadorLayout from '../../layouts/OperadorLayout.astro';
 import Entrar from '../../components/operador/Entrar.astro';
 import Numero from '../../components/operador/Numero.astro';
-import { abrirPorta, voltaValida } from '../../lib/operador.js';
+import { abrirPorta, pedeCodigo, voltaValida } from '../../lib/operador.js';
 import { descreverAcao } from '../../lib/operadorBarbearias.js';
 import { numerosDoNegocio } from '../../lib/operadorNumeros.js';
 import { dinheiro, nomeDoMes, quando } from '../../lib/operadorTela.js';
@@ -39,7 +39,7 @@ const conversao = n && n.conversao.terminaram > 0
   : null;
 const ambiente = n?.cobranca.ambiente === 'producao' ? 'produção' : n?.cobranca.ambiente === 'sandbox' ? 'teste (sandbox)' : null;
 ---
-{!n ? <Entrar volta={volta} /> : (
+{!n ? <Entrar volta={volta} pedeCodigo={pedeCodigo()} /> : (
   <OperadorLayout titulo="Início" ativo="inicio">
     <section class="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-label="Os números">
       <Numero rotulo="No ar" valor={String(n.resumo.noAr)} href="/operador/barbearias"
