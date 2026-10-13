@@ -6,6 +6,7 @@ import { jsonLdSeguro } from '../lib/jsonLd.js';
 import { enderecoPublico, tenantAtual } from '../lib/tenant.js';
 import { ehOBayron } from '../lib/bayron';
 import { iconeDaAba } from '../lib/iconeDaAba.js';
+import { especificacaoDoHorario } from '../lib/horarioDosBuscadores.js';
 
 interface Props {
   title?: string;
@@ -54,6 +55,11 @@ const estiloAccent = cssDoAccent({
   hover: s.accentHover,
   light: s.accentLight,
 });
+
+// O horário que o buscador lê é o que o site mostra, o de vitrine — e nenhum, se ele não
+// se lê sem dúvida. Até 13/10/2026 ia fixo para toda barbearia, com a faixa de preço "$$"
+// (`lib/horarioDosBuscadores.ts`, `docs/PENDENCIAS-ABERTAS.md` §2.41).
+const horarioParaBuscadores = especificacaoDoHorario(s.businessHours);
 ---
 
 <!DOCTYPE html>
@@ -87,7 +93,6 @@ const estiloAccent = cssDoAccent({
       "image": ogImage ?? undefined,
       "url": base,
       "telephone": numeroDaLojaInternacional(s) ? `+${numeroDaLojaInternacional(s)}` : undefined,
-      "priceRange": "$$",
       "sameAs": s.instagramUrl ? [s.instagramUrl] : [],
       "address": {
         "@type": "PostalAddress",
@@ -96,23 +101,7 @@ const estiloAccent = cssDoAccent({
         "addressRegion": addressRegion,
         "addressCountry": "BR"
       },
-      // TODO Fase 3: o horário de vitrine é texto livre ("Segunda — Sexta",
-      // "09:00 — 20:00") e não dá para virar schema.org sem um modelo estruturado.
-      // Fica fixo até a Fase 3 dar estrutura a `business_hours`.
-      "openingHoursSpecification": [
-        {
-          "@type": "OpeningHoursSpecification",
-          "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"],
-          "opens": "09:00",
-          "closes": "20:00"
-        },
-        {
-          "@type": "OpeningHoursSpecification",
-          "dayOfWeek": "Saturday",
-          "opens": "09:00",
-          "closes": "18:00"
-        }
-      ]
+      "openingHoursSpecification": horarioParaBuscadores ?? undefined
     })} />
     <style set:html={estiloAccent}></style>
   </head>
