@@ -255,6 +255,15 @@ const valor = (id: string): string => {
           </button>
         </div>
 
+        <!-- As cores da logo: sugeridas no navegador, a partir da imagem — nunca aplicadas sozinhas. -->
+        {cfg?.logoPath && (
+          <div id="cores-da-logo" data-logo={cfg.logoPath} class="hidden mt-4">
+            <p class="text-xs font-medium text-slate-500 mb-1.5">Cores da sua logo</p>
+            <div id="cores-da-logo-lista" class="flex flex-wrap gap-2"></div>
+            <p class="text-[11px] text-slate-400 mt-1.5">Toque numa para ver como fica no site. Só vale depois de salvar.</p>
+          </div>
+        )}
+
         <!-- Prévia: mostra a cor que o site VAI usar, não a que foi escolhida. -->
         <div class="mt-5 rounded-lg border border-slate-200 bg-slate-900 p-4">
           <p class="text-[11px] uppercase tracking-wider text-slate-500 mb-3">Como fica no site</p>
@@ -325,6 +334,7 @@ const valor = (id: string): string => {
   // Prévia da cor. Usa a MESMA função que o servidor usa ao gravar, para o que
   // aparece aqui ser exatamente o que vai para o site — sem lógica duplicada.
   import { derivarAccent, ACCENT_PADRAO } from '../../lib/accent.js';
+  import { sugestoesDaLogo } from '../../lib/coresDaLogo.js';
   import { embedDoMapa } from '../../lib/mapa.js';
 
   // O fuso dos horários: a hora de agora no fuso escolhido, para o dono conferir
@@ -410,6 +420,46 @@ const valor = (id: string): string => {
 
     pintar(entrada.value);
 
+    // ── As cores da logo (`lib/coresDaLogo.ts`, §4.2): sugere, nunca aplica sozinho.
+    // Tocar numa preenche o campo pelo mesmo caminho do seletor — a prévia e o aviso de
+    // "clara demais" vêm junto —, e o site só muda depois de Salvar.
+    const blocoDaLogo = document.getElementById('cores-da-logo');
+    const listaDaLogo = document.getElementById('cores-da-logo-lista');
+    if (blocoDaLogo && listaDaLogo && blocoDaLogo.dataset.logo) {
+      const logo = new Image();
+      logo.addEventListener('load', () => {
+        try {
+          // 96 px no lado maior bastam para achar as cores, e a conta é instantânea.
+          const escala = Math.min(1, 96 / Math.max(logo.naturalWidth, logo.naturalHeight, 1));
+          const tela = document.createElement('canvas');
+          tela.width = Math.max(1, Math.round(logo.naturalWidth * escala));
+          tela.height = Math.max(1, Math.round(logo.naturalHeight * escala));
+          const ctx = tela.getContext('2d', { willReadFrequently: true });
+          if (!ctx) return;
+          ctx.drawImage(logo, 0, 0, tela.width, tela.height);
+          const cores = sugestoesDaLogo(ctx.getImageData(0, 0, tela.width, tela.height).data);
+          for (const cor of cores) {
+            const amostra = document.createElement('button');
+            amostra.type = 'button';
+            amostra.className = 'h-9 w-9 rounded-full border-2 border-white shadow ring-1 ring-slate-300 hover:ring-teal focus:outline-none focus:ring-2 focus:ring-teal';
+            amostra.style.backgroundColor = cor;
+            amostra.title = cor;
+            amostra.dataset.cor = cor;
+            amostra.setAttribute('aria-label', `Usar ${cor}, da sua logo`);
+            amostra.addEventListener('click', () => {
+              entrada.value = cor;
+              sincronizar(cor, false);
+            });
+            listaDaLogo.appendChild(amostra);
+          }
+          if (cores.length) blocoDaLogo.classList.remove('hidden');
+        } catch {
+          // Imagem que o navegador não deixa ler: fica sem sugestão, como antes.
+        }
+      });
+      logo.src = blocoDaLogo.dataset.logo;
+    }
+    // ── fim das cores da logo
   }
 </script>
 
