@@ -2079,7 +2079,10 @@ const clientData: DadosDaAgenda = {
   async function ensureServicesCatalog() {
     if (servicesCatalog) return servicesCatalog;
     try {
-      const res = await fetch('/api/services');
+      // A rota do PAINEL, pela sessão: a pública (`/api/services`) acha a barbearia pelo
+      // endereço, e o painel central não é endereço de barbearia — até 13/10/2026 isto
+      // voltava 404 e a comanda ficava sem os serviços extras (`api/admin/slots.ts`).
+      const res = await fetch('/api/admin/services');
       servicesCatalog = res.ok ? await res.json() : [];
     } catch { servicesCatalog = []; }
     // As duas pontas acima gravam uma lista: aqui nunca é `null`.
@@ -2303,7 +2306,8 @@ const clientData: DadosDaAgenda = {
   async function loadServices() {
     const serviceEl = document.getElementById('m-service') as HTMLSelectElement | null;
     if (!serviceEl || serviceEl.options.length > 1) return;
-    const res  = await fetch('/api/services');
+    // A do painel, pela sessão — ver `ensureServicesCatalog`.
+    const res  = await fetch('/api/admin/services');
     const data = await res.json();
     data.forEach((svc: { id: number; name: string }) => {
       const opt = document.createElement('option');
@@ -2332,7 +2336,7 @@ const clientData: DadosDaAgenda = {
     selectedSlot = null;
 
     try {
-      const res  = await fetch(`/api/slots?barberId=${barberId}&serviceId=${serviceId}&date=${date}`);
+      const res  = await fetch(`/api/admin/slots?barberId=${barberId}&serviceId=${serviceId}&date=${date}`);
       const data = await res.json();
 
       if (!data.slots?.length) {
