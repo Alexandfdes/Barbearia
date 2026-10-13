@@ -126,7 +126,11 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   (`tests/area-principal.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.39). No site, o que fica fora
   da `<main>` vai num `<header>`, `<footer>`, `<nav>` ou `<aside>` (`tests/site-em-areas.test.ts`;
   `docs/PENDENCIAS-ABERTAS.md` §2.40). ⚠️ O Tailwind lê também os testes: classe dele escrita num
-  teste entra no CSS do site.
+  teste entra no CSS do site. O que some da vista some também do teclado (`inert`), e carrossel que
+  anda sozinho para com "reduzir movimento" (`tests/site-teclado-e-movimento.test.ts`).
+- **O JSON-LD só diz o que a barbearia mostra** — nada escrito à mão: o horário fixo mentia para o
+  Google, e a nota copiada dele ia contra a regra dele (`tests/horario-dos-buscadores.test.ts`;
+  `docs/PENDENCIAS-ABERTAS.md` §2.41 e `docs/PENDENCIAS-ABERTAS.md` §4.11).
 - **Tela do painel não chama rota do site** (`/api/services`, `/api/slots`…): elas acham a
   barbearia pelo endereço, e o painel é central — dá 404. Use a de `/api/admin/`, pela sessão
   (`tests/vagas-do-painel.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.38).
