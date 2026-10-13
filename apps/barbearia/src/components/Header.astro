@@ -67,7 +67,9 @@ const BAYRON = ehOBayron(tenantAtual());
       <button
         id="mobile-menu-btn"
         class="lg:hidden relative z-50 p-2 text-gray-light hover:text-white"
-        aria-label="Toggle Menu"
+        aria-label="Menu"
+        aria-controls="mobile-menu"
+        aria-expanded="false"
       >
         <svg id="icon-menu" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -86,6 +88,7 @@ const BAYRON = ehOBayron(tenantAtual());
 <div
   id="mobile-menu"
   class="fixed inset-0 bg-dark z-40 flex flex-col items-center justify-center gap-8 opacity-0 pointer-events-none transition-opacity duration-300 lg:hidden"
+  inert
 >
   <nav class="flex flex-col items-center gap-8 text-xl font-medium text-neutral-400 uppercase tracking-wider">
     <a href="#servicos" data-secao="servicos" class="mobile-link hover:text-white transition-colors">Serviços</a>
@@ -139,29 +142,41 @@ const BAYRON = ehOBayron(tenantAtual());
 
     if (!btn || !menu || !iconMenu || !iconClose) return;
 
-    function toggleMenu() {
-      if (!menu || !iconMenu || !iconClose) return;
-      const isClosed = menu.classList.contains('opacity-0');
+    // O que o menu aberto cobre — a página, o rodapé, o WhatsApp: tudo que não é o topo nem
+    // o próprio menu. Até 13/10/2026 só a opacidade mudava, e o que estava invisível — o menu
+    // fechado, ou a página por baixo do menu aberto — continuava no teclado e no leitor de
+    // tela (`docs/PENDENCIAS-ABERTAS.md` §2.41). `inert` tira dos dois.
+    const porBaixo = () => [...document.body.children].filter(
+      (el): el is HTMLElement => el instanceof HTMLElement && el !== menu && el !== header && !(el instanceof HTMLScriptElement),
+    );
 
-      if (isClosed) {
-        menu.classList.remove('opacity-0', 'pointer-events-none');
-        iconMenu.classList.add('hidden');
-        iconClose.classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-        wa?.classList.add('opacity-0', 'pointer-events-none'); // esconde o WhatsApp por baixo do menu
-      } else {
-        menu.classList.add('opacity-0', 'pointer-events-none');
-        iconMenu.classList.remove('hidden');
-        iconClose.classList.add('hidden');
-        document.body.style.overflow = '';
-        wa?.classList.remove('opacity-0', 'pointer-events-none');
-      }
+    function abrir(sim: boolean) {
+      if (!btn || !menu || !iconMenu || !iconClose) return;
+      menu.classList.toggle('opacity-0', !sim);
+      menu.classList.toggle('pointer-events-none', !sim);
+      menu.inert = !sim;
+      porBaixo().forEach((el) => { el.inert = sim; });
+      // O WhatsApp flutua por cima do menu: some da vista enquanto ele está aberto.
+      wa?.classList.toggle('opacity-0', sim);
+      wa?.classList.toggle('pointer-events-none', sim);
+      iconMenu.classList.toggle('hidden', sim);
+      iconClose.classList.toggle('hidden', !sim);
+      btn.setAttribute('aria-expanded', String(sim));
+      document.body.style.overflow = sim ? 'hidden' : '';
     }
+    const aberto = () => !menu.classList.contains('opacity-0');
 
-    btn.addEventListener('click', toggleMenu);
+    btn.addEventListener('click', () => abrir(!aberto()));
 
     links.forEach(link => {
-      link.addEventListener('click', toggleMenu);
+      link.addEventListener('click', () => abrir(false));
+    });
+
+    // Esc fecha, e o foco volta ao botão — o link onde ele estava acabou de sair do teclado.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !aberto()) return;
+      abrir(false);
+      btn.focus();
     });
   });
 </script>
