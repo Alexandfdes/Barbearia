@@ -42,6 +42,7 @@
 | **13/10** | **Depois da explicação detalhada, seis escolhidos por você:** as quatro travas pequenas — o dia da semana sem o fuso do servidor, o `.env.example` completo, a sobra das 08:00–19:00 na agenda do dia e a nota "0,0" —; o aviso ao e-mail antigo quando o e-mail muda; o conferidor de tipos no site de vendas; as cores sugeridas da logo; o código de 6 dígitos no painel do operador, que você tinha deixado de fora em 11/10; e o ensaio da migração do Bayron com as 17 migrations — feitos no mesmo dia. O teste de carga ficou de fora, por escolha sua. **Decididos na implementação — ⚠️ falta você confirmar:** a nota do Google passa a aparecer no site de toda barbearia que preencher a nota e a quantidade, e não só no do Bayron, e sem JSON-LD de nota; e, com o segundo fator, a tela não diz se errou a senha ou o código. **Achado no caminho, consertado:** o encaixe manual da agenda do dia e a comanda pediam os serviços e as vagas à rota do site — no painel central, 404 em toda barbearia | `PENDENCIAS-ABERTAS.md` §2.1, `PENDENCIAS-ABERTAS.md` §2.27, `PENDENCIAS-ABERTAS.md` §2.38, `PENDENCIAS-ABERTAS.md` §4.11, `PENDENCIAS-ABERTAS.md` §4.17, `PENDENCIAS-ABERTAS.md` §2.29, `PENDENCIAS-ABERTAS.md` §4.2, `PENDENCIAS-ABERTAS.md` §3.9 e `ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2 |
 | **13/10** | **Uma área principal por tela**, pedido por você: treze telas do painel do dono tinham duas — uma dentro da outra, que o leitor de tela anuncia como duas —, e as quatro telas de entrar, nenhuma. Agora cada tela tem uma, e a aparência não mudou: o CSS e o JavaScript saíram idênticos, e as fotos de antes e depois batem pixel a pixel, fora o que é dado vivo | `PENDENCIAS-ABERTAS.md` §2.39 |
 | **13/10** | **Todo conteúdo do site numa área da página**, pedido por você: o topo de cinco telas — o agendar, a área do cliente (a de entrar e a de dentro), o link do horário e o portal — e o botão do WhatsApp estavam fora de qualquer área, e quem navega de área em área com o leitor de tela passava por cima. Eram seis telas, não as três do §2.39. A aparência não mudou | `PENDENCIAS-ABERTAS.md` §2.40 |
+| **13/10** | **O horário que o site diz ao Google é o que ele mostra**, pedido por você — ia fixo para toda barbearia, segunda a sexta até as 20h; na dúvida, nenhum horário, e a faixa de preço fixa saiu. **E o menu do celular e o carrossel dos depoimentos para quem usa teclado, leitor de tela ou pede menos movimento.** A aparência não mudou | `PENDENCIAS-ABERTAS.md` §2.41 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -1915,17 +1916,78 @@ site, está num `<header>`, `<footer>`, `<nav>` ou `<aside>`, dela ou do compone
 no CSS do site. Foi o que fez a primeira versão do teste — um `blur` de exemplo —, e o CSS mudou;
 o exemplo virou uma classe inventada.
 
-**Visto e não mexido**, para você decidir:
+~~**Visto e não mexido**, para você decidir:~~ ✅ *Os três consertados no mesmo dia, a seu
+pedido: §2.41.*
 
-- **no celular, o menu fechado só fica transparente** (`apps/barbearia/src/components/Header.astro`):
+- ~~**no celular, o menu fechado só fica transparente** (`apps/barbearia/src/components/Header.astro`):
   os links dele continuam na ordem do teclado e na leitura do leitor de tela, invisíveis, e o botão
-  que abre o menu não diz se ele está aberto ou fechado;
-- **o carrossel dos depoimentos anda mesmo com "reduzir movimento" ligado** no celular ou no
-  computador (`apps/barbearia/src/components/Testimonials.astro`) — o da galeria respeita;
-- **o site de toda barbearia diz aos buscadores o mesmo horário e a mesma faixa de preço** — de
+  que abre o menu não diz se ele está aberto ou fechado;~~
+- ~~**o carrossel dos depoimentos anda mesmo com "reduzir movimento" ligado** no celular ou no
+  computador (`apps/barbearia/src/components/Testimonials.astro`) — o da galeria respeita;~~
+- ~~**o site de toda barbearia diz aos buscadores o mesmo horário e a mesma faixa de preço** — de
   segunda a sexta das 9h às 20h, sábado das 9h às 18h, "$$" —, qualquer que seja o dela: estão
   fixos no `apps/barbearia/src/layouts/Layout.astro`, à espera de o horário de vitrine ter
-  estrutura. O Google pode usar esse horário.
+  estrutura. O Google pode usar esse horário.~~
+
+---
+
+### 2.41 ✅ `[TÉCNICO]` O horário que o site dizia ao Google, o menu do celular e o carrossel dos depoimentos — RESOLVIDOS em 13/10/2026
+
+Os três do "visto e não mexido" do §2.40, consertados a seu pedido.
+
+**1. O horário para os buscadores.** O site conta ao Google, num bloco escondido (o JSON-LD — os
+dados da barbearia no formato que os buscadores leem), o horário e a faixa de preço. Os dois iam
+fixos para toda barbearia: segunda a sexta das 9h às 20h, sábado das 9h às 18h, e "$$". Visto no
+build: a barbearia de ensaio de Manaus mostra no próprio site "Segunda — Sexta: 09:00 — 19:00" — o
+horário padrão do cadastro — e dizia ao Google que fechava às 20h. Agora o horário sai do horário de
+vitrine, o mesmo que o site mostra (`apps/barbearia/src/lib/horarioDosBuscadores.ts`): o cadastro
+escreve num formato que se lê sem dúvida, e o que o dono reescreve em Configurações também é lido
+quando segue o jeito comum — "segunda a sexta", "9h às 19h", "Terça-feira — Sábado", o expediente
+partido em duas linhas. **Na dúvida, nenhum horário:** basta uma linha que não se lê — "Seg a Sex",
+dois horários na mesma linha, fechar antes de abrir — e o site não diz horário nenhum ao Google,
+porque horário pela metade diria que a barbearia fecha nos dias que faltaram. Visto no build: com
+"Seg a Sex — 9h às 19h" no horário de vitrine, o bloco sai sem horário, e o site continua mostrando o
+texto do dono. A faixa de preço saiu, sem substituta.
+*Rejeitados:* tirar o horário de vez — o site já mostra o horário, e o Google pede que o bloco
+escondido diga o mesmo que a página; tirar do expediente da agenda — vitrine e agenda são coisas
+diferentes por decisão (a D7, no `ARQUITETURA-PRODUTO-V1.md` §4); e, por ora, a faixa de preço tirada dos
+preços dos serviços — pediria uma consulta a mais ao banco em toda página do site.
+
+**2. O menu do celular.** Fechado, ele só ficava transparente: no teclado, cada volta pela página
+passava por três links invisíveis — Serviços, Contato e Portal, na barbearia de ensaio —, e o leitor
+de tela lia os três. Aberto, o contrário: a página por baixo dele continuava no teclado — onze paradas
+escondidas atrás do menu. E o botão se chamava "Toggle Menu", em inglês, sem dizer se o menu estava
+aberto. Agora o menu fechado e a página por baixo do menu aberto ficam inertes (`inert`: fora do
+teclado e do leitor de tela, sem mudar a vista); o botão se chama "Menu" e diz se ele está aberto;
+Esc fecha, e o foco volta ao botão. *Rejeitado:* esconder o menu fechado de vez (`display: none`) —
+perderia o esmaecer de quando ele abre.
+
+**3. O carrossel dos depoimentos** andava sozinho mesmo para quem pede ao sistema menos movimento; o da
+galeria já respeitava. Agora respeita também: com "reduzir movimento", fica parado, e as setas e o
+arrastar continuam funcionando. O carrossel só existe no site do Bayron — o único com depoimentos.
+
+**Visto rodando**, no build, contra o banco de ensaio, antes e depois:
+
+| Conferido | Antes | Depois |
+|---|---|---|
+| O horário que o Google lê, na barbearia de ensaio | seg–sex até 20h, sáb até 18h, "$$" | seg–sex até 19h, sáb até 18h — o que o site mostra |
+| Paradas do teclado no menu fechado, em 30 Tabs | 6 | 0 |
+| Links do menu fechado para o leitor de tela | 3 | 0 |
+| Paradas do teclado atrás do menu aberto, em 20 Tabs | 11 | 0 |
+| O botão diz se o menu está aberto | não | sim |
+| Esc fecha o menu | não | sim, e o foco volta ao botão |
+| Carrossel com "reduzir movimento", em 2,5 s | andou 76 px | parado — e a seta funciona |
+| Carrossel sem o pedido | anda | anda |
+
+As 25 fotos do site, de antes e de depois: 23 idênticas pixel a pixel, e as duas da página inicial da
+`vinho` idênticas com o carrossel da galeria escondido (§2.40). O axe-core, com todas as regras, na
+página inicial: nada novo. Guardas: `apps/barbearia/tests/horario-dos-buscadores.test.ts` (o que o
+cadastro escreve volta igual, em 500 semanas sorteadas; o que é duvidoso não sai; o JSON-LD sem nada
+escrito à mão) e `apps/barbearia/tests/site-teclado-e-movimento.test.ts` (o menu inerte, o botão, o
+Esc; e todo carrossel que anda sozinho só começa sem o pedido de menos movimento).
+
+**Visto e não mexido:** o axe-core, com todas as regras, acusa na página inicial um título fora de
+ordem (`heading-order`) — um nível de título pulado. Já era assim antes.
 
 ---
 
@@ -3553,7 +3615,9 @@ comanda no painel central (§2.38). O teste de carga ficou de fora, por escolha 
 
 **13/10/2026, depois, pedido por você, ✅ feito:** uma área principal por tela — duas, uma
 dentro da outra, em treze telas do painel do dono, e nenhuma nas quatro de entrar (§2.39). E, em
-seguida, o site: o topo de cinco telas e o botão do WhatsApp fora de qualquer área (§2.40).
+seguida, o site: o topo de cinco telas e o botão do WhatsApp fora de qualquer área (§2.40). E
+depois os três que ficaram vistos: o horário que o site dizia ao Google, o menu do celular e o
+carrossel dos depoimentos (§2.41).
 
 **Onda 2 — antes de abrir o cadastro público.**
 
