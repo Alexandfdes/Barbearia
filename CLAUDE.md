@@ -121,6 +121,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   faz o conferidor ler o resto como texto — dezenas de erros falsos: ponha o comentário fora.
 - **Variável de ambiente nova entra no `apps/barbearia/.env.example`**, explicada — é a lista de
   configurar o EasyPanel; o `tests/env-exemplo.test.ts` reprova a que o código ler e ele não contar.
+- **Tela do painel não abre `<main>`:** o `AdminLayout` e o `OperadorLayout` já trazem a área principal —
+  a única que o leitor de tela anuncia. Tela sem esses layouts traz a sua, uma só
+  (`tests/area-principal.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.39).
 - **Tela do painel não chama rota do site** (`/api/services`, `/api/slots`…): elas acham a
   barbearia pelo endereço, e o painel é central — dá 404. Use a de `/api/admin/`, pela sessão
   (`tests/vagas-do-painel.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.38).
