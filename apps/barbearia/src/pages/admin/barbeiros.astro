@@ -186,6 +186,9 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
               <input data-edit-email={String(b.id)} type="email" inputmode="email" value={b.email ?? ''}
                 placeholder="para a senha nova e os avisos"
                 class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
+              {b.email && (
+                <p class="text-xs text-slate-400 mt-1">Se trocar, o e-mail de agora recebe um aviso da troca.</p>
+              )}
             </div>
 
             <label class="flex items-start gap-2 text-sm text-slate-700">

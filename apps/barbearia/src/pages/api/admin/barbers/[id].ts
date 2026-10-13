@@ -9,6 +9,7 @@ import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { emailValido, normalizarEmail } from '../../../../lib/email.js';
+import { avisarEmailTrocado, trocaQueAvisa } from '../../../../lib/avisoDeEmailTrocado.js';
 
 // Slug NÃO é editável: ele é o identificador de login (ver /api/auth/login).
 // Mudá-lo trocaria o usuário de acesso do barbeiro. Por isso fica fora do schema.
@@ -59,7 +60,7 @@ export const PUT: APIRoute = async ({ request, params }) => {
     return json({ error: `"${parsed.data.email}" não parece um e-mail.` }, 400);
   }
 
-  const target = await first(db.select({ id: barbers.id, role: barbers.role })
+  const target = await first(db.select({ id: barbers.id, role: barbers.role, name: barbers.name, email: barbers.email })
     .from(barbers).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id))));
   if (!target) return json({ error: 'Barbeiro não encontrado' }, 404);
 
@@ -81,5 +82,22 @@ export const PUT: APIRoute = async ({ request, params }) => {
   if (avisarAgendamentos !== undefined) updates.avisarAgendamentos = avisarAgendamentos;
 
   await db.update(barbers).set(updates).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id)));
+
+  // O e-mail mudou: o endereço antigo fica sabendo — é a última coisa que chega nele
+  // (`lib/avisoDeEmailTrocado.ts`). Quem pega o painel aberto de um dono, troca o
+  // e-mail e pede a senha nova não leva a conta em silêncio.
+  if (email !== undefined && trocaQueAvisa(target.email, email)) {
+    const quem = isSelf
+      ? { name: name ?? target.name }
+      : await first(db.select({ name: barbers.name }).from(barbers)
+          .where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))));
+    await avisarEmailTrocado({
+      tenant,
+      pessoa: { id, nome: name ?? target.name, papel: role ?? (target.role as 'admin' | 'barber') },
+      antigo: target.email,
+      novo: email,
+      quemTrocou: { id: session.barberId, nome: quem?.name ?? 'o dono da barbearia' },
+    });
+  }
   return json({ ok: true });
 };
