@@ -9,12 +9,7 @@ import { normalizePhone } from './phone.js';
 import { applyDiscountPct } from './combo.js';
 import { fusoDe } from './timezone.js';
 import { TRAVA_DE_HORARIO_DUPLO, violouExclusao } from './api.js';
-
-
-function weekdayOf(dateStr: string): number {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d, 12)).getDay();
-}
+import { diaDaSemana } from './calendario.js';
 
 /**
  * Erro interno usado para abortar a transação com um resultado de negócio.
@@ -176,7 +171,7 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
   // nunca tiveram o problema.
   const fuso = fusoDe(tenant);
   const dateStr = formatInTimeZone(startsAt, fuso, 'yyyy-MM-dd');
-  const dow     = weekdayOf(dateStr);
+  const dow     = diaDaSemana(dateStr);
 
   const whRows = await db
     .select()

@@ -7,6 +7,7 @@ import { addDays, addMinutes } from 'date-fns';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { db } from '../../../../../db/index.js';
 import { appointments, workingHours } from '../../../../../db/schema.js';
+import { diaDaSemana } from '../../../../../lib/calendario.js';
 import { json } from '../../../../../lib/api.js';
 import { getSession } from '../../../../../lib/session.js';
 import { reagendarAtomicamente } from '../../../../../lib/reagendar.js';
@@ -17,11 +18,6 @@ import { fusoDe } from '../../../../../lib/timezone.js';
 const bodySchema = z.object({
   startsAt: z.string().refine(s => !isNaN(new Date(s).getTime()), 'Data/hora inválida'),
 });
-
-function weekdayOf(dateStr: string): number {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d, 12)).getDay();
-}
 
 export const POST: APIRoute = async ({ params, request }) => {
   const session = await getSession(request);
@@ -76,7 +72,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   const newEnd = addMinutes(newStart, appt.durationMinutes);
 
   // Expediente do barbeiro
-  const dow = weekdayOf(newDateStr);
+  const dow = diaDaSemana(newDateStr);
   const whRows = await db
     .select()
     .from(workingHours)

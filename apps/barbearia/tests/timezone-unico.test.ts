@@ -20,6 +20,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, globSync } from 'node:fs';
 import { sep } from 'node:path';
+import { diaDaSemana } from '../src/lib/calendario';
 
 /** O único arquivo onde o nome do fuso pode aparecer: a lista dos fusos do Brasil. */
 const FONTE_UNICA = 'src/lib/timezone.ts';
@@ -119,6 +120,36 @@ describe('o fuso horário vem da barbearia', () => {
     // Guarda contra o padrão parar de achar: hoje são mais de cinco.
     expect(chamadas.length).toBeGreaterThan(5);
     expect(chamadas.filter((c) => !c.temFuso).map((c) => c.onde)).toEqual(EXCECOES);
+  });
+
+  it('o dia da semana sai de `diaDaSemana` (`lib/calendario.ts`), nunca do relógio de quem roda', () => {
+    // `getDay()` lê o dia no fuso do PROCESSO. Até 12/10/2026, cinco lugares — o cálculo
+    // de vagas, o agendamento, os dois reagendamentos e o título da agenda do dia — faziam
+    // `new Date(Date.UTC(y, m - 1, d, 12)).getDay()`: certo com o servidor no Brasil ou em
+    // UTC; num servidor com fuso de +12 h ou mais (Fiji, Nova Zelândia), segunda virava
+    // terça — e o expediente do dia, que decide as vagas, era o de terça. O mini-calendário
+    // da agenda do dia, no navegador, também passou para `diaDaSemana`: a regra não tem
+    // exceção para lembrar.
+    const usam = arquivos.flatMap((c) =>
+      soCodigo(readFileSync(c, 'utf8')).split('\n').flatMap((linha, i) =>
+        /\.getDay\(/.test(linha) ? [`${c}:${i + 1}: ${linha.trim()}`] : []
+      )
+    );
+    expect(usam).toEqual([]);
+  });
+
+  it('controle: com o processo em Kiritimati (+14), `getDay` erra o dia e `diaDaSemana` não', () => {
+    // Prova que o defeito de cima é de verdade, e não teoria: o Node troca o fuso do
+    // processo quando `TZ` muda. 12/10/2026 é uma segunda-feira.
+    const antes = process.env.TZ;
+    try {
+      process.env.TZ = 'Pacific/Kiritimati';
+      expect(new Date(Date.UTC(2026, 9, 12, 12)).getDay()).toBe(2);
+      expect(diaDaSemana('2026-10-12')).toBe(1);
+    } finally {
+      if (antes === undefined) delete process.env.TZ;
+      else process.env.TZ = antes;
+    }
   });
 });
 

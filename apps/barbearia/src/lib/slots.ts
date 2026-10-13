@@ -4,18 +4,13 @@ import { eq, and, or, isNull, gte, lt, gt, ne } from 'drizzle-orm';
 import { fromZonedTime } from 'date-fns-tz';
 import { computeAvailableSlots } from './slotsCore.js';
 import { fusoDe } from './timezone.js';
+import { diaDaSemana } from './calendario.js';
 import { tenantAtual, type Tenant } from './tenant.js';
 
 
 /** Combina "YYYY-MM-DD" + "HH:MM" no fuso DA BARBEARIA e devolve Date UTC */
 function localToUtc(dateStr: string, timeStr: string, fuso: string): Date {
   return fromZonedTime(`${dateStr}T${timeStr}:00`, fuso);
-}
-
-/** Dia da semana (0=dom…6=sáb) a partir de "YYYY-MM-DD" */
-function weekdayOf(dateStr: string): number {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d, 12)).getDay();
 }
 
 /**
@@ -55,7 +50,7 @@ export async function getAvailableSlots(
   if (bsRows.length === 0) return [];
   const duration = bsRows[0].durationMinutes;
 
-  const dow = weekdayOf(dateStr);
+  const dow = diaDaSemana(dateStr);
   const whRows = await db
     .select()
     .from(workingHours)

@@ -35,11 +35,8 @@ const emMinutos = (hm: string): number => {
 const emHoraMinuto = (minutos: number): string =>
   `${String(Math.floor(minutos / 60)).padStart(2, '0')}:${String(minutos % 60).padStart(2, '0')}`;
 
-/** Dia da semana (0 = domingo) de uma data "YYYY-MM-DD". Conta de calendário: não depende de fuso. */
-export function diaDaSemana(data: string): number {
-  const [y, m, d] = data.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay();
-}
+/** Dia da semana (0 = domingo) de uma data "YYYY-MM-DD" — a conta é a de `lib/calendario.ts`, num lugar só. */
+export { diaDaSemana } from './calendario.js';
 
 /**
  * Os horários para onde um atendimento de `duracaoMin` minutos pode ir, de `passoMin`
