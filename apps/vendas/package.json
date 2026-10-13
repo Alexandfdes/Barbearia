@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "node --env-file-if-exists=.env node_modules/astro/bin/astro.mjs dev --port 4322 --strictPort",
     "build": "astro build",
+    "check": "astro check",
     "preview": "node --env-file-if-exists=.env node_modules/astro/bin/astro.mjs preview --port 4322",
     "start": "node dist/server/entry.mjs"
   },
@@ -20,5 +21,11 @@
     "better-sqlite3": "^12.10.0",
     "tailwindcss": "^4.2.4",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.20.5",
+    "typescript": "^6.0.3"
   }
 }
