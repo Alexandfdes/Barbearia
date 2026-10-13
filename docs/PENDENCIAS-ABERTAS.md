@@ -41,6 +41,7 @@
 | **12/10** | **Depois da vasculhada geral, três escolhidos por você:** o conferidor de tipos zerado e no CI; estender a carência pelo painel do operador; e o rascunho da landing do autoatendimento, com o `/acessar` levando ao painel central — feitos no mesmo dia. Decididos na implementação: a carência estendida grava o fim novo e vale para um atraso só — o banco a apaga quando o atraso muda —; e o plano anual fora do rascunho. **O botão de apagar o cliente a pedido saiu da lista, por decisão sua — *"ninguém pede isso"*** | `PENDENCIAS-ABERTAS.md` §2.29, `PENDENCIAS-ABERTAS.md` §3.9, `PENDENCIAS-ABERTAS.md` §4.15 e `PENDENCIAS-ABERTAS.md` §1.2 |
 | **13/10** | **Depois da explicação detalhada, seis escolhidos por você:** as quatro travas pequenas — o dia da semana sem o fuso do servidor, o `.env.example` completo, a sobra das 08:00–19:00 na agenda do dia e a nota "0,0" —; o aviso ao e-mail antigo quando o e-mail muda; o conferidor de tipos no site de vendas; as cores sugeridas da logo; o código de 6 dígitos no painel do operador, que você tinha deixado de fora em 11/10; e o ensaio da migração do Bayron com as 17 migrations — feitos no mesmo dia. O teste de carga ficou de fora, por escolha sua. **Decididos na implementação — ⚠️ falta você confirmar:** a nota do Google passa a aparecer no site de toda barbearia que preencher a nota e a quantidade, e não só no do Bayron, e sem JSON-LD de nota; e, com o segundo fator, a tela não diz se errou a senha ou o código. **Achado no caminho, consertado:** o encaixe manual da agenda do dia e a comanda pediam os serviços e as vagas à rota do site — no painel central, 404 em toda barbearia | `PENDENCIAS-ABERTAS.md` §2.1, `PENDENCIAS-ABERTAS.md` §2.27, `PENDENCIAS-ABERTAS.md` §2.38, `PENDENCIAS-ABERTAS.md` §4.11, `PENDENCIAS-ABERTAS.md` §4.17, `PENDENCIAS-ABERTAS.md` §2.29, `PENDENCIAS-ABERTAS.md` §4.2, `PENDENCIAS-ABERTAS.md` §3.9 e `ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2 |
 | **13/10** | **Uma área principal por tela**, pedido por você: treze telas do painel do dono tinham duas — uma dentro da outra, que o leitor de tela anuncia como duas —, e as quatro telas de entrar, nenhuma. Agora cada tela tem uma, e a aparência não mudou: o CSS e o JavaScript saíram idênticos, e as fotos de antes e depois batem pixel a pixel, fora o que é dado vivo | `PENDENCIAS-ABERTAS.md` §2.39 |
+| **13/10** | **Todo conteúdo do site numa área da página**, pedido por você: o topo de cinco telas — o agendar, a área do cliente (a de entrar e a de dentro), o link do horário e o portal — e o botão do WhatsApp estavam fora de qualquer área, e quem navega de área em área com o leitor de tela passava por cima. Eram seis telas, não as três do §2.39. A aparência não mudou | `PENDENCIAS-ABERTAS.md` §2.40 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -1872,10 +1873,59 @@ processo na tela Sistema e as entradas no registro do operador, que as próprias
 Guarda: `apps/barbearia/tests/area-principal.test.ts` — o layout que traz a `<main>` é o dono
 dela, a página sem esse layout traz a sua, uma só, e componente nenhum abre outra.
 
-**Visto e não mexido:** no site, três telas têm conteúdo fora de qualquer área — o botão
+~~**Visto e não mexido:** no site, três telas têm conteúdo fora de qualquer área — o botão
 flutuante do WhatsApp na página inicial, um texto do `/agendar` e o topo do `/cliente/entrar`. É
 a regra `region` do axe-core, de boa prática: o leitor de tela lê, mas quem navega pelas áreas
-pula esses trechos.
+pula esses trechos.~~ ✅ *Consertado no mesmo dia, a seu pedido — e eram seis telas, não três:
+§2.40.*
+
+---
+
+### 2.40 ✅ `[TÉCNICO]` Seis telas do site com pedaços fora de qualquer área — o topo de cinco e o botão do WhatsApp — RESOLVIDO em 13/10/2026
+
+**O que era.** Uma página se divide em áreas que o leitor de tela anuncia e entre as quais ele
+pula: o topo (`<header>`), a principal (`<main>`), o rodapé (`<footer>`), a navegação (`<nav>`)
+e as áreas à parte (`<aside>`). O que fica fora de todas, ele lê na ordem, mas quem navega de
+área em área — o atalho dele — passa por cima. No site, eram dois casos:
+
+- **o topo de cinco telas** — o "Voltar" ou "Início" e o nome da barbearia —, num bloco comum: o
+  agendar, a área do cliente (a de entrar e a de dentro), o link do horário (`/a/…`) e o portal;
+- **o botão flutuante do WhatsApp**, na página inicial de toda barbearia.
+
+No §2.39 eram três: só aquelas telas tinham sido testadas. Com todas as telas do site no
+navegador, apareceram mais três com o mesmo topo — o portal, o link do horário e a área do
+cliente por dentro. A página inicial, o 404, o cadastro e o site fora do ar já estavam certos.
+
+**O que mudou** (pedido por você em 13/10): o topo das cinco telas virou `<header>`, com as mesmas
+classes; o botão do WhatsApp ganhou uma área à parte com nome, `<aside aria-label="WhatsApp">`, sem
+sair do lugar na página nem na ordem do teclado. *Rejeitado:* pôr o botão dentro da `<main>` — ele
+passaria a vir antes do rodapé na ordem do teclado e na leitura.
+
+**Visto rodando**, no build, contra o banco de ensaio, no computador e no celular, com o relógio da
+página parado: o site de quatro barbearias, o de uma fora do ar, o agendar, a área do cliente — a de
+entrar e, entrando, a de dentro —, o link do horário, o portal, o 404, o cadastro e o menu do celular
+aberto, 25 fotos. O axe-core acusava 19; agora, nenhuma. As fotos de antes e de depois: 23 de 25
+idênticas pixel a pixel; as duas da página inicial da `vinho` mudam até entre duas fotos da mesma
+versão — o carrossel da galeria carrega as fotos num momento diferente a cada vez —, e com ele
+escondido saem idênticas. O CSS e o JavaScript que vão ao navegador saíram idênticos, byte a byte.
+Guarda: `apps/barbearia/tests/site-em-areas.test.ts` — o que fica fora da `<main>`, numa tela do
+site, está num `<header>`, `<footer>`, `<nav>` ou `<aside>`, dela ou do componente que ela usa.
+
+⚠️ **Achado no caminho:** o Tailwind lê também os testes, e uma classe dele escrita num teste entra
+no CSS do site. Foi o que fez a primeira versão do teste — um `blur` de exemplo —, e o CSS mudou;
+o exemplo virou uma classe inventada.
+
+**Visto e não mexido**, para você decidir:
+
+- **no celular, o menu fechado só fica transparente** (`apps/barbearia/src/components/Header.astro`):
+  os links dele continuam na ordem do teclado e na leitura do leitor de tela, invisíveis, e o botão
+  que abre o menu não diz se ele está aberto ou fechado;
+- **o carrossel dos depoimentos anda mesmo com "reduzir movimento" ligado** no celular ou no
+  computador (`apps/barbearia/src/components/Testimonials.astro`) — o da galeria respeita;
+- **o site de toda barbearia diz aos buscadores o mesmo horário e a mesma faixa de preço** — de
+  segunda a sexta das 9h às 20h, sábado das 9h às 18h, "$$" —, qualquer que seja o dela: estão
+  fixos no `apps/barbearia/src/layouts/Layout.astro`, à espera de o horário de vitrine ter
+  estrutura. O Google pode usar esse horário.
 
 ---
 
@@ -3502,7 +3552,8 @@ no painel do operador (§3.9); e o ensaio da migração do Bayron com as 17 migr
 comanda no painel central (§2.38). O teste de carga ficou de fora, por escolha sua (§5).
 
 **13/10/2026, depois, pedido por você, ✅ feito:** uma área principal por tela — duas, uma
-dentro da outra, em treze telas do painel do dono, e nenhuma nas quatro de entrar (§2.39).
+dentro da outra, em treze telas do painel do dono, e nenhuma nas quatro de entrar (§2.39). E, em
+seguida, o site: o topo de cinco telas e o botão do WhatsApp fora de qualquer área (§2.40).
 
 **Onda 2 — antes de abrir o cadastro público.**
 
