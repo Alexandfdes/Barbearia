@@ -38,7 +38,7 @@
 | **12/10** | **O fuso de cada barbearia: nasce do estado escolhido no cadastro, e o dono troca em Configurações** — escolhido por você em 11/10, feito em 12/10. Rejeitados na implementação: o fuso em `settings`, que sob o RLS o cache das outras barbearias não enxergaria, e o campo livre, onde um nome errado derrubaria toda data. **E o cliente que pede para ser apagado tem os agendamentos anonimizados**, também decidido em 11/10 — não feito | `PENDENCIAS-ABERTAS.md` §2.1 e `PENDENCIAS-ABERTAS.md` §1.2 |
 | **12/10** | **Os três próximos passos, escolhidos por você:** o backup saindo da VPS em partes, sem o arquivo inteiro na memória; o banco recusando dois agendamentos do mesmo barbeiro no mesmo horário; e a limpeza — as entregas antigas fora do repositório, o teste que mantém a cobrança longe das telas da barbearia e a grade de "Mover horário" só com os horários livres. Feitos no mesmo dia. Decidido na implementação — ⚠️ falta você confirmar: num banco que já tinha horário sobreposto, a trava vale a partir do fim do último par, em vez de o boot parar | `PENDENCIAS-ABERTAS.md` §3.3, `PENDENCIAS-ABERTAS.md` §2.37, `PENDENCIAS-ABERTAS.md` §4.6 e `PENDENCIAS-ABERTAS.md` §2.27 |
 | **12/10** | **O painel do operador em telas, como o do barbeiro** — o Início com os números, a ficha de cada barbearia, a Cobrança, o Registro e o Sistema —, **e as anotações na ficha**, escolhidos por você; feitos no mesmo dia. Decididos na implementação — ⚠️ falta você confirmar: a anotação não se edita nem se apaga, e o "pede atenção" do Início mostra o teste a 3 dias do fim e quem cancelou a 15 dias de sair. No caminho, consertado: o JSON que ia ao banco como texto (§2.36) | `PENDENCIAS-ABERTAS.md` §3.9 e `PENDENCIAS-ABERTAS.md` §2.36 |
-| **12/10** | **Depois da vasculhada geral, três escolhidos por você:** o conferidor de tipos zerado e no CI; estender a carência pelo painel do operador; e o rascunho da landing do autoatendimento, com o `/acessar` levando ao painel central — feitos no mesmo dia. Decididos na implementação: a carência estendida grava o fim novo e vale para um atraso só — o banco a apaga quando o atraso muda —; e o plano anual fora do rascunho. **O botão de apagar o cliente a pedido ficou para depois, por escolha sua** | `PENDENCIAS-ABERTAS.md` §2.29, `PENDENCIAS-ABERTAS.md` §3.9, `PENDENCIAS-ABERTAS.md` §4.15 e `PENDENCIAS-ABERTAS.md` §1.2 |
+| **12/10** | **Depois da vasculhada geral, três escolhidos por você:** o conferidor de tipos zerado e no CI; estender a carência pelo painel do operador; e o rascunho da landing do autoatendimento, com o `/acessar` levando ao painel central — feitos no mesmo dia. Decididos na implementação: a carência estendida grava o fim novo e vale para um atraso só — o banco a apaga quando o atraso muda —; e o plano anual fora do rascunho. **O botão de apagar o cliente a pedido saiu da lista, por decisão sua — *"ninguém pede isso"*** | `PENDENCIAS-ABERTAS.md` §2.29, `PENDENCIAS-ABERTAS.md` §3.9, `PENDENCIAS-ABERTAS.md` §4.15 e `PENDENCIAS-ABERTAS.md` §1.2 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -190,14 +190,24 @@ precisa, decidido por você.** Sem o aviso na tela, sobra o termo: ele tem de di
 autorização é do dono, que tira a foto e a publica — e o que acontece quando um cliente pede
 para tirar a dele (o dono apaga na galeria; a foto sai do site na hora).
 
-**11/10/2026 — o cliente que pede para ser apagado, decidido por você:** os agendamentos dele
-são **anonimizados**, não apagados. **Não está feito** — nem a tela, nem a rota —, e o termo
-tem de dizer como o cliente pede. *12/10/2026: o desenho foi apresentado — um botão na tela
-Buscar cliente, só do dono; os agendamentos e as reservas daquele telefone, naquela barbearia,
-sem nome, telefone, nascimento e observações; o link de desmarcar deixando de valer; e, proposta
-minha ainda não decidida, o que estava marcado para frente desmarcado —, e ficou para depois,
-por escolha sua. Não alcança o backup já feito nem a planilha que o dono já exportou: o termo
-também tem de dizer isso.*
+**12/10/2026 — o botão de apagar o cliente a pedido saiu da lista, por decisão sua:** *"ninguém
+pede isso"*. Não vai ser construído. ⚠️ **O que fica:** o direito do cliente de pedir continua na
+lei, com ou sem botão. Se um pedido chegar, o caminho é à mão — você, no banco de produção, nos
+agendamentos e reservas daquele telefone, naquela barbearia —, e o termo ainda tem de dizer como o
+cliente pede.
+
+<details><summary>Como estava, até 12/10/2026</summary>
+
+> **11/10/2026 — o cliente que pede para ser apagado, decidido por você:** os agendamentos dele
+> são **anonimizados**, não apagados. **Não está feito** — nem a tela, nem a rota —, e o termo
+> tem de dizer como o cliente pede. *12/10/2026: o desenho foi apresentado — um botão na tela
+> Buscar cliente, só do dono; os agendamentos e as reservas daquele telefone, naquela barbearia,
+> sem nome, telefone, nascimento e observações; o link de desmarcar deixando de valer; e, proposta
+> minha ainda não decidida, o que estava marcado para frente desmarcado —, e ficou para depois,
+> por escolha sua. Não alcança o backup já feito nem a planilha que o dono já exportou: o termo
+> também tem de dizer isso.*
+
+</details>
 
 Pergunta nova, que o teste grátis cria: **o que acontece com os dados de quem testou e
 não pagou?** Nome, telefone e data de nascimento de clientes de terceiro, guardados sem
@@ -3307,7 +3317,7 @@ horário" só com os horários livres (§2.27).
 **12/10/2026, à noite, escolhidos por você depois da vasculhada geral, ✅ feitos:** o conferidor
 de tipos zerado e no CI (§2.29); estender a carência pelo painel do operador (§3.9); e o
 rascunho da landing, com o `/acessar` levando ao painel central (§4.15). O botão de apagar o
-cliente a pedido (§1.2) ficou para depois, por escolha sua.
+cliente a pedido (§1.2) saiu da lista, por decisão sua: *"ninguém pede isso"*.
 
 **Onda 2 — antes de abrir o cadastro público.**
 
