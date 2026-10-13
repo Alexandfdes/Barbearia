@@ -83,7 +83,7 @@ const secoes: { titulo: string; nota?: string; campos: Campo[]; ancora?: string;
     titulo: 'Avaliações do Google',
     campos: [
       { id: 'googleReviewsUrl', label: 'Link das avaliações' },
-      { id: 'googleRating', label: 'Nota', hint: 'De 0 a 5, com uma casa decimal. Ex: 4.8', placeholder: '5.0' },
+      { id: 'googleRating', label: 'Nota', hint: 'A do Google, com uma casa decimal. Ex: 4.8. Com a nota e a quantidade, o site mostra as duas; em branco, nada aparece.', placeholder: '5.0' },
       { id: 'googleReviewCount', label: 'Quantidade de avaliações', tipo: 'number' },
     ],
   },
@@ -409,6 +409,7 @@ const valor = (id: string): string => {
     });
 
     pintar(entrada.value);
+
   }
 </script>
 

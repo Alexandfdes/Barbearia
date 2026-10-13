@@ -11,7 +11,7 @@ const RECEM_CRIADA: EstadoDaBarbearia = {
   whatsappNumber: '84999990000',        // o provisionar já grava
   addressStreet: 'Rua das Flores, 42',  // idem
   addressCity: 'Mossoró/RN',            // idem
-  instagramUrl: null, googleReviewsUrl: null,
+  instagramUrl: null, googleRating: null, googleReviewCount: null,
   seoTitle: null, seoDescription: null,
   accentColor: '#0f766e',               // o padrão do template
   horariosPublicados: 3,                // o provisionar grava o comercial
@@ -25,7 +25,7 @@ const COMPLETA: EstadoDaBarbearia = {
   tagline: 'Estilo com respeito.', aboutText: 'Barbearia desde 2010.',
   whatsappNumber: '84999990000',
   addressStreet: 'Rua das Flores, 42', addressCity: 'Mossoró/RN',
-  instagramUrl: 'https://instagram.com/x', googleReviewsUrl: 'https://g.page/x',
+  instagramUrl: 'https://instagram.com/x', googleRating: '4.8', googleReviewCount: 127,
   seoTitle: 'Barbearia X', seoDescription: 'A melhor de Mossoró',
   accentColor: '#7c3aed',
   horariosPublicados: 3, servicosAtivos: 5, barbeirosComAgenda: 2,
