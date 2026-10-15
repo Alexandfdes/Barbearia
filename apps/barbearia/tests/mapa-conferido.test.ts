@@ -72,7 +72,11 @@ describe('o site, o Início e Configurações mostram o MESMO mapa', () => {
   it('Configurações tem a âncora do endereço e a prévia que acompanha o que se digita', () => {
     const cfg = soCodigo(readFileSync('src/pages/admin/configuracoes.astro', 'utf8'));
     expect(cfg).toMatch(/titulo: 'Endereço',\s+ancora: 'endereco',\s+previaDoMapa: true,/);
-    expect(cfg).toMatch(/<section id=\{secao\.ancora\}/);
+    // O bloco de campos saiu para um componente em 15/10/2026, quando a tela virou abas.
+    expect(cfg).toMatch(/<SecaoDeCampos secao=\{secao\}/);
+    const bloco = soCodigo(readFileSync('src/components/admin/SecaoDeCampos.astro', 'utf8'));
+    expect(bloco).toMatch(/<section id=\{secao\.ancora\}/);
+    expect(bloco).toMatch(/<iframe id="mapa-previa"/);
     expect(cfg).toMatch(/const mapaAgora = cfg \? embedDoMapa\(cfg\) : null;/);
     expect(cfg).toMatch(/const src = embedDoMapa\(\{ addressStreet: rua, addressCity: cidade, mapsEmbedQuery: busca \}\);/);
   });
