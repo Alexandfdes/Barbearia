@@ -44,7 +44,8 @@
 | **13/10** | **Todo conteúdo do site numa área da página**, pedido por você: o topo de cinco telas — o agendar, a área do cliente (a de entrar e a de dentro), o link do horário e o portal — e o botão do WhatsApp estavam fora de qualquer área, e quem navega de área em área com o leitor de tela passava por cima. Eram seis telas, não as três do §2.39. A aparência não mudou | `PENDENCIAS-ABERTAS.md` §2.40 |
 | **13/10** | **O horário que o site diz ao Google é o que ele mostra**, pedido por você — ia fixo para toda barbearia, segunda a sexta até as 20h; na dúvida, nenhum horário, e a faixa de preço fixa saiu. **E o menu do celular e o carrossel dos depoimentos para quem usa teclado, leitor de tela ou pede menos movimento.** A aparência não mudou | `PENDENCIAS-ABERTAS.md` §2.41 |
 | **15/10** | **O servidor de desenvolvimento diz quando o banco está atrás do código**, pedido por você: com migration nova chegando e o `npm run dev` ligado, toda página dava "Failed query". Agora a tela diz quais faltam e manda reiniciar. Só no desenvolvimento | `PENDENCIAS-ABERTAS.md` §2.42 |
-| **15/10** | **O atendimento fechado com extras vale o serviço e os extras em toda tela**, achado por você testando: a linha da agenda, o detalhe e o "Receita prevista" do Início mostravam só o preço do serviço, e a receita da agenda somava os extras. Agora a linha, o detalhe, a comanda, a ficha do cliente e o Início fazem a mesma conta | `PENDENCIAS-ABERTAS.md` §2.43 |
+| **15/10** | **O atendimento fechado com extras vale o serviço e os extras em toda tela**, achado por você testando: a linha da agenda, o detalhe e o "Receita prevista" do Início mostravam só o preço do serviço, e a receita da agenda somava os extras. Agora a linha, o detalhe, a comanda, a ficha do cliente e o Início fazem a mesma conta; e, pedido por você no mesmo dia, a área do cliente mostra o total de cada visita | `PENDENCIAS-ABERTAS.md` §2.43 |
+| **15/10** | **Datas em português**, achadas no caminho: a área do cliente dizia "20 de Oct · Tue", e o Início, "16 de Oct" | `PENDENCIAS-ABERTAS.md` §2.44 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -2064,9 +2065,34 @@ R$ 50 na linha, R$ 50 na comanda do combo, a borda vermelha depois de fechar e R
 Guarda: `apps/barbearia/tests/valor-do-atendimento.test.ts` — a regra, as telas fazendo a conta
 por ela, e no banco: o Início, a comanda fechada pela rota de verdade e a ficha do cliente.
 
-**Visto e não mexido:** a área do cliente (`apps/barbearia/src/pages/cliente/index.astro`) mostra
+~~**Visto e não mexido:** a área do cliente (`apps/barbearia/src/pages/cliente/index.astro`) mostra
 cada visita pelo preço do serviço, sem os extras — a página do agendamento (`/a/…`) já mostra o
-total. Para o cliente a conta é outra, o que ele paga, combo incluído; fica para quando você quiser.
+total. Para o cliente a conta é outra, o que ele paga, combo incluído; fica para quando você quiser.~~
+✅ *Ajustado no mesmo dia, a seu pedido.* Cada cartão da área do cliente mostra o que ele paga, ou
+pagou: o serviço e todos os itens, o produto do combo inclusive, mesmo antes de concluído
+(`totalParaOCliente`, em `apps/barbearia/src/lib/valorDoAtendimento.ts`) — o mesmo número da página
+do agendamento. A consulta saiu da página para `apps/barbearia/src/lib/agendamentosDoCliente.ts`, onde
+o teste a roda contra um banco de verdade. **Achado no caminho, consertado:** a página do agendamento
+chamava todo item de "Para retirar na barbearia", e a barba lançada na comanda virava coisa para
+retirar. O título agora é esse só no agendamento ainda não concluído, cujo único item é o produto do
+combo; depois de concluído, "Além do serviço". **Visto rodando:** contra o build, entrando como um
+cliente de teste — a visita concluída com a barba e o combo por vir, R$ 80 cada; a cancelada, R$ 40;
+o cartão com o mesmo número da página do agendamento; e a barba "além do serviço". O build anterior,
+no mesmo roteiro: R$ 50 nos dois cartões, e a barba "para retirar".
+
+### 2.44 ✅ `[TÉCNICO]` Datas em inglês na área do cliente e no Início — "20 de Oct · Tue" — RESOLVIDO em 15/10/2026
+
+**O que aconteceu, em 15/10/2026,** conferindo a área do cliente no navegador para o §2.43: os
+cartões diziam *"20 de Oct · Tue"*. O `date-fns` escreve o nome do mês e do dia da semana em inglês
+quando ninguém passa o português (`locale: ptBR`), e duas telas não passavam: a área do cliente
+(`apps/barbearia/src/pages/cliente/index.astro`) e as listas de próximos agendamentos e de faltas do
+Início (`apps/barbearia/src/pages/admin/index.astro`, *"16 de Oct"*). As outras duas que escrevem
+nome — a página do agendamento e a da assinatura — já passavam.
+
+**O que mudou:** as duas passam o português — *"20 de out · terça"*, *"16 de out"* —, e
+`apps/barbearia/tests/datas-em-portugues.test.ts` reprova a próxima data que escrever nome de mês ou
+de dia da semana sem ele. **Visto rodando:** contra o build, os quatro cartões do cliente de teste e
+o Início em português; no build anterior, os mesmos em inglês.
 
 ---
 
@@ -3702,7 +3728,9 @@ carrossel dos depoimentos (§2.41).
 atrás do código, em vez de "Failed query" em toda página (§2.42).
 
 **15/10/2026, achado por você testando, ✅ feito:** o atendimento fechado com extras, com o mesmo
-valor na linha da agenda, no detalhe, na comanda, na ficha do cliente e no Início (§2.43).
+valor na linha da agenda, no detalhe, na comanda, na ficha do cliente e no Início (§2.43). Depois,
+pedido por você, a área do cliente com o total de cada visita (§2.43); e, achadas no caminho, as
+datas em português (§2.44).
 
 **Onda 2 — antes de abrir o cadastro público.**
 
