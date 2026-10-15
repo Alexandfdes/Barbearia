@@ -46,6 +46,7 @@
 | **15/10** | **O servidor de desenvolvimento diz quando o banco está atrás do código**, pedido por você: com migration nova chegando e o `npm run dev` ligado, toda página dava "Failed query". Agora a tela diz quais faltam e manda reiniciar. Só no desenvolvimento | `PENDENCIAS-ABERTAS.md` §2.42 |
 | **15/10** | **O atendimento fechado com extras vale o serviço e os extras em toda tela**, achado por você testando: a linha da agenda, o detalhe e o "Receita prevista" do Início mostravam só o preço do serviço, e a receita da agenda somava os extras. Agora a linha, o detalhe, a comanda, a ficha do cliente e o Início fazem a mesma conta; e, pedido por você no mesmo dia, a área do cliente mostra o total de cada visita | `PENDENCIAS-ABERTAS.md` §2.43 |
 | **15/10** | **Datas em português**, achadas no caminho: a área do cliente dizia "20 de Oct · Tue", e o Início, "16 de Oct" | `PENDENCIAS-ABERTAS.md` §2.44 |
+| **15/10** | **Configurações em quatro abas**, escolhidas por você entre três formas — a tela era uma rolagem só, com nove blocos. Um Salvar só; os links do Início e do medidor levam ao bloco certo; a recusa do Salvar abre a aba do campo | `PENDENCIAS-ABERTAS.md` §2.45 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -2094,6 +2095,52 @@ nome — a página do agendamento e a da assinatura — já passavam.
 de dia da semana sem ele. **Visto rodando:** contra o build, os quatro cartões do cliente de teste e
 o Início em português; no build anterior, os mesmos em inglês.
 
+### 2.45 ✅ `[TÉCNICO]` Configurações numa rolagem só, com nove blocos — RESOLVIDO em 15/10/2026, em abas
+
+**O que aconteceu, em 15/10/2026,** testando o painel: *"essa tela de configurações está muito
+longa"*. Eram nove blocos numa rolagem só — os textos, o contato, o endereço, as avaliações, a busca,
+as imagens, a cor, o horário do site e a exportação —, 4.789 px de altura no computador (medido no
+build, na barbearia de teste).
+
+**O que mudou** (escolhido por você entre três: abas, blocos que abrem e fecham, e telas separadas no
+menu): quatro abas, presas logo abaixo do topo do painel enquanto a página rola —
+**Aparência** (os textos do site, as imagens e a cor), **Contato e endereço** (o WhatsApp, o
+Instagram, o endereço com o mapa e o fuso, e o horário do site), **Google** (as avaliações e a busca)
+e **Seus dados** (a exportação). No celular, a segunda se chama só "Contato", para as quatro caberem.
+Um Salvar só grava as três primeiras de uma vez: os campos das abas escondidas continuam no
+formulário. A aba com mudança ainda não salva ganha um ponto laranja. O "Título da seção de
+produtos" saiu da busca para os textos do site — é texto do site, não do Google.
+
+Uma tela em abas quebra três coisas em silêncio, e as três foram tratadas:
+
+- **O link que levava ao campo.** O "corrigir o endereço" do Início já apontava para `#endereco`
+  — e, com as abas, cairia num bloco escondido. Agora a tela abre a aba onde o bloco está e rola até
+  ele. Cada item do medidor de completude e o link do fim do cadastro, que levavam ao topo da tela,
+  passaram a apontar para o bloco — `#imagens`, `#avaliacoes`, `#horario-do-site`…
+- **O campo que o Salvar recusa pode estar noutra aba.** A aba dele abre, o cursor vai para ele, com
+  a borda vermelha, e o porquê fica ao lado do Salvar, que está sempre à vista. **Achado no caminho:**
+  a mensagem saía com o nome interno do campo grudado — *"googleRating: A nota deve ser…"*. A rota
+  (`apps/barbearia/src/pages/api/admin/settings.ts`) passou a mandar a mensagem limpa e o campo à
+  parte.
+- **O teclado e o leitor de tela.** As abas seguem o padrão de abas da W3C: as setas, Home e End
+  andam entre elas, e o leitor de tela anuncia qual está aberta.
+
+E uma frase que ficaria ambígua com as abas: o horário do site dizia que a agenda segue "a aba
+Horários" — que no menu se chama **Expediente**. Agora diz isso.
+
+**Visto rodando:** contra o build, no navegador, 23 conferências: as quatro abas por clique e pelas
+setas; o `#endereco` abrindo Contato com o bloco logo abaixo das abas; o "Suba a logo" do Início
+abrindo as imagens; o ponto acendendo ao mudar o WhatsApp e apagando ao desfazer; a nota 5,9 recusada
+com a tela em Aparência — a aba Google abriu, com o cursor na nota e o porquê ao lado do Salvar; o
+Salvar gravando a aba escondida; a logo enviada recarregando na mesma aba; no celular, as quatro abas
+lado a lado, sem a página rolar de lado; sem erro de JavaScript. A aba mais longa tem 2.242 px — menos
+da metade da tela de antes —; Contato, 2.102; Google, 1.090. O axe-core não acusa nada das abas.
+Guarda: `apps/barbearia/tests/configuracoes-em-abas.test.ts`.
+
+**Visto e não mexido:** as dicas debaixo dos campos são cinza-claro sobre fundo quase branco —
+contraste de 2,5:1, abaixo dos 4,5:1 recomendados para leitura. Já era assim antes das abas; o
+axe-core acusa 20 delas.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -3730,7 +3777,7 @@ atrás do código, em vez de "Failed query" em toda página (§2.42).
 **15/10/2026, achado por você testando, ✅ feito:** o atendimento fechado com extras, com o mesmo
 valor na linha da agenda, no detalhe, na comanda, na ficha do cliente e no Início (§2.43). Depois,
 pedido por você, a área do cliente com o total de cada visita (§2.43); e, achadas no caminho, as
-datas em português (§2.44).
+datas em português (§2.44). E Configurações em abas, como você escolheu (§2.45).
 
 **Onda 2 — antes de abrir o cadastro público.**
 
