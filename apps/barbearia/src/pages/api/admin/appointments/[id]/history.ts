@@ -12,7 +12,12 @@ import { getSession } from '../../../../../lib/session.js';
  * Retorna últimas N visitas (default 5) do mesmo cliente (por telefone normalizado),
  * EXCLUINDO o próprio agendamento atual.
  *
- * Resposta: { ok: true, history: [{ id, startsAt, status, serviceName, barberName, priceCents }], total }
+ * Resposta: { ok: true, history: [{ id, startsAt, status, serviceName, barberName, priceCents, itemsCents }], total }
+ *
+ * `itemsCents` é a soma dos itens da comanda da visita: a concluída vale o serviço e eles,
+ * como na linha da agenda (`lib/valorDoAtendimento.ts`). Até 15/10/2026 o histórico mostrava
+ * só o preço do serviço, e o "gasto" da ficha, que soma os itens, não batia com as visitas
+ * (`docs/PENDENCIAS-ABERTAS.md` §2.43).
  */
 
 /**
@@ -41,7 +46,7 @@ function contarVisitas(phone: string, tenant: Tenant) {
 
 function historico(phone: string, exceto: number, limite: number, tenant: Tenant) {
   return db.execute<{
-    id: number; starts_at: string; status: string; price_cents: number;
+    id: number; starts_at: string; status: string; price_cents: number; itens_cents: string;
     service_name: string; barber_name: string;
   }>(sql`
     SELECT
@@ -49,6 +54,8 @@ function historico(phone: string, exceto: number, limite: number, tenant: Tenant
       a.starts_at       AS starts_at,
       a.status          AS status,
       a.price_cents     AS price_cents,
+      COALESCE((SELECT SUM(ai.price_cents) FROM appointment_items ai
+                 WHERE ai.appointment_id = a.id AND ai.tenant_id = ${tenant.id}), 0) AS itens_cents,
       s.name            AS service_name,
       b.name            AS barber_name
     FROM appointments a
@@ -164,6 +171,7 @@ export const GET: APIRoute = async ({ params, request, url }) => {
       startsAt:     r.starts_at,
       status:       r.status,
       priceCents:   r.price_cents,
+      itemsCents:   num(r.itens_cents),
       serviceName:  r.service_name,
       barberName:   r.barber_name,
     })),

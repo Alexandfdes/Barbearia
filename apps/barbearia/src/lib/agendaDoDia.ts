@@ -10,7 +10,17 @@
  */
 import type { Semana } from './gradeDeHorarios.js';
 
-/** Um atendimento do dia, como a tela usa: já com a hora local e o preço formatado. */
+/** Um item da comanda: o produto do combo, que nasce com o agendamento, ou um extra do fechamento. */
+export interface ItemDaComanda {
+  name: string;
+  priceCents: number;
+}
+
+/**
+ * Um atendimento do dia, como a tela usa: já com a hora local e o preço do serviço
+ * formatado. Quanto ele vale — com os itens, se concluído — é a conta de
+ * `lib/valorDoAtendimento.ts`.
+ */
 export interface AtendimentoDaAgenda {
   id: number;
   status: string;
@@ -25,8 +35,11 @@ export interface AtendimentoDaAgenda {
   barberId: number;
   durationMinutes: number;
   priceCents: number;
-  /** Produtos e extras da comanda, em centavos. */
+  /** Os itens da comanda, na ordem em que entraram. */
+  items: ItemDaComanda[];
+  /** A soma de `items`, em centavos: quem mexe num, mexe no outro. */
   itemsCents: number;
+  /** O preço do serviço agendado, formatado — sem os itens. */
   price: string;
   timeLocal: string;
   endTimeLocal: string;
@@ -69,6 +82,8 @@ export interface VisitaDoHistorico {
   startsAt: string;
   status: string;
   priceCents: number;
+  /** A soma dos itens da comanda dessa visita, em centavos. */
+  itemsCents: number;
   serviceName: string;
   barberName: string;
 }

@@ -15,6 +15,7 @@ import { reais } from '../../lib/dinheiro.js';
 import { segundaFeiraDaSemana } from '../../lib/calendario.js';
 import { fusoDe } from '../../lib/timezone.js';
 import { buscaDoMapa, embedDoMapa, mapaPrecisaConferir } from '../../lib/mapa.js';
+import { receitaDoPeriodo } from '../../lib/receita.js';
 
 
 const session = await getSession(Astro.request);
@@ -63,9 +64,18 @@ const sevenDaysAgo   = new Date(nowUtc.getTime() - 7 * 24 * 60 * 60 * 1000).toIS
 // Pra barbeiro comum, sempre filtra pelos próprios. Admin vê todos.
 const barberFilter = session.role === 'admin' ? null : session.barberId;
 
-// SUM e COUNT voltam do Postgres como bigint, que o driver entrega em string
-// pra não perder precisão. Sem o Number() o painel somaria texto: "1500" + "800"
-// viraria "1500800" na tela, sem erro nenhum no caminho.
+// Receita num intervalo: a conta da agenda do dia — o valor de cada confirmado e
+// concluído, com os itens da comanda dos concluídos, mais a venda avulsa
+// (`lib/receita.ts`). Até 15/10/2026 o banco somava aqui só o preço do serviço: sem os
+// extras e sem a venda avulsa, o "Receita prevista" deste topo dizia R$ 100 no dia em que
+// o da agenda dizia R$ 130 (`PENDENCIAS-ABERTAS.md` §2.43).
+async function sumRevenue(startIso: string, endIso: string): Promise<number> {
+  return (await receitaDoPeriodo(tenant.id, startIso, endIso, barberFilter)).centavos;
+}
+
+// COUNT volta do Postgres como bigint, que o driver entrega em string pra não
+// perder precisão. Sem o Number() o painel somaria texto: "1500" + "800" viraria
+// "1500800" na tela, sem erro nenhum no caminho.
 const num = (v: unknown): number => Number(v ?? 0);
 
 // `${barberFilter}::int IS NULL OR ...` no lugar de montar duas consultas
@@ -78,19 +88,6 @@ const num = (v: unknown): number => Number(v ?? 0);
 // JS como TUPLA — vira `($1, $2)` — e `= ANY` exige um array de verdade do lado
 // direito. O erro só aparece em tempo de execução (42809), com o painel em
 // branco; nem o tsc nem o `astro check` pegam.
-
-// Receita num intervalo (confirmed + completed)
-async function sumRevenue(startIso: string, endIso: string): Promise<number> {
-  const r = await first(db.execute<{ s: string }>(sql`
-    SELECT COALESCE(SUM(price_cents),0) AS s FROM appointments
-     WHERE tenant_id = ${tenant.id}
-       AND status IN ('confirmed','completed')
-       AND starts_at >= ${startIso} AND starts_at < ${endIso}
-       AND (${barberFilter}::int IS NULL OR barber_id = ${barberFilter}::int)
-  `));
-  return num(r?.s);
-}
-
 async function countAppts(startIso: string, endIso: string, statuses: string[]): Promise<number> {
   const r = await first(db.execute<{ c: string }>(sql`
     SELECT COUNT(*) AS c FROM appointments
