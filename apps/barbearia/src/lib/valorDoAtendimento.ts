@@ -24,6 +24,8 @@
  * A receita de um período é a soma dos confirmados e dos concluídos, mais a venda avulsa
  * de produto. O Início faz a conta com o que `lib/receita.ts` traz do banco.
  *
+ * Para o CLIENTE a conta é outra — `totalParaOCliente`, no fim deste arquivo.
+ *
  * Roda no servidor e no navegador — não importe nada de servidor aqui.
  */
 
@@ -67,4 +69,18 @@ export function receitaDe(
     considerados++;
   }
   return { centavos, considerados };
+}
+
+/**
+ * O que o cliente paga — ou pagou: o serviço e todos os itens, o produto do combo inclusive,
+ * em qualquer situação. É o "Total" da página do agendamento (`pages/a/[token].astro`) e o
+ * número de cada visita na área do cliente (`pages/cliente/index.astro`), que até 15/10/2026
+ * mostrava só o preço do serviço (`docs/PENDENCIAS-ABERTAS.md` §2.43).
+ *
+ * Difere da regra de cima num caso só, e de propósito: o combo ainda não concluído. A receita
+ * espera a conclusão para contar o produto; o cliente, que vai pagar por ele, vê desde o
+ * agendamento.
+ */
+export function totalParaOCliente(a: { priceCents: number; itemsCents: number }): number {
+  return a.priceCents + a.itemsCents;
 }
