@@ -62,17 +62,19 @@ const grupos: { titulo: string; itens: { id: TelaDoOperador; href: string; label
   <body class="bg-slate-50 text-slate-800 min-h-screen font-sans">
     <div class="flex min-h-screen">
 
+      {/* Presa na tela no computador, como a do painel do barbeiro — o porquê está lá,
+          no AdminLayout (docs/PENDENCIAS-ABERTAS.md §2.46). */}
       <aside id="lateral"
-        class="fixed lg:static inset-y-0 left-0 z-40 w-64 shrink-0 bg-slate-900 text-slate-300 flex flex-col
+        class="fixed lg:sticky inset-y-0 lg:bottom-auto lg:h-screen left-0 z-40 w-64 shrink-0 bg-slate-900 text-slate-300 flex flex-col
                -translate-x-full lg:translate-x-0 transition-transform duration-200">
         <div class="h-16 flex items-center gap-2.5 px-5 border-b border-white/10">
           <span class="font-semibold text-white truncate">{NOME_PRODUTO}</span>
           <span class="text-[10px] uppercase tracking-wider bg-teal/25 text-teal-light border border-teal/40 px-1.5 py-0.5 rounded">Operador</span>
         </div>
 
-        <nav class="flex-1 overflow-y-auto py-4" aria-label="Telas do operador">
+        <nav class="flex-1 overflow-y-auto py-4 [scrollbar-width:thin] [scrollbar-color:var(--color-slate-700)_transparent]" aria-label="Telas do operador">
           {grupos.map((g) => (
-            <div class="mb-5">
+            <div class="mb-4 last:mb-0">
               <p class="px-5 mb-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">{g.titulo}</p>
               {g.itens.map((i) => (
                 <a href={i.href} aria-current={i.id === ativo ? 'page' : undefined}
@@ -93,7 +95,7 @@ const grupos: { titulo: string; itens: { id: TelaDoOperador; href: string; label
         <div class="border-t border-white/10 px-5 py-3.5">
           <p class="text-xs text-slate-400">A sessão dura 8 horas.</p>
           <form method="post" action="/api/operador/sair">
-            <button id="sair" class="mt-1 text-xs text-slate-400 hover:text-red-400 transition-colors">Sair</button>
+            <button id="sair" class="mt-1 block text-xs text-slate-400 hover:text-red-400 transition-colors">Sair</button>
           </form>
         </div>
       </aside>
