@@ -136,6 +136,10 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   que mostre um ou outro usa a regra, não a sua conta — cada tela fazia a sua, e a linha da agenda
   dizia R$ 50 onde a receita contava R$ 80. Para o cliente, `totalParaOCliente`: o combo conta
   desde o agendamento (`tests/valor-do-atendimento.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.43).
+- **Configurações é em abas:** campo novo entra num bloco de `secoes` (com `aba` e `ancora`) de
+  `apps/barbearia/src/pages/admin/configuracoes.astro`, e link para ele usa
+  `/admin/configuracoes#<ancora>` — a tela abre a aba certa (`tests/configuracoes-em-abas.test.ts`;
+  `docs/PENDENCIAS-ABERTAS.md` §2.45).
 - **Data com nome de mês ou de dia da semana leva `{ locale: ptBR }`** — sem ele, o `date-fns`
   escreve "20 de Oct · Tue" (`tests/datas-em-portugues.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.44).
 - **Tela do painel não chama rota do site** (`/api/services`, `/api/slots`…): elas acham a
