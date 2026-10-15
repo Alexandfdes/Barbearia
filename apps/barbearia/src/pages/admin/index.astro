@@ -7,6 +7,7 @@ import { getSession } from '../../lib/session.js';
 import { db, first } from '../../db/index.js';
 import { barbers, appointments, services, settings, workingHours } from '../../db/schema.js';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
+import { ptBR } from 'date-fns/locale';
 import { tenantDaSessao } from '../../lib/tenant.js';
 import { calcularCompletude } from '../../lib/completude.js';
 import { quantasFotos } from '../../lib/galeria.js';
@@ -234,7 +235,8 @@ const maxRevenue = Math.max(...weekDays.map(d => d.revenue), 1);
 // ─── Helpers de display ───────────────────────────────────────────────────
 const fmtMoney = reais;
 const fmtTime  = (iso: string) => formatInTimeZone(new Date(iso), fuso, 'HH:mm');
-const fmtDate  = (iso: string) => formatInTimeZone(new Date(iso), fuso, "dd 'de' MMM");
+// O mês por extenso pede o português: sem o `locale`, saía "15 de Oct" (`tests/datas-em-portugues.test.ts`).
+const fmtDate  = (iso: string) => formatInTimeZone(new Date(iso), fuso, "dd 'de' MMM", { locale: ptBR });
 
 const upcomingFmt = upcomingRows.map(a => ({
   ...a,

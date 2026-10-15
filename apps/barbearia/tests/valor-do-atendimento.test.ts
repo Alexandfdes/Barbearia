@@ -7,10 +7,12 @@
 // Em 15/10/2026, testando o painel, o dono concluiu um corte de R$ 50 e lançou mais R$ 30
 // na comanda. A linha continuou "R$ 50"; a receita do dia, no topo, já somava os 30. E o
 // "Receita prevista" do Início não somava extra nenhum, nem venda avulsa: R$ 100 no dia em
-// que a agenda dizia R$ 130 (`docs/PENDENCIAS-ABERTAS.md` §2.43).
+// que a agenda dizia R$ 130 (`docs/PENDENCIAS-ABERTAS.md` §2.43). Na área do cliente, a
+// visita aparecia pelo preço do serviço, e a página do agendamento chamava a barba lançada
+// na comanda de coisa "para retirar na barbearia".
 //
 // A regra e as telas não precisam de banco; a receita do Início, a comanda fechada de
-// verdade e a ficha do cliente, sim.
+// verdade, a ficha e a área do cliente, sim.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import postgres from 'postgres';
@@ -18,7 +20,7 @@ import { fromZonedTime } from 'date-fns-tz';
 import { exigirBancoDeTeste } from './guardaBanco.js';
 import { recriarSchema } from './migrations.js';
 import {
-  contaNaReceita, itensContam, receitaDe, somaDosItens, valorDoAtendimento, type ParaOValor,
+  contaNaReceita, itensContam, receitaDe, somaDosItens, totalParaOCliente, valorDoAtendimento, type ParaOValor,
 } from '../src/lib/valorDoAtendimento.js';
 import { aparenciaDaSituacao, BORDAS_DA_SITUACAO, linhaApagada } from '../src/lib/situacaoNaAgenda.js';
 import type { Tenant } from '../src/lib/tenant.js';
@@ -156,6 +158,36 @@ describe('as telas fazem a conta pela regra', () => {
   });
 });
 
+describe('o que o cliente vê: o total — o serviço e todos os itens', () => {
+  const area = readFileSync('src/pages/cliente/index.astro', 'utf8');
+  const agendamento = readFileSync('src/pages/a/[token].astro', 'utf8');
+
+  it('o combo ainda não concluído: o cliente vê o produto que vai pagar, e a receita espera', () => {
+    const combo = at('confirmed', 5000, 3000);
+    expect(totalParaOCliente(combo)).toBe(8000);
+    expect(valorDoAtendimento(combo)).toBe(5000);
+  });
+
+  it('a visita concluída: o mesmo número para o cliente e para a receita', () => {
+    for (const visita of [at('completed', 5000, 3000), at('completed', 5000)]) {
+      expect(totalParaOCliente(visita)).toBe(valorDoAtendimento(visita));
+    }
+  });
+
+  it('a área do cliente e a página do agendamento fazem a conta pela regra', () => {
+    expect(area).toMatch(/agendamentosDoCliente\(tenant\.id, session\.phone, session\.birthdate\)/);
+    expect(area).toMatch(/priceLabel:\s*reais\(totalParaOCliente\(\{ priceCents: r\.price_cents, itemsCents: r\.itens_cents \}\)\)/);
+    expect(area).not.toMatch(/reais\(r\.price_cents\)/);
+    expect(agendamento).toMatch(/const totalCents = totalParaOCliente\(\{ priceCents: appt\.priceCents, itemsCents: somaDosItens\(items\) \}\)/);
+  });
+
+  it('"para retirar na barbearia" só no agendamento ainda não concluído — uma barba não se retira', () => {
+    expect(agendamento).toMatch(/const tituloDosItens = appt\.status === 'confirmed' \? 'Para retirar na barbearia' : 'Além do serviço'/);
+    expect(agendamento).toMatch(/>\{tituloDosItens\}<\/p>/);
+    expect(agendamento).not.toMatch(/>\s*Para retirar na barbearia\s*</);
+  });
+});
+
 describe('a linha que muda na hora é a da página recarregada (`src/lib/situacaoNaAgenda.ts`)', () => {
   const SITUACOES = ['confirmed', 'completed', 'cancelled', 'no_show'];
   const pagina = readFileSync('src/pages/admin/dia/[date].astro', 'utf8');
@@ -197,6 +229,7 @@ describe.skipIf(!TEM_BANCO)('no banco: a receita do Início, a comanda fechada e
   let sql: ReturnType<typeof postgres>;
   let dbmod: typeof import('../src/db/index.js');
   let receitaDoPeriodo: typeof import('../src/lib/receita.js')['receitaDoPeriodo'];
+  let agendamentosDoCliente: typeof import('../src/lib/agendamentosDoCliente.js')['agendamentosDoCliente'];
   let concluir: typeof import('../src/pages/api/admin/appointments/[id]/complete.ts')['POST'];
   let ficha: typeof import('../src/pages/api/admin/appointments/[id]/history.ts')['GET'];
   let A: Tenant;
@@ -269,6 +302,7 @@ describe.skipIf(!TEM_BANCO)('no banco: a receita do Início, a comanda fechada e
     await tenant.carregarTenants(true);
     A = tenant.tenantPorIdMesmoForaDoAr(1)!;
     ({ receitaDoPeriodo } = await import('../src/lib/receita.js'));
+    ({ agendamentosDoCliente } = await import('../src/lib/agendamentosDoCliente.js'));
     ({ POST: concluir } = await import('../src/pages/api/admin/appointments/[id]/complete.ts'));
     ({ GET: ficha } = await import('../src/pages/api/admin/appointments/[id]/history.ts'));
     const { makeSessionCookie } = await import('../src/lib/session.js');
@@ -310,6 +344,20 @@ describe.skipIf(!TEM_BANCO)('no banco: a receita do Início, a comanda fechada e
     expect(valorDoAtendimento(corpo.history[0])).toBe(7000);
     // O gasto da ficha é o do atendimento aberto (R$ 80) mais o das outras visitas (R$ 70).
     expect(corpo.stats.totalSpentCents).toBe(8000 + corpo.history.reduce((s, h) => s + valorDoAtendimento(h), 0));
+  });
+
+  it('a área do cliente: cada visita pelo total, e só as desta barbearia', async () => {
+    await sql`UPDATE appointments SET customer_birthdate = '1990-05-20' WHERE customer_phone IN ('84988880001', '84988880002')`;
+    const total = (v: { price_cents: number; itens_cents: number }) => totalParaOCliente({ priceCents: v.price_cents, itemsCents: v.itens_cents });
+    // As duas visitas dele em A, da mais nova para a mais velha. A de B, com o mesmo telefone e
+    // a mesma data de nascimento, não — nem como dono, sem o RLS: o filtro da consulta basta.
+    const doCorte = await agendamentosDoCliente(A.id, '84988880001', '1990-05-20');
+    expect(doCorte.map((v) => [v.id, v.itens_cents, total(v)])).toEqual([[1, 3000, 8000], [5, 2000, 7000]]);
+    // O combo ainda não concluído, com o RLS ligado: o cliente vê os R$ 80 que vai pagar.
+    const doCombo = await dbmod.comTenant(A, () => agendamentosDoCliente(A.id, '84988880002', '1990-05-20'));
+    expect(doCombo.map((v) => [v.id, v.status, total(v)])).toEqual([[2, 'confirmed', 8000]]);
+    // Outra data de nascimento: nenhuma.
+    expect(await agendamentosDoCliente(A.id, '84988880001', '1991-01-01')).toEqual([]);
   });
 
   it('fechando a comanda do combo com mais R$ 30: o atendimento passa a valer R$ 110, e a receita sobe R$ 60', async () => {

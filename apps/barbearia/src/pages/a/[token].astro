@@ -12,6 +12,7 @@ import { linkDoMapa } from '../../lib/mapa';
 import { tenantDoHost } from '../../lib/tenant.js';
 import { reais } from '../../lib/dinheiro.js';
 import { fusoDe } from '../../lib/timezone.js';
+import { somaDosItens, totalParaOCliente } from '../../lib/valorDoAtendimento.js';
 
 const tenant = tenantDoHost(Astro.request);
 
@@ -61,14 +62,20 @@ const timeLocal = formatInTimeZone(startsAt, fuso, 'HH:mm');
 const weekdayRaw = formatInTimeZone(startsAt, fuso, 'EEEE', { locale: ptBR });
 const weekday    = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
 
-// Itens da comanda criados no agendamento (ex.: produto do Combo Boris a retirar).
+// Os itens da comanda, na ordem em que entraram: o produto do combo, que nasce com o
+// agendamento, e — depois de concluído — os extras do fechamento.
 const items = (await db
   .select({ name: appointmentItems.name, priceCents: appointmentItems.priceCents })
   .from(appointmentItems)
   .where(and(eq(appointmentItems.appointmentId, appt.id), eq(appointmentItems.tenantId, tenant.id)))
+  .orderBy(appointmentItems.id)
   );
-const itemsTotalCents = items.reduce((sum, it) => sum + it.priceCents, 0);
-const totalCents = appt.priceCents + itemsTotalCents;
+// O que o cliente paga, ou pagou — o mesmo número da área do cliente (`lib/valorDoAtendimento.ts`).
+const totalCents = totalParaOCliente({ priceCents: appt.priceCents, itemsCents: somaDosItens(items) });
+// "Para retirar na barbearia" é o produto do combo, o único item de um agendamento ainda não
+// concluído. Depois de fechado entram os extras — serviços, como uma barba —, e até 15/10/2026
+// a barba aparecia como coisa "para retirar" (`docs/PENDENCIAS-ABERTAS.md` §2.43).
+const tituloDosItens = appt.status === 'confirmed' ? 'Para retirar na barbearia' : 'Além do serviço';
 
 const price       = reais(appt.priceCents);
 const totalDisplay = reais(totalCents);
@@ -180,7 +187,7 @@ const apptDateStr   = formatInTimeZone(startsAt, fuso, 'yyyy-MM-dd');
         </div>
         {items.length > 0 && (
           <div class="px-5 py-4 border-b border-white/5">
-            <p class="text-xs text-neutral-500 uppercase tracking-widest mb-2">Para retirar na barbearia</p>
+            <p class="text-xs text-neutral-500 uppercase tracking-widest mb-2">{tituloDosItens}</p>
             {items.map((it) => (
               <div class="flex items-center justify-between text-sm py-0.5">
                 <span class="text-neutral-200">{it.name}</span>

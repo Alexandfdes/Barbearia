@@ -3,13 +3,14 @@ export const prerender = false;
 
 import Layout from '../../layouts/Layout.astro';
 import { getCustomerSession } from '../../lib/customerSession.js';
-import { sql } from 'drizzle-orm';
-import { db } from '../../db/index.js';
-import { tenantDoHost, type Tenant } from '../../lib/tenant.js';
+import { tenantDoHost } from '../../lib/tenant.js';
 import { getSettings } from '../../lib/settings.js';
 import { formatInTimeZone } from 'date-fns-tz';
+import { ptBR } from 'date-fns/locale';
 import { fusoDe } from '../../lib/timezone.js';
 import { reais } from '../../lib/dinheiro.js';
+import { agendamentosDoCliente } from '../../lib/agendamentosDoCliente.js';
+import { totalParaOCliente } from '../../lib/valorDoAtendimento.js';
 
 
 const session = await getCustomerSession(Astro.request);
@@ -27,48 +28,9 @@ const fuso = fusoDe(tenant);
 const { businessName } = await getSettings(tenant);
 if (!session) return Astro.redirect('/cliente/entrar');
 
-function listarAgendamentos(phone: string, birthdate: string, tenant: Tenant) {
-  return db.execute<ApptRow>(sql`
-    SELECT
-      a.id              AS id,
-      a.status          AS status,
-      a.starts_at       AS starts_at,
-      a.ends_at         AS ends_at,
-      a.duration_minutes AS duration_minutes,
-      a.price_cents     AS price_cents,
-      a.customer_name   AS customer_name,
-      a.customer_phone  AS customer_phone,
-      a.manage_token    AS manage_token,
-      a.cancelled_at    AS cancelled_at,
-      a.cancelled_by    AS cancelled_by,
-      b.name            AS barber_name,
-      s.name            AS service_name
-    FROM appointments a
-    INNER JOIN barbers  b ON b.id = a.barber_id
-    INNER JOIN services s ON s.id = a.service_id
-    WHERE a.tenant_id = ${tenant.id} AND a.customer_phone = ${phone}
-      AND a.customer_birthdate = ${birthdate}
-    ORDER BY a.starts_at DESC
-  `);
-}
-
-type ApptRow = {
-  id: number;
-  status: string;
-  starts_at: string;
-  ends_at: string;
-  duration_minutes: number;
-  price_cents: number;
-  customer_name: string;
-  customer_phone: string;
-  manage_token: string;
-  cancelled_at: string | null;
-  cancelled_by: string | null;
-  barber_name: string;
-  service_name: string;
-};
-
-const rows = await listarAgendamentos(session.phone, session.birthdate, tenant);
+// Os deste telefone e desta data de nascimento, nesta barbearia — cada um com a soma dos
+// itens dele (`lib/agendamentosDoCliente.ts`).
+const rows = await agendamentosDoCliente(tenant.id, session.phone, session.birthdate);
 
 // Se a sessão é válida mas não tem mais agendamentos (todos deletados manualmente, por ex),
 // devolve pra entrar.
@@ -98,10 +60,13 @@ const cards: Card[] = rows.map(r => ({
   customerName:    r.customer_name,
   serviceName:     r.service_name,
   barberName:      r.barber_name,
-  dateLabel:       formatInTimeZone(new Date(r.starts_at), fuso, "dd 'de' MMM '·' EEE"),
+  // Mês e dia da semana em português: sem o `locale`, saía "20 de Oct · Tue" (`tests/datas-em-portugues.test.ts`).
+  dateLabel:       formatInTimeZone(new Date(r.starts_at), fuso, "dd 'de' MMM '·' EEE", { locale: ptBR }),
   timeLabel:       formatInTimeZone(new Date(r.starts_at), fuso, 'HH:mm'),
   durationMinutes: r.duration_minutes,
-  priceLabel:      reais(r.price_cents),
+  // O que o cliente paga, ou pagou: o serviço e os itens — o produto do combo e os extras
+  // do fechamento —, o mesmo "Total" da página do agendamento (`lib/valorDoAtendimento.ts`).
+  priceLabel:      reais(totalParaOCliente({ priceCents: r.price_cents, itemsCents: r.itens_cents })),
 }));
 
 const upcoming = cards.filter(c => c.isUpcoming);
