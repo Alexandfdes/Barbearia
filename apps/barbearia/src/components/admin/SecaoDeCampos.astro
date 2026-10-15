@@ -1,0 +1,91 @@
+---
+// Um bloco de campos de Configurações (`pages/admin/configuracoes.astro`): o título, a nota,
+// cada campo com o rótulo e a dica — e, no endereço, a prévia do mapa. Saiu da página em
+// 15/10/2026, quando ela virou abas: o mesmo bloco aparece em três delas.
+//
+// O `id` do bloco é a âncora: `/admin/configuracoes#endereco` abre a aba onde ele está e
+// rola até ele (o Início e o medidor de completude levam assim ao campo certo).
+export interface Campo {
+  id: string;
+  label: string;
+  hint?: string;
+  tipo?: 'text' | 'textarea' | 'number' | 'fuso';
+  placeholder?: string;
+}
+
+export interface Secao {
+  titulo: string;
+  nota?: string;
+  campos: Campo[];
+  /** O `id` do bloco — para onde aponta `/admin/configuracoes#<ancora>`. */
+  ancora: string;
+  previaDoMapa?: boolean;
+}
+
+interface Props {
+  secao: Secao;
+  valor: (id: string) => string;
+  opcoesDeFuso: { id: string; texto: string }[];
+  fusoAtual: string;
+  mapaAgora: string | null;
+}
+
+const { secao, valor, opcoesDeFuso, fusoAtual, mapaAgora } = Astro.props;
+
+// O campo que o Salvar recusou ganha `aria-invalid` (o script da página): a borda fica vermelha.
+const CAMPO = 'w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-sm text-slate-900 focus:border-teal/50 focus:outline-none transition-colors aria-[invalid=true]:border-red-500';
+---
+
+<section id={secao.ancora} class="border border-slate-200 rounded-lg p-4 sm:p-5 bg-slate-50 scroll-mt-32">
+  <h2 class="text-sm font-bold uppercase tracking-[0.15em] text-slate-700 mb-1">{secao.titulo}</h2>
+  {secao.nota && <p class="text-xs text-slate-500 mb-4">{secao.nota}</p>}
+  <div class:list={['space-y-4', !secao.nota && 'mt-4']}>
+    {secao.campos.map((campo) => (
+      <div>
+        <label for={campo.id} class="block text-xs font-medium text-slate-500 mb-1.5">{campo.label}</label>
+        {campo.tipo === 'fuso' ? (
+          <>
+            <select id={campo.id} data-campo={campo.id} class={CAMPO}>
+              {opcoesDeFuso.map((o) => <option value={o.id} selected={o.id === fusoAtual}>{o.texto}</option>)}
+            </select>
+            <p id="fuso-agora" class="text-[11px] text-slate-500 mt-1.5" aria-live="polite"></p>
+          </>
+        ) : campo.tipo === 'textarea' ? (
+          <textarea
+            id={campo.id}
+            data-campo={campo.id}
+            rows="3"
+            placeholder={campo.placeholder}
+            class:list={[CAMPO, 'placeholder:text-slate-300 resize-y']}
+          >{valor(campo.id)}</textarea>
+        ) : (
+          <input
+            id={campo.id}
+            data-campo={campo.id}
+            data-tipo={campo.tipo ?? 'text'}
+            type={campo.tipo === 'number' ? 'number' : 'text'}
+            value={valor(campo.id)}
+            placeholder={campo.placeholder}
+            class:list={[CAMPO, 'placeholder:text-slate-300']}
+          />
+        )}
+        {campo.hint && <p class="text-[11px] text-slate-400 mt-1.5 leading-relaxed">{campo.hint}</p>}
+      </div>
+    ))}
+    {/* A prévia do mapa (11/10/2026): o dono vê o ponto enquanto digita, em vez
+        de salvar e ir conferir no site. Mesma função do site (`lib/mapa.ts`). */}
+    {secao.previaDoMapa && (
+      <div>
+        <p class="block text-xs font-medium text-slate-500 mb-1.5">Como o mapa aparece no seu site</p>
+        <iframe id="mapa-previa" title="Prévia do mapa do seu site" src={mapaAgora ?? undefined} hidden={!mapaAgora}
+          loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+          class="w-full h-56 rounded border border-slate-200 bg-white"></iframe>
+        <p id="mapa-previa-vazia" hidden={!!mapaAgora} class="text-[11px] text-slate-400">Sem endereço, o site não mostra mapa.</p>
+        <p class="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+          A prévia acompanha o que você digita. Ponto errado? Escreva na busca o nome da barbearia + rua + bairro +
+          cidade e salve: o Início do painel pergunta de novo se o ponto está certo.
+        </p>
+      </div>
+    )}
+  </div>
+</section>

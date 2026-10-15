@@ -93,14 +93,14 @@ function bloqueiosDe(e: EstadoDaBarbearia): Item[] {
     id: 'whatsapp',
     titulo: 'Informe o WhatsApp',
     porque: 'É o botão que o cliente mais aperta no site. Vazio, ele não leva a lugar nenhum.',
-    href: '/admin/configuracoes', peso: 0,
+    href: '/admin/configuracoes#contatos', peso: 0,
   });
 
   if (vazio(e.addressStreet) || vazio(e.addressCity)) b.push({
     id: 'endereco',
     titulo: 'Informe o endereço',
     porque: 'O cliente não descobre onde é, e o mapa e a rota não abrem.',
-    href: '/admin/configuracoes', peso: 0,
+    href: '/admin/configuracoes#endereco', peso: 0,
   });
 
   return b;
@@ -115,27 +115,27 @@ function pendenciasDe(e: EstadoDaBarbearia): { faltando: Item[]; total: number }
     { id: 'logo', peso: 20, ok: !vazio(e.logoPath),
       titulo: 'Suba a logo',
       porque: 'Sem ela o topo do site mostra só o nome escrito.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#imagens' },
 
     { id: 'horarios-publicados', peso: 15, ok: e.horariosPublicados > 0,
       titulo: 'Publique os horários de funcionamento',
       porque: '"Vocês abrem domingo?" é a pergunta que mais chega no WhatsApp.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#horario-do-site' },
 
     { id: 'sobre', peso: 15, ok: !vazio(e.aboutText),
       titulo: 'Escreva o texto sobre a barbearia',
       porque: 'É o que aparece no rodapé, para o cliente conhecer a barbearia antes de ir.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#textos' },
 
     { id: 'tagline', peso: 15, ok: !vazio(e.tagline),
       titulo: 'Escreva a frase do topo',
       porque: 'É a primeira coisa que o cliente lê. Sem ela, o topo fica genérico.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#textos' },
 
     { id: 'hero', peso: 10, ok: !vazio(e.heroPath),
       titulo: 'Suba uma foto de capa',
       porque: 'Opcional: sem foto o topo usa uma versão só com texto, que também fica boa.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#imagens' },
 
     // A pergunta que evita: "como eu coloco as fotos dos meus cortes no site?".
     { id: 'galeria', peso: 10, ok: e.fotosNaGaleria >= MINIMO_PARA_APARECER,
@@ -146,24 +146,24 @@ function pendenciasDe(e: EstadoDaBarbearia): { faltando: Item[]; total: number }
     { id: 'cor', peso: 10, ok: !vazio(e.accentColor) && e.accentColor !== ACCENT_PADRAO,
       titulo: 'Escolha a cor da sua marca',
       porque: 'O site está no verde padrão do sistema, igual ao de todo mundo.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#cor' },
 
     { id: 'instagram', peso: 5, ok: !vazio(e.instagramUrl),
       titulo: 'Ligue o Instagram',
       porque: 'O botão do rodapé leva o cliente para o seu perfil.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#contatos' },
 
     // A nota e a quantidade, e não o link: é com as duas que o site mostra a nota. Até
     // 13/10/2026 bastava o link — e a nota não aparecia em site nenhum (§4.11).
     { id: 'avaliacoes', peso: 5, ok: notaDoGoogle(e.googleRating, e.googleReviewCount) !== null,
       titulo: 'Ligue as avaliações do Google',
       porque: 'Mostra sua nota real no site — quem tem avaliação boa vende mais.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#avaliacoes' },
 
     { id: 'seo', peso: 5, ok: !vazio(e.seoTitle) && !vazio(e.seoDescription),
       titulo: 'Ajuste como o site aparece no Google',
       porque: 'É o título e a descrição que saem na busca.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#busca' },
   ];
 
   const total = todos.reduce((s, i) => s + i.peso, 0);

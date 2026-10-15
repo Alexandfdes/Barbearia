@@ -530,7 +530,7 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
       passos.append(
         el('li', {}, el('a', { href: '/admin/galeria' }, 'Suba fotos dos seus cortes'),
           ' — a galeria aparece no site a partir de 3.'),
-        el('li', {}, el('a', { href: '/admin/configuracoes' }, 'Suba a logo e uma foto de capa'), '.'),
+        el('li', {}, el('a', { href: '/admin/configuracoes#imagens' }, 'Suba a logo e uma foto de capa'), '.'),
       );
       pronto.append(passos);
 

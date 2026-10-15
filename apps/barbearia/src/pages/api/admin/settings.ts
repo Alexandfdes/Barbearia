@@ -85,9 +85,12 @@ export const PATCH: APIRoute = async ({ request }) => {
 
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
+    // A mensagem é para o dono ler; o campo, para a tela abrir a aba dele e pôr o cursor
+    // nele (`pages/admin/configuracoes.astro`). Até 15/10/2026 o campo ia grudado na
+    // mensagem — "googleRating: A nota deve ser…" —, e com as abas o campo errado podia
+    // estar escondido noutra.
     const issue = parsed.error.issues[0];
-    const campo = issue.path.join('.') || 'campo';
-    return json({ error: `${campo}: ${issue.message}` }, 400);
+    return json({ error: issue.message, campo: issue.path.join('.') || null }, 400);
   }
 
   const d = parsed.data;
