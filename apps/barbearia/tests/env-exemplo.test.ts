@@ -27,6 +27,7 @@ const NAO_SAO_CONFIGURACAO: Record<string, string> = {
   TZ_BARBEARIA: 'não é mais lida: o boot só avisa quem ainda a tiver (`scripts/startup.mjs`)',
   ADMIN_NEW_PASSWORD: 'a senha nova de um dono, passada na linha de comando do `scripts/set-admin-password.mjs`',
   SENHA_INICIAL: 'a senha do dono, passada na linha de comando do `scripts/provisionar.mts`',
+  DEV: 'o Astro define — verdadeiro no `npm run dev`, falso no build; não é variável do servidor (`src/middleware.ts`)',
 };
 
 /** O código sem os comentários — que é onde as variáveis antigas ficam registradas. */

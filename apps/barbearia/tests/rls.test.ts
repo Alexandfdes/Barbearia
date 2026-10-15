@@ -288,6 +288,8 @@ describe('a rede não tem furo por descuido', () => {
                                           // não lê tabela de barbearia nenhuma
       'src/lib/fusoDaBarbearia.ts',       // o fuso de Configurações mora em `tenants`, que o papel do app só lê
                                           // (0003): um UPDATE só, com o WHERE na barbearia da sessão
+      'src/lib/bancoAtrasado.ts',         // só no `npm run dev`: lê os nomes da `schema_migrations` para dizer
+                                          // que faltam migrations; não lê tabela de barbearia nenhuma
     ];
 
     const arquivos = [...globSync('src/**/*.ts'), ...globSync('src/**/*.astro')]
