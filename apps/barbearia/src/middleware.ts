@@ -42,6 +42,7 @@ import { ROTA_DO_CANCELAMENTO, ROTA_DO_CARTAO, TELA_DE_ASSINATURA } from './lib/
 import { motivoDaRecusa, respostaDaRecusa } from './lib/origem.js';
 import { ehRotaDoOperador } from './lib/operador.js';
 import { ROTAS_DA_EXPORTACAO } from './lib/exportacao.js';
+import { faltamNoBanco, respostaDoBancoAtrasado } from './lib/bancoAtrasado.js';
 
 export const onRequest = defineMiddleware(async (contexto, next) => {
   const caminho = new URL(contexto.request.url).pathname;
@@ -55,6 +56,15 @@ export const onRequest = defineMiddleware(async (contexto, next) => {
   if (recusa) {
     console.warn(`[origem] recusado ${contexto.request.method} ${caminho}: ${recusa}`);
     return respostaDaRecusa(caminho);
+  }
+
+  // No desenvolvimento, o banco atrás do código — migration nova que chegou com o servidor
+  // ligado — vira uma tela que diz o que fazer, em vez da primeira consulta que falha
+  // (`lib/bancoAtrasado.ts`). Antes de qualquer rota que consulte o banco. Em produção, o
+  // boot aplica as migrations antes de o servidor subir.
+  if (import.meta.env.DEV) {
+    const faltam = await faltamNoBanco();
+    if (faltam.length > 0) return respostaDoBancoAtrasado(faltam, caminho);
   }
 
   // As tarefas agendadas (`pages/api/tarefas/`) não são de barbearia nenhuma, e
