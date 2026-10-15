@@ -140,6 +140,10 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   `apps/barbearia/src/pages/admin/configuracoes.astro`, e link para ele usa
   `/admin/configuracoes#<ancora>` — a tela abre a aba certa (`tests/configuracoes-em-abas.test.ts`;
   `docs/PENDENCIAS-ABERTAS.md` §2.45).
+- **A lateral do painel fica presa na tela** no computador (`AdminLayout` e `OperadorLayout`, iguais):
+  janela nova de tela (`fixed inset-0`) leva `z-index` acima de 40, para escurecer a lateral junto;
+  barra fixa de ponta a ponta, abaixo de 40, para não cobrir o Sair (`tests/barra-lateral-presa.test.ts`;
+  `docs/PENDENCIAS-ABERTAS.md` §2.46).
 - **Data com nome de mês ou de dia da semana leva `{ locale: ptBR }`** — sem ele, o `date-fns`
   escreve "20 de Oct · Tue" (`tests/datas-em-portugues.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.44).
 - **Tela do painel não chama rota do site** (`/api/services`, `/api/slots`…): elas acham a
