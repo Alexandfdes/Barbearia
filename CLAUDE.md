@@ -131,6 +131,11 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **O JSON-LD só diz o que a barbearia mostra** — nada escrito à mão: o horário fixo mentia para o
   Google, e a nota copiada dele ia contra a regra dele (`tests/horario-dos-buscadores.test.ts`;
   `docs/PENDENCIAS-ABERTAS.md` §2.41 e `docs/PENDENCIAS-ABERTAS.md` §4.11).
+- **Quanto vale um atendimento, e a receita, saem de `apps/barbearia/src/lib/valorDoAtendimento.ts`**
+  (no banco, `apps/barbearia/src/lib/receita.ts`): o concluído soma os itens da comanda. Tela nova
+  que mostre um ou outro usa a regra, não a sua conta — cada tela fazia a sua, e a linha da agenda
+  dizia R$ 50 onde a receita contava R$ 80 (`tests/valor-do-atendimento.test.ts`;
+  `docs/PENDENCIAS-ABERTAS.md` §2.43).
 - **Tela do painel não chama rota do site** (`/api/services`, `/api/slots`…): elas acham a
   barbearia pelo endereço, e o painel é central — dá 404. Use a de `/api/admin/`, pela sessão
   (`tests/vagas-do-painel.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.38).

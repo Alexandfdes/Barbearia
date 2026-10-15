@@ -44,6 +44,7 @@
 | **13/10** | **Todo conteúdo do site numa área da página**, pedido por você: o topo de cinco telas — o agendar, a área do cliente (a de entrar e a de dentro), o link do horário e o portal — e o botão do WhatsApp estavam fora de qualquer área, e quem navega de área em área com o leitor de tela passava por cima. Eram seis telas, não as três do §2.39. A aparência não mudou | `PENDENCIAS-ABERTAS.md` §2.40 |
 | **13/10** | **O horário que o site diz ao Google é o que ele mostra**, pedido por você — ia fixo para toda barbearia, segunda a sexta até as 20h; na dúvida, nenhum horário, e a faixa de preço fixa saiu. **E o menu do celular e o carrossel dos depoimentos para quem usa teclado, leitor de tela ou pede menos movimento.** A aparência não mudou | `PENDENCIAS-ABERTAS.md` §2.41 |
 | **15/10** | **O servidor de desenvolvimento diz quando o banco está atrás do código**, pedido por você: com migration nova chegando e o `npm run dev` ligado, toda página dava "Failed query". Agora a tela diz quais faltam e manda reiniciar. Só no desenvolvimento | `PENDENCIAS-ABERTAS.md` §2.42 |
+| **15/10** | **O atendimento fechado com extras vale o serviço e os extras em toda tela**, achado por você testando: a linha da agenda, o detalhe e o "Receita prevista" do Início mostravam só o preço do serviço, e a receita da agenda somava os extras. Agora a linha, o detalhe, a comanda, a ficha do cliente e o Início fazem a mesma conta | `PENDENCIAS-ABERTAS.md` §2.43 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -2023,6 +2024,50 @@ medido: 14,5:1 no texto, 9,1:1 na caixa do que fazer. O build de produção não
 `apps/barbearia/tests/banco-atrasado.test.ts` — a conta, a tela, o lugar dela no middleware e a
 leitura de um banco de verdade.
 
+### 2.43 ✅ `[TÉCNICO]` O atendimento fechado com extras: a linha da agenda, o detalhe e o Início mostravam só o preço do serviço — RESOLVIDO em 15/10/2026
+
+**O que aconteceu, em 15/10/2026,** testando o painel: você concluiu o corte de R$ 50 das 09:00 e
+lançou mais R$ 30 na comanda. A linha continuou "R$ 50", e a receita do topo, R$ 130, já somava os
+30. Cada tela fazia a sua conta. A receita da agenda do dia somava os itens da comanda dos
+concluídos e a venda avulsa; a linha e o "Valor" do detalhe, não. E o "Receita prevista" do Início
+(`apps/barbearia/src/pages/admin/index.astro`) somava no banco só o preço do serviço: no dia do seu
+teste, a conta dele dá R$ 100 — o mesmo nome, outro número —, e o mesmo valia para os cards "Esta
+semana" e "Este mês" e para o gráfico da semana. **Achados no caminho, do mesmo jeito:** a comanda de um agendamento de combo
+dava um total sem o produto do combo, que a receita somava ao fechar; o histórico da ficha do
+cliente mostrava cada visita sem os extras, e o "gasto total" da mesma ficha somava; e a linha
+fechada sem recarregar ficava com a borda vermelha do "Atrasado" e a hora escura, até alguém
+recarregar a página.
+
+**O que mudou** (pedido por você em 15/10): uma regra só,
+`apps/barbearia/src/lib/valorDoAtendimento.ts`. O concluído vale o serviço e os itens da comanda —
+os extras e o produto do combo. O confirmado vale o serviço: o produto do combo, que nasce com o
+agendamento, só conta quando o atendimento é concluído, a regra que o relatório do mês já seguia.
+Cancelado e falta ficam fora da receita, e a linha mostra o preço do serviço, apagada. A receita é
+a soma das linhas que contam, mais a venda avulsa. A agenda do dia faz a conta pela regra no
+servidor e no navegador; o Início, com o que `apps/barbearia/src/lib/receita.ts` traz do banco; a
+ficha do cliente, com a soma dos itens de cada visita. A comanda mostra o que já está no
+agendamento ("já no agendamento") e o conta no total. E a linha que muda na hora sai igual à da
+página recarregada: a aparência de cada situação mora num lugar só
+(`apps/barbearia/src/lib/situacaoNaAgenda.ts`), usado pela lista e pelo script da página.
+*Rejeitados:* mostrar na linha o serviço e os extras separados ("R$ 50 + R$ 30") — no celular a
+linha não tem largura para isso, e o detalhe mostra o que o valor soma; e fazer a conta do Início
+no banco, com `SUM` e `CASE` — seria uma segunda cópia da regra, que teria de mudar junto com a
+primeira: o banco traz os atendimentos, e a regra decide.
+
+**Visto rodando:** contra o build, no navegador, numa barbearia de teste com um corte de R$ 50, um
+combo de R$ 50 com o produto de R$ 30 e R$ 25 de venda avulsa. Fechando a comanda do corte com a
+barba de R$ 30, a linha passou a R$ 80, em cinza, sem recarregar — e igual depois de recarregar,
+borda e cores inclusive. O detalhe diz "Corte masculino + Barba · … · R$ 80"; a comanda do combo
+mostra o produto e fecha em R$ 80; a receita do topo e o "Receita prevista" do Início deram o mesmo
+número, R$ 185; a ficha do cliente mostra a visita por R$ 80. O build anterior, no mesmo roteiro:
+R$ 50 na linha, R$ 50 na comanda do combo, a borda vermelha depois de fechar e R$ 100 no Início.
+Guarda: `apps/barbearia/tests/valor-do-atendimento.test.ts` — a regra, as telas fazendo a conta
+por ela, e no banco: o Início, a comanda fechada pela rota de verdade e a ficha do cliente.
+
+**Visto e não mexido:** a área do cliente (`apps/barbearia/src/pages/cliente/index.astro`) mostra
+cada visita pelo preço do serviço, sem os extras — a página do agendamento (`/a/…`) já mostra o
+total. Para o cliente a conta é outra, o que ele paga, combo incluído; fica para quando você quiser.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -3655,6 +3700,9 @@ carrossel dos depoimentos (§2.41).
 
 **15/10/2026, pedido por você, ✅ feito:** o servidor de desenvolvimento diz quando o banco está
 atrás do código, em vez de "Failed query" em toda página (§2.42).
+
+**15/10/2026, achado por você testando, ✅ feito:** o atendimento fechado com extras, com o mesmo
+valor na linha da agenda, no detalhe, na comanda, na ficha do cliente e no Início (§2.43).
 
 **Onda 2 — antes de abrir o cadastro público.**
 
