@@ -47,6 +47,7 @@
 | **15/10** | **O atendimento fechado com extras vale o serviço e os extras em toda tela**, achado por você testando: a linha da agenda, o detalhe e o "Receita prevista" do Início mostravam só o preço do serviço, e a receita da agenda somava os extras. Agora a linha, o detalhe, a comanda, a ficha do cliente e o Início fazem a mesma conta; e, pedido por você no mesmo dia, a área do cliente mostra o total de cada visita | `PENDENCIAS-ABERTAS.md` §2.43 |
 | **15/10** | **Datas em português**, achadas no caminho: a área do cliente dizia "20 de Oct · Tue", e o Início, "16 de Oct" | `PENDENCIAS-ABERTAS.md` §2.44 |
 | **15/10** | **Configurações em quatro abas**, escolhidas por você entre três formas — a tela era uma rolagem só, com nove blocos. Um Salvar só; os links do Início e do medidor levam ao bloco certo; a recusa do Salvar abre a aba do campo | `PENDENCIAS-ABERTAS.md` §2.45 |
+| **15/10** | **A barra lateral presa na tela**, pedido por você: rolava junto com a página, e no fim de uma tela longa o menu tinha sumido. No computador, agora fica presa — o menu que não cabe rola por dentro, e o Sair fica sempre à vista; no celular, nada muda. A do painel do operador também | `PENDENCIAS-ABERTAS.md` §2.46 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -2141,6 +2142,47 @@ Guarda: `apps/barbearia/tests/configuracoes-em-abas.test.ts`.
 contraste de 2,5:1, abaixo dos 4,5:1 recomendados para leitura. Já era assim antes das abas; o
 axe-core acusa 20 delas.
 
+### 2.46 ✅ `[TÉCNICO]` A barra lateral do painel rolava junto com a página — RESOLVIDO em 15/10/2026
+
+**O que aconteceu, em 15/10/2026,** testando Configurações: *"deixe essa barra lateral congelada, pra
+quando rolar a tela pra baixo continuar vendo as funções"*. A lateral tinha a altura da página inteira
+e rolava junto: no fim de uma tela longa — a aba Aparência de Configurações tem 2.242 px —, o menu
+tinha subido e sumido, e para trocar de tela era preciso rolar tudo de volta.
+
+**O que mudou:** no computador, a lateral tem a altura da janela e fica presa enquanto a página rola
+(`apps/barbearia/src/layouts/AdminLayout.astro`). O menu que não cabe na janela rola por dentro, com
+uma barra de rolagem fina e escura — a padrão do Windows seria uma faixa clara no meio da lateral
+escura —, e o rodapé com o nome e o Sair fica sempre à vista. No celular, nada muda: é a gaveta que o
+botão do topo abre. O painel do operador ganhou o mesmo
+(`apps/barbearia/src/layouts/OperadorLayout.astro`): a lateral dele é a do barbeiro, por decisão de
+12/10 (§3.9).
+
+**Para o menu não rolar à toa:** o menu inteiro do dono pedia uma janela de 889 px de altura; agora,
+853 (medido no build). Os grupos ficaram a 16 px um do outro, em vez de 20; o último perdeu a sobra de
+baixo; e o Sair deixou de carregar a sobra da linha de texto em volta dele. Sem isso, numa janela entre
+as duas alturas, o menu mostraria todos os itens e ainda rolaria uns pixels por dentro, só por causa de
+espaço vazio. A sua, pela captura de 15/10, tem perto de 866 px — estimado pela foto, não medido.
+
+**O que a lateral presa deixa à vista o tempo todo:** a ordem do que fica por cima. Ela fica acima da
+barra de salvar de Configurações, que vai de ponta a ponta da tela — já ficava: item de flex com
+`z-index` empilha mesmo sem posição, e no build anterior o Sair já era clicável por cima da barra — e
+abaixo das janelas das telas (a venda de produto, o detalhe do agendamento, a comanda…), que escurecem
+tudo, a lateral junto. O teste confere os dois lados em toda janela e toda barra fixa do painel.
+
+**Visto rodando:** contra o build, no navegador, 29 conferências. Em Configurações rolada até o fim, a
+900 px de altura: a lateral de cima a baixo da janela, com o Início, o Relatórios e o Sair à vista, e o
+Sair clicável; as abas seguem presas abaixo do topo; o Salvar, clicável; o clique em Relatórios, com a
+tela rolada, abre Relatórios. Na agenda do dia, a janela "Vender produto" por cima da lateral. A 600
+px, o menu rolando por dentro — pela roda do mouse e pelo Tab, até o Relatórios —, com o Sair no
+rodapé. A divisa: a 853 px o menu não rola, a 852 rola. No celular, a gaveta abrindo e fechando, sem a
+página rolar de lado. No operador, a lateral presa na tela Sistema. Sem erro de JavaScript. O build
+anterior, no mesmo roteiro, reprovou 12 delas. E as 23 conferências das abas de Configurações
+(§2.45), de novo, passando. Guarda: `apps/barbearia/tests/barra-lateral-presa.test.ts`.
+
+**Visto e não mexido:** no celular, com a gaveta aberta em Configurações, a barra de salvar não
+escurece com o resto da tela — fica clara, por cima do véu —, e um toque no Salvar, ao lado da gaveta,
+salva em vez de fechá-la. As duas têm o mesmo `z-30`, e a barra vem depois. Já era assim antes.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -3777,7 +3819,8 @@ atrás do código, em vez de "Failed query" em toda página (§2.42).
 **15/10/2026, achado por você testando, ✅ feito:** o atendimento fechado com extras, com o mesmo
 valor na linha da agenda, no detalhe, na comanda, na ficha do cliente e no Início (§2.43). Depois,
 pedido por você, a área do cliente com o total de cada visita (§2.43); e, achadas no caminho, as
-datas em português (§2.44). E Configurações em abas, como você escolheu (§2.45).
+datas em português (§2.44). E Configurações em abas, como você escolheu (§2.45), e a barra lateral
+presa na tela, pedida por você (§2.46).
 
 **Onda 2 — antes de abrir o cadastro público.**
 
