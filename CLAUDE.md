@@ -134,8 +134,10 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **Quanto vale um atendimento, e a receita, saem de `apps/barbearia/src/lib/valorDoAtendimento.ts`**
   (no banco, `apps/barbearia/src/lib/receita.ts`): o concluído soma os itens da comanda. Tela nova
   que mostre um ou outro usa a regra, não a sua conta — cada tela fazia a sua, e a linha da agenda
-  dizia R$ 50 onde a receita contava R$ 80 (`tests/valor-do-atendimento.test.ts`;
-  `docs/PENDENCIAS-ABERTAS.md` §2.43).
+  dizia R$ 50 onde a receita contava R$ 80. Para o cliente, `totalParaOCliente`: o combo conta
+  desde o agendamento (`tests/valor-do-atendimento.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.43).
+- **Data com nome de mês ou de dia da semana leva `{ locale: ptBR }`** — sem ele, o `date-fns`
+  escreve "20 de Oct · Tue" (`tests/datas-em-portugues.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.44).
 - **Tela do painel não chama rota do site** (`/api/services`, `/api/slots`…): elas acham a
   barbearia pelo endereço, e o painel é central — dá 404. Use a de `/api/admin/`, pela sessão
   (`tests/vagas-do-painel.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.38).
