@@ -14,8 +14,9 @@ import { tenantDaSessao } from '../../../lib/tenant.js';
 import { getSettings } from '../../../lib/settings.js';
 import { reais } from '../../../lib/dinheiro.js';
 import { diaDaSemana, faixaDoDia, type Semana } from '../../../lib/gradeDeHorarios.js';
-import type { DadosDaAgenda } from '../../../lib/agendaDoDia.js';
+import type { DadosDaAgenda, ItemDaComanda } from '../../../lib/agendaDoDia.js';
 import { fusoDe } from '../../../lib/timezone.js';
+import { receitaDe, somaDosItens, valorDoAtendimento } from '../../../lib/valorDoAtendimento.js';
 
 
 // Até 13/10/2026 morava aqui a janela fixa de 08:00 às 19:00 da linha do tempo antiga —
@@ -81,20 +82,29 @@ const apptRows = (await db
   .orderBy(appointments.startsAt)
   );
 
-// Itens por agendamento (produto do combo Boris + extras da comanda). Usado pra
-// somar produtos na receita do dia — mesma base do relatório mensal.
+// Os itens da comanda de cada agendamento: o produto do combo, que nasce com o
+// agendamento, e os extras lançados ao fechar. Quando eles contam — na linha, no
+// detalhe e na receita — é a regra de `lib/valorDoAtendimento.ts`.
 const apptIds = apptRows.map(a => a.id);
-const itemsByAppt = new Map<number, number>();
+const itensPorAtendimento = new Map<number, ItemDaComanda[]>();
 if (apptIds.length > 0) {
   const itemRows = (await db
-    .select({ appointmentId: appointmentItems.appointmentId, priceCents: appointmentItems.priceCents })
+    .select({ appointmentId: appointmentItems.appointmentId, name: appointmentItems.name, priceCents: appointmentItems.priceCents })
     .from(appointmentItems)
     .where(and(inArray(appointmentItems.appointmentId, apptIds), eq(appointmentItems.tenantId, tenant.id)))
+    .orderBy(appointmentItems.id)
     );
   for (const it of itemRows) {
-    itemsByAppt.set(it.appointmentId, (itemsByAppt.get(it.appointmentId) ?? 0) + it.priceCents);
+    itensPorAtendimento.set(it.appointmentId, [
+      ...(itensPorAtendimento.get(it.appointmentId) ?? []),
+      { name: it.name, priceCents: it.priceCents },
+    ]);
   }
 }
+const itensDe = (id: number): ItemDaComanda[] => itensPorAtendimento.get(id) ?? [];
+/** O agendamento com a soma dos itens dele — o que a regra do valor pede. */
+const paraOValor = (a: { id: number; status: string; priceCents: number }) =>
+  ({ status: a.status, priceCents: a.priceCents, itemsCents: somaDosItens(itensDe(a.id)) });
 
 // Vendas de produto avulsas do dia (sem agendamento) — entram no faturamento como produto.
 const saleRows = (await db
@@ -181,7 +191,10 @@ interface ApptView {
   serviceName: string;
   timeLocal: string;
   endTimeLocal: string;
+  /** O preço do serviço agendado. */
   price: string;
+  /** Quanto o atendimento vale — com os itens da comanda, se concluído (`lib/valorDoAtendimento.ts`). */
+  valor: string;
   /** Telefone normalizado p/ wa.me (55+DDD+número) ou null se inválido */
   wa: string | null;
   telUrl: string;
@@ -229,6 +242,7 @@ const apptList: ApptView[] = apptRows.map(a => {
     timeLocal:       time,
     endTimeLocal:    endTime,
     price:           reais(a.priceCents),
+    valor:           reais(valorDoAtendimento(paraOValor(a))),
     wa,
     telUrl:          `tel:+${telDigits}`,
     isPast:          new Date(a.endsAt) <= nowUtc,
@@ -252,14 +266,11 @@ const blockList: BlockView[] = timeOffRows
   };
 });
 
-// Receita do dia: serviço de confirmados + concluídos, e os produtos/comanda dos
-// concluídos (produto só conta quando concluído — mesma regra do relatório mensal).
-const revenueCents = apptRows
-  .filter(a => a.status === 'confirmed' || a.status === 'completed')
-  .reduce((sum, a) => sum + a.priceCents + (a.status === 'completed' ? (itemsByAppt.get(a.id) ?? 0) : 0), 0)
-  + salesCents;
-const revenueLabel = reais(revenueCents);
-const revenueCount = apptRows.filter(a => a.status === 'confirmed' || a.status === 'completed').length;
+// Receita do dia: o valor de cada confirmado e concluído — a soma das linhas que contam —,
+// mais a venda avulsa. A regra, e por que ela mora num lugar só: `lib/valorDoAtendimento.ts`.
+const receitaDoDia = receitaDe(apptRows.map(paraOValor), salesCents);
+const revenueLabel = reais(receitaDoDia.centavos);
+const revenueCount = receitaDoDia.considerados;
 
 // Próximo agendamento (confirmed que ainda não acabou)
 const nextAppt = apptList.find(a => a.status === 'confirmed' && !a.isPast) ?? null;
@@ -340,7 +351,8 @@ const apptsLite = apptList.map(a => ({
   barberId:          a.barberId,
   durationMinutes:   a.durationMinutes,
   priceCents:        a.priceCents,
-  itemsCents:        itemsByAppt.get(a.id) ?? 0,
+  items:             itensDe(a.id),
+  itemsCents:        somaDosItens(itensDe(a.id)),
   price:             a.price,
   timeLocal:         a.timeLocal,
   endTimeLocal:      a.endTimeLocal,
@@ -1050,9 +1062,13 @@ const clientData: DadosDaAgenda = {
       </div>
 
       <div class="px-5 py-4 space-y-4">
-        <div class="flex items-center justify-between text-sm">
-          <span id="cm-main-name" class="text-slate-700 truncate">Serviço</span>
-          <span id="cm-main-price" class="text-slate-800 tabular-nums shrink-0 ml-3">R$ 0</span>
+        <div>
+          <div class="flex items-center justify-between text-sm">
+            <span id="cm-main-name" class="text-slate-700 truncate">Serviço</span>
+            <span id="cm-main-price" class="text-slate-800 tabular-nums shrink-0 ml-3">R$ 0</span>
+          </div>
+          {/* O que já está no agendamento — o produto do combo: entra no total, e não sai daqui. */}
+          <div id="cm-itens"></div>
         </div>
 
         <div>
@@ -1138,6 +1154,8 @@ const clientData: DadosDaAgenda = {
   import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
   import { diaDaSemana, horariosLivres, horariosParaMover, ocupacaoDoBarbeiro } from '../../../lib/gradeDeHorarios';
   import type { DadosDaAgenda, FichaDoCliente, VisitaDoHistorico } from '../../../lib/agendaDoDia';
+  import { itensContam, receitaDe, somaDosItens, valorDoAtendimento } from '../../../lib/valorDoAtendimento';
+  import { aparenciaDaSituacao, BORDAS_DA_SITUACAO, linhaApagada } from '../../../lib/situacaoNaAgenda';
 
   // Os tipos deste script (`as`, `!`, parâmetros) só servem ao conferidor de tipos:
   // somem no build e não mudam o que roda. Os elementos com `as` existem sempre no
@@ -1411,25 +1429,38 @@ const clientData: DadosDaAgenda = {
     const appt = clientData.appts.find(a => String(a.id) === String(id));
     if (appt) appt.status = newStatus;
 
-    // Atualiza a linha na lista (AgendaLista) sem precisar recarregar
+    // Refaz a linha (AgendaLista) sem recarregar, igual à da página recarregada: a borda,
+    // a hora e o nome apagados, o valor e o rótulo (`lib/situacaoNaAgenda.ts`). Até
+    // 15/10/2026 a borda e a hora ficavam como estavam — o atendimento atrasado, concluído,
+    // continuava com a borda vermelha do "Atrasado".
     const row = document.querySelector(`[data-list-appt="${id}"]`);
     if (row) {
-      row.classList.add('opacity-70');
-      const nameEl = row.querySelector('.min-w-0 > p:first-child');
-      if (nameEl) {
-        nameEl.classList.remove('text-slate-900');
-        nameEl.classList.add('text-slate-500', 'line-through', 'decoration-1');
+      const st = aparenciaDaSituacao(newStatus);
+      const apagada = linhaApagada(newStatus);
+      row.classList.remove(...BORDAS_DA_SITUACAO);
+      row.classList.add(st.borda);
+      row.classList.toggle('opacity-70', apagada);
+      const horaEl = row.querySelector('[data-list-hora]');
+      if (horaEl) {
+        horaEl.classList.toggle('text-slate-500', apagada);
+        horaEl.classList.toggle('text-slate-900', !apagada);
       }
-      const priceEl = row.querySelector('.text-right > p:first-child');
+      const nameEl = row.querySelector('[data-list-nome]');
+      if (nameEl) {
+        nameEl.classList.toggle('text-slate-900', !apagada);
+        for (const c of ['text-slate-500', 'line-through', 'decoration-1']) nameEl.classList.toggle(c, apagada);
+      }
+      const priceEl = row.querySelector('[data-list-valor]');
       if (priceEl) {
-        priceEl.classList.remove('text-teal');
-        priceEl.classList.add('text-slate-400');
+        priceEl.classList.toggle('text-teal', !apagada);
+        priceEl.classList.toggle('text-slate-400', apagada);
+        // O concluído passa a valer o serviço e os itens da comanda (`lib/valorDoAtendimento.ts`).
+        if (appt) priceEl.textContent = reais(valorDoAtendimento(appt));
       }
       const badge = row.querySelector('[data-list-status]');
       if (badge) {
-        if (newStatus === 'completed')      { badge.textContent = '✓ Concluído'; badge.className = 'text-[10px] tabular-nums text-teal/80'; }
-        else if (newStatus === 'cancelled') { badge.textContent = '✕ Cancelado'; badge.className = 'text-[10px] tabular-nums text-red-600/80'; }
-        else if (newStatus === 'no_show')   { badge.textContent = '✗ No-show';   badge.className = 'text-[10px] tabular-nums text-amber-600/80'; }
+        badge.textContent = st.rotulo;
+        badge.className = `text-[10px] tabular-nums ${st.classe}`.trim();
       }
     }
 
@@ -1437,20 +1468,9 @@ const clientData: DadosDaAgenda = {
   }
 
   function recalculateRevenue() {
-    let total = 0;
-    let count = 0;
-    for (const a of clientData.appts) {
-      if (a.status === 'confirmed') {
-        total += a.priceCents || 0;
-        count++;
-      } else if (a.status === 'completed') {
-        // Concluído soma o serviço + produtos/comanda (itemsCents)
-        total += (a.priceCents || 0) + (a.itemsCents || 0);
-        count++;
-      }
-    }
-    // Vendas de produto avulsas do dia entram na receita (não no contador de agendamentos)
-    total += clientData.salesCents || 0;
+    // A mesma conta do servidor: o valor de cada confirmado e concluído, mais a venda
+    // avulsa — que não entra no contador de agendamentos (`lib/valorDoAtendimento.ts`).
+    const { centavos: total, considerados: count } = receitaDe(clientData.appts, clientData.salesCents || 0);
     const rev = document.querySelector('section [class*="text-teal"][class*="text-3xl"]');
     if (rev) rev.textContent = reais(total);
     const countEl = document.querySelector('section .text-xs.text-slate-500.mt-0\\.5');
@@ -1745,7 +1765,8 @@ const clientData: DadosDaAgenda = {
         // o fuso de quem abre — e um corte às 23:30 saía com a data do dia seguinte.
         const dateLabel = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit', timeZone: TZ });
         const timeLabel = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
-        const price = reais(h.priceCents);
+        // A visita concluída vale o serviço e os itens da comanda — como na linha da agenda.
+        const price = reais(valorDoAtendimento(h));
         const statusColor = h.status === 'completed' ? 'text-teal'
                          : h.status === 'cancelled' ? 'text-red-600/70'
                          : h.status === 'no_show'   ? 'text-amber-600/80'
@@ -1838,11 +1859,15 @@ const clientData: DadosDaAgenda = {
     currentApptId = id;
     currentMoveSlot = null;
 
+    // O valor, e o que ele soma: no concluído, o serviço e os itens da comanda — "Corte +
+    // Barba · Zé · R$ 80" (`lib/valorDoAtendimento.ts`).
+    const valor = reais(valorDoAtendimento(appt));
+    const oQueSoma = [appt.serviceName, ...(itensContam(appt.status) ? appt.items : []).map(i => i.name)];
     dmName.textContent     = appt.customerName;
-    dmService.textContent  = `${appt.serviceName} · ${appt.barberName} · ${appt.price}`;
+    dmService.textContent  = `${oQueSoma.join(' + ')} · ${appt.barberName} · ${valor}`;
     dmTime.textContent     = `${appt.timeLocal} → ${appt.endTimeLocal}`;
     dmDuration.textContent = `${appt.durationMinutes}min`;
-    dmPrice.textContent    = appt.price;
+    dmPrice.textContent    = valor;
     dmPhone.textContent    = appt.customerPhoneDisplay || '—';
     dmTel.href             = appt.telUrl;
     dmWhats.dataset.id     = String(appt.id);
@@ -2089,20 +2114,51 @@ const clientData: DadosDaAgenda = {
     return servicesCatalog!;
   }
 
+  /** Um texto num `<span>`, sem innerHTML: os nomes vêm do catálogo que a barbearia escreve. */
+  function texto(classe: string, conteudo: string): HTMLSpanElement {
+    const el = document.createElement('span');
+    el.className = classe;
+    el.textContent = conteudo;
+    return el;
+  }
+
   function renderComanda() {
     const appt = clientData.appts.find(a => String(a.id) === String(comandaApptId));
     const mainCents = appt ? appt.priceCents : 0;
+    // O que o agendamento já trouxe — o produto do combo — entra na conta, e o total é o
+    // que a linha vai mostrar depois de fechar. Até 15/10/2026 ele ficava de fora daqui:
+    // a comanda dizia um total, e a linha e a receita, outro (`lib/valorDoAtendimento.ts`).
+    const jaNoAgendamento = appt ? appt.items : [];
+    const itens = document.getElementById('cm-itens');
+    if (itens) {
+      itens.replaceChildren(...jaNoAgendamento.map((it) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between gap-2 text-sm mt-2';
+        const nome = texto('text-slate-700 truncate', it.name);
+        nome.append(texto('text-slate-400 text-xs', ' · já no agendamento'));
+        row.append(nome, texto('text-slate-800 tabular-nums shrink-0 ml-3', reais(it.priceCents)));
+        return row;
+      }));
+    }
     const list = document.getElementById('cm-extras');
     if (list) {
-      list.innerHTML = '';
-      comandaExtras.forEach((ex, i) => {
+      list.replaceChildren(...comandaExtras.map((ex, i) => {
         const row = document.createElement('div');
         row.className = 'flex items-center justify-between gap-2 text-sm bg-slate-100 rounded px-3 py-2';
-        row.innerHTML = `<span class="text-slate-700">${ex.name}</span><span class="flex items-center gap-3"><span class="text-slate-500 tabular-nums">${reais(ex.priceCents)}</span><button type="button" data-cm-remove="${i}" class="text-red-600/70 hover:text-red-600" aria-label="Remover">✕</button></span>`;
-        list.appendChild(row);
-      });
+        const direita = document.createElement('span');
+        direita.className = 'flex items-center gap-3';
+        const remover = document.createElement('button');
+        remover.type = 'button';
+        remover.dataset.cmRemove = String(i);
+        remover.className = 'text-red-600/70 hover:text-red-600';
+        remover.setAttribute('aria-label', 'Remover');
+        remover.textContent = '✕';
+        direita.append(texto('text-slate-500 tabular-nums', reais(ex.priceCents)), remover);
+        row.append(texto('text-slate-700', ex.name), direita);
+        return row;
+      }));
     }
-    const total = mainCents + comandaExtras.reduce((s, e) => s + e.priceCents, 0);
+    const total = mainCents + somaDosItens(jaNoAgendamento) + somaDosItens(comandaExtras);
     const totalEl = document.getElementById('cm-total');
     if (totalEl) totalEl.textContent = reais(total);
   }
@@ -2174,10 +2230,13 @@ const clientData: DadosDaAgenda = {
     const extras = comandaExtras.map(e => ({ serviceId: e.serviceId, priceCents: e.priceCents }));
     const { ok, data } = await callApi(`/api/admin/appointments/${id}/complete`, 'POST', { extras });
     if (ok) {
-      // Soma os extras recém-lançados ao itemsCents do agendamento, pra receita
-      // atualizar na hora (o produto do combo já vem somado do servidor).
+      // Os extras recém-lançados entram nos itens do agendamento — o produto do combo já
+      // estava lá —, para a linha, o detalhe e a receita mudarem na hora, sem recarregar.
       const appt = clientData.appts.find(a => String(a.id) === String(id));
-      if (appt) appt.itemsCents = (appt.itemsCents || 0) + comandaExtras.reduce((s, e) => s + e.priceCents, 0);
+      if (appt) {
+        appt.items = [...appt.items, ...comandaExtras.map(e => ({ name: e.name, priceCents: e.priceCents }))];
+        appt.itemsCents = somaDosItens(appt.items);
+      }
       updateApptCardStatus(id, 'completed');
       closeComanda();
       closeDetail();
