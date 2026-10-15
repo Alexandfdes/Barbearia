@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-13.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-15.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -43,6 +43,7 @@
 | **13/10** | **Uma área principal por tela**, pedido por você: treze telas do painel do dono tinham duas — uma dentro da outra, que o leitor de tela anuncia como duas —, e as quatro telas de entrar, nenhuma. Agora cada tela tem uma, e a aparência não mudou: o CSS e o JavaScript saíram idênticos, e as fotos de antes e depois batem pixel a pixel, fora o que é dado vivo | `PENDENCIAS-ABERTAS.md` §2.39 |
 | **13/10** | **Todo conteúdo do site numa área da página**, pedido por você: o topo de cinco telas — o agendar, a área do cliente (a de entrar e a de dentro), o link do horário e o portal — e o botão do WhatsApp estavam fora de qualquer área, e quem navega de área em área com o leitor de tela passava por cima. Eram seis telas, não as três do §2.39. A aparência não mudou | `PENDENCIAS-ABERTAS.md` §2.40 |
 | **13/10** | **O horário que o site diz ao Google é o que ele mostra**, pedido por você — ia fixo para toda barbearia, segunda a sexta até as 20h; na dúvida, nenhum horário, e a faixa de preço fixa saiu. **E o menu do celular e o carrossel dos depoimentos para quem usa teclado, leitor de tela ou pede menos movimento.** A aparência não mudou | `PENDENCIAS-ABERTAS.md` §2.41 |
+| **15/10** | **O servidor de desenvolvimento diz quando o banco está atrás do código**, pedido por você: com migration nova chegando e o `npm run dev` ligado, toda página dava "Failed query". Agora a tela diz quais faltam e manda reiniciar. Só no desenvolvimento | `PENDENCIAS-ABERTAS.md` §2.42 |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -1991,6 +1992,39 @@ ordem (`heading-order`) — um nível de título pulado. Já era assim antes.
 
 ---
 
+### 2.42 ✅ `[TÉCNICO]` O servidor de desenvolvimento ligado antes das migrations novas: "Failed query" em toda página, sem dizer o que fazer — RESOLVIDO em 15/10/2026
+
+**O que aconteceu, em 13/10/2026,** quando você foi testar: toda página dava *"Failed query: select
+… "carencia_ate" … from "tenants""*. O `npm run dev` da sua máquina estava ligado desde as 16h03 de
+12/10. Depois disso chegaram a `0015` (a trava do horário duplo, às 17h24) e a `0016` (a carência
+estendida, às 20h37). O Astro recarrega o código sozinho; as migrations, não — o `npm run dev` só as
+aplica quando liga (`predev`, desde 09/10). O código novo procurava a coluna da `0016`, e o banco
+ainda não a tinha. Reiniciar resolveu. Em 09/10, quando o `npm run dev` ainda não aplicava
+migration nenhuma, a `0007` tinha derrubado as páginas do mesmo jeito.
+
+**O que mudou** (pedido por você em 13/10): no desenvolvimento, antes de qualquer rota que consulte
+o banco, o `src/middleware.ts` compara a pasta `drizzle/` com o registro do que o banco já tem
+(`schema_migrations`, o mesmo que o boot grava — `apps/barbearia/src/lib/bancoAtrasado.ts`).
+Faltando alguma, toda tela vira uma página em português — *"O banco está atrás do código"* — com as
+que faltam e o que fazer: Ctrl+C e `npm run dev` de novo. As rotas `/api/` recebem o mesmo em JSON,
+e o terminal ganha uma linha. Quando alguém aplica as migrations por fora, a página sai sozinha em
+até 2 segundos. Banco que não responde não conta como atrasado: aparece o erro de sempre. Em
+produção não existe — o boot aplica tudo antes de o servidor subir, e o build nem leva o código.
+*Rejeitados:* aplicar as migrations sozinho, do servidor ligado — quem aplica é o boot, num lugar
+só, e DDL no meio de uma requisição é surpresa; e só traduzir o erro depois da falha — migration
+que não quebra consulta passaria calada, como a `0015`: o banco de desenvolvimento aceitaria dois
+agendamentos no mesmo horário sem ninguém saber por quê.
+
+**Visto rodando:** um banco parado na `0014` e o servidor de desenvolvimento ligado sem o `predev`
+— a página inicial, o `/admin` e o `/admin/login` mostram a tela, com a `0015` e a `0016`; o
+`/api/services` responde o JSON; o terminal mostra a linha. Aplicadas as duas por fora, com o
+servidor ainda ligado, as telas voltaram ao normal. No computador e no celular, com o contraste
+medido: 14,5:1 no texto, 9,1:1 na caixa do que fazer. O build de produção não leva a tela. Guarda:
+`apps/barbearia/tests/banco-atrasado.test.ts` — a conta, a tela, o lugar dela no middleware e a
+leitura de um banco de verdade.
+
+---
+
 ## 3. Operação com vários clientes
 
 ### 3.1 🟠 `[DECISÃO]` Onde o app e o banco rodam
@@ -3618,6 +3652,9 @@ dentro da outra, em treze telas do painel do dono, e nenhuma nas quatro de entra
 seguida, o site: o topo de cinco telas e o botão do WhatsApp fora de qualquer área (§2.40). E
 depois os três que ficaram vistos: o horário que o site dizia ao Google, o menu do celular e o
 carrossel dos depoimentos (§2.41).
+
+**15/10/2026, pedido por você, ✅ feito:** o servidor de desenvolvimento diz quando o banco está
+atrás do código, em vez de "Failed query" em toda página (§2.42).
 
 **Onda 2 — antes de abrir o cadastro público.**
 

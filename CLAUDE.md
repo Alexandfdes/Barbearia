@@ -137,6 +137,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **Migrations:** `apps/barbearia/drizzle/NNNN_nome.sql`, escritas à mão e aplicadas por
   `scripts/startup.mjs`, que confere o hash de cada uma — e que o `npm run dev` roda antes de
   subir (`predev`). Não há journal do Drizzle, e `db:push` e `db:generate` recusam de propósito.
+  ⚠️ O `predev` roda só quando o servidor liga: entrega com migration nova pede reiniciar o
+  `npm run dev` da máquina do dono — senão a tela diz "O banco está atrás do código"
+  (`src/lib/bancoAtrasado.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.42).
 - **CI:** `.github/workflows/testes.yml` roda a suíte com banco a cada push na `main` e na
   `monorepo` — e teste pulado reprova. Ele só manda no deploy depois do que o
   `docs/PENDENCIAS-ABERTAS.md` §3.8 pede.
