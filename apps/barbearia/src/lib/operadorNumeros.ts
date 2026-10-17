@@ -26,7 +26,7 @@ import { configDaAsaas, type AmbienteAsaas } from './asaas.js';
 import { PRECO_MENSAL } from './produto.js';
 import { ultimoDia } from './situacao.js';
 import {
-  eventosQuePedemOlho, listarBarbearias, resumoDasFases, ultimasAcoes,
+  eventosQuePedemOlho, listarBarbearias, pedeOlhoSql, resumoDasFases, ultimasAcoes,
   type EventoQuePedeOlho, type LinhaDoRegistro, type Tom,
 } from './operadorBarbearias.js';
 import { sistemaNoPainel, type AlertaDoSistema } from './operadorSistema.js';
@@ -42,12 +42,7 @@ const comoData = (v: unknown): Date | null => (v == null ? null : v instanceof D
  * falhou, o que não achou barbearia, e o que chegou para barbearia tirada do ar à
  * mão ou encerrada, que o webhook ignora de propósito.
  */
-const pedeOlho = () => sqlConn`(
-  w.outcome IS NULL
-  OR w.outcome LIKE 'erro%'
-  OR w.outcome LIKE 'sem barbearia%'
-  OR w.outcome LIKE 'nada muda: a barbearia está suspended%'
-  OR w.outcome LIKE 'nada muda: a barbearia está cancelled%')`;
+const pedeOlho = pedeOlhoSql;
 
 // ── Os pagamentos ───────────────────────────────────────────────────────────
 
