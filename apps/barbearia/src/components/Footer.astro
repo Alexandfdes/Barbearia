@@ -4,6 +4,7 @@ import { linkDoMapa } from '../lib/mapa';
 import { tenantAtual } from '../lib/tenant';
 import { ehOBayron } from '../lib/bayron';
 import { fusoDe } from '../lib/timezone';
+import { diasDoRotulo } from '../lib/horarioDosBuscadores';
 import { srcsetDe } from '../lib/uploads';
 import { Image } from 'astro:assets';
 import logoSrc from '../assets/Logo-Bayron3.png';
@@ -100,14 +101,15 @@ const mapa = linkDoMapa(s);
         <h4 class="text-xs font-bold uppercase tracking-[0.2em] text-neutral-300">Horários</h4>
         <div class="border-l-2 border-teal pl-4 space-y-4 text-xs leading-relaxed">
           {s.businessHours.map((h) => {
-            // Mapeia o dia correspondente para o data attribute do script
-            let dayGroup = "";
-            if (h.label.includes("Segunda")) dayGroup = "seg-sex";
-            else if (h.label.includes("Sábado")) dayGroup = "sab";
-            else if (h.label.includes("Domingo")) dayGroup = "dom";
+            // Os dias da linha, lidos como o JSON-LD os lê (`lib/horarioDosBuscadores.ts`):
+            // "Segunda — Sábado" são seis dias. Até 17/10/2026 o rodapé procurava
+            // "Segunda", "Sábado" ou "Domingo" no rótulo — e no sábado de quem abre de
+            // segunda a sábado não acendia nada. Rótulo que não se lê sem dúvida fica sem
+            // `data-dias`, e não acende.
+            const dias = diasDoRotulo(h.label);
 
             return (
-              <div data-day-group={dayGroup} class="flex flex-col gap-0.5 relative group/item">
+              <div data-dias={dias ? dias.join(' ') : undefined} class="flex flex-col gap-0.5 relative group/item">
                 <span class="text-[10px] uppercase tracking-wider text-neutral-500 font-semibold group-hover/item:text-neutral-400 transition-colors duration-200 day-label">
                   {h.label}
                 </span>
@@ -230,36 +232,25 @@ const mapa = linkDoMapa(s);
       // relógio de quem abre o site. 0 = Domingo, 1 = Segunda, ..., 6 = Sábado.
       const fuso = document.getElementById('contato')?.dataset.tz;
       const nomeDoDia = new Intl.DateTimeFormat('en-US', { timeZone: fuso, weekday: 'short' }).format(new Date());
-      const currentDay = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(nomeDoDia);
-      let groupToHighlight = "";
+      const hoje = String(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(nomeDoDia));
 
-      if (currentDay >= 1 && currentDay <= 5) {
-        groupToHighlight = "seg-sex";
-      } else if (currentDay === 6) {
-        groupToHighlight = "sab";
-      } else if (currentDay === 0) {
-        groupToHighlight = "dom";
-      }
+      // Acende toda linha que tem o dia de hoje — duas, no expediente partido.
+      document.querySelectorAll<HTMLElement>('[data-dias]').forEach((row) => {
+        if (!(row.dataset.dias ?? '').split(' ').includes(hoje)) return;
+        row.classList.add('text-teal-light');
 
-      if (groupToHighlight) {
-        const row = document.querySelector(`[data-day-group="${groupToHighlight}"]`);
-        if (row) {
-          // Destacar a linha inteira mudando a cor do texto
-          row.classList.add('text-teal-light');
-          
-          const labelSpan = row.querySelector('.day-label');
-          const valueSpan = row.querySelector('.day-hours');
-          
-          if (labelSpan) {
-            labelSpan.classList.remove('text-neutral-500');
-            labelSpan.classList.add('text-teal-light', 'font-bold');
-          }
-          if (valueSpan) {
-            valueSpan.classList.remove('text-neutral-300');
-            valueSpan.classList.add('text-teal-light', 'font-semibold');
-          }
+        const labelSpan = row.querySelector('.day-label');
+        const valueSpan = row.querySelector('.day-hours');
+
+        if (labelSpan) {
+          labelSpan.classList.remove('text-neutral-500');
+          labelSpan.classList.add('text-teal-light', 'font-bold');
         }
-      }
+        if (valueSpan) {
+          valueSpan.classList.remove('text-neutral-300');
+          valueSpan.classList.add('text-teal-light', 'font-semibold');
+        }
+      });
     } catch (e) {
       console.error("Erro ao destacar dia da semana atual no Footer:", e);
     }
