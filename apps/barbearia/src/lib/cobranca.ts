@@ -375,6 +375,33 @@ export async function processarEventoDaAsaas(e: EventoAsaas, agora: Date = new D
   }) as Promise<ResultadoDoEvento>;
 }
 
+/**
+ * As cobranças desta assinatura que puseram (ou mantiveram) a barbearia no atraso desde
+ * a última vez que ela ficou em dia, e que nenhum evento deu como pagas — tirando a
+ * `pagaAgora`, a do evento que está chegando. Vazia: o atraso acabou.
+ *
+ * Lê o próprio registro do webhook: o desfecho de cada evento diz se ele atrasou alguém.
+ */
+async function cobrancasQueFalharamSemPagar(tx: Tx, tenantId: number, assinatura: string, pagaAgora: string | null): Promise<string[]> {
+  const linhas = await tx<{ id: string }[]>`
+    SELECT DISTINCT f.payload->'payment'->>'id' AS id
+      FROM webhook_events f
+     WHERE f.tenant_id = ${tenantId}
+       AND f.event IN ('PAYMENT_OVERDUE', 'PAYMENT_CREDIT_CARD_CAPTURE_REFUSED')
+       AND (f.outcome LIKE 'atrasada%' OR f.outcome LIKE 'continua atrasada%')
+       AND f.payload->'payment'->>'subscription' = ${assinatura}
+       AND f.payload->'payment'->>'id' IS NOT NULL
+       AND f.payload->'payment'->>'id' <> ${pagaAgora ?? ''}
+       AND f.id > COALESCE((SELECT max(d.id) FROM webhook_events d
+                             WHERE d.tenant_id = ${tenantId} AND d.outcome LIKE 'em dia%'), 0)
+       AND NOT EXISTS (SELECT 1 FROM webhook_events p
+                        WHERE p.tenant_id = ${tenantId}
+                          AND p.event IN ('PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED')
+                          AND p.payload->'payment'->>'id' = f.payload->'payment'->>'id')
+     ORDER BY 1`;
+  return linhas.map((l) => l.id);
+}
+
 async function aplicar(tx: Tx, e: EventoAsaas, t: LinhaDaBarbearia, agora: Date, efeitos: Efeito[]): Promise<string> {
   const cliente = clienteDoEvento(e);
 
@@ -419,6 +446,15 @@ async function aplicar(tx: Tx, e: EventoAsaas, t: LinhaDaBarbearia, agora: Date,
     if (!MEXE_SOZINHO.has(t.status)) return `nada muda: a barbearia está ${t.status}`;
 
     if (PAGOU.has(e.event)) {
+      // Atrasada, só sai do atraso quando a cobrança que FALHOU é paga. No cartão, o
+      // PAYMENT_RECEIVED chega ~32 dias depois do PAYMENT_CONFIRMED (documentação da Asaas,
+      // conferida em 17/10/2026) — depois do vencimento seguinte —, e o da contestação
+      // ganha também volta como pagamento: até 17/10/2026, o aviso da mensalidade do mês
+      // passado tirava do atraso quem não tinha pago a deste mês.
+      if (t.status === 'past_due') {
+        const faltam = await cobrancasQueFalharamSemPagar(tx, t.id, daAssinatura, textoOuNulo(e.payment?.id));
+        if (faltam.length > 0) return `continua atrasada: a cobrança paga não é a que falhou (${faltam.join(', ')})`;
+      }
       await tx`UPDATE tenants SET status = 'active', past_due_since = NULL WHERE id = ${t.id}`;
       return 'em dia: a cobrança foi paga';
     }
@@ -438,7 +474,18 @@ async function aplicar(tx: Tx, e: EventoAsaas, t: LinhaDaBarbearia, agora: Date,
   if (ENCERROU.has(e.event)) {
     const encerrada = textoOuNulo(e.subscription?.id);
     if (!encerrada || encerrada !== t.asaas_subscription_id) return 'nada muda: não é a assinatura em vigor';
-    if (t.status !== 'active') return `nada muda: a barbearia está ${t.status}`;
+    if (t.status !== 'active') {
+      // A assinatura em vigor removida com a barbearia fora do `active` — o operador tirou do
+      // ar e removeu na Asaas, como o §3.9 manda. Até 17/10/2026 o evento era descartado, e
+      // reativar depois a deixava em dia sem assinatura nenhuma: no ar para sempre, de graça.
+      // Tirada do ar ou encerrada: a saída fica marcada para o fim do período pago, que vale
+      // se ela for reativada. Atrasada: a carência já decide. Nos dois casos, pede olho.
+      if ((t.status === 'suspended' || t.status === 'cancelled') && !t.subscription_ends_at) {
+        const fim = fimDoPeriodoPago(e.subscription?.nextDueDate, fusoDaLinha(t), agora);
+        await tx`UPDATE tenants SET subscription_ends_at = ${fim.toISOString()}::timestamptz WHERE id = ${t.id}`;
+      }
+      return `alerta: a assinatura em vigor foi removida na Asaas com a barbearia ${t.status} — sem assinatura, ela não é mais cobrada; tratar à mão`;
+    }
     // Cancelada pelo painel: a data já está gravada — inclusive a de quem cancelou
     // com a cobrança atrasada, que é o fim da carência, não o próximo vencimento.
     if (t.subscription_ends_at) return 'nada muda: a saída já estava marcada pelo cancelamento no painel';

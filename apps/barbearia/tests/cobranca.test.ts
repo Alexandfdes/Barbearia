@@ -373,6 +373,18 @@ describe.skipIf(!TEM_BANCO)('o webhook mantém a barbearia em dia', () => {
     expect(await linha(1)).toMatchObject({ status: 'active', past_due_since: null });
   });
 
+  it('atrasada, o pagamento de OUTRA cobrança — o do mês passado, que no cartão chega 32 dias depois — não tira do atraso', async () => {
+    await enviar({ id: 'evt_m1', event: 'PAYMENT_OVERDUE', payment: { id: 'pay_nov', customer: 'cus_ze', subscription: 'sub_ze_1' } });
+    expect((await linha(1)).status).toBe('past_due');
+    // O PAYMENT_RECEIVED da pay_1, paga em outubro: o dinheiro ficou disponível agora.
+    await enviar({ id: 'evt_m2', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1', customer: 'cus_ze', subscription: 'sub_ze_1' } });
+    expect((await linha(1)).status).toBe('past_due');
+    expect((await desfecho('evt_m2')).outcome).toBe('continua atrasada: a cobrança paga não é a que falhou (pay_nov)');
+    // A que falhou, paga: aí sim.
+    await enviar({ id: 'evt_m3', event: 'PAYMENT_CONFIRMED', payment: { id: 'pay_nov', customer: 'cus_ze', subscription: 'sub_ze_1' } });
+    expect(await linha(1)).toMatchObject({ status: 'active', past_due_since: null });
+  });
+
   it('a carência estendida pelo operador cai com o pagamento — e a falha seguinte começa os 3 dias de novo', async () => {
     const carenciaAte = async () => (await conn`SELECT carencia_ate FROM tenants WHERE id = 12`)[0].carencia_ate as Date | null;
     const host = 'prazo-paga.fadeline.com.br';
@@ -546,7 +558,8 @@ describe.skipIf(!TEM_BANCO)('o evento que falha', () => {
 
   it('por erro de programa — uma coluna que não existe: 500, nada guardado; consertado, a reentrega processa', async () => {
     const erro = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const evento = { id: 'evt_programa', event: 'PAYMENT_CONFIRMED', payment: { id: 'pay_b2', customer: 'cus_dono', subscription: 'sub_dono_b' } };
+    // A cobrança paga é a que atrasou (`pay_b`, do evt_b3): desde 17/10/2026, outra não tira do atraso.
+    const evento = { id: 'evt_programa', event: 'PAYMENT_CONFIRMED', payment: { id: 'pay_b', customer: 'cus_dono', subscription: 'sub_dono_b' } };
     // A coluna some de `tenants`, não de `webhook_events`: guardar o evento como
     // falha funcionaria — e é justamente o que não se quer aqui.
     await conn`ALTER TABLE tenants RENAME COLUMN asaas_subscription_id TO asaas_subscription_id_sumiu`;
@@ -564,6 +577,48 @@ describe.skipIf(!TEM_BANCO)('o evento que falha', () => {
     expect((await enviar(evento)).status).toBe(200);
     expect((await linha(10)).status).toBe('active');
     erro.mockRestore();
+  });
+});
+
+// ── O que o webhook manda tratar à mão chega ao operador (17/10/2026) ───────
+
+describe('o que o webhook manda "tratar à mão" aparece no "pede olho" do operador', () => {
+  it('todo desfecho que diz "tratar à mão" começa por um dos que pedem olho', async () => {
+    const { DESFECHOS_QUE_PEDEM_OLHO } = await import('../src/lib/operadorBarbearias');
+    const fonte = readFileSync('src/lib/cobranca.ts', 'utf8');
+    const desfechos = [...fonte.matchAll(/['`]([^'`\n]*tratar à mão[^'`\n]*)['`]/g)].map((m) => m[1]);
+    // Controle: o estorno, a barbearia ambígua e a assinatura removida fora do ar.
+    expect(desfechos.length).toBeGreaterThanOrEqual(3);
+    for (const d of desfechos) {
+      expect(DESFECHOS_QUE_PEDEM_OLHO.some((p) => d.startsWith(p)), d).toBe(true);
+    }
+  });
+});
+
+describe.skipIf(!TEM_BANCO)('estorno, contestação e assinatura removida fora do ar', () => {
+  it('a assinatura em vigor removida com a barbearia tirada do ar: marca a saída e pede olho', async () => {
+    const dia = formatInTimeZone(new Date(Date.now() + 12 * DIA), TZ, 'yyyy-MM-dd');
+    // Uma tirada do ar só deste caso: a 3 é usada pelo cancelar, mais abaixo.
+    await conn`INSERT INTO tenants (id, slug, business_name, status, asaas_customer_id, asaas_subscription_id)
+               VALUES (19, 'manual-2', 'Tirada à Mão 2', 'suspended', 'cus_manual_2', 'sub_manual_2')`;
+    await enviar({ id: 'evt_del_manual', event: 'SUBSCRIPTION_DELETED', subscription: { id: 'sub_manual_2', customer: 'cus_manual_2', nextDueDate: dia } });
+    const l = await linha(19);
+    expect(l.status).toBe('suspended');
+    // Reativada pelo operador, ela sai do ar no fim do período pago — e não fica em dia sem assinatura.
+    expect(l.subscription_ends_at).not.toBeNull();
+    expect((await desfecho('evt_del_manual')).outcome).toMatch(/^alerta: a assinatura em vigor foi removida na Asaas com a barbearia suspended/);
+  });
+
+  it('o estorno e a contestação, e a remoção de cima, entram no "pede olho" — o Início e a Cobrança contam', async () => {
+    await enviar({ id: 'evt_estorno', event: 'PAYMENT_REFUNDED', payment: { id: 'pay_est', customer: 'cus_emdia', subscription: 'sub_emdia' } });
+    await enviar({ id: 'evt_contesta', event: 'PAYMENT_CHARGEBACK_REQUESTED', payment: { id: 'pay_cb', customer: 'cus_emdia', subscription: 'sub_emdia' } });
+    expect((await desfecho('evt_estorno')).outcome).toBe('alerta: estorno ou contestação — tratar à mão');
+    const { eventosQuePedemOlho } = await import('../src/lib/operadorBarbearias');
+    const ids = (await eventosQuePedemOlho(100)).map((e) => e.idNaAsaas);
+    expect(ids).toEqual(expect.arrayContaining(['evt_estorno', 'evt_contesta', 'evt_del_manual']));
+    const { cobrancaNoPainel } = await import('../src/lib/operadorNumeros');
+    const c = await cobrancaNoPainel({}, new Date(), {});
+    expect(c.eventos.filter((e) => e.pedeOlho).map((e) => e.idNaAsaas)).toEqual(expect.arrayContaining(['evt_estorno', 'evt_contesta']));
   });
 });
 

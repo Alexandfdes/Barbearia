@@ -206,6 +206,20 @@ export function resumoDasFases(lista: BarbeariaNoPainel[]): Record<Situacao['fas
 
 // ── O que pede olho ─────────────────────────────────────────────────────────
 
+/**
+ * O começo dos desfechos de `lib/cobranca.ts` que o webhook não resolve sozinho. UMA lista
+ * só, para o Início, a Cobrança e o "pede olho" — até 17/10/2026 eram duas cópias da regra,
+ * e nenhuma tinha o `alerta`: o estorno e a contestação, que o webhook manda "tratar à mão",
+ * não apareciam em tela nenhuma (`tests/pede-olho.test.ts`).
+ */
+export const DESFECHOS_QUE_PEDEM_OLHO = [
+  'erro', 'sem barbearia', 'alerta',
+  'nada muda: a barbearia está suspended', 'nada muda: a barbearia está cancelled',
+] as const;
+
+/** A condição sobre `webhook_events w`: sem desfecho (o processamento caiu no meio), ou um dos de cima. */
+export const pedeOlhoSql = () => sqlConn`(w.outcome IS NULL OR w.outcome LIKE ANY(${DESFECHOS_QUE_PEDEM_OLHO.map((p) => `${p}%`)}::text[]))`;
+
 export interface EventoQuePedeOlho {
   recebidoEm: Date | null;
   evento: string;
@@ -229,11 +243,7 @@ export async function eventosQuePedemOlho(limite = 20): Promise<EventoQuePedeOlh
     SELECT w.received_at, w.event, w.outcome, w.gateway_event_id, t.slug
       FROM webhook_events w
       LEFT JOIN tenants t ON t.id = w.tenant_id
-     WHERE w.outcome IS NULL
-        OR w.outcome LIKE 'erro%'
-        OR w.outcome LIKE 'sem barbearia%'
-        OR w.outcome LIKE 'nada muda: a barbearia está suspended%'
-        OR w.outcome LIKE 'nada muda: a barbearia está cancelled%'
+     WHERE ${pedeOlhoSql()}
      ORDER BY w.received_at DESC, w.id DESC
      LIMIT ${limite}`;
   return linhas.map((l) => ({
