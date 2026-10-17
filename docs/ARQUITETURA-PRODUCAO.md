@@ -6,10 +6,13 @@
 > está resumido no §10, com o que mudou em cada ponto; o texto inteiro, no histórico do git
 > deste arquivo.
 >
-> Status: **descreve o que roda.** Desde 10/10/2026 o app multi-tenant está no ar, construído
+> Status: **descreve o desenho que roda.** Desde 10/10/2026 o app multi-tenant está no ar, construído
 > da `main`, com o banco vazio; o site do Bayron continua no serviço antigo, de outro
 > repositório, até a migração (`ROTEIRO-MIGRACAO-PRODUCAO.md`). O que não existe está marcado
-> ❌; o que não foi medido, dito.
+> ❌; o que não foi medido, dito. ⚠️ **A `main` parou no merge do PR #1** (conferido no GitHub
+> em 16/10): o que este documento diz do código de 10/10 à tarde para cá — a cobrança, o
+> operador, a saúde, o backup em partes, o backup antes das migrations — está na `monorepo`, e
+> não no ar (`PENDENCIAS-ABERTAS.md` §3.2).
 >
 > Companheiros nesta mesma pasta: `ARQUITETURA-MULTI-TENANT-V1.md` (como o sistema é
 > montado), `ARQUITETURA-COBRANCA-V1.md` (o dinheiro), `PENDENCIAS-ABERTAS.md` §3 (o que falta
@@ -59,6 +62,12 @@ tela de assinatura, pelas rotas dela e pelo webhook da Asaas, que não é rota d
 evento que falha volta para a fila da Asaas ou fica gravado com o erro, e nenhum site depende
 dele (`apps/barbearia/src/pages/api/asaas/webhook.ts`).
 
+⚠️ **O contrário vale:** a fase de cada barbearia só muda pelo webhook. Com o app fora do ar,
+a Asaas tenta de novo e, com 15 falhas seguidas, interrompe a fila — e os avisos param até
+alguém reativá-la, guardados por 14 dias. Enquanto isso, quem pagou continua com o prazo
+correndo. Quem vê: o e-mail da Asaas, o monitor (D-P1) e, desde 17/10/2026, o Início e o
+Sistema do painel do operador (`PENDENCIAS-ABERTAS.md` §3.13).
+
 ## 3. Anatomia do app
 
 Um container da imagem (`apps/barbearia/Dockerfile`, com `apps/barbearia` como contexto do
@@ -93,6 +102,12 @@ arquivo antes de servir. Cor, logo, textos, serviços, horários: linha no banco
 O mesmo container roda, além do servidor, dois processos de fundo, lançados pelo `CMD` do
 `Dockerfile`: o backup — um no boot e um por dia (`apps/barbearia/scripts/backup-daemon.mjs`)
 — e os avisos por e-mail, de hora em hora (`apps/barbearia/scripts/avisos-daemon.mjs`).
+
+**A ordem do `CMD` importa:** primeiro as migrations, depois o daemon do backup — e o backup
+de boot dele é pulado se houver um com menos de 12 horas. Até 17/10/2026, então, uma migration
+nova rodava sem backup nenhum logo antes dela. Desde então, o próprio boot faz o dump do banco
+antes de aplicar migration pendente, e não migra sem ele (`backupAntesDasMigrations`, em
+`apps/barbearia/scripts/startup.mjs`; `PENDENCIAS-ABERTAS.md` §3.2).
 
 ## 4. Roteamento e certificado
 
@@ -159,7 +174,9 @@ Em 01/09 o canário era subir a versão nova numa barbearia de demonstração, d
 depois no resto. Com um container para todas, não existe "uma barbearia primeiro": **o deploy
 é um só, e um deploy ruim derruba todas de uma vez.** O que segura hoje é antes do deploy — a
 suíte com banco no CI, que ainda não manda no deploy (`PENDENCIAS-ABERTAS.md` §3.8), e cada
-migration conferida sobre um banco parado na anterior (`PENDENCIAS-ABERTAS.md` §3.2).
+migration conferida sobre um banco parado na anterior (`PENDENCIAS-ABERTAS.md` §3.2) — e, desde
+17/10/2026, o backup que o boot faz antes de aplicar migration nova, sem o qual ele não migra:
+voltar atrás é a imagem anterior com esse arquivo restaurado.
 
 O canário de verdade, agora, seria um segundo app apontando para uma cópia do banco, testado
 antes de trocar. É o que o `ROTEIRO-MIGRACAO-PRODUCAO.md` §7 já dizia: com dois clientes,
@@ -209,10 +226,11 @@ container e o tempo de resposta — não feito (`PENDENCIAS-ABERTAS.md` §5).
 | Item | Onde |
 |---|---|
 | Onde o app e o banco rodam, e a capacidade | `PENDENCIAS-ABERTAS.md` §3.1 |
-| O deploy que derruba todas juntas | `PENDENCIAS-ABERTAS.md` §3.2 |
+| O deploy que derruba todas juntas — e a `main` parada em 10/10 | `PENDENCIAS-ABERTAS.md` §3.2 |
 | O CI mandando no deploy | `PENDENCIAS-ABERTAS.md` §3.8 |
 | O backup para fora da VPS | `PENDENCIAS-ABERTAS.md` §3.3 |
 | O monitor externo | `PENDENCIAS-ABERTAS.md` §3.4 |
+| A fila do webhook da Asaas parada | `PENDENCIAS-ABERTAS.md` §3.13 |
 | O app sem superusuário no banco, em produção | `PENDENCIAS-ABERTAS.md` §3.10 |
 | O certificado curinga dos subdomínios | `PENDENCIAS-ABERTAS.md` §2.31 |
 

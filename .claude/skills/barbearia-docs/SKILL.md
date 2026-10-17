@@ -13,7 +13,9 @@ projeto já teve três documentos discordando entre si sobre o que estava pronto
 Daí as duas regras que valem para tudo aqui:
 
 1. **Nenhuma afirmação sobre o código sem ter aberto o arquivo.** Referência no formato
-   `arquivo:linha` é literal e conferida, não de memória.
+   `arquivo:linha` é literal e conferida, não de memória — e **só em registro datado**
+   (§0, §6, histórico). Seção viva cita o nome da função ou do componente: em 16/10/2026,
+   13 de 27 referências por linha já apontavam para o lugar errado.
 2. **Não marcar como pronto o que não foi visto funcionando.** O que não existe vai
    marcado como tal.
 
