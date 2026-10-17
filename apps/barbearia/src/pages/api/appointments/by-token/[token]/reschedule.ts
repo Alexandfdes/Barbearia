@@ -6,7 +6,8 @@ import { z } from 'zod';
 import { addDays, addMinutes } from 'date-fns';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { db } from '../../../../../db/index.js';
-import { appointments, workingHours } from '../../../../../db/schema.js';
+import { appointments, barbers, workingHours } from '../../../../../db/schema.js';
+import { MARCA_DO_COMBO } from '../../../../../lib/bookAppointment.js';
 import { diaDaSemana } from '../../../../../lib/calendario.js';
 import { json } from '../../../../../lib/api.js';
 import { reagendarAtomicamente } from '../../../../../lib/reagendar.js';
@@ -55,6 +56,7 @@ export const POST: APIRoute = async ({ params, request }) => {
       durationMinutes: appointments.durationMinutes,
       status:          appointments.status,
       startsAt:        appointments.startsAt,
+      notes:           appointments.notes,
     })
     .from(appointments)
     .where(and(eq(appointments.manageToken, token), eq(appointments.tenantId, tenant.id)));
@@ -64,6 +66,24 @@ export const POST: APIRoute = async ({ params, request }) => {
   const appt = apptRows[0];
   if (appt.status !== 'confirmed') {
     return json({ error: `Não é possível reagendar (status: ${appt.status})` }, 409);
+  }
+
+  // Com barbeiro desligado, não remarca: o cliente iria a um horário com quem não trabalha
+  // mais lá (até 17/10/2026, remarcava). Desmarcar continua valendo.
+  const [barbeiro] = await db.select({ ativo: barbers.active }).from(barbers)
+    .where(and(eq(barbers.id, appt.barberId), eq(barbers.tenantId, tenant.id)));
+  if (!barbeiro?.ativo) {
+    return json({ error: 'O barbeiro deste horário não atende mais aqui. Desmarque e agende de novo pelo site.' }, 409);
+  }
+
+  // Combo do dia: o desconto vale no dia da semana em que foi marcado. Remarcar para outro
+  // dia da semana levaria o desconto junto — o caminho que o §2.16 diz que o link editado
+  // à mão não contorna. O agendamento não guarda o combo; a marca da nota diz que é um.
+  if (appt.notes?.startsWith(MARCA_DO_COMBO)) {
+    const diaDeAntes = diaDaSemana(formatInTimeZone(new Date(appt.startsAt), fuso, 'yyyy-MM-dd'));
+    if (diaDaSemana(newDateStr) !== diaDeAntes) {
+      return json({ error: 'O combo do dia vale só no mesmo dia da semana. Remarque para outro dia igual, ou desmarque e agende de novo.' }, 400);
+    }
   }
 
   // Calcula novo fim
