@@ -38,6 +38,23 @@ describe('o workflow', () => {
     expect(doCi).toBe(doCompose);
   });
 
+  it('a imagem (17/10/2026): construída do contexto do EasyPanel, subida sobre um banco na 0009, com as conferências do primeiro deploy', () => {
+    const i = job('imagem');
+    expect(i.match(/image:\s*(postgres:\S+)/)?.[1]).toBe(COMPOSE.match(/image:\s*(postgres:\S+)/)?.[1]);
+    expect(i).toContain('docker build -t fadeline-ci apps/barbearia');
+    expect(i).toContain('node scripts/startup.mjs --ate=0009');
+    // As linhas que o boot tem de imprimir — e que `scripts/startup.mjs` imprime de fato.
+    const startup = readFileSync('scripts/startup.mjs', 'utf8');
+    for (const linha of ['✓ backup antes das migrations', '✓ papel do app', '✓ Banco já estava em dia']) {
+      expect(i, linha).toContain(linha);
+      expect(startup, linha).toContain(linha);
+    }
+    expect(i).toContain('*-antes-da-0010.sql.gz');
+    expect(i).toMatch(/test ! -e node_modules\/vitest/);
+    expect(i).toContain('scripts/provisionar.mts');
+    expect(i).toMatch(/if: failure\(\)\n\s+run: docker logs app/);
+  });
+
   it('a suíte roda com DATABASE_URL, num banco que o guardaBanco aceita', () => {
     const url = job('barbearia').match(/DATABASE_URL:\s*(\S+)/)?.[1] ?? '';
     expect(url).toMatch(/^postgres:\/\//);
@@ -58,9 +75,9 @@ describe('o workflow', () => {
     expect(b).toMatch(/if:\s*\$\{\{\s*!cancelled\(\)\s*\}\}[\s\S]{0,80}conferir-resultado-testes/);
   });
 
-  it('o deploy espera o app verde e só sai de push na main', () => {
+  it('o deploy espera o app verde E a imagem provada, e só sai de push na main', () => {
     const d = job('deploy');
-    expect(d).toMatch(/needs:\s*\[\s*barbearia\s*\]/);
+    expect(d).toMatch(/needs:\s*\[\s*barbearia,\s*imagem\s*\]/);
     expect(d).toMatch(/if:\s*github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'/);
   });
 
