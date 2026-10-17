@@ -15,6 +15,7 @@ import Numero from '../../components/operador/Numero.astro';
 import { abrirPorta, pedeCodigo, voltaValida } from '../../lib/operador.js';
 import { descreverAcao } from '../../lib/operadorBarbearias.js';
 import { numerosDoNegocio } from '../../lib/operadorNumeros.js';
+import { comAFila, filaDoWebhook } from '../../lib/operadorSistema.js';
 import { dinheiro, nomeDoMes, quando } from '../../lib/operadorTela.js';
 import { formatarTelefone } from '../../lib/phone.js';
 import { waLink, waPhone } from '../../lib/whatsapp.js';
@@ -25,6 +26,9 @@ if ('resposta' in porta) return porta.resposta;
 const volta = voltaValida(Astro.url.searchParams.get('volta')) ?? '/operador';
 const agora = new Date();
 const n = porta.dentro ? await numerosDoNegocio(agora) : null;
+// A fila do webhook entra nos avisos do Sistema daqui também: é a primeira tela que se
+// abre, e uma fila parada tira do ar quem pagou (`filaDoWebhook`, 17/10/2026).
+const alertasDoSistema = n ? comAFila(n.alertasDoSistema, await filaDoWebhook(process.env)) : [];
 
 const fases = n ? [
   { rotulo: 'Em dia', n: n.resumo.ativa, cor: 'bg-emerald-500' },
@@ -80,7 +84,7 @@ const ambiente = n?.cobranca.ambiente === 'producao' ? 'produção' : n?.cobranc
           <h2 id="titulo-atencao" class="text-sm font-semibold text-slate-900">Pede atenção</h2>
           <p class="text-xs text-slate-500 mt-0.5">Testes que acabam em até 3 dias, carências, quem cancelou e o que o sistema não resolveu sozinho.</p>
         </div>
-        {n.atencao.length === 0 && n.alertasDoSistema.length === 0 ? (
+        {n.atencao.length === 0 && alertasDoSistema.length === 0 ? (
           <p class="px-5 py-8 text-sm text-slate-500 text-center">Nada pedindo atenção agora.</p>
         ) : (
           <ul id="atencao" class="divide-y divide-slate-200">
@@ -108,15 +112,15 @@ const ambiente = n?.cobranca.ambiente === 'producao' ? 'produção' : n?.cobranc
                 </li>
               );
             })}
-            {n.alertasDoSistema.length > 0 && (
+            {alertasDoSistema.length > 0 && (
               <li class="px-5 py-3.5 flex items-start gap-3">
                 <span class:list={['w-2 h-2 mt-1.5 rounded-full shrink-0 ring-4',
-                  n.alertasDoSistema.some((a) => a.estado === 'problema') ? 'bg-red-600 ring-red-100' : 'bg-amber-500 ring-amber-100']} aria-hidden="true"></span>
+                  alertasDoSistema.some((a) => a.estado === 'problema') ? 'bg-red-600 ring-red-100' : 'bg-amber-500 ring-amber-100']} aria-hidden="true"></span>
                 <a href="/operador/sistema" class="min-w-0 flex-1 group">
                   <span class="block text-sm font-medium text-slate-900 group-hover:text-teal">
-                    Sistema — {n.alertasDoSistema.length} {n.alertasDoSistema.length === 1 ? 'aviso' : 'avisos'}
+                    Sistema — {alertasDoSistema.length} {alertasDoSistema.length === 1 ? 'aviso' : 'avisos'}
                   </span>
-                  <span class="block text-sm text-slate-600">{n.alertasDoSistema.map((a) => a.texto).join(' ')}</span>
+                  <span class="block text-sm text-slate-600">{alertasDoSistema.map((a) => a.texto).join(' ')}</span>
                 </a>
               </li>
             )}

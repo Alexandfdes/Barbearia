@@ -6,7 +6,9 @@
  * `User-Agent` obrigatório para contas criadas desde 13/06/2024, as duas URLs, o
  * Checkout (`POST /checkouts`), o cliente sem notificações
  * (`PUT /customers/{id}` com `notificationDisabled`) e a assinatura
- * (`GET`/`DELETE /subscriptions/{id}`, `GET /subscriptions?customer=`).
+ * (`GET`/`DELETE /subscriptions/{id}`, `GET /subscriptions?customer=`). E, em
+ * 17/10/2026, os webhooks da conta (`GET /webhooks`), para o painel do operador ver
+ * se a fila do nosso parou (`lib/operadorSistema.ts`) — também só na documentação.
  *
  * ⚠️ SEM `ASAAS_AMBIENTE=producao`, É SANDBOX. O erro que sobra de uma variável
  * esquecida é não cobrar — nunca cobrar de verdade num teste. Chave de um
@@ -56,7 +58,11 @@ function motivo(corpo: unknown): string {
   return typeof corpo === 'string' ? corpo.slice(0, 200) : JSON.stringify(corpo ?? null).slice(0, 200);
 }
 
-async function pedir<T>(cfg: ConfigAsaas, metodo: 'GET' | 'POST' | 'PUT' | 'DELETE', caminho: string, corpo?: unknown): Promise<T> {
+async function pedir<T>(
+  cfg: ConfigAsaas, metodo: 'GET' | 'POST' | 'PUT' | 'DELETE', caminho: string, corpo?: unknown,
+  /** Quanto esperar. A tela do operador pede menos: ela não pode ficar 15 s em branco. */
+  prazoMs = 15_000,
+): Promise<T> {
   let r: Response;
   try {
     r = await fetch(`${cfg.url}${caminho}`, {
@@ -67,7 +73,7 @@ async function pedir<T>(cfg: ConfigAsaas, metodo: 'GET' | 'POST' | 'PUT' | 'DELE
         'user-agent': `${NOME_PRODUTO}/1.0`,
       },
       body: corpo === undefined ? undefined : JSON.stringify(corpo),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(prazoMs),
     });
   } catch (e) {
     throw new ErroDaAsaas(`A Asaas não respondeu a ${metodo} ${caminho}: ${e instanceof Error ? e.message : e}`, 0);
@@ -145,4 +151,29 @@ export async function assinaturasDoCliente(cfg: ConfigAsaas, clienteId: string):
 /** Remove a assinatura: a recorrência acaba, e as cobranças em aberto dela somem (documentação). */
 export async function removerAssinatura(cfg: ConfigAsaas, assinaturaId: string): Promise<void> {
   await pedir(cfg, 'DELETE', `/subscriptions/${id(assinaturaId)}`);
+}
+
+/**
+ * Um webhook da conta, como `GET /webhooks` devolve (documentação da Asaas, conferida em
+ * 17/10/2026; não testado no sandbox). O que importa aqui é a fila: com 15 falhas de
+ * entrega seguidas, a Asaas a interrompe (`interrupted`), e os avisos param até alguém
+ * reativá-la — guardados por 14 dias, e depois apagados (`ARQUITETURA-COBRANCA-V1.md` §5.3).
+ */
+export interface WebhookAsaas {
+  id: string;
+  name?: string;
+  url?: string;
+  enabled?: boolean;
+  interrupted?: boolean;
+  hasAuthToken?: boolean;
+  /** `SEQUENTIALLY` ou `NON_SEQUENTIALLY`. */
+  sendType?: string;
+  penalizedRequestsCount?: number;
+  events?: string[];
+}
+
+/** Os webhooks da conta — até 100, o máximo de uma página da Asaas. */
+export async function webhooksDaConta(cfg: ConfigAsaas, prazoMs?: number): Promise<WebhookAsaas[]> {
+  const r = await pedir<{ data?: WebhookAsaas[] }>(cfg, 'GET', '/webhooks?limit=100', undefined, prazoMs);
+  return Array.isArray(r?.data) ? r.data : [];
 }
