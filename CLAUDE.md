@@ -62,7 +62,7 @@ claude.ai, em `claude/ESTADO-EASYPANEL-FADELINE.md`.
 
 ## Skills do projeto
 
-`.claude/skills/` tem três skills versionadas — elas chegam junto com o clone, para
+`.claude/skills/` tem quatro skills versionadas — elas chegam junto com o clone, para
 qualquer pessoa que abrir este repositório:
 
 | Skill | Quando vale |
@@ -70,6 +70,7 @@ qualquer pessoa que abrir este repositório:
 | `barbearia-multi-tenant` | qualquer código: migration, rota, consulta ao banco, tela |
 | `barbearia-paleta` | cor, tema, botão, texto sobre fundo colorido |
 | `barbearia-docs` | criar ou editar arquivo em `docs/` |
+| `barbearia-cobranca` | a cobrança pela Asaas: o webhook, os eventos, o cancelar, o que o operador vê |
 
 São regras que já custaram erro neste projeto. Leia antes de mexer na área de cada uma.
 
@@ -166,7 +167,8 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **Commit sem as linhas `Co-Authored-By` e `Claude-Session`** — decisão do dono em 16/10/2026.
   Os commits anteriores ficam como estão.
 - **CI:** `.github/workflows/testes.yml` roda a suíte com banco a cada push na `main` e na
-  `monorepo` — e teste pulado reprova. Ele só manda no deploy depois do que o
+  `monorepo` — e teste pulado reprova. Desde 17/10/2026, o job `imagem` constrói o Dockerfile e o
+  sobe sobre um banco na 0009, como o de produção: mexeu no Dockerfile, no CMD ou no boot, ele diz. Ele só manda no deploy depois do que o
   `docs/PENDENCIAS-ABERTAS.md` §3.8 pede.
 - **Cobrança:** `apps/barbearia/src/lib/cobranca.ts`. Sem `ASAAS_API_KEY`, desligada; sem
   `ASAAS_AMBIENTE=producao`, sandbox. Tela ou rota de barbearia não chega a ela, nem por um
@@ -206,6 +208,18 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **O app não precisa de superusuário no banco:** `scripts/usuario-do-app.mjs` faz a troca, e
   migration nova não pode pedir superusuário. **Restaurou um backup?** `scripts/permissoes-do-app.mjs`
   — o boot recusa subir se o papel do app não ler as tabelas (`docs/PENDENCIAS-ABERTAS.md` §3.10 e `docs/PENDENCIAS-ABERTAS.md` §3.11).
+- **O painel só abre no endereço do painel** (`apps/barbearia/src/lib/painelCentral.ts`, no
+  middleware): `/admin…` pedido no endereço de uma barbearia vai para o painel; `/api/admin/…` e
+  `/api/auth/…`, 404. Link para o painel, de dentro do site, pode ser relativo — o desvio leva. Link
+  para o site, de dentro do painel, sai de `urlDoSite`, nunca de `window.location`. E nenhuma
+  resposta se deixa emoldurar (`docs/PENDENCIAS-ABERTAS.md` §2.49).
+- **Senha mudou ou e-mail mudou, por qualquer caminho: `cancelarPedidosDeSenha`**
+  (`apps/barbearia/src/lib/redefinicaoDeSenha.ts`) — senão o link de senha nova pedido antes continua
+  abrindo. Senha nova, em qualquer tela, tem pelo menos `SENHA_MINIMA` (8) caracteres
+  (`docs/PENDENCIAS-ABERTAS.md` §2.50).
+- **Desfecho novo do webhook que pede mão começa por um de `DESFECHOS_QUE_PEDEM_OLHO`**
+  (`apps/barbearia/src/lib/operadorBarbearias.ts`) — é a lista que o Início e a Cobrança do operador
+  leem; o `tests/cobranca.test.ts` reprova "tratar à mão" fora dela (`docs/PENDENCIAS-ABERTAS.md` §2.53).
 - **Requisição que muda dado só passa vinda do próprio endereço:** o `src/middleware.ts`
   confere a `Origin` antes de qualquer rota (`src/lib/origem.ts`). Rota nova não faz nada;
   integração de fora, sem navegador, chega sem `Origin` e passa. Não afrouxe para aceitar

@@ -486,10 +486,10 @@ evento não escolhe nenhuma. Cada evento ensina as chaves que faltam.
 |---|---|
 | `CHECKOUT_PAID` | Em dia — inclusive quem estava fora do ar ou tinha cancelado. Guarda o cliente e desliga as notificações da Asaas para ele |
 | `SUBSCRIPTION_CREATED` | Liga a assinatura à barbearia. Se havia outra — o cartão trocado —, a antiga é removida na Asaas, com as cobranças em aberto dela, se ainda existir |
-| `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED` | Em dia |
+| `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED` | Em dia. Atrasada, só quando é paga a cobrança que FALHOU — desde 17/10/2026: no cartão o `PAYMENT_RECEIVED` chega ~32 dias depois, e o do mês passado tirava do atraso quem não pagou este (`PENDENCIAS-ABERTAS.md` §2.53) |
 | `PAYMENT_OVERDUE`, `PAYMENT_CREDIT_CARD_CAPTURE_REFUSED` | Atrasada desde a PRIMEIRA falha: começam os 3 dias de carência (`apps/barbearia/src/lib/situacao.ts`) |
-| `SUBSCRIPTION_DELETED`, `SUBSCRIPTION_INACTIVATED` | A assinatura em vigor removida por fora do painel: no ar até o fim do período pago. Removida pelo cancelar do painel, a data já está gravada e não muda |
-| Estorno e contestação | Alerta no log; nada muda sozinho (§4) |
+| `SUBSCRIPTION_DELETED`, `SUBSCRIPTION_INACTIVATED` | A assinatura em vigor removida por fora do painel: no ar até o fim do período pago. Removida pelo cancelar do painel, a data já está gravada e não muda. Com a barbearia fora do `active`, pede olho ao operador — e, tirada do ar ou encerrada, a saída fica marcada para valer se ela for reativada (desde 17/10/2026) |
+| Estorno e contestação | Alerta no log e no "pede olho" do operador (desde 17/10/2026); nada muda sozinho (§4) |
 | Qualquer outro | Guardado, e mais nada |
 
 Nenhum mexe em barbearia suspensa à mão. E só conta a cobrança da assinatura **em vigor**: a de

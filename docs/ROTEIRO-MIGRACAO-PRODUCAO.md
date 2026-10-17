@@ -536,7 +536,9 @@ Na ordem, porque cada um depende do anterior:
 - [ ] **As fotos aparecem** — logo e capa. Se sumiram, é `UPLOAD_ROOT`. **A galeria**
       aparece depois do 4.8; se não aparecer, é ele que faltou.
 - [ ] **Um barbeiro consegue entrar no painel.** Pelo slug ainda funciona enquanto
-      houver uma barbearia só.
+      houver uma barbearia só. ⚠️ Desde 17/10/2026 o painel abre só no endereço do painel
+      (`PENDENCIAS-ABERTAS.md` §2.49): o `/admin` do site do Bayron leva a
+      `painel.<domínio>/admin`. Avise os barbeiros dele que o endereço de entrar mudou.
 - [ ] **A agenda do dia mostra os agendamentos de sempre.**
 - [ ] **Um agendamento novo, feito pelo site**, aparece no painel. É o teste da
       sequence: se der erro de chave duplicada, foi o `setval` (não deve acontecer, está

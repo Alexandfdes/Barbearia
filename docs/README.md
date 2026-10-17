@@ -71,7 +71,7 @@ procedimento de um script da época do SQLite, apagado junto. Continuam no hist�
 
 ---
 
-## As três skills
+## As quatro skills
 
 Vivem em `.claude/skills/` e chegam junto com o clone. São regras que já custaram
 erro neste projeto — leia antes de mexer na área de cada uma.
@@ -81,6 +81,7 @@ erro neste projeto — leia antes de mexer na área de cada uma.
 | `barbearia-multi-tenant` | qualquer código: migration, rota, consulta ao banco, tela |
 | `barbearia-paleta` | cor, tema, botão, texto sobre fundo colorido |
 | `barbearia-docs` | criar ou editar arquivo em `docs/` |
+| `barbearia-cobranca` | a cobrança pela Asaas: o webhook, os eventos, o cancelar — desde 17/10/2026 |
 
 ---
 
