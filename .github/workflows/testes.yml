@@ -124,9 +124,96 @@ jobs:
       - name: Build
         run: npm run build
 
+  # A imagem de verdade, construída como o EasyPanel constrói, e subida sobre um banco
+  # parado na 0009 — o estado de produção desde 10/10/2026. Até 17/10/2026 o Dockerfile
+  # nunca tinha sido construído fora do EasyPanel: o estágio só com as dependências de
+  # produção (11/10) e o backup antes das migrations (17/10) seriam provados pela primeira
+  # vez no deploy, com o app fora do ar se falhassem (`docs/PENDENCIAS-ABERTAS.md` §3.2).
+  imagem:
+    name: Imagem do Docker — constrói e sobe sobre um banco como o de produção
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: barbearia
+          POSTGRES_PASSWORD: barbearia
+          POSTGRES_DB: imagem
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U barbearia -d imagem"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://barbearia:barbearia@127.0.0.1:5432/imagem
+      SESSION_SECRET: segredo-do-ci-com-mais-de-trinta-e-dois-caracteres
+    steps:
+      - uses: actions/checkout@v4
+
+      # O contexto é `apps/barbearia`, como o "Build Path" do EasyPanel (`docs/MONOREPO.md` §3).
+      - name: Constrói a imagem
+        run: docker build -t fadeline-ci apps/barbearia
+
+      - name: O banco parado na 0009, como o de produção
+        run: docker run --rm --network host -e DATABASE_URL fadeline-ci node scripts/startup.mjs --ate=0009
+
+      - name: Sobe o container, com o CMD do Dockerfile
+        run: |
+          docker run -d --name app --network host -v dados:/data \
+            -e DATABASE_URL -e SESSION_SECRET -e PORT=4321 \
+            -e PAINEL_URL=http://localhost:4321 -e DOMINIO_BASE=localhost:4321 \
+            fadeline-ci
+
+      - name: A saúde responde
+        run: |
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:4321/api/saude && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:4321/api/saude | grep -q '"ok":true'
+
+      - name: O boot fez backup antes das migrations, aplicou-as e conferiu o banco
+        run: |
+          docker logs app > boot.log 2>&1
+          cat boot.log
+          grep -q '✓ backup: pg_dump (PostgreSQL) 16' boot.log
+          grep -q '✓ backup antes das migrations' boot.log
+          grep -qE '✓ [0-9]+ migration\(s\) aplicada\(s\)' boot.log
+          grep -q '✓ papel do app' boot.log
+          docker exec app sh -c 'ls /data/backups/*-antes-da-0010.sql.gz'
+
+      - name: Na imagem, só as dependências de produção
+        run: docker exec app sh -c 'test ! -e node_modules/vitest && test ! -e node_modules/typescript && test -e node_modules/tsx'
+
+      - name: O provisionador roda no container, e o site da barbearia nova abre
+        run: |
+          docker exec -e SENHA_INICIAL=senha-do-ci-12345 app npx tsx scripts/provisionar.mts \
+            --slug=ci --nome="Barbearia do CI" --dono="Dono do CI" --telefone="84 99999-0000" \
+            --endereco="Rua do CI, 1" --cidade="Mossoró" --estado=RN
+          codigo=$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: ci.localhost:4321' http://127.0.0.1:4321/)
+          echo "site da barbearia nova: $codigo"
+          test "$codigo" = 200
+
+      - name: Reiniciado, nada pendente — e nenhum backup de antes a mais
+        run: |
+          docker restart app
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:4321/api/saude && break
+            sleep 2
+          done
+          docker logs app 2>&1 | grep -q '✓ Banco já estava em dia'
+          test "$(docker exec app sh -c 'ls /data/backups/ | grep -c antes-da-')" = 1
+
+      - name: O log do container, se algo falhou
+        if: failure()
+        run: docker logs app || true
+
   deploy:
-    name: Deploy do app no EasyPanel — só a main, só com o app verde
-    needs: [barbearia]
+    name: Deploy do app no EasyPanel — só a main, só com o app verde e a imagem provada
+    needs: [barbearia, imagem]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
