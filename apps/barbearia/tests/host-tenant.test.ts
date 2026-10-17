@@ -41,7 +41,9 @@ beforeAll(async () => {
   await conn`INSERT INTO tenants (id, slug, business_name, status, domain) VALUES
     (1, 'bayron',  'Barbearia Bayron',  'active',    NULL),
     (2, 'vintage', 'Barbearia Vintage', 'active',    'vintagebarber.com.br'),
-    (3, 'sumida',  'Barbearia Sumida',  'suspended', NULL)`;
+    (3, 'sumida',  'Barbearia Sumida',  'suspended', NULL),
+    (4, 'da-maria-antiga', 'Da Maria (fora do ar)', 'suspended', 'barbeariadamaria.com.br'),
+    (5, 'barbeariadamaria', 'Outra, com o slug igual', 'active', NULL)`;
   await conn.end({ timeout: 5 });
 
   tenant = await import('../src/lib/tenant.js');
@@ -75,6 +77,14 @@ describe.skipIf(!TEM_BANCO)('o endereço decide a barbearia', () => {
 
   it('barbearia suspensa não é servida — é assim que o inadimplente sai do ar', () => {
     expect(tenant.tenantDoHost(pedido('sumida.fadeline.com.br'))).toBeNull();
+  });
+
+  it('domínio próprio fora do ar mostra o aviso dela — não cai no slug igual de OUTRA barbearia', () => {
+    // Até 17/10/2026, `barbeariadamaria.com.br` fora do ar servia a barbearia de slug
+    // `barbeariadamaria`: os clientes de uma agendavam na outra.
+    expect(tenant.tenantDoHost(pedido('barbeariadamaria.com.br'))).toBeNull();
+    expect(tenant.tenantSuspensoDoHost('barbeariadamaria.com.br')?.id).toBe(4);
+    expect(tenant.tenantDoHost(pedido('barbeariadamaria.fadeline.com.br'))?.id).toBe(5);
   });
 
   it('a porta no host não atrapalha', () => {

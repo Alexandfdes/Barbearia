@@ -215,7 +215,11 @@ export function resolverHost(host: string | null): Tenant | null {
   const limpo = host.toLowerCase().split(':')[0].replace(/\.$/, '');
 
   const porDominioProprio = porDominio.get(limpo);
-  if (estaNoAr(porDominioProprio)) return porDominioProprio;
+  // Domínio próprio é de UMA barbearia, no ar ou não: fora do ar, o endereço dela mostra
+  // o aviso (`tenantSuspensoDoHost`) — nunca cai no slug igual ao primeiro pedaço. Até
+  // 17/10/2026 caía: `barbeariadoze.com.br` fora do ar servia a barbearia de slug
+  // `barbeariadoze`, e os clientes de uma agendavam na outra.
+  if (porDominioProprio) return estaNoAr(porDominioProprio) ? porDominioProprio : null;
 
   const sub = limpo.split('.')[0];
   const t = porSlug.get(sub);
