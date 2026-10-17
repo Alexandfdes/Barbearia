@@ -30,6 +30,7 @@
  * barbearia, e o painel leva o dono à tela de assinatura (decisões de 08/10/2026,
  * `docs/PLANO-PRODUTIZACAO.md` §13).
  */
+import type { APIContext, MiddlewareNext } from 'astro';
 import { defineMiddleware } from 'astro:middleware';
 import { comTenant } from './db/index.js';
 import { getSession, sessaoForaDoAr } from './lib/session.js';
@@ -43,8 +44,12 @@ import { motivoDaRecusa, respostaDaRecusa } from './lib/origem.js';
 import { ehRotaDoOperador } from './lib/operador.js';
 import { ROTAS_DA_EXPORTACAO } from './lib/exportacao.js';
 import { faltamNoBanco, respostaDoBancoAtrasado } from './lib/bancoAtrasado.js';
+import { desvioParaOPainel, semMoldura } from './lib/painelCentral.js';
 
-export const onRequest = defineMiddleware(async (contexto, next) => {
+// Toda resposta sai sem poder ser emoldurada (`lib/painelCentral.ts`).
+export const onRequest = defineMiddleware(async (contexto, next) => semMoldura(await atender(contexto, next)));
+
+async function atender(contexto: APIContext, next: MiddlewareNext): Promise<Response> {
   const caminho = new URL(contexto.request.url).pathname;
 
   // ⚠️ ANTES DE TUDO: requisição que muda dado só passa vinda do próprio endereço.
@@ -94,6 +99,12 @@ export const onRequest = defineMiddleware(async (contexto, next) => {
   // fora, o monitor receberia um 500 genérico daqui em vez do 503 da rota.
   if (caminho === '/api/saude') return next();
 
+  // O painel só no endereço do painel: no endereço do site de uma barbearia, a tela vai
+  // para o painel e a API responde 404 (`lib/painelCentral.ts`). Antes de resolver
+  // barbearia: fora do ar, o endereço dela mostraria o aviso no lugar do login.
+  const foraDoPainel = desvioParaOPainel(contexto.request);
+  if (foraDoPainel) return foraDoPainel;
+
   const { tenant, daSessao } = await tenantDaRequisicao(contexto.request);
 
   // ⚠️ ANTES de olhar o endereço: no desenvolvimento, o painel e a barbearia 1
@@ -125,7 +136,7 @@ export const onRequest = defineMiddleware(async (contexto, next) => {
   }
 
   return servirComTenant(tenant, next);
-});
+}
 
 /**
  * As telas de `/admin` que abrem sem sessão: o login e as duas da senha nova
