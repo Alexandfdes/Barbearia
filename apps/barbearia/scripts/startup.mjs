@@ -23,6 +23,7 @@ import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
+import { backupDoBanco } from './backup.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PASTA = resolve(__dirname, '..', 'drizzle');
@@ -110,6 +111,10 @@ async function main() {
     process.exit(1);
   }
 
+  // Antes de mudar qualquer coisa: o backup do banco como ele está (17/10/2026).
+  const pendentes = arquivos.filter((nome) => !jaAplicadas.has(nome));
+  if (pendentes.length > 0) await backupAntesDasMigrations(pendentes, jaAplicadas.size);
+
   let aplicadas = 0;
 
   for (const nome of arquivos) {
@@ -142,6 +147,68 @@ async function main() {
   console.log(
     aplicadas === 0 ? '✓ Banco já estava em dia' : `✓ ${aplicadas} migration(s) aplicada(s)`
   );
+}
+
+/**
+ * O backup do banco ANTES de aplicar migration nova — e, se ele falha, nada se aplica.
+ *
+ * ── POR QUE (17/10/2026) ─────────────────────────────────────────────────────
+ *
+ * O CMD do Dockerfile roda este script e só DEPOIS lança o daemon do backup, cujo
+ * backup de boot vem portanto depois das migrations — e é pulado se houver um com
+ * menos de 12 horas. Com um app e um banco para todas as barbearias, uma migration
+ * que estragasse dado estragava o de todas, e a volta era o backup das 03:00: o dia
+ * de agendamentos de todo mundo perdido. Achado na revisão de 16/10/2026
+ * (`docs/PENDENCIAS-ABERTAS.md` §3.2).
+ *
+ * ⚠️ Derruba o boot de propósito se o backup falhar — ao contrário do aviso do
+ * `pg_dump` mais abaixo, que deixa o app subir sem backup diário. Lá, subir não
+ * muda o banco; aqui, subir É mudar o banco. Saída para uma vez só, sabendo o que
+ * faz: `MIGRAR_SEM_BACKUP=1` — e tirar a variável depois.
+ *
+ * Só no boot de produção (`NODE_ENV=production`, o do Dockerfile) e na rodada
+ * completa. Fica de fora:
+ *  - o `--so-migrations` do `npm run dev`: na máquina de desenvolvimento o `pg_dump`
+ *    quase nunca está no PATH, e o `BACKUP_DIR` padrão (`/data/backups`) nem existe;
+ *  - o `--ate=`, da carga do Bayron: ele roda num banco recém-criado — e a rodada
+ *    completa depois da carga faz o backup, com os dados carregados;
+ *  - o banco novo, sem migration nenhuma aplicada: não há o que guardar.
+ */
+async function backupAntesDasMigrations(pendentes, quantasJaAplicadas) {
+  if (ate || soMigrations || process.env.NODE_ENV !== 'production') return;
+  if (quantasJaAplicadas === 0) {
+    console.log('ⓘ banco novo: sem backup antes das migrations — não há o que guardar');
+    return;
+  }
+  if (process.env.MIGRAR_SEM_BACKUP === '1') {
+    console.warn(
+      `⚠️  MIGRAR_SEM_BACKUP=1: ${pendentes.length} migration(s) vão rodar SEM o backup de antes.\n` +
+      '   Tire a variável depois deste deploy — o próximo também migraria sem.',
+    );
+    return;
+  }
+  const primeira = pendentes[0].slice(0, 4);
+  try {
+    const { dest, bytes } = await backupDoBanco(`antes-da-${primeira}`);
+    const tamanho = bytes < 1024 * 1024
+      ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+      : `${(bytes / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB`;
+    console.log(`✓ backup antes das migrations: ${dest} (${tamanho})`);
+  } catch (erro) {
+    console.error(
+      '\n' +
+      '  ┌──────────────────────────────────────────────────────────────┐\n' +
+      '  │  ✗  SEM O BACKUP DE ANTES — NENHUMA MIGRATION FOI APLICADA    │\n' +
+      '  └──────────────────────────────────────────────────────────────┘\n' +
+      `  Pendentes: ${pendentes.join(', ')}\n` +
+      `  O backup falhou: ${erro instanceof Error ? erro.message : String(erro)}\n\n` +
+      '  Migration muda o banco de todas as barbearias, e a volta de uma que dê errado\n' +
+      '  é este backup — por isso o boot para aqui, antes de mudar qualquer coisa.\n' +
+      '  Conserte o motivo (espaço em disco, o pg_dump, a pasta do BACKUP_DIR) e suba\n' +
+      '  de novo. Para subir assim mesmo, uma vez: MIGRAR_SEM_BACKUP=1 — e tire depois.\n'
+    );
+    throw new ErroDeBoot('sem o backup de antes das migrations');
+  }
 }
 
 /**
