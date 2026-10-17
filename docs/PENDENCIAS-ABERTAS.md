@@ -2218,6 +2218,186 @@ qualquer apontado para o servidor de mostrar o site de alguém
 Guarda: `apps/barbearia/tests/raiz-do-painel.test.ts`; contra o build, o 302, a tela de entrar no
 fim, o 404 de um endereço desconhecido e o 200 do site de uma barbearia.
 
+> **§2.49 a §2.54 — a segunda revisão de 17/10/2026**, pedida por você ("revise o projeto e veja o
+> que pode adiantar"): quatro revisões em paralelo — cobrança, contas e senhas, porta de entrada e
+> operador, agendamento —, cada achado conferido no código antes de entrar aqui. Os que você
+> escolheu consertar estão ✅ abaixo; os que ficaram, no §2.54. Cada conserto foi desfeito de
+> propósito e o caso certo ficou vermelho: 30 reintroduções, as 30 pegas — três só depois de o
+> teste ganhar o caso que faltava.
+
+### 2.49 ✅ `[TÉCNICO]` O painel abria no endereço do site de qualquer barbearia — RESOLVIDO em 17/10/2026
+
+**Era:** o rodapé do site tem "Painel Administrativo" com `href="/admin"`, e o portal leva a
+`/admin/login` — no endereço do SITE. O painel funcionava ali, com o cookie nascendo nesse
+endereço. Três efeitos:
+
+1. **O §2.30 ficava sem efeito para quem entrava assim.** A conferência de origem compara `Origin`
+   com `Host`, e ali os dois são o site. Um script no site da barbearia agia no painel dela — e lia
+   as respostas: a exportação dos clientes, com nome, telefone e nascimento.
+2. **Mistura de barbearias:** o login é global, a senha da barbearia B entrava pelo endereço da A,
+   e o site da A, naquele navegador, passava a mostrar dados da B.
+3. **Fora do ar, o dono ficava sem caminho até pagar:** o endereço dela mostra o aviso de
+   "temporariamente indisponível" — o login nele também.
+
+E duas coisas do mesmo lugar: o "Copiar link do cliente" da busca montava o link com o endereço
+da página — no painel central, `painel.<domínio>/a/<token>`, que dá 404; e nenhuma tela do painel
+dizia ao navegador que não pode ser emoldurada (o `/operador` dizia). Os subdomínios das
+barbearias são o mesmo "site" do painel para o navegador: num iframe entre eles, o cookie
+`SameSite=Lax` vai junto, e um clique no painel emoldurado sai do próprio painel. Explorável só
+depois de um XSS num site — não se achou nenhum; é a segunda parede.
+
+**Agora** (`apps/barbearia/src/lib/painelCentral.ts`, chamado pelo `src/middleware.ts` antes de
+resolver barbearia):
+
+- tela do painel (`/admin…`) pedida fora do endereço do painel: 302 para o painel, com o mesmo
+  caminho; rota `/api/admin/…` ou `/api/auth/…` fora dele: 404. Só com o endereçamento configurado
+  (`PAINEL_URL` ou `DOMINIO_BASE`) — no desenvolvimento numa porta só, o painel e a barbearia 1
+  dividem o `localhost`;
+- toda resposta sai com `X-Frame-Options: DENY` e `frame-ancestors 'none'`, menos onde a tela já
+  disse o seu;
+- a busca leva o endereço do site da barbearia (`urlDoSite`) para o link do cliente.
+
+**Verificado:** `apps/barbearia/tests/painel-central.test.ts`; contra o build, no navegador: o
+"Painel Administrativo" do site terminando no login do painel, a entrada, a busca com o endereço
+do site, a agenda abrindo, o `/admin` do site em 302 e a exportação do site em 404, sem erro de
+JavaScript.
+
+⚠️ **O que muda para quem usa:** o barbeiro que tinha o endereço do site com `/admin` nos
+favoritos cai no painel central — o mesmo login. E o Bayron, depois da migração: os barbeiros dele
+entram por `painel.<domínio>`, não mais pelo endereço do site (`ROTEIRO-MIGRACAO-PRODUCAO.md` §5).
+
+### 2.50 ✅ `[TÉCNICO]` O link de senha nova sobrevivia a outra troca, e o login aceitava força bruta distribuída — RESOLVIDO em 17/10/2026
+
+**Era — o grave, confirmado rodando:** o link de "esqueci minha senha" continuava valendo depois
+de a senha ou o e-mail mudarem por outro caminho — a Equipe, o script de suporte. O roteiro do
+ataque: quem pega o painel aberto troca o e-mail do dono pelo dele e pede a senha nova; o dono
+recebe o aviso no e-mail antigo (§4.17) e faz o que ele manda — senha nova pela Equipe, o e-mail de
+volta —; dentro da hora, o link que o outro já tinha troca a senha de novo, e a conta é dele.
+
+**E três do login do painel:**
+
+- só havia limite por IP: com cem endereços, 500 tentativas a cada 15 minutos contra o mesmo
+  WhatsApp — que é público;
+- o telefone sem conta respondia na hora, o com conta levava ~250 ms (o bcrypt): a mensagem era a
+  mesma de propósito, e o relógio dizia quem tem conta;
+- a Equipe aceitava senha de 6 caracteres — o link de senha nova já pedia 8.
+
+**Agora:**
+
+- `cancelarPedidosDeSenha` (`apps/barbearia/src/lib/redefinicaoDeSenha.ts`) mata os links pendentes
+  quando a senha muda pela Equipe ou o e-mail muda; o script de suporte apaga os dele. E a
+  segunda parede: link pedido ANTES da última troca de senha não abre, por qualquer caminho que a
+  troca tenha vindo;
+- limite por conta, de qualquer IP: 10 tentativas a cada 15 minutos e 50 por dia, por WhatsApp
+  (`LIMITE_DA_CONTA`, em `apps/barbearia/src/lib/rateLimit.ts`). ⚠️ **O preço:** quem souber o
+  número tranca o dono por um tempo. A saída é o "esqueci minha senha": a senha trocada pelo link
+  zera os dois contadores. A tela diz isso no 429;
+- o telefone sem conta roda o bcrypt contra um hash de mentira, do mesmo custo;
+- a Equipe pede 8 caracteres, como o link. As senhas de 6 que já existem continuam entrando.
+  *Decidido na implementação — falta você confirmar.*
+
+**Verificado:** `apps/barbearia/tests/senha-nova.test.ts` e `apps/barbearia/tests/login.test.ts`
+(os dez IPs contra a mesma conta, o relógio do telefone sem conta, o limite zerado pelo link).
+
+### 2.51 ✅ `[TÉCNICO]` A agenda aberta não via o que o cliente faz pelo link, e o agendamento tinha quatro brechas — RESOLVIDO em 17/10/2026
+
+Achados rodando, numa barbearia de mentira em cada fuso:
+
+1. **A agenda do dia aberta não mostrava o desmarcar nem o remarcar pelo link.** Ela recarrega
+   quando muda a resposta de `api/admin/appointments/count.ts` — a contagem e o maior
+   `last_modified_at` —, e o link não grava esse campo. Sem e-mail em produção (§4.17), era a única
+   forma de o dono ficar sabendo. E no dia sem nenhum agendamento, o primeiro que chegava nunca
+   recarregava a tela. **Agora** a resposta é a assinatura do dia (um hash de cada linha: status,
+   horário, barbeiro, notas, quem mexeu) e a tela marca o ponto de partida por um sinal próprio
+   (`apps/barbearia/tests/agenda-atualiza.test.ts`).
+2. **Barbeiro desligado continuava com vagas, e o link remarcava com ele** — o cliente ia a um
+   horário com quem não trabalha mais lá. **Agora** `getAvailableSlots`
+   (`apps/barbearia/src/lib/slots.ts`) não dá vaga a barbeiro desligado, e o remarcar pelo link
+   recusa com "desmarque e agende de novo". Desmarcar continua valendo.
+3. **Vagas erradas:** agendamento que começou antes da janela (o dono mudou o expediente depois
+   dele) não ocupava a janela, e o site oferecia o horário por cima — o cliente preenchia tudo e
+   levava 409; e a remarcação calculava as vagas com a duração ATUAL do serviço, gravando com a do
+   agendamento. **Agora** a conta é de sobreposição, e remarcar usa a duração do agendamento.
+4. **O combo de segunda remarcado para sexta levava o desconto** — o caminho que o §2.16 diz que o
+   link editado à mão não contorna. O agendamento não guarda o combo, então **agora** o combo
+   (marcado pela nota, `MARCA_DO_COMBO` em `apps/barbearia/src/lib/bookAppointment.ts`) só remarca
+   para o mesmo dia da semana. *Guardar o combo no agendamento pediria migration; ficou para
+   quando o combo tiver mais de um dia por semana em uso.*
+5. **O e-mail do agendamento novo com combo** dizia "Corte — R$ 32" e não falava do produto: o
+   barbeiro não sabia que havia pomada a separar. **Agora** traz os itens e o total para o cliente
+   (`apps/barbearia/src/lib/avisoDeAgenda.ts`, com `totalParaOCliente`).
+
+**Verificado:** `apps/barbearia/tests/agenda-revisao.test.ts`, com o processo em UTC e a barbearia
+em Fortaleza.
+
+### 2.52 ✅ `[TÉCNICO]` Domínio próprio fora do ar podia mostrar outra barbearia — RESOLVIDO em 17/10/2026
+
+**Era:** com a barbearia do domínio próprio fora do ar, o resolvedor caía no primeiro pedaço do
+endereço como se fosse um slug: `barbeariadamaria.com.br` fora do ar servia a barbearia de slug
+`barbeariadamaria`, e os clientes de uma agendavam na outra. Hoje não pegava ninguém — o único
+domínio próprio é o do Bayron, e `bayron` é reservado. **Agora** domínio próprio é de uma barbearia
+só, no ar ou não (`resolverHost`, em `apps/barbearia/src/lib/tenant.ts`); fora do ar, mostra o
+aviso dela. Guarda: `apps/barbearia/tests/host-tenant.test.ts`.
+
+### 2.53 ✅ `[TÉCNICO]` Na cobrança: o pagamento antigo tirava do atraso, e o que pede mão não chegava ao operador — RESOLVIDO em 17/10/2026
+
+1. 🔴 **O pagamento de outra cobrança tirava do atraso.** No cartão, o `PAYMENT_RECEIVED` chega
+   ~32 dias depois do `PAYMENT_CONFIRMED` (documentação da Asaas, conferida em 17/10/2026) — depois
+   do vencimento seguinte. A mensalidade de novembro falhava, a barbearia entrava na carência, e o
+   aviso de dinheiro disponível da de outubro a punha em dia: o site ficava no ar sem pagar até a
+   falha seguinte, um mês depois. O mesmo com a contestação ganha, que volta como pagamento.
+   **Agora**, atrasada, a barbearia só sai do atraso quando é paga a cobrança que falhou
+   (`cobrancasQueFalharamSemPagar`, em `apps/barbearia/src/lib/cobranca.ts`, lendo o próprio
+   registro do webhook).
+2. 🟠 **O que o webhook manda "tratar à mão" não aparecia em tela nenhuma.** O estorno e a
+   contestação ficavam com o desfecho `alerta: …`, e as duas cópias da regra do "pede olho" do
+   operador não tinham o `alerta`. **Agora** a regra é uma só (`DESFECHOS_QUE_PEDEM_OLHO`, em
+   `apps/barbearia/src/lib/operadorBarbearias.ts`), e um teste reprova desfecho com "tratar à mão"
+   que ela não pegue.
+3. 🟠 **A assinatura removida com a barbearia fora do `active` era descartada.** O operador tira do
+   ar e remove a assinatura na Asaas, como o §3.9 manda; ao reativar, ela ficava em dia sem
+   assinatura nenhuma — no ar para sempre, de graça. **Agora** pede olho, e, tirada do ar ou
+   encerrada, ganha a saída marcada para o fim do período pago, que vale se for reativada.
+
+**Verificado:** `apps/barbearia/tests/cobranca.test.ts`. Um caso antigo pagava outra cobrança para
+tirar do atraso — o caso foi acertado para pagar a que falhou: ele guardava o defeito.
+
+### 2.54 🟠 `[DECISÃO]` O que a revisão de 17/10/2026 achou e ficou registrado
+
+**Esperando você — explicados na conversa de 17/10:**
+
+- 🔴 **Cancelar uma barbearia remove a assinatura da outra do mesmo dono** (`cancelarAssinatura`,
+  em `apps/barbearia/src/lib/cobranca.ts`): sem assinatura ligada, o cancelar lista e remove TODAS
+  as do cliente da Asaas. Acontece com dono de duas barbearias e o aviso ambíguo da Asaas — o estado
+  que a própria suíte monta. Conserto proposto: sem saber qual, não remover nada, e pedir olho.
+- 🔴 **Cancelar dá um mês grátis:** o fim do período pago usa o `nextDueDate`, que a Asaas já
+  avançou — ela gera cada cobrança 40 dias antes do vencimento (documentação). Remover a assinatura
+  apaga a cobrança pendente, e quem pagou até 16/11 fica até 16/12. Conserto proposto: o fim é o
+  vencimento da cobrança pendente mais antiga, lida antes de remover — a confirmar no sandbox
+  (§4.14).
+
+**Registrados, sem conserto ainda:**
+
+- 🟠 **Telefone de barbeiro preso para sempre:** o telefone não se edita, e o índice único é
+  global. O barbeiro desligado da barbearia A não entra na B; telefone digitado errado fica
+  errado; e quem faz o teste grátis pode cadastrar o WhatsApp de barbeiros de outras barbearias,
+  que ficam sem poder se cadastrar. Pede decisão: editar o telefone, e/ou liberar o de barbeiro
+  desligado.
+- 🟡 **O cadastro diz se um telefone tem conta**, sem criar nada — a ordem das recusas (o telefone
+  antes dos serviços repetidos). Só com `CADASTRO_ABERTO=1`.
+- 🟡 **A sessão da área do cliente não guarda a barbearia:** o cookie copiado vale em outra. Só com
+  o cookie na mão — computador compartilhado.
+- 🟡 **Reativar um barbeiro desligado ressuscita as sessões abertas dele**, se a senha não mudou.
+- 🟡 **O link desmarca ou remarca agendamento cuja hora já passou** — o atendido ontem, não
+  concluído, sai da receita. Pede decisão de produto: até quando o cliente mexe.
+- 🟡 **Cancelar com a assinatura já removida** falha sempre (404 da Asaas) ou tira do ar na hora;
+  e o cancelar que cruza com uma falha de cobrança remove a assinatura sem gravar a saída. Janelas
+  pequenas.
+- *Hipóteses, não conferidas:* em Manaus e no Acre, entre 22h/23h e meia-noite, o Checkout manda à
+  Asaas uma data que já é "ontem" em Brasília; o `past_due_since` grava a hora em que o evento foi
+  processado, não o vencimento — com a fila parada dias, a carência começa atrasada; e o mapa do
+  limite de tentativas (`rateLimit.ts`) nunca descarta entrada vencida.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -2282,6 +2462,20 @@ tudo de uma vez — 7 migrations, da 0010 à 0016, e o Dockerfile novo, que nunc
 `docker build` de verdade (§3.12). Com o banco vazio de hoje, é o deploy mais barato que vai
 existir; cada semana a mais engorda o lote. O passo a passo, com os nomes do servidor, está no
 projeto do claude.ai.
+
+✅ **O merge não tem conflito** (conferido no GitHub em 17/10/2026): a `main` não tem nada que a
+`monorepo` não tenha — o único commit dela fora da `monorepo` é o próprio merge do PR #1, sem
+mudança de arquivo nenhuma.
+
+✅ **A imagem provada antes do deploy — o job `imagem` do CI, desde 17/10/2026**
+(`.github/workflows/testes.yml`): constrói o Dockerfile com o contexto do EasyPanel, põe um banco
+na 0009 — o estado de produção —, sobe o container com o CMD dele e confere o que o primeiro deploy
+tem de fazer: o backup de antes das migrations no volume, as migrations aplicadas, o papel do app,
+a saúde, só as dependências de produção na imagem, o provisionador rodando dentro dele e o site da
+barbearia nova abrindo; reiniciado, nada pendente e nenhum backup a mais. O deploy pelo CI (§3.8)
+espera este job também. ⚠️ **Não rodado aqui:** este ambiente não pode ligar o Docker. Os mesmos
+passos rodaram sem ele, sobre o build, e passaram (13 conferências); o primeiro push depois de
+17/10 é a prova da imagem — antes da `main`.
 
 ### 3.3 🟠 `[TÉCNICO]` Backup — um só para todas as barbearias; o teste de restauração já foi feito, e sair da VPS está pronto no código desde 12/10/2026
 
@@ -3439,9 +3633,13 @@ a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`
 > - Se o `PUT /customers/{id}` só com `notificationDisabled` desliga as notificações.
 > - O endereço do Checkout do sandbox, quando a resposta não traz o `link`
 >   (`linkDoCheckout`, em `src/lib/asaas.ts`).
+> - *Acrescentadas em 17/10/2026:* no cartão, o `PAYMENT_RECEIVED` chega mesmo ~32 dias depois do
+>   `PAYMENT_CONFIRMED`, como a documentação diz (§2.53)? E, logo depois de pagar, a cobrança do mês
+>   seguinte já existe, pendente, e o `nextDueDate` da assinatura já é o do mês depois dela (§2.54)?
 >
-> **Vigiar, enquanto não houver alerta** (§3.4): o evento que falhou de vez e o que não achou
-> barbearia ficam guardados com o motivo e só aparecem no log —
+> **Vigiar:** ~~enquanto não houver alerta (§3.4), o evento que falhou de vez e o que não achou
+> barbearia só aparecem no log~~ — *desde 12/10 aparecem no Início e na Cobrança do operador ("pede
+> olho"), e desde 17/10 também o estorno e a contestação (§2.53). A consulta, para o `psql`:*
 > `SELECT received_at, event, outcome FROM webhook_events WHERE outcome LIKE 'erro:%' OR outcome LIKE 'sem barbearia%' OR outcome LIKE 'alerta%' ORDER BY id DESC;`.
 > Cada linha é um pagamento que não mudou nada sozinho.
 
@@ -3909,6 +4107,13 @@ valor na linha da agenda, no detalhe, na comanda, na ficha do cliente e no Iníc
 pedido por você, a área do cliente com o total de cada visita (§2.43); e, achadas no caminho, as
 datas em português (§2.44). E Configurações em abas, como você escolheu (§2.45), e a barra lateral
 presa na tela, pedida por você (§2.46).
+
+**17/10/2026, a segunda revisão, pedida por você — os escolhidos, ✅ consertados:** o painel só no
+endereço do painel, sem moldura (§2.49); o link de senha nova que sobrevivia e o login por conta
+(§2.50); a agenda que não via o link, o barbeiro desligado, as vagas, o combo e o e-mail (§2.51); o
+domínio próprio fora do ar (§2.52); o pagamento antigo que tirava do atraso e o que pede mão chegando
+ao operador (§2.53); e a imagem do Docker provada no CI (§3.2). **Esperando você:** os dois do
+cancelar (§2.54).
 
 **16/10/2026, a revisão do projeto, pedida por você; 17/10, os achados dela, ✅ consertados:** o
 backup antes das migrations (§3.2), a fila do webhook parada visível no operador (§3.13), o rodapé

@@ -8,8 +8,9 @@
 >
 > Tudo aqui foi verificado em 06/09/2026 rodando, não de memória.
 >
-> **Vai retomar o trabalho agora? Vá direto para o §9** — a fila do que fazer,
-> em ordem, com o que quebra se a ordem for invertida.
+> **Vai retomar o trabalho agora?** A fila vigente é a do `PENDENCIAS-ABERTAS.md` §6 — o §9
+> daqui ficou como registro de 06/09 (*corrigido em 17/10/2026: este aviso mandava para o §9,
+> que ele mesmo diz estar para trás*).
 
 ---
 
@@ -25,14 +26,14 @@
 3. ~~Todo esse trabalho está na branch **`monorepo`**. A `main` não foi tocada.~~ A `main`
    recebeu a `monorepo` em 09/10/2026 (PR #1) e é dela que o EasyPanel constrói. ⚠️ **E parou
    ali:** conferido no GitHub em 16/10, a `main` continua no merge do PR #1, e a `monorepo` — já
-   no GitHub, com o CI verde — está 61 commits à frente. **Em produção roda o código de 10/10.**
+   no GitHub, com o CI verde — está 61 commits à frente (e mais os de 17/10, ainda sem push). **Em produção roda o código de 10/10.**
    Tudo marcado ✅ daqui em diante, de 10/10 à tarde para cá, existe no código e não no ar
    (`PENDENCIAS-ABERTAS.md` §3.2).
 4. O site do Bayron está **no ar** e não foi afetado por nada disto.
-5. Antes de mexer, leia as três skills em `.claude/skills/` — são regras que já
+5. Antes de mexer, leia as quatro skills em `.claude/skills/` — são regras que já
    custaram erro aqui.
 
-**O próximo passo concreto está no §9 deste documento.**
+**O próximo passo concreto está no `PENDENCIAS-ABERTAS.md` §6** — o de hoje é seu: levar a `monorepo` para a `main` (`PENDENCIAS-ABERTAS.md` §3.2).
 
 ## 2. Como o repositório está organizado
 
@@ -41,7 +42,7 @@ C:\DEV\barbearia\            (o monorepo; C:\DEV\produto não é mais usado)
   apps/barbearia/   site público + agendamento + painel   → porta 4321
   apps/vendas/      landing, /onboarding, /envios         → porta 4322
   docs/             decisões de produto e arquitetura
-  .claude/skills/   três skills versionadas
+  .claude/skills/   quatro skills versionadas
   CLAUDE.md         orientação de trabalho
 ```
 
@@ -366,6 +367,7 @@ dono não reparou vira o preço no site dele.
 
 | Quando | O quê |
 |---|---|
+| 17/10 (2) | **A segunda revisão, pedida pelo dono** — quatro em paralelo (cobrança, contas e senhas, porta de entrada e operador, agendamento), cada achado conferido no código antes de virar conserto. Escolhidos por ele e ✅ feitos: **o painel só no endereço do painel**, e nenhuma página emoldurável (`PENDENCIAS-ABERTAS.md` §2.49) — o rodapé levava a `<barbearia>/admin`, e o painel ali desfazia a proteção do `PENDENCIAS-ABERTAS.md` §2.30; **o link de senha nova que sobrevivia** a outra troca de senha ou de e-mail, o **limite do login por conta**, o relógio que dizia quem tem conta e a senha mínima de 8 na Equipe (`PENDENCIAS-ABERTAS.md` §2.50); **a agenda aberta que não via o desmarcar e o remarcar pelo link**, o barbeiro desligado com vagas, as vagas por sobreposição e pela duração do agendamento, o combo remarcado e o e-mail com o produto (`PENDENCIAS-ABERTAS.md` §2.51); **o domínio próprio fora do ar** (`PENDENCIAS-ABERTAS.md` §2.52); e, na cobrança, **o pagamento antigo que tirava do atraso** e **o que pede mão chegando ao operador** (`PENDENCIAS-ABERTAS.md` §2.53). **A imagem do Docker no CI** (`PENDENCIAS-ABERTAS.md` §3.2), e o merge da `monorepo` na `main` conferido sem conflito. **Esperando o dono:** os dois do cancelar e o resto registrado (`PENDENCIAS-ABERTAS.md` §2.54). **Verificado:** 103 arquivos, **1219 de 1219** contra PostgreSQL 16, nenhum pulado; o `astro check` com 0 erros; 30 defeitos reintroduzidos, os 30 vermelhos — três só depois de o teste ganhar o caso; contra o build, as 16 conferências de antes e 8 novas no navegador, sem erro de JavaScript; o job `imagem` rodado sem Docker, sobre o build, 13 conferências |
 | 17/10 | **Os achados da revisão de 16/10, consertados** — a revisão pedida pelo dono, que conferiu o GitHub e rodou a árvore do `22ecd85` (1156 de 1156, zero erro de tipo, o CI do GitHub verde) e achou a `main`, de onde a produção constrói, parada em 10/10. **O backup antes das migrations** (`PENDENCIAS-ABERTAS.md` §3.2): o boot de produção faz o dump antes de aplicar migration nova, e não migra sem ele (`MIGRAR_SEM_BACKUP=1` para uma vez); até aqui o backup do boot vinha depois delas. **A fila do webhook da Asaas parada, visível no operador** (`PENDENCIAS-ABERTAS.md` §3.13): o Início e o Sistema perguntam à Asaas e avisam — e a revisão estava errada ao dizer que aviso perdido não volta: volta ao reativar, dentro de 14 dias. **O rodapé acende o dia pelos dias da linha** (`PENDENCIAS-ABERTAS.md` §2.47), e **a raiz do painel leva ao painel** (`PENDENCIAS-ABERTAS.md` §2.48). **Os documentos:** a produção rodando o código de 10/10, dito aqui e no `CLAUDE.md`; o CI que já rodou; e a regra das referências `arquivo:linha` — das 27 que dava para conferir sozinho, 13 apontavam para a linha errada —, que passa a ser o nome da função nas seções que valem hoje (skill `barbearia-docs`). **Decidido pelo dono:** os commits sem as linhas `Co-Authored-By` e `Claude-Session`, e a pasta `Design/` fica. **Verificado:** 100 arquivos, **1184 de 1184** contra PostgreSQL 16, nenhum pulado; o `astro check` com 0 erros; 21 defeitos reintroduzidos, os 21 vermelhos — um só depois de reforçar o teste —, e um equivalente trocado por outro. Contra o build, 16 conferências no navegador e por HTTP, sem erro de JavaScript; o build do `22ecd85` reprova 12 delas |
 | 15/10 | **A barra lateral presa na tela, pedida pelo dono** (`PENDENCIAS-ABERTAS.md` §2.46): no computador, a lateral do painel — e a do operador — tem a altura da janela e fica presa enquanto a página rola; o menu que não cabe rola por dentro, com uma barra de rolagem fina e escura, e o Sair sempre à vista; no celular, a gaveta de sempre. O menu inteiro do dono cabe sem rolar a partir de 853 px de janela, onde pedia 889. **Verificado:** 96 arquivos, **1156 de 1156** contra PostgreSQL 16, nenhum pulado (sem banco: 735 passam, 421 pulam); o `astro check` com 0 erros; 11 defeitos reintroduzidos, os 11 vermelhos. Contra o build, no navegador: 29 conferências, no computador alto e baixo, no celular e no operador, sem erro de JavaScript; o build anterior reprovou 12 delas; e as 23 das abas de Configurações, de novo, passando |
 | 15/10 | **Configurações em quatro abas, escolhidas pelo dono** (`PENDENCIAS-ABERTAS.md` §2.45): Aparência, Contato e endereço, Google e Seus dados, no lugar de nove blocos numa rolagem só. Um Salvar grava as três primeiras de uma vez; o ponto laranja marca a aba com mudança não salva; os links do Início, do medidor de completude e do fim do cadastro levam ao bloco certo; a recusa do Salvar abre a aba do campo, e a mensagem saiu sem o nome interno dele. O bloco de campos virou componente (`apps/barbearia/src/components/admin/SecaoDeCampos.astro`). **Verificado:** 95 arquivos, **1152 de 1152** contra PostgreSQL 16, nenhum pulado (sem banco: 731 passam, 421 pulam); o `astro check` com 0 erros; 10 defeitos reintroduzidos, os 10 vermelhos. Contra o build, no navegador: 23 conferências, no computador e no celular, sem erro de JavaScript; a aba mais longa com 2.242 px, onde a tela tinha 4.789; o axe-core sem nada das abas |

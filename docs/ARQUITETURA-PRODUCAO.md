@@ -227,7 +227,7 @@ container e o tempo de resposta — não feito (`PENDENCIAS-ABERTAS.md` §5).
 |---|---|
 | Onde o app e o banco rodam, e a capacidade | `PENDENCIAS-ABERTAS.md` §3.1 |
 | O deploy que derruba todas juntas — e a `main` parada em 10/10 | `PENDENCIAS-ABERTAS.md` §3.2 |
-| O CI mandando no deploy | `PENDENCIAS-ABERTAS.md` §3.8 |
+| O CI mandando no deploy — e a imagem provada nele antes, desde 17/10 | `PENDENCIAS-ABERTAS.md` §3.8 e `PENDENCIAS-ABERTAS.md` §3.2 |
 | O backup para fora da VPS | `PENDENCIAS-ABERTAS.md` §3.3 |
 | O monitor externo | `PENDENCIAS-ABERTAS.md` §3.4 |
 | A fila do webhook da Asaas parada | `PENDENCIAS-ABERTAS.md` §3.13 |
