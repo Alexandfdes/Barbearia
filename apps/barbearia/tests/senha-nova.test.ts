@@ -384,6 +384,13 @@ describe.skipIf(!TEM_BANCO)('a troca pela tela da equipe', () => {
     expect(await vale(dono)).toBe(true);
   });
 
+  it('senha de menos de 8 caracteres não entra pela Equipe — a mesma regra do link (17/10/2026)', async () => {
+    const dono = await sessao.makeSessionCookie({ barberId: 1, role: 'admin', tenantId: 1 });
+    const res = await trocar(dono, 6, '1234567');
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toMatch(/ao menos 8 caracteres/);
+  });
+
   it('o dono troca a PRÓPRIA senha: este navegador ganha sessão nova, os outros aparelhos caem', async () => {
     const esteNavegador = await sessao.makeSessionCookie({ barberId: 1, role: 'admin', tenantId: 1 });
     const outroAparelho = await sessao.makeSessionCookie({ barberId: 1, role: 'admin', tenantId: 1 });
@@ -396,5 +403,76 @@ describe.skipIf(!TEM_BANCO)('a troca pela tela da equipe', () => {
     expect(await vale(outroAparelho)).toBe(false);
     expect(await vale(esteNavegador)).toBe(false);
     expect(await vale(nova!)).toBe(true);
+  });
+});
+
+// ── O link pedido antes de outra troca (17/10/2026) ──────────────────────────
+//
+// O roteiro do ataque: quem pega o painel aberto troca o e-mail do dono pelo dele e pede a
+// senha nova; o dono recebe o aviso no e-mail antigo, põe senha nova pela Equipe e volta o
+// e-mail. Até 17/10/2026 o link continuava valendo, e usado dentro da hora tomava a conta.
+describe.skipIf(!TEM_BANCO)('o link pedido antes de outra troca de senha ou de e-mail morre', () => {
+  const pela = (cookie: string, metodo: 'PUT' | 'POST', url: string, corpo: unknown, id: number, rota: { PUT?: unknown; POST?: unknown }) =>
+    (rota[metodo] as (c: unknown) => Promise<Response>)({
+      request: new Request(url, { method: metodo, headers: { 'content-type': 'application/json', cookie: cookie.split(';')[0] }, body: JSON.stringify(corpo) }),
+      params: { id: String(id) },
+    });
+  const pedirParaAna = async () => {
+    await senha.pedirRedefinicao('84999990006');
+    const token = tokenDoUltimoEmail();
+    expect(await senha.pedidoValido(token)).toMatchObject({ barberId: 6 });
+    return token;
+  };
+
+  it('a senha trocada pela Equipe', async () => {
+    const token = await pedirParaAna();
+    const dono = await sessao.makeSessionCookie({ barberId: 1, role: 'admin', tenantId: 1 });
+    const r = await pela(dono, 'POST', 'http://painel.test/api/admin/barbers/6/password', { password: 'SenhaNovaDaAna1' }, 6, senhaPelaEquipe);
+    expect(r.status).toBe(200);
+    // O pedido some do banco — não só deixa de valer pela segunda parede.
+    const [{ n }] = await sql`SELECT count(*)::int AS n FROM redefinicoes_de_senha WHERE barber_id = 6 AND usada_em IS NULL`;
+    expect(n).toBe(0);
+    expect(await senha.pedidoValido(token)).toBeNull();
+    expect((await senha.redefinirSenha(token, 'SenhaDoIntruso1')).ok).toBe(false);
+  });
+
+  it('o e-mail trocado pela Equipe — o link foi para o endereço de antes', async () => {
+    const token = await pedirParaAna();
+    const dono = await sessao.makeSessionCookie({ barberId: 1, role: 'admin', tenantId: 1 });
+    const equipe = await import('../src/pages/api/admin/barbers/[id].ts');
+    const r = await pela(dono, 'PUT', 'http://painel.test/api/admin/barbers/6', { email: 'ana.nova@bayron.com' }, 6, equipe);
+    expect(r.status).toBe(200);
+    expect(await senha.pedidoValido(token)).toBeNull();
+  });
+
+  it('a senha trocada pelo script de suporte', async () => {
+    const token = await pedirParaAna();
+    const { spawnSync } = await import('node:child_process');
+    const r = spawnSync(process.execPath, ['scripts/set-admin-password.mjs', 'ana', 'SenhaDoSuporte2', '--tenant=bayron'], {
+      env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL }, encoding: 'utf8',
+    });
+    expect(r.status, r.stderr).toBe(0);
+    const [{ n }] = await sql`SELECT count(*)::int AS n FROM redefinicoes_de_senha WHERE barber_id = 6 AND usada_em IS NULL`;
+    expect(n).toBe(0);
+    expect(await senha.pedidoValido(token)).toBeNull();
+  }, 30_000);
+
+  it('a segunda parede: senha trocada por um caminho que esqueceu de matar o link', async () => {
+    const token = await pedirParaAna();
+    await sql`UPDATE barbers SET senha_trocada_em = now() + interval '1 second' WHERE id = 6`;
+    expect(await senha.pedidoValido(token)).toBeNull();
+  });
+});
+
+describe.skipIf(!TEM_BANCO)('a senha trocada pelo link zera o limite do login por conta (17/10/2026)', () => {
+  it('quem trancou o dono de propósito não o tranca depois do "esqueci a senha"', async () => {
+    const { chavesDaConta, checkRateLimit, LIMITE_DA_CONTA } = await import('../src/lib/rateLimit.ts');
+    const [curta] = chavesDaConta('84999990004');
+    for (let i = 0; i < LIMITE_DA_CONTA.curto.maxTries; i++) checkRateLimit(curta, LIMITE_DA_CONTA.curto);
+    expect(checkRateLimit(curta, LIMITE_DA_CONTA.curto).ok).toBe(false);
+    await senha.pedirRedefinicao('84999990004');
+    const r = await senha.redefinirSenha(tokenDoUltimoEmail(), 'SenhaDaDona123');
+    expect(r.ok).toBe(true);
+    expect(checkRateLimit(curta, LIMITE_DA_CONTA.curto).ok).toBe(true);
   });
 });

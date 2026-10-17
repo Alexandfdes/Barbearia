@@ -11,6 +11,7 @@ import { normalizePhone } from '../../../../lib/phone.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { emailValido, normalizarEmail } from '../../../../lib/email.js';
+import { SENHA_MINIMA } from '../../../../lib/redefinicaoDeSenha.js';
 
 const BCRYPT_COST = 12;
 
@@ -28,7 +29,7 @@ const createSchema = z.object({
   // só aparece no dia em que ele tenta.
   phone:    z.string().min(10).max(25),
   role:     z.enum(['admin', 'barber']),
-  password: z.string().min(6).max(200),
+  password: z.string().min(SENHA_MINIMA).max(200),  // 8, como a senha nova pelo link
   // Opcional: sem ele o barbeiro não recebe a senha nova por e-mail, e quem a
   // troca é o dono, nesta mesma tela.
   email:    z.string().max(254).optional(),
