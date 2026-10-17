@@ -10,16 +10,28 @@ export const prerender = false;
  */
 import OperadorLayout from '../../layouts/OperadorLayout.astro';
 import { exigirOperador } from '../../lib/operador.js';
-import { sistemaNoPainel } from '../../lib/operadorSistema.js';
+import { comAFila, filaDoWebhook, sistemaNoPainel } from '../../lib/operadorSistema.js';
 import { haQuanto, PONTO, quandoComAno, tamanhoDeArquivo, type Estado } from '../../lib/operadorTela.js';
 
 const fechada = await exigirOperador(Astro.request, Astro.response.headers);
 if (fechada) return fechada;
 
 const agora = new Date();
-const s = await sistemaNoPainel(process.env, agora);
+const [s, fila] = await Promise.all([sistemaNoPainel(process.env, agora), filaDoWebhook(process.env)]);
+const alertas = comAFila(s.alertas, fila);
 const producao = s.processo.ambiente === 'production';
 const backupVelho = s.backup.ultimo ? agora.getTime() - s.backup.ultimo.em.getTime() > 26 * 60 * 60 * 1000 : true;
+
+// A fila do webhook, como a Asaas diz (`filaDoWebhook`, 17/10/2026).
+const FILA: Record<string, { valor: string; estado: Estado }> = {
+  ativa: { valor: 'ativa — os avisos de pagamento chegam', estado: 'ok' },
+  interrompida: { valor: 'interrompida — os avisos de pagamento estão parados', estado: 'problema' },
+  desligada: { valor: 'o webhook está desligado na Asaas', estado: 'problema' },
+  'sem-webhook': { valor: `nenhum webhook aponta para ${fila.endereco || 'este app'}`, estado: 'problema' },
+  'sem-resposta': { valor: 'a Asaas não respondeu em 4 s', estado: 'atencao' },
+  'nao-consultada': { valor: '—', estado: 'neutro' },
+};
+const filaRuim = FILA[fila.estado].estado === 'problema' || fila.comToken === false;
 
 interface Linha { rotulo: string; valor: string; estado?: Estado }
 interface Quadro { titulo: string; estado: Estado; linhas: Linha[]; nota?: string }
@@ -74,12 +86,20 @@ const quadros: Quadro[] = [
   },
   {
     titulo: 'Cobrança',
-    estado: !s.cobranca.ligada ? 'atencao' : !s.cobranca.tokenDoWebhook ? 'problema' : s.cobranca.ambiente === 'sandbox' && producao ? 'atencao' : 'ok',
+    estado: !s.cobranca.ligada ? 'atencao' : !s.cobranca.tokenDoWebhook || filaRuim ? 'problema'
+      : (s.cobranca.ambiente === 'sandbox' && producao) || FILA[fila.estado].estado === 'atencao' ? 'atencao' : 'ok',
     linhas: [
       { rotulo: 'Ligada', valor: s.cobranca.ligada ? 'sim' : 'não — ninguém consegue pagar', estado: s.cobranca.ligada ? 'ok' : 'atencao' },
       { rotulo: 'Ambiente', valor: s.cobranca.ambiente === 'producao' ? 'produção — dinheiro de verdade' : s.cobranca.ambiente === 'sandbox' ? 'teste (sandbox)' : '—' },
       { rotulo: 'Token do webhook', valor: s.cobranca.tokenDoWebhook ? 'configurado' : 'falta — todo aviso da Asaas é recusado', estado: s.cobranca.tokenDoWebhook ? 'ok' : (s.cobranca.ligada ? 'problema' : 'neutro') },
+      { rotulo: 'Fila do webhook na Asaas', valor: FILA[fila.estado].valor, estado: FILA[fila.estado].estado },
+      ...(fila.comToken === false ? [{ rotulo: 'Token na Asaas', valor: 'falta — o app recusa todo aviso', estado: 'problema' as Estado }] : []),
+      ...(fila.sequencial === false ? [{ rotulo: 'Envio', valor: 'não sequencial — os avisos podem chegar fora de ordem', estado: 'atencao' as Estado }] : []),
+      ...(fila.penalizados ? [{ rotulo: 'Envios com falha', valor: `${fila.penalizados}, pela Asaas`, estado: 'atencao' as Estado }] : []),
     ],
+    nota: s.cobranca.ligada
+      ? 'Com o app fora do ar, a Asaas tenta de novo; com 15 falhas seguidas, interrompe a fila e manda e-mail. Conserte o motivo e reative em Integrações → Webhooks: os avisos parados chegam — a Asaas os guarda por 14 dias.'
+      : undefined,
   },
   {
     titulo: 'Cadastro e endereços',
@@ -118,11 +138,11 @@ const quadros: Quadro[] = [
 ];
 ---
 <OperadorLayout titulo="Sistema" ativo="sistema">
-  {s.alertas.length > 0 ? (
+  {alertas.length > 0 ? (
     <section class="bg-white border border-slate-200 rounded-lg" aria-labelledby="titulo-alertas">
       <h2 id="titulo-alertas" class="px-5 pt-4 text-sm font-semibold text-slate-900">O que precisa de você</h2>
       <ul id="alertas" class="px-5 py-3 space-y-2">
-        {s.alertas.map((a) => (
+        {alertas.map((a) => (
           <li class="flex items-start gap-3 text-sm text-slate-800">
             <span class:list={['mt-1.5 w-2 h-2 rounded-full shrink-0', PONTO[a.estado]]} aria-hidden="true"></span>
             {a.texto}
