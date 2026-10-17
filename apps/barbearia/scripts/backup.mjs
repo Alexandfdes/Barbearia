@@ -252,6 +252,42 @@ export async function runBackup(opts = {}) {
 }
 
 /**
+ * Um dump só do banco — sem as fotos, sem a retenção e sem o envio para fora.
+ *
+ * É o backup de ANTES das migrations (`backupAntesDasMigrations`, em
+ * `scripts/startup.mjs`, desde 17/10/2026). O boot roda as migrations e só depois
+ * lança o daemon, cujo backup de boot vem portanto DEPOIS delas — e é pulado se
+ * houver um com menos de 12 horas. Uma migration que estragasse dado tinha como
+ * último ponto de volta o backup das 03:00. As fotos ficam de fora porque migration
+ * não mexe nelas; o envio para fora, porque ele atrasaria o boot, que é o site fora
+ * do ar — o diário manda.
+ *
+ * O arquivo é um backup como os outros: mesma pasta, mesmo formato, restaura igual,
+ * e a retenção do diário o apaga no mesmo prazo. Por isso, ⚠️ o daemon vê um backup
+ * recente e pula o do boot: o estado depois das migrations entra no das 03:00.
+ *
+ * `rotulo` vai no nome — `barbearia_<stamp>-antes-da-0017.sql.gz` —, só com letra
+ * minúscula, número e hífen.
+ */
+export async function backupDoBanco(rotulo) {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL não definido.');
+  const limpo = String(rotulo).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+
+  mkdirSync(BACKUP_DIR, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+  const dest = join(BACKUP_DIR, `barbearia_${stamp}${limpo ? `-${limpo}` : ''}${SUFIXO}`);
+
+  try {
+    await pgDumpPara(dest, url);
+  } catch (erro) {
+    try { unlinkSync(dest); } catch { /* nunca chegou a existir */ }
+    throw erro;
+  }
+  return { dest, bytes: statSync(dest).size };
+}
+
+/**
  * O tamanho de cada parte no envio para fora da VPS. O mínimo do S3 — e do
  * Backblaze — é 5 MiB por parte (menos a última); 16 MiB faz um arquivo de 1 GB
  * subir em 64 partes, com no máximo 16 MiB na memória por vez.
