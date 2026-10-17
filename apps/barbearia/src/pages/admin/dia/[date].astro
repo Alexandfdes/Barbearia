@@ -2557,7 +2557,11 @@ const clientData: DadosDaAgenda = {
     // Snapshot inicial: conta direto do DOM
     const initialCount = document.querySelectorAll('.appt-card').length;
     let lastKnownCount = initialCount;
-    let lastKnownMod   = ''; // primeira chamada já vai popular
+    let lastKnownMod   = '';
+    // A primeira resposta só marca o ponto de partida. Um sinal próprio, e não "o último
+    // ainda vazio": no dia sem nenhum agendamento a assinatura É vazia, e o primeiro que
+    // chegava virava ponto de partida de novo — a agenda nunca recarregava (até 17/10/2026).
+    let temPontoDePartida = false;
 
     async function poll() {
       // Não checa em outras abas / janela escondida
@@ -2581,7 +2585,8 @@ const clientData: DadosDaAgenda = {
         const newMod   = data.maxModified ?? '';
 
         // 1ª chamada: só guarda o baseline
-        if (!lastKnownMod && lastKnownCount === initialCount) {
+        if (!temPontoDePartida) {
+          temPontoDePartida = true;
           lastKnownMod = newMod;
           lastKnownCount = newCount;
           return;
