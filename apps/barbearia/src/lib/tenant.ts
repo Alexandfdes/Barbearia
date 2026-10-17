@@ -325,6 +325,22 @@ export function urlDoPainel(env: Record<string, string | undefined> = process.en
 }
 
 /**
+ * O `Host` é o do painel? Compara nome e porta — a porta padrão do protocolo vale
+ * escrita ou não (`painel.x.com` e `painel.x.com:443`, com `https`).
+ */
+export function ehEnderecoDoPainel(host: string | null, painel: string): boolean {
+  if (!host || !painel) return false;
+  try {
+    const p = new URL(painel);
+    const h = new URL(`${p.protocol}//${host.trim()}`);
+    const sem = (n: string) => n.toLowerCase().replace(/\.$/, '');
+    return sem(h.hostname) === sem(p.hostname) && h.port === p.port;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * O endereço público do site que está sendo servido: o que vai no canonical, no
  * og:url, na imagem de prévia e no `@id` do schema.org.
  *

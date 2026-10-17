@@ -42,7 +42,11 @@
  */
 import { scrypt, randomBytes, timingSafeEqual, createHash } from 'node:crypto';
 import { sealData, unsealData } from 'iron-session';
-import { urlDoPainel } from './tenant.js';
+import { ehEnderecoDoPainel, urlDoPainel } from './tenant.js';
+
+// Mora em `lib/tenant.ts` desde 17/10/2026, junto do `urlDoPainel`: o site também
+// precisa saber se o endereço é o do painel (`src/pages/index.astro`).
+export { ehEnderecoDoPainel };
 import { lerSegundoFator } from './segundoFator.js';
 
 type Ambiente = Record<string, string | undefined>;
@@ -130,22 +134,6 @@ export function portaoDoOperador(request: Request, env: Ambiente = process.env):
   // estar, sem saber, só com a senha (`lib/segundoFator.ts`).
   if (lerSegundoFator(env).ligado === 'invalido') return 'desligado';
   return ehEnderecoDoPainel(request.headers.get('host'), urlDoPainel(env)) ? 'aberto' : 'fora-do-painel';
-}
-
-/**
- * O `Host` é o do painel? Compara nome e porta — a porta padrão do protocolo vale
- * escrita ou não (`painel.x.com` e `painel.x.com:443`, com `https`).
- */
-export function ehEnderecoDoPainel(host: string | null, painel: string): boolean {
-  if (!host || !painel) return false;
-  try {
-    const p = new URL(painel);
-    const h = new URL(`${p.protocol}//${host.trim()}`);
-    const sem = (n: string) => n.toLowerCase().replace(/\.$/, '');
-    return sem(h.hostname) === sem(p.hostname) && h.port === p.port;
-  } catch {
-    return false;
-  }
 }
 
 /**
