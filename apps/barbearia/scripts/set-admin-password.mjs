@@ -92,6 +92,8 @@ try {
        SET password_hash = ${hash}, active = true, senha_trocada_em = ${new Date().toISOString()}
      WHERE id = ${barbeiro.id}
   `;
+  // E o link de senha nova pedido antes morre: senão quem o tem troca a senha de novo.
+  await sql`DELETE FROM redefinicoes_de_senha WHERE barber_id = ${barbeiro.id} AND usada_em IS NULL`;
 
   if (!barbeiro.active) console.log('(barbeiro estava inativo — reativado)');
   console.log(`✓ Senha de "${barbeiro.name}" (${barbeiro.tenant_slug}/${slug}) atualizada.`);

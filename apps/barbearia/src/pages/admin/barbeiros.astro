@@ -85,7 +85,7 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
         </div>
         <div>
           <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Senha inicial</label>
-          <input id="new-password" type="text" placeholder="mín. 6 caracteres"
+          <input id="new-password" type="text" placeholder="mín. 8 caracteres"
             class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
         </div>
         <div>
@@ -272,7 +272,7 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
     if (name.length < 2)     { errorEl.textContent = 'Informe o nome (mín. 2 caracteres)'; errorEl.classList.remove('hidden'); return; }
     if (!slug)               { errorEl.textContent = 'Slug inválido'; errorEl.classList.remove('hidden'); return; }
     if (phone.replace(/\D/g, '').length < 10) { errorEl.textContent = 'Informe o telefone com DDD — é por ele que o barbeiro entra no painel'; errorEl.classList.remove('hidden'); return; }
-    if (password.length < 6) { errorEl.textContent = 'A senha precisa ter ao menos 6 caracteres'; errorEl.classList.remove('hidden'); return; }
+    if (password.length < 8) { errorEl.textContent = 'A senha precisa ter ao menos 8 caracteres'; errorEl.classList.remove('hidden'); return; }
 
     btn.disabled = true; btn.textContent = 'Criando...';
     try {
@@ -331,7 +331,7 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
 
       errorEl.classList.add('hidden');
       if (name.length < 2) { errorEl.textContent = 'Nome inválido'; errorEl.classList.remove('hidden'); return; }
-      if (password && password.length < 6) { errorEl.textContent = 'A nova senha precisa ter ao menos 6 caracteres'; errorEl.classList.remove('hidden'); return; }
+      if (password && password.length < 8) { errorEl.textContent = 'A nova senha precisa ter ao menos 8 caracteres'; errorEl.classList.remove('hidden'); return; }
 
       saveBtn.disabled = true; saveBtn.textContent = '...';
       try {

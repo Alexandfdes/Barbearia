@@ -9,11 +9,14 @@ import { barbers } from '../../../../../db/schema.js';
 import { json } from '../../../../../lib/api.js';
 import { getSession, makeSessionCookie } from '../../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../../lib/tenant.js';
+import { SENHA_MINIMA, cancelarPedidosDeSenha } from '../../../../../lib/redefinicaoDeSenha.js';
 
 const BCRYPT_COST = 12;
 
 const bodySchema = z.object({
-  password: z.string().min(6).max(200),
+  // 8, como a senha nova pelo link (`SENHA_MINIMA`): até 17/10/2026 a Equipe aceitava 6,
+  // e "123456" no WhatsApp público de um barbeiro cai num dicionário de senhas comuns.
+  password: z.string().min(SENHA_MINIMA).max(200),
 });
 
 // POST — troca a senha de um barbeiro. Admin pode trocar a de qualquer um.
@@ -38,7 +41,7 @@ export const POST: APIRoute = async ({ request, params }) => {
   catch { return json({ error: 'JSON inválido' }, 400); }
 
   const parsed = bodySchema.safeParse(body);
-  if (!parsed.success) return json({ error: 'A senha precisa ter ao menos 6 caracteres' }, 400);
+  if (!parsed.success) return json({ error: `A senha precisa ter ao menos ${SENHA_MINIMA} caracteres` }, 400);
 
   const target = await first(db.select({ id: barbers.id }).from(barbers).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id))));
   if (!target) return json({ error: 'Barbeiro não encontrado' }, 404);
@@ -48,6 +51,8 @@ export const POST: APIRoute = async ({ request, params }) => {
   const agora = new Date();
   await db.update(barbers).set({ passwordHash, senhaTrocadaEm: agora })
     .where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id)));
+  // O link de senha nova pedido antes desta troca não vale mais (`lib/redefinicaoDeSenha.ts`).
+  await cancelarPedidosDeSenha(tenant.id, id);
 
   if (id !== session.barberId) return json({ ok: true });
 

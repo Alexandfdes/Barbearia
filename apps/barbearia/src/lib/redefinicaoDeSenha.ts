@@ -35,6 +35,7 @@ import { situacaoDe } from './situacao.js';
 import { enviarEmail } from './email.js';
 import { urlDoPainel } from './tenant.js';
 import { NOME_PRODUTO } from './produto.js';
+import { chavesDaConta, resetRateLimit } from './rateLimit.js';
 
 /** Quanto o link vale. Uma hora: o bastante para abrir o e-mail, pouco para ficar esquecido. */
 export const VALIDADE_DO_LINK_MS = 60 * 60 * 1000;
@@ -150,6 +151,23 @@ export function textoDoEmailDeSenha(nome: string, barbearia: string, link: strin
   ].join('\n');
 }
 
+/**
+ * Mata os links de senha nova ainda não usados de um barbeiro. Vale toda vez que a senha
+ * ou o e-mail dele mudam por outro caminho — a Equipe, o script de suporte.
+ *
+ * Até 17/10/2026, não: quem pegou o painel aberto, trocou o e-mail pelo dele e pediu a senha
+ * nova tinha o link na mão; o dono fazia o que o aviso manda — senha nova e o e-mail de
+ * volta —, e o link continuava valendo por uma hora. Usado, a conta era do outro
+ * (`tests/senha-nova.test.ts`).
+ */
+export async function cancelarPedidosDeSenha(tenantId: number, barberId: number): Promise<void> {
+  await dbDono.delete(redefinicoesDeSenha).where(and(
+    eq(redefinicoesDeSenha.tenantId, tenantId),
+    eq(redefinicoesDeSenha.barberId, barberId),
+    isNull(redefinicoesDeSenha.usadaEm),
+  ));
+}
+
 export interface PedidoDeSenha {
   id: number;
   tenantId: number;
@@ -172,6 +190,7 @@ export async function pedidoValido(token: string, agora: Date = new Date()): Pro
     barbeiro: redefinicoesDeSenha.barberId,
     expiraEm: redefinicoesDeSenha.expiraEm,
     usadaEm: redefinicoesDeSenha.usadaEm,
+    criadaEm: redefinicoesDeSenha.criadaEm,
   };
   const pedido = await first(
     dbDono.select(colunas).from(redefinicoesDeSenha).where(eq(redefinicoesDeSenha.tokenHash, hashDoToken(token))),
@@ -179,11 +198,14 @@ export async function pedidoValido(token: string, agora: Date = new Date()): Pro
   if (!pedido || pedido.usadaEm || pedido.expiraEm.getTime() <= agora.getTime()) return null;
 
   const barbeiro = await first(
-    dbDono.select({ nome: barbers.name, ativo: barbers.active })
+    dbDono.select({ nome: barbers.name, ativo: barbers.active, senhaTrocadaEm: barbers.senhaTrocadaEm })
       .from(barbers)
       .where(and(eq(barbers.id, pedido.barbeiro), eq(barbers.tenantId, pedido.barbearia))),
   );
   if (!barbeiro?.ativo) return null;
+  // A segunda parede: a senha trocada por qualquer caminho DEPOIS do pedido mata o link,
+  // mesmo que quem trocou tenha esquecido o `cancelarPedidosDeSenha`.
+  if (barbeiro.senhaTrocadaEm && barbeiro.senhaTrocadaEm.getTime() > pedido.criadaEm.getTime()) return null;
 
   return { id: pedido.id, tenantId: pedido.barbearia, barberId: pedido.barbeiro, nome: barbeiro.nome };
 }
@@ -237,6 +259,14 @@ export async function redefinirSenha(token: string, senha: string, agora: Date =
     ));
     return true;
   });
+
+  if (trocou) {
+    // Quem trocou a senha pelo link provou que é o dono do e-mail: o limite do login por
+    // conta, que alguém pode ter esgotado para trancá-lo, recomeça (`lib/rateLimit.ts`).
+    const b = await first(dbDono.select({ telefone: barbers.phone }).from(barbers)
+      .where(and(eq(barbers.id, pedido.barberId), eq(barbers.tenantId, pedido.tenantId))));
+    if (b?.telefone) for (const k of chavesDaConta(b.telefone)) resetRateLimit(k);
+  }
 
   return trocou
     ? { ok: true, tenantId: pedido.tenantId, barberId: pedido.barberId }

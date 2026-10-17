@@ -5,7 +5,8 @@
 //
 // Precisa de Postgres. Sem DATABASE_URL a suíte é pulada.
 //   DATABASE_URL='postgres://.../barbearia_test' npx vitest run
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { chavesDaConta, resetRateLimit } from '../src/lib/rateLimit';
 import postgres from 'postgres';
 import { hash } from 'bcryptjs';
 import { exigirBancoDeTeste } from './guardaBanco.js';
@@ -55,6 +56,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => { if (TEM_BANCO) await sql.end(); });
+
+// Desde 17/10/2026 há também o limite por CONTA, de qualquer IP: os casos daqui entram
+// muitas vezes com os mesmos três telefones, e cada um começa com a conta zerada.
+beforeEach(() => {
+  for (const t of ['84999990001', '84999990002', '84999990003']) for (const k of chavesDaConta(t)) resetRateLimit(k);
+});
 
 describe.skipIf(!TEM_BANCO)('login do painel por telefone', () => {
   it('entra com telefone e senha certos', async () => {
@@ -168,3 +175,26 @@ describe.skipIf(!TEM_BANCO)('login do painel por telefone', () => {
     expect(r.status).toBe(429);
   });
 });
+
+describe.skipIf(!TEM_BANCO)('a força bruta distribuída e o relógio (17/10/2026)', () => {
+  it('a mesma conta, de dez IPs diferentes: a décima primeira tentativa é barrada — e a senha certa também espera', async () => {
+    for (let i = 0; i < 10; i++) expect((await entrar('84999990002', 'errada', `10.20.0.${i + 1}`)).status).toBe(401);
+    const r = await entrar('(84) 99999-0002', 'errada', '10.20.0.99');
+    expect(r.status).toBe(429);
+    expect(r.body.error).toMatch(/Esqueci minha senha/);
+    expect((await entrar('84999990002', SENHA, '10.20.0.100')).status).toBe(429);
+    // As outras contas não pagam por esta.
+    expect((await entrar('84999990001', SENHA, '10.20.0.101')).status).toBe(200);
+  });
+
+  it('o telefone sem conta leva o tempo de um bcrypt de verdade — o relógio não diz quem é barbeiro', async () => {
+    await entrar('84911110000', 'qualquer', '10.30.0.1'); // o primeiro monta o hash de mentira
+    const t0 = performance.now();
+    const r = await entrar('84911110001', 'qualquer', '10.30.0.2');
+    const ms = performance.now() - t0;
+    expect(r.status).toBe(401);
+    // Custo 12: na casa das centenas de milissegundos. Sem o hash de mentira, ~5 ms.
+    expect(ms).toBeGreaterThan(50);
+  });
+});
+

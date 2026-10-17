@@ -10,6 +10,7 @@ import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { emailValido, normalizarEmail } from '../../../../lib/email.js';
 import { avisarEmailTrocado, trocaQueAvisa } from '../../../../lib/avisoDeEmailTrocado.js';
+import { cancelarPedidosDeSenha } from '../../../../lib/redefinicaoDeSenha.js';
 
 // Slug NÃO é editável: ele é o identificador de login (ver /api/auth/login).
 // Mudá-lo trocaria o usuário de acesso do barbeiro. Por isso fica fora do schema.
@@ -82,6 +83,10 @@ export const PUT: APIRoute = async ({ request, params }) => {
   if (avisarAgendamentos !== undefined) updates.avisarAgendamentos = avisarAgendamentos;
 
   await db.update(barbers).set(updates).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id)));
+
+  // E-mail novo: o link de senha nova que foi para o endereço anterior morre — inclusive o
+  // que um intruso pediu depois de trocar o e-mail pelo dele (`lib/redefinicaoDeSenha.ts`).
+  if (email !== undefined && email !== target.email) await cancelarPedidosDeSenha(tenant.id, id);
 
   // O e-mail mudou: o endereço antigo fica sabendo — é a última coisa que chega nele
   // (`lib/avisoDeEmailTrocado.ts`). Quem pega o painel aberto de um dono, troca o
