@@ -48,6 +48,7 @@
 | **15/10** | **Datas em português**, achadas no caminho: a área do cliente dizia "20 de Oct · Tue", e o Início, "16 de Oct" | `PENDENCIAS-ABERTAS.md` §2.44 |
 | **15/10** | **Configurações em quatro abas**, escolhidas por você entre três formas — a tela era uma rolagem só, com nove blocos. Um Salvar só; os links do Início e do medidor levam ao bloco certo; a recusa do Salvar abre a aba do campo | `PENDENCIAS-ABERTAS.md` §2.45 |
 | **15/10** | **A barra lateral presa na tela**, pedido por você: rolava junto com a página, e no fim de uma tela longa o menu tinha sumido. No computador, agora fica presa — o menu que não cabe rola por dentro, e o Sair fica sempre à vista; no celular, nada muda. A do painel do operador também | `PENDENCIAS-ABERTAS.md` §2.46 |
+| **16/10** | **A revisão do projeto, conferida no GitHub e rodando a árvore do `22ecd85`**: o código verde (1156 de 1156, zero erro de tipo, o CI do GitHub verde), e a `main` — de onde a produção constrói — parada em 10/10, 61 commits atrás. **Decidido por você:** os commits deixam de levar as linhas `Co-Authored-By` e `Claude-Session` (os já publicados ficam), e a pasta `Design/` fica no repositório. **Consertados em 17/10, os achados dela:** o backup antes das migrations (§3.2), a fila do webhook parada visível no painel do operador (§3.13), o rodapé que não acendia o dia (§2.47) e a raiz do painel em 404 (§2.48) | `PENDENCIAS-ABERTAS.md` §3.2, `PENDENCIAS-ABERTAS.md` §3.13 e `CLAUDE.md` |
 
 **Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
 08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
@@ -2183,6 +2184,40 @@ anterior, no mesmo roteiro, reprovou 12 delas. E as 23 conferências das abas de
 escurece com o resto da tela — fica clara, por cima do véu —, e um toque no Salvar, ao lado da gaveta,
 salva em vez de fechá-la. As duas têm o mesmo `z-30`, e a barra vem depois. Já era assim antes.
 
+### 2.47 ✅ `[TÉCNICO]` O rodapé do site não acendia o dia de hoje quando o horário vinha agrupado — RESOLVIDO em 17/10/2026
+
+**Era:** o rodapé destacava a linha do horário de hoje procurando "Segunda", "Sábado" ou
+"Domingo" no rótulo. Mas o cadastro agrupa os dias seguidos com o mesmo horário
+(`horarioDeVitrine`, em `apps/barbearia/src/lib/provisionarBarbearia.ts`): com segunda a sábado
+iguais, a linha é "Segunda — Sábado", e no sábado nada acendia; com sábado e domingo fechados,
+"Sábado — Domingo", e no domingo nada acendia. Achado na revisão de 16/10, rodando a função do
+cadastro.
+
+**Agora:** cada linha leva os dias que cobre, lidos como o JSON-LD os lê (`diasDoRotulo`, em
+`apps/barbearia/src/lib/horarioDosBuscadores.ts`), e o rodapé acende toda linha com o dia de hoje
+— no fuso da barbearia, como antes (`apps/barbearia/src/components/Footer.astro`). Rótulo que não
+se lê sem dúvida não acende.
+
+**Verificado:** o contrato entre os dois arquivos — as 128 combinações de dia aberto e fechado do
+cadastro voltam com os dias certos (`apps/barbearia/tests/rodape-dia-de-hoje.test.ts`); e, contra
+o build, num navegador com o relógio parado: o sábado acendendo "Segunda — Sábado", o domingo
+acendendo "Sábado — Domingo", o domingo às 23:30 da barbearia — já segunda em UTC — ainda
+domingo, e a segunda acendendo "Segunda — Sexta". O build do `22ecd85` reprova as quatro.
+
+### 2.48 ✅ `[TÉCNICO]` O endereço do painel sem o `/admin` dava "Barbearia não encontrada" — RESOLVIDO em 17/10/2026
+
+**Era:** a raiz de `painel.<domínio>` é a página inicial do SITE, e o painel não é barbearia
+nenhuma: quem digitava o endereço do painel de cabeça, sem o `/admin`, recebia o 404 seco.
+Achado na revisão de 16/10, contra o build.
+
+**Agora:** a raiz do endereço do painel leva ao painel (302 para `/admin`, que sem sessão leva
+ao login), e todo outro endereço sem barbearia segue no 404 — é ele que impede um domínio
+qualquer apontado para o servidor de mostrar o site de alguém
+(`apps/barbearia/src/pages/index.astro`). O "é o endereço do painel?" passou a morar ao lado do
+`urlDoPainel`, em `apps/barbearia/src/lib/tenant.ts` — o mesmo que abre o painel do operador.
+Guarda: `apps/barbearia/tests/raiz-do-painel.test.ts`; contra o build, o 302, a tela de entrar no
+fim, o 404 de um endereço desconhecido e o 200 do site de uma barbearia.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -2224,6 +2259,29 @@ cima; em troca, **uma migration que falha derruba todas de uma vez**, e não uma
 O que segura até lá: cada migration nova tem sido conferida sobre um banco parado na anterior,
 como o de produção, e rodando duas vezes (`ESTADO-ATUAL.md` §8) — a 0009 e a 0013 com teste na
 suíte (`apps/barbearia/tests/hover-padrao.test.ts` e `apps/barbearia/tests/fuso-por-barbearia.test.ts`).
+
+✅ **O backup de antes das migrations — FEITO em 17/10/2026.** O CMD do Dockerfile roda as
+migrations e só depois lança o daemon do backup, cujo backup de boot vinha DEPOIS delas — e era
+pulado se houvesse um com menos de 12 horas. A volta de uma migration que estragasse dado era o
+backup das 03:00: o dia de agendamentos de todas as barbearias. Achado na revisão de 16/10.
+Agora o boot de produção, com migration pendente num banco que já tinha migrations, faz um
+`barbearia_<data>-antes-da-<NNNN>.sql.gz` na pasta do backup antes de mudar qualquer coisa — e,
+**se esse backup falha, não migra e não sobe**: subir, ali, é mudar o banco de todas
+(`backupAntesDasMigrations`, em `apps/barbearia/scripts/startup.mjs`). Para subir assim mesmo,
+uma vez, sabendo o que faz: `MIGRAR_SEM_BACKUP=1`, e tirar depois. Fica de fora o `npm run dev`,
+o `--ate=` da carga do Bayron e o banco novo. ⚠️ O daemon vê esse backup como recente e pula o do
+boot: o estado depois das migrations entra no das 03:00. **Verificado:** 8 casos rodando o boot
+de verdade (`apps/barbearia/tests/backup-antes-das-migrations.test.ts`), 8 reintroduções, as 8
+vermelhas — uma só depois de reforçar o teste; e o arquivo restaurado num banco vazio voltou com
+a migration anterior e a barbearia, e o boot sobre ele reaplicou a seguinte.
+
+⚠️ **Nada de 10/10 à tarde para cá está no ar** (conferido no GitHub em 16/10): a `main`, de onde
+o EasyPanel constrói, parou no merge do PR #1, e a `monorepo` está à frente dela com a cobrança, o
+operador, o fuso, a exportação, a trava de horário duplo e o resto. O primeiro deploy vai levar
+tudo de uma vez — 7 migrations, da 0010 à 0016, e o Dockerfile novo, que nunca passou por um
+`docker build` de verdade (§3.12). Com o banco vazio de hoje, é o deploy mais barato que vai
+existir; cada semana a mais engorda o lote. O passo a passo, com os nomes do servidor, está no
+projeto do claude.ai.
 
 ### 3.3 🟠 `[TÉCNICO]` Backup — um só para todas as barbearias; o teste de restauração já foi feito, e sair da VPS está pronto no código desde 12/10/2026
 
@@ -2782,6 +2840,36 @@ que as migrations plantavam os dados do Bayron em qualquer banco novo e desarmav
 isto — caiu em 13/09/2026 com o §4.6. O que sobrava era o discriminador do §4.7: o portão
 era `shortName === "Bayron"`, texto que o próprio cliente edita. Desde 09/10/2026 é o endereço,
 `ehOBayron()` (`lib/bayron.ts`).
+
+
+### 3.13 ✅ `[TÉCNICO]` A fila do webhook da Asaas parada não aparecia em lugar nenhum do app — RESOLVIDO em 17/10/2026
+
+**O que a Asaas faz** (documentação conferida em 17/10/2026): quando a entrega do webhook falha,
+ela tenta de novo; com **15 falhas seguidas, interrompe a fila**. Os avisos novos continuam sendo
+gerados e deixam de ser enviados até alguém reativá-la — no painel dela, em *Integrações →
+Webhooks*, ou pela API —, e aí os parados voltam a ser processados, na ordem, se o envio for
+sequencial. **Ficam guardados por 14 dias; depois disso, são apagados.** Ela também manda e-mail
+durante a falha e a interrupção, para o e-mail cadastrado no webhook.
+
+**Por que importa aqui:** a fase de cada barbearia só muda pelo webhook (`ARQUITETURA-COBRANCA-V1.md`
+§5.3). Com a fila parada, quem pôs o cartão no fim do teste ou pagou na carência continua com o
+prazo correndo e sai do ar tendo pago — e o aviso de atraso de quem não pagou também não chega. ⚠️
+*A revisão de 16/10 disse que "aviso perdido não volta". Estava errado: volta, ao reativar a
+fila, dentro dos 14 dias. O risco é ninguém perceber.*
+
+**Agora:** o Início e o Sistema do painel do operador perguntam à Asaas como está o webhook que
+aponta para este app (`GET /webhooks`; `filaDoWebhook`, em `apps/barbearia/src/lib/operadorSistema.ts`)
+e avisam: fila interrompida, webhook desligado, nenhum webhook com o endereço deste app, sem o token,
+fora de ordem e as falhas que a Asaas já contou. A tela só lê — reativar é na Asaas, **depois** de
+consertar o motivo: reativar sem consertar interrompe de novo. A pergunta sai das telas, não da
+conta dos números, que continua rodando sem rede. *Não conferido contra a Asaas de verdade — só
+contra a documentação e uma Asaas de mentira, como o resto da cobrança (§4.14).*
+
+**Verificado:** 11 casos (`apps/barbearia/tests/fila-do-webhook.test.ts`), 7 reintroduções, as 7
+vermelhas — e uma oitava trocada por ser equivalente: comparar o nome sem minúsculas, que o `URL`
+já devolve em minúsculas. Contra o build, com uma Asaas de mentira: a fila interrompida no Início e
+no Sistema, as 15 falhas, a fila reativada e o aviso sumindo, e a Asaas fora do ar virando atenção
+sem travar a tela. O build do `22ecd85` reprova sete delas.
 
 ---
 
@@ -3821,6 +3909,13 @@ valor na linha da agenda, no detalhe, na comanda, na ficha do cliente e no Iníc
 pedido por você, a área do cliente com o total de cada visita (§2.43); e, achadas no caminho, as
 datas em português (§2.44). E Configurações em abas, como você escolheu (§2.45), e a barra lateral
 presa na tela, pedida por você (§2.46).
+
+**16/10/2026, a revisão do projeto, pedida por você; 17/10, os achados dela, ✅ consertados:** o
+backup antes das migrations (§3.2), a fila do webhook parada visível no operador (§3.13), o rodapé
+que não acendia o dia (§2.47) e a raiz do painel em 404 (§2.48); e os documentos que diziam o que
+não é — o CI "que nunca rodou", o produção sem dizer que roda o código de 10/10. **O que ela deixou
+com você, e trava tudo:** levar a `monorepo` para a `main` com o banco vazio (§3.2), as senhas e o
+segundo fator do GitHub e do EasyPanel, e os repositórios ainda públicos (conferido em 16/10).
 
 **Onda 2 — antes de abrir o cadastro público.**
 

@@ -47,6 +47,10 @@ outro repositório, o `Alexandfdes/Barbearia-Bayron` (a `main` de lá parou em `
 10/07), em SQLite e Astro 6, até o `docs/ROTEIRO-MIGRACAO-PRODUCAO.md` ser executado — e o
 `docs/ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2 diz o que mudou com o app já no ar.
 
+⚠️ **A `main` parou em `0d86871` (10/10/2026), e é dela que o EasyPanel constrói:** o que entrou
+na `monorepo` depois — sete migrations, `0010` a `0016`, e o `Dockerfile` novo — não está em
+produção. Antes de juntar, o `docs/PENDENCIAS-ABERTAS.md` §3.2.
+
 ⚠️ **Os dois repositórios estão públicos**, este e o `Barbearia-Bayron` (conferido em
 10/10/2026: o clone sem credencial funciona). Enquanto estiverem, nada de credencial, endereço
 de servidor, usuário de banco ou configuração de produção em `docs/` — isso mora no projeto do
@@ -83,7 +87,7 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 | Arquitetura alvo: multi-tenant, Postgres, RLS, três apps | `ARQUITETURA-MULTI-TENANT-V1.md` |
 | Fases da produtização e as decisões D1–D7 | `ARQUITETURA-PRODUTO-V1.md` |
 | Cobrança, Asaas, estados do tenant | `ARQUITETURA-COBRANCA-V1.md` |
-| Como fica em produção com N barbearias | `ARQUITETURA-PRODUCAO.md` |
+| Produção: o servidor, o deploy, o backup e a fila do webhook | `ARQUITETURA-PRODUCAO.md` |
 | Como pôr a `monorepo` no ar para o Bayron | `ROTEIRO-MIGRACAO-PRODUCAO.md` |
 | Por que os dois projetos viraram um repositório | `MONOREPO.md` |
 | O modelo em português claro, sem termo técnico | `COMO-FUNCIONA.md` |
@@ -155,6 +159,12 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   ⚠️ O `predev` roda só quando o servidor liga: entrega com migration nova pede reiniciar o
   `npm run dev` da máquina do dono — senão a tela diz "O banco está atrás do código"
   (`src/lib/bancoAtrasado.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.42).
+- **Migration nova em produção tem backup antes:** com `NODE_ENV=production`, o `startup.mjs` tira
+  um dump do banco antes de aplicar a primeira pendente, e não aplica nada se o dump falhar.
+  `MIGRAR_SEM_BACKUP=1` pula, de propósito (`tests/backup-antes-das-migrations.test.ts`;
+  `docs/PENDENCIAS-ABERTAS.md` §3.2).
+- **Commit sem as linhas `Co-Authored-By` e `Claude-Session`** — decisão do dono em 16/10/2026.
+  Os commits anteriores ficam como estão.
 - **CI:** `.github/workflows/testes.yml` roda a suíte com banco a cada push na `main` e na
   `monorepo` — e teste pulado reprova. Ele só manda no deploy depois do que o
   `docs/PENDENCIAS-ABERTAS.md` §3.8 pede.

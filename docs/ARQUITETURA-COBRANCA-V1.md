@@ -507,8 +507,11 @@ barbearia em dia. Rejeitado no mesmo dia: remover a assinatura depois de 30 dias
 que o banco recusa — se repetiria em toda reentrega: fica guardado com o motivo e responde 200,
 porque 15 falhas seguidas interrompem a fila do webhook inteiro. O resto — o banco fora do ar, um
 erro de programa — responde 500 e volta para a fila: o erro de programa quebraria todos os
-eventos iguais, e aí a fila parar é o certo; conserta-se o programa e religa-se a fila. *Como se
-religa, no painel da Asaas, não foi conferido.*
+eventos iguais, e aí a fila parar é o certo; conserta-se o programa e religa-se a fila. Religa-se em Integrações → Webhooks, no painel
+da Asaas, ou por `PUT /v3/webhooks/{id}` com `interrupted: false`; os avisos parados há menos de
+14 dias chegam depois disso, e os mais velhos a Asaas apaga (documentação dela, conferida em
+17/10/2026). Desde 17/10 o Início e o Sistema do operador dizem quando a fila parou
+(`PENDENCIAS-ABERTAS.md` §3.13).
 
 **O que roda fora do banco** — desligar as notificações, remover a assinatura antiga — roda
 depois do commit. Falha vira aviso no log, com o que fazer à mão, e não desfaz o evento.

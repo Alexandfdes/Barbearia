@@ -455,8 +455,8 @@ domínio estiver configurado.
   (`PENDENCIAS-ABERTAS.md` §2.19).
 - **Mas não existe endereço de verdade.** O domínio do produto não foi registrado, e o nome
   ainda é provisório: Fadeline, desde 08/10 (`PENDENCIAS-ABERTAS.md` §0.1). Sem `DOMINIO_BASE`, o
-  sistema não inventa um endereço (`apps/barbearia/src/lib/tenant.ts:284`), e o painel
-  esconde o "Ver meu site" (`apps/barbearia/src/layouts/AdminLayout.astro:142-146`).
+  sistema não inventa um endereço (`urlDoSite`, em `apps/barbearia/src/lib/tenant.ts`), e o
+  painel esconde o "Ver meu site" (o link do topo de `apps/barbearia/src/layouts/AdminLayout.astro`).
 - Para cada barbearia nova funcionar sem trabalho seu, falta o registro DNS curinga e o
   certificado emitido por endereço (`ARQUITETURA-COBRANCA-V1.md` §7.4).
 - ✅ **Consertado em 27/09/2026, no primeiro teste na máquina do dono:** o botão de WhatsApp de

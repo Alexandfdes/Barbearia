@@ -435,7 +435,11 @@ fazer. **Recusa não é problema — é o roteiro funcionando.**
 DATABASE_URL='postgres://...' node scripts/startup.mjs
 ```
 
-Confira: da `0001` à última aplicadas, a linha do papel do app e a do `pg_dump`. A `0009`
+Confira: da `0001` à última aplicadas, a linha do papel do app e a do `pg_dump`. Rodado dentro
+do container (`NODE_ENV=production`), o `startup.mjs` tira antes um dump do banco — com a carga
+do §4.3 dentro — e diz *"✓ backup antes das migrations: …"*; se o dump falhar, nenhuma migration
+roda e ele explica por quê (`PENDENCIAS-ABERTAS.md` §3.2). Fora do container, sem
+`NODE_ENV=production`, não há esse backup: o original continua sendo o `appointments.db` do §4.1. A `0009`
 troca o hover do par padrão de cores na linha do Bayron, que chega da carga com o antigo — o
 botão passa a escurecer quando o mouse passa, em vez de clarear (`PENDENCIAS-ABERTAS.md` §4.12).
 
