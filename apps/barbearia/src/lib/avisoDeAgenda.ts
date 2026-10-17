@@ -33,7 +33,7 @@
 import { and, eq, isNotNull, or } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
 import { db, first } from '../db/index.js';
-import { appointments, barbers, services } from '../db/schema.js';
+import { appointmentItems, appointments, barbers, services } from '../db/schema.js';
 import { enviarEmail, mascararEmail, normalizarEmail, type Email } from './email.js';
 import { getSettings } from './settings.js';
 import { urlDoPainel, type Tenant } from './tenant.js';
@@ -42,6 +42,7 @@ import { diaDaSemana } from './calendario.js';
 import { formatarTelefone } from './phone.js';
 import { waLink, waPhone } from './whatsapp.js';
 import { reais } from './dinheiro.js';
+import { totalParaOCliente } from './valorDoAtendimento.js';
 import { NOME_PRODUTO } from './produto.js';
 
 export type MudancaNaAgenda = 'novo' | 'desmarcado' | 'remarcado';
@@ -60,6 +61,12 @@ export interface AgendamentoDoAviso {
   /** ISO, como `appointments.starts_at` guarda. */
   inicio: string;
   precoCentavos: number;
+  /**
+   * Os itens que vêm com o agendamento — o produto do combo, a separar para o cliente.
+   * Até 17/10/2026 o e-mail dizia só "Corte — R$ 32": o barbeiro não ficava sabendo do
+   * produto, e o total para o cliente era outro.
+   */
+  itens?: { nome: string; precoCentavos: number }[];
 }
 
 const DIAS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
@@ -108,6 +115,10 @@ export function textoDoAvisoDeAgenda(
       '',
       `  ${quandoPorExtenso(a.inicio, fuso)}`,
       `  ${a.servico} — ${reais(a.precoCentavos)}`,
+      ...(a.itens ?? []).map((i) => `  + ${i.nome} — ${reais(i.precoCentavos)} (separar para o cliente)`),
+      ...(a.itens?.length
+        ? [`  Total para o cliente: ${reais(totalParaOCliente({ priceCents: a.precoCentavos, itemsCents: a.itens.reduce((s, i) => s + i.precoCentavos, 0) }))}`]
+        : []),
       `  Com: ${a.barbeiro}`,
     );
   } else if (tipo === 'desmarcado') {
@@ -203,6 +214,10 @@ export async function avisarMudancaNaAgenda(p: {
       .innerJoin(services, eq(services.id, appointments.serviceId))
       .where(and(eq(appointments.id, p.agendamentoId), eq(appointments.tenantId, p.tenant.id))));
     if (!appt) return 0;
+    const itens = await db.select({ nome: appointmentItems.name, precoCentavos: appointmentItems.priceCents })
+      .from(appointmentItems)
+      .where(and(eq(appointmentItems.appointmentId, p.agendamentoId), eq(appointmentItems.tenantId, p.tenant.id)))
+      .orderBy(appointmentItems.id);
 
     const destinatarios = await destinatariosDoAviso(p.tenant, appt.barberId);
     if (destinatarios.length === 0) return 0;
@@ -210,7 +225,7 @@ export async function avisarMudancaNaAgenda(p: {
     const barbearia = (await getSettings(p.tenant)).businessName;
     const painel = urlDoPainel();
     for (const d of destinatarios) {
-      const conteudo = textoDoAvisoDeAgenda(p.tipo, appt, {
+      const conteudo = textoDoAvisoDeAgenda(p.tipo, { ...appt, itens }, {
         destinatario: d.nome, barbearia, painel, fuso: fusoDe(p.tenant), inicioAnterior: p.inicioAnterior,
       });
       const naoSaiu = (erro: unknown) => console.warn(

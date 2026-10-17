@@ -24,6 +24,14 @@ class ConflitoDeHorario extends Error {
   }
 }
 
+
+/**
+ * O começo da nota do agendamento feito por combo. O agendamento não guarda o combo; é esta
+ * marca que diz, ao remarcar, que o desconto depende do dia (`api/appointments/by-token/
+ * [token]/reschedule.ts`).
+ */
+export const MARCA_DO_COMBO = '🎁 Combo do dia';
+
 export interface BookParams {
   barberId:          number;
   serviceId:         number;
@@ -152,7 +160,7 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
     }
     finalPriceCents = applyDiscountPct(priceCents, pct);
     comboItem = { name: product.name, priceCents: applyDiscountPct(product.priceCents, pct) };
-    notes = `🎁 Combo do dia — produto para retirar na barbearia: ${product.name}. ${pct}% OFF aplicado (serviço + produto).`;
+    notes = `${MARCA_DO_COMBO} — produto para retirar na barbearia: ${product.name}. ${pct}% OFF aplicado (serviço + produto).`;
   }
 
   const endsAt  = addMinutes(startsAt, durationMinutes);

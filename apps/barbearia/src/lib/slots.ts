@@ -1,6 +1,6 @@
 import { db } from '../db/index.js';
-import { barberServices, workingHours, appointments, timeOff } from '../db/schema.js';
-import { eq, and, or, isNull, gte, lt, gt, ne } from 'drizzle-orm';
+import { barberServices, barbers, workingHours, appointments, timeOff } from '../db/schema.js';
+import { eq, and, or, isNull, lt, gt, ne } from 'drizzle-orm';
 import { fromZonedTime } from 'date-fns-tz';
 import { computeAvailableSlots } from './slotsCore.js';
 import { fusoDe } from './timezone.js';
@@ -48,7 +48,23 @@ export async function getAvailableSlots(
     );
 
   if (bsRows.length === 0) return [];
-  const duration = bsRows[0].durationMinutes;
+
+  // Barbeiro desligado não tem vaga — nem para remarcar com ele pelo link. Até 17/10/2026
+  // só o serviço do barbeiro era conferido, e o cliente remarcava com quem não trabalha
+  // mais lá (`tests/agenda-revisao.test.ts`).
+  const ativo = await db.select({ id: barbers.id }).from(barbers)
+    .where(and(eq(barbers.id, barberId), eq(barbers.tenantId, tenant.id), eq(barbers.active, true)));
+  if (ativo.length === 0) return [];
+
+  // Remarcar: a duração é a do AGENDAMENTO, que é a que vai ser gravada. Com a do serviço,
+  // que o dono pode ter mudado depois, a tela oferecia vaga que o gravar recusava — e
+  // escondia vaga que serviria.
+  let duration = bsRows[0].durationMinutes;
+  if (excludeAppointmentId) {
+    const [proprio] = await db.select({ minutos: appointments.durationMinutes }).from(appointments)
+      .where(and(eq(appointments.id, excludeAppointmentId), eq(appointments.tenantId, tenant.id)));
+    if (proprio) duration = proprio.minutos;
+  }
 
   const dow = diaDaSemana(dateStr);
   const whRows = await db
@@ -92,8 +108,10 @@ async function slotsForWindow(
     ? and(
         eq(appointments.tenantId, tenant.id),
         eq(appointments.barberId, barberId),
-        gte(appointments.startsAt, openIso),
+        // Sobreposição, não "começa dentro": o agendamento que começou antes da janela e
+        // atravessa a abertura também ocupa (o dono mudou o expediente depois dele).
         lt(appointments.startsAt, closeIso),
+        gt(appointments.endsAt, openIso),
         or(
           eq(appointments.status, 'confirmed'),
           eq(appointments.status, 'completed')
@@ -103,8 +121,10 @@ async function slotsForWindow(
     : and(
         eq(appointments.tenantId, tenant.id),
         eq(appointments.barberId, barberId),
-        gte(appointments.startsAt, openIso),
+        // Sobreposição, não "começa dentro": o agendamento que começou antes da janela e
+        // atravessa a abertura também ocupa (o dono mudou o expediente depois dele).
         lt(appointments.startsAt, closeIso),
+        gt(appointments.endsAt, openIso),
         or(
           eq(appointments.status, 'confirmed'),
           eq(appointments.status, 'completed')
