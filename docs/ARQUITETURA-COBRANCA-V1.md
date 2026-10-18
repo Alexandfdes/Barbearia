@@ -497,7 +497,11 @@ uma antiga, removida quando o cartão foi trocado, não atrasa ninguém.
 
 **O cancelar:** em dia, no ar até o fim do período pago; com a cobrança atrasada — na carência
 ou fora do ar —, só o que restava da carência (a estendida pelo operador, se foi), e a mensalidade
-que falhou some com a assinatura.
+que falhou some com a assinatura. *Desde 18/10/2026* o fim do período pago é o vencimento da
+cobrança pendente mais antiga, lida na Asaas antes de remover — o `nextDueDate` já está um mês à
+frente, porque a Asaas gera cada cobrança 40 dias antes —; e o cancelar só remove a assinatura
+comprovadamente da barbearia: cada uma é independente, mesmo com o mesmo dono
+(`PENDENCIAS-ABERTAS.md` §2.55).
 As duas regras foram decididas na implementação e confirmadas pelo dono em 10/10/2026
 (`PENDENCIAS-ABERTAS.md` §4.14). **E quem sai do ar pela cobrança sem cancelar** continua com a
 assinatura viva: a Asaas tenta o cartão nos vencimentos seguintes, e o pagamento que passar põe a
