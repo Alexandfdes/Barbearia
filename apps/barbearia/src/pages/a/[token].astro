@@ -13,6 +13,7 @@ import { tenantDoHost } from '../../lib/tenant.js';
 import { reais } from '../../lib/dinheiro.js';
 import { fusoDe } from '../../lib/timezone.js';
 import { somaDosItens, totalParaOCliente } from '../../lib/valorDoAtendimento.js';
+import { horarioJaComecou } from '../../lib/linkDoCliente.js';
 
 const tenant = tenantDoHost(Astro.request);
 
@@ -84,6 +85,9 @@ const isConfirmed = appt.status === 'confirmed';
 const isCancelled = appt.status === 'cancelled';
 const isCompleted = appt.status === 'completed';
 const isNoShow    = appt.status === 'no_show';
+// Depois que o horário começa, o link só mostra: desmarcar ou remarcar é com a barbearia
+// (decisão de 18/10/2026; as rotas recusam do mesmo jeito — `lib/linkDoCliente.ts`).
+const jaComecou   = horarioJaComecou(appt.startsAt);
 
 const whatsappUrl = isConfirmed
   ? waUrl(`Olá! Agendei *${appt.serviceName}* com *${appt.barberName}* no dia *${dateLocal}* às *${timeLocal}*.`, s)
@@ -258,6 +262,11 @@ const apptDateStr   = formatInTimeZone(startsAt, fuso, 'yyyy-MM-dd');
             Adicionar ao calendário
           </a>
 
+          {jaComecou ? (
+            <p class="text-center text-sm text-neutral-400 border border-white/10 rounded-md px-4 py-3.5">
+              Este horário já começou. Para desmarcar ou remarcar, fale com a barbearia pelo WhatsApp.
+            </p>
+          ) : (<>
           <button
             id="reschedule-btn"
             class="flex items-center justify-center gap-2.5 w-full border border-white/10 hover:border-teal/30 text-neutral-400 hover:text-teal-light font-medium px-6 py-3.5 rounded-md transition-colors duration-300 text-sm"
@@ -320,6 +329,7 @@ const apptDateStr   = formatInTimeZone(startsAt, fuso, 'yyyy-MM-dd');
           >
             Cancelar agendamento
           </button>
+          </>)}
         </div>
       )}
 
