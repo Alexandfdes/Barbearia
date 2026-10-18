@@ -5,7 +5,8 @@ import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { db, first } from '../../../../db/index.js';
 import { barbers } from '../../../../db/schema.js';
-import { json } from '../../../../lib/api.js';
+import { json, violouUnico } from '../../../../lib/api.js';
+import { normalizePhone } from '../../../../lib/phone.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { emailValido, normalizarEmail } from '../../../../lib/email.js';
@@ -25,6 +26,12 @@ const updateSchema = z.object({
    * nova não chegasse (`docs/JORNADA-DO-BARBEIRO.md` §2.2).
    */
   email:  z.string().max(254).nullable().optional(),
+  /**
+   * O WhatsApp de login. Editável desde 18/10/2026: até aqui, digitado errado ficava
+   * errado para sempre (`docs/PENDENCIAS-ABERTAS.md` §2.54). Único entre os barbeiros
+   * ATIVOS de todas as barbearias (migration 0017) — quem confere é o índice.
+   */
+  phone:  z.string().max(30).optional(),
   /**
    * Recebe e-mail quando um cliente agenda, desmarca ou remarca pelo site
    * (`lib/avisoDeAgenda.ts`, 11/10/2026). Quem liga e desliga é o dono, como o
@@ -51,7 +58,7 @@ export const PUT: APIRoute = async ({ request, params }) => {
 
   const { name, role, active, avisarAgendamentos } = parsed.data;
   if (name === undefined && role === undefined && active === undefined && parsed.data.email === undefined
-      && avisarAgendamentos === undefined) {
+      && avisarAgendamentos === undefined && parsed.data.phone === undefined) {
     return json({ error: 'Nenhum campo para atualizar' }, 400);
   }
 
@@ -61,7 +68,10 @@ export const PUT: APIRoute = async ({ request, params }) => {
     return json({ error: `"${parsed.data.email}" não parece um e-mail.` }, 400);
   }
 
-  const target = await first(db.select({ id: barbers.id, role: barbers.role, name: barbers.name, email: barbers.email })
+  const phone = parsed.data.phone === undefined ? undefined : normalizePhone(parsed.data.phone);
+  if (phone === '') return json({ error: 'WhatsApp inválido: use DDD + número, 10 ou 11 dígitos.' }, 400);
+
+  const target = await first(db.select({ id: barbers.id, role: barbers.role, name: barbers.name, email: barbers.email, active: barbers.active })
     .from(barbers).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id))));
   if (!target) return json({ error: 'Barbeiro não encontrado' }, 404);
 
@@ -81,8 +91,24 @@ export const PUT: APIRoute = async ({ request, params }) => {
   if (active !== undefined) updates.active = active;
   if (email  !== undefined) updates.email  = email;
   if (avisarAgendamentos !== undefined) updates.avisarAgendamentos = avisarAgendamentos;
+  if (phone  !== undefined) updates.phone  = phone;
+  // Desligar derruba as sessões abertas: até 18/10/2026 só o `active` barrava, e reativar
+  // depois ressuscitava a sessão do celular que podia ter sido o motivo de desligar
+  // (`lib/session.ts` recusa sessão emitida antes de `senha_trocada_em`).
+  if (active === false && target.active) updates.senhaTrocadaEm = new Date();
 
-  await db.update(barbers).set(updates).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id)));
+  try {
+    await db.update(barbers).set(updates).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id)));
+  } catch (err) {
+    if (violouUnico(err, 'barbers_phone_ativo_uq')) {
+      return json({
+        error: active === true && !target.active
+          ? 'Este WhatsApp agora é o login de um barbeiro ativo em outra barbearia. Troque o WhatsApp dele antes de reativar.'
+          : 'Este WhatsApp já é o login de outro barbeiro.',
+      }, 409);
+    }
+    throw err;
+  }
 
   // E-mail novo: o link de senha nova que foi para o endereço anterior morre — inclusive o
   // que um intruso pediu depois de trocar o e-mail pelo dele (`lib/redefinicaoDeSenha.ts`).
