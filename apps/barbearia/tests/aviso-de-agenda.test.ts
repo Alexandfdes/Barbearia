@@ -217,7 +217,7 @@ describe('a tela da Equipe', () => {
   it('cada pessoa tem o liga-e-desliga, e o "Salvar" manda o que está marcado', () => {
     const tela = readFileSync('src/pages/admin/barbeiros.astro', 'utf8');
     expect(tela).toMatch(/<input data-edit-avisos=\{String\(b\.id\)\} type="checkbox" checked=\{b\.avisarAgendamentos\}/);
-    expect(tela).toMatch(/body: JSON\.stringify\(\{ name, role, active, email, avisarAgendamentos: avisosEl\.checked \}\)/);
+    expect(tela).toMatch(/body: JSON\.stringify\(\{ name, role, active, email, phone, avisarAgendamentos: avisosEl\.checked \}\)/);
     // E a linha diz, sem abrir o formulário, se a pessoa recebe.
     expect(tela).toMatch(/'Avisos de agendamento por e-mail desligados\.'/);
   });

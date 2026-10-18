@@ -22,7 +22,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { compare, hash } from 'bcryptjs';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 /**
  * ⚠️ `dbDono` e não `db`, e este é UM DOS DOIS lugares onde isso é certo.
  *
@@ -127,7 +127,9 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   let barbeiro: { id: number; tenantId: number; role: string; passwordHash: string; active: boolean } | undefined;
 
   if (telefone) {
-    barbeiro = await first(dbDono.select(colunas).from(barbers).where(eq(barbers.phone, telefone)));
+    // O ativo: desde a migration 0017 o número pode estar também em linhas de barbeiros
+    // desligados, e só um ativo por número.
+    barbeiro = await first(dbDono.select(colunas).from(barbers).where(and(eq(barbers.phone, telefone), eq(barbers.active, true))));
   } else {
     /**
      * ── TRANSIÇÃO ────────────────────────────────────────────────────────────

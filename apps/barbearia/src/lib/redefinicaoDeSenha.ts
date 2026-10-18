@@ -84,7 +84,9 @@ export async function pedirRedefinicao(whatsapp: string, agora: Date = new Date(
     email: barbers.email,
     ativo: barbers.active,
   };
-  const quem = await first(dbDono.select(colunas).from(barbers).where(eq(barbers.phone, telefone)));
+  // O ATIVO dono do telefone: desde a migration 0017 o mesmo número pode estar em linhas de
+  // barbeiros desligados.
+  const quem = await first(dbDono.select(colunas).from(barbers).where(and(eq(barbers.phone, telefone), eq(barbers.active, true))));
   if (!quem || !quem.ativo) return 'sem-cadastro';
 
   const barbearia = await first(

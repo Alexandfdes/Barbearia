@@ -18,7 +18,7 @@ const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: b
 if (!barberRow) return Astro.redirect('/admin/login');
 
 const list = (await db
-  .select({ id: barbers.id, name: barbers.name, slug: barbers.slug, role: barbers.role, active: barbers.active, email: barbers.email,
+  .select({ id: barbers.id, name: barbers.name, slug: barbers.slug, role: barbers.role, active: barbers.active, email: barbers.email, phone: barbers.phone,
             avisarAgendamentos: barbers.avisarAgendamentos })
   .from(barbers)
   .where(eq(barbers.tenantId, tenant.id))
@@ -182,6 +182,14 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
             </div>
 
             <div>
+              <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">WhatsApp de login</label>
+              <input data-edit-phone={String(b.id)} type="tel" inputmode="tel" value={b.phone ?? ''}
+                placeholder="(84) 99999-0000"
+                class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
+              <p class="text-xs text-slate-400 mt-1">É com ele que a pessoa entra no painel.</p>
+            </div>
+
+            <div>
               <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">E-mail</label>
               <input data-edit-email={String(b.id)} type="email" inputmode="email" value={b.email ?? ''}
                 placeholder="para a senha nova e os avisos"
@@ -320,6 +328,7 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
       const activeEl= document.querySelector<HTMLSelectElement>(`[data-edit-active="${id}"]`)!;
       const passEl  = document.querySelector<HTMLInputElement>(`[data-edit-password="${id}"]`)!;
       const emailEl = document.querySelector<HTMLInputElement>(`[data-edit-email="${id}"]`)!;
+      const phoneEl = document.querySelector<HTMLInputElement>(`[data-edit-phone="${id}"]`)!;
       const avisosEl= document.querySelector<HTMLInputElement>(`[data-edit-avisos="${id}"]`)!;
       const errorEl = document.querySelector<HTMLElement>(`[data-edit-error="${id}"]`)!;
 
@@ -328,8 +337,10 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
       const active   = activeEl.value === 'true';
       const password = passEl.value;
       const email    = emailEl.value.trim();
+      const phone    = phoneEl.value.trim();
 
       errorEl.classList.add('hidden');
+      if (phone.replace(/\D/g, '').length < 10) { errorEl.textContent = 'Informe o WhatsApp com DDD — é por ele que a pessoa entra no painel'; errorEl.classList.remove('hidden'); return; }
       if (name.length < 2) { errorEl.textContent = 'Nome inválido'; errorEl.classList.remove('hidden'); return; }
       if (password && password.length < 8) { errorEl.textContent = 'A nova senha precisa ter ao menos 8 caracteres'; errorEl.classList.remove('hidden'); return; }
 
@@ -338,7 +349,7 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
         const res  = await fetch(`/api/admin/barbers/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, role, active, email, avisarAgendamentos: avisosEl.checked }),
+          body: JSON.stringify({ name, role, active, email, phone, avisarAgendamentos: avisosEl.checked }),
         });
         const data = await res.json();
         if (!res.ok) {

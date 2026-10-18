@@ -179,6 +179,29 @@ describe('os serviços que o dono digita no cadastro', () => {
     expect(Number(bs.barber_id)).toBe(r.barbeiroId);
   });
 
+  it.skipIf(!TEM_BANCO)('o telefone em uso só é dito ao formulário que, sem ele, criaria a barbearia (18/10/2026)', async () => {
+    // Até aqui a conferência do telefone vinha antes das outras: dois serviços de mesmo nome
+    // perguntavam "este telefone tem conta?" sem criar nada — 409 com conta, 400 sem.
+    expect((await provisionarBarbearia(conn, BASE)).ok).toBe(true);
+    const r = await provisionarBarbearia(conn, {
+      ...BASE, slug: 'sonda',
+      servicos: [
+        { nome: 'Corte', precoCentavos: 4000, minutos: 30 },
+        { nome: 'corte', precoCentavos: 4000, minutos: 30 },
+      ],
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.campo).toBe('servicos');
+    expect(r.conflito).toBeFalsy();
+  });
+
+  it.skipIf(!TEM_BANCO)('o telefone de um barbeiro DESLIGADO serve para cadastrar outra barbearia (migration 0017)', async () => {
+    expect((await provisionarBarbearia(conn, BASE)).ok).toBe(true);
+    await conn`UPDATE barbers SET active = false`;
+    expect((await provisionarBarbearia(conn, { ...BASE, slug: 'outra' })).ok).toBe(true);
+  });
+
   it.skipIf(!TEM_BANCO)('RECUSA o mesmo serviço duas vezes e preço fora da faixa', async () => {
     const repetido = await provisionarBarbearia(conn, {
       ...BASE,

@@ -319,16 +319,6 @@ export async function provisionarBarbearia(
     return { ok: false, campo: 'slug', conflito: true, erro: `Já existe uma barbearia no endereço "${slug}".` };
   }
 
-  // O telefone de login é único NO MUNDO (migration 0002). Conferimos antes para
-  // dar uma mensagem útil, em vez de estourar a constraint no meio da transação.
-  const telefoneEmUso = await sql`SELECT 1 FROM barbers WHERE phone = ${telefoneLogin}`;
-  if (telefoneEmUso.length) {
-    return {
-      ok: false, campo: 'telefone-dono', conflito: true,
-      erro: 'Este WhatsApp já é o login de outro barbeiro.',
-    };
-  }
-
   const servicos = (dados.servicos ?? []).filter((x) => x && String(x.nome ?? '').trim());
   for (const sv of servicos) {
     if (!Number.isInteger(sv.precoCentavos) || sv.precoCentavos < 0 || sv.precoCentavos > 10_000_00) {
@@ -360,6 +350,20 @@ export async function provisionarBarbearia(
   }
   if (!semana.some((h) => !h.fechado)) {
     return { ok: false, campo: 'horarios', erro: 'Marque pelo menos um dia aberto — sem nenhum, ninguém consegue agendar.' };
+  }
+
+  // O telefone de login é único NO MUNDO entre os barbeiros ATIVOS (migration 0017).
+  // Conferimos antes para dar uma mensagem útil, em vez de estourar a constraint no meio
+  // da transação — e DEPOIS de todas as outras conferências, de propósito: até 18/10/2026
+  // vinha antes, e um formulário com dois serviços de mesmo nome perguntava "este telefone
+  // tem conta?" sem criar nada (409 com conta, 400 sem). Agora só chega aqui o formulário
+  // que, sem conta, cria a barbearia (`tests/cadastro.test.ts`).
+  const telefoneEmUso = await sql`SELECT 1 FROM barbers WHERE phone = ${telefoneLogin} AND active`;
+  if (telefoneEmUso.length) {
+    return {
+      ok: false, campo: 'telefone-dono', conflito: true,
+      erro: 'Este WhatsApp já é o login de outro barbeiro.',
+    };
   }
 
   // `@fulano`, `instagram.com/fulano` e a URL inteira chegam aqui. Guardamos as
