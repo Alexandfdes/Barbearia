@@ -19,7 +19,7 @@ if (!tenantDoHost(Astro.request)) {
 
 
 // Se já está logado, vai direto pra listagem
-const session = await getCustomerSession(Astro.request);
+const session = await getCustomerSession(Astro.request, tenantDoHost(Astro.request)!.id);
 if (session) return Astro.redirect('/cliente');
 
 // ⚠️ O nome é o da barbearia do endereço. Até 27/09/2026 esta página dizia

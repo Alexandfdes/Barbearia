@@ -13,7 +13,6 @@ import { agendamentosDoCliente } from '../../lib/agendamentosDoCliente.js';
 import { totalParaOCliente } from '../../lib/valorDoAtendimento.js';
 
 
-const session = await getCustomerSession(Astro.request);
 const tenant = tenantDoHost(Astro.request);
 
 // Endereço que não é de barbearia nenhuma. 404 seco, sem passar pelo layout:
@@ -21,6 +20,8 @@ const tenant = tenantDoHost(Astro.request);
 // barbearia de quem ler — renderizar mostraria a marca de OUTRO cliente numa
 // página que não é dele (`lib/tenant.ts`, passo 6).
 if (!tenant) return new Response('Barbearia não encontrada', { status: 404 });
+// A sessão vale só na barbearia em que o cliente entrou (`lib/customerSession.ts`).
+const session = await getCustomerSession(Astro.request, tenant.id);
 const fuso = fusoDe(tenant);
 
 // ⚠️ O nome é o da barbearia do endereço. Até 27/09/2026 esta página dizia

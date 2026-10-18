@@ -1,12 +1,13 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, gt } from 'drizzle-orm';
 import { db, first } from '../../../../../db/index.js';
 import { appointments } from '../../../../../db/schema.js';
 import { json } from '../../../../../lib/api.js';
 import { tenantDoHost } from '../../../../../lib/tenant.js';
 import { avisarMudancaNaAgenda } from '../../../../../lib/avisoDeAgenda.js';
+import { RECUSA_DEPOIS_DO_INICIO } from '../../../../../lib/linkDoCliente.js';
 
 export const POST: APIRoute = async ({ params, request }) => {
   const tenant = tenantDoHost(request);
@@ -33,6 +34,9 @@ export const POST: APIRoute = async ({ params, request }) => {
         eq(appointments.manageToken, token),
         eq(appointments.status, 'confirmed'),
         eq(appointments.tenantId, tenant.id),
+        // Só antes de o horário começar (`lib/linkDoCliente.ts`). `starts_at` é o texto do
+        // `toISOString()`, e o texto em ISO compara na ordem do tempo.
+        gt(appointments.startsAt, new Date().toISOString()),
       ))
       .returning({ id: appointments.id });
 
@@ -40,10 +44,11 @@ export const POST: APIRoute = async ({ params, request }) => {
       // Nada desmarcado: ou o token não existe nesta barbearia, ou o horário já
       // não está confirmado. As mesmas respostas de antes.
       const atual = await first(db
-        .select({ status: appointments.status })
+        .select({ status: appointments.status, inicio: appointments.startsAt })
         .from(appointments)
         .where(and(eq(appointments.manageToken, token), eq(appointments.tenantId, tenant.id))));
       if (!atual) return json({ error: 'Agendamento não encontrado' }, 404);
+      if (atual.status === 'confirmed') return json({ error: RECUSA_DEPOIS_DO_INICIO }, 409);
       return json({ error: `Agendamento não pode ser cancelado (status: ${atual.status})` }, 409);
     }
 

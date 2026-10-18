@@ -8,6 +8,7 @@ import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { db } from '../../../../../db/index.js';
 import { appointments, barbers, workingHours } from '../../../../../db/schema.js';
 import { MARCA_DO_COMBO } from '../../../../../lib/bookAppointment.js';
+import { RECUSA_DEPOIS_DO_INICIO, horarioJaComecou } from '../../../../../lib/linkDoCliente.js';
 import { diaDaSemana } from '../../../../../lib/calendario.js';
 import { json } from '../../../../../lib/api.js';
 import { reagendarAtomicamente } from '../../../../../lib/reagendar.js';
@@ -67,6 +68,8 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (appt.status !== 'confirmed') {
     return json({ error: `Não é possível reagendar (status: ${appt.status})` }, 409);
   }
+  // Depois que o horário começa, o link não remarca (`lib/linkDoCliente.ts`).
+  if (horarioJaComecou(appt.startsAt)) return json({ error: RECUSA_DEPOIS_DO_INICIO }, 409);
 
   // Com barbeiro desligado, não remarca: o cliente iria a um horário com quem não trabalha
   // mais lá (até 17/10/2026, remarcava). Desmarcar continua valendo.

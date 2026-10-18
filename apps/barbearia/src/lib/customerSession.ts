@@ -8,6 +8,13 @@ export interface CustomerSessionData {
   phone: string;
   /** Data de nascimento no formato 'YYYY-MM-DD' — usada pra filtrar agendamentos do cliente */
   birthdate: string;
+  /**
+   * A barbearia em que o cliente entrou — a sessão só vale nela. Até 18/10/2026 o cookie não
+   * dizia de qual era, e copiado para o site de OUTRA barbearia mostrava os agendamentos da
+   * mesma pessoa lá, sem a data de nascimento (`docs/PENDENCIAS-ABERTAS.md` §2.55). O cookie
+   * de antes, sem ela, não vale mais: o cliente entra de novo uma vez.
+   */
+  tenantId: number;
 }
 
 function secret(): string {
@@ -23,7 +30,7 @@ function secret(): string {
   return s;
 }
 
-export async function getCustomerSession(request: Request): Promise<CustomerSessionData | null> {
+export async function getCustomerSession(request: Request, tenantId: number): Promise<CustomerSessionData | null> {
   const cookieHeader = request.headers.get('cookie') ?? '';
   const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${CUSTOMER_SESSION_COOKIE}=([^;]+)`));
   if (!match) return null;
@@ -31,6 +38,7 @@ export async function getCustomerSession(request: Request): Promise<CustomerSess
     const data = await unsealData<CustomerSessionData>(match[1], { password: secret(), ttl: TTL });
     if (typeof data.phone !== 'string' || data.phone.length < 10) return null;
     if (typeof data.birthdate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data.birthdate)) return null;
+    if (data.tenantId !== tenantId) return null;
     return data;
   } catch {
     return null;

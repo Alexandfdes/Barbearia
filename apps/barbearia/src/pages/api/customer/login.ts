@@ -119,7 +119,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   resetRateLimit(chaveCurta);
   resetRateLimit(chaveDoDia);
 
-  const cookie = await makeCustomerSessionCookie({ phone: compareKey, birthdate });
+  const cookie = await makeCustomerSessionCookie({ phone: compareKey, birthdate, tenantId: tenant.id });
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
     headers: {
