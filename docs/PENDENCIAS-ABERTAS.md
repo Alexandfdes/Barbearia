@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **18/10** | **Cada barbearia é independente, mesmo com o mesmo dono** — o cancelar só remove a assinatura comprovadamente dela. **O telefone de login fica preso só enquanto o barbeiro está ativo**, e se edita. **O link do cliente trava no início do horário.** **A sessão do cliente vale só na barbearia dela.** E o mês grátis do cancelar consertado sem esperar o sandbox | `PENDENCIAS-ABERTAS.md` §2.55 |
 | **24/09** | **Autoatendimento, com 7 dias grátis.** O dono se cadastra sozinho, recebe o painel na hora e escolhe entre três layouts de site. Substitui a montagem assistida (§4.8). Adiantou para o primeiro cadastro o prazo do contrato (§1.2), do domínio e da política de suporte (§1.4) | `PLANO-PRODUTIZACAO.md` §13 |
 | **24/09** | **Cartão no cadastro**, cobrado só depois dos 7 dias. **Três layouts** de site, com **as cores escolhidas pelo dono** (§1.3, §4.13) | `PLANO-PRODUTIZACAO.md` §13 |
 | **24/09** | **Fotos no painel, logo depois do cadastro** — galeria do site (o carrossel, a partir de 3 fotos) e foto de produto por barbearia; não no formulário do cadastro. Feito em 25/09 (§2.7) | `PLANO-PRODUTIZACAO.md` §13 |
@@ -2362,41 +2363,71 @@ aviso dela. Guarda: `apps/barbearia/tests/host-tenant.test.ts`.
 **Verificado:** `apps/barbearia/tests/cobranca.test.ts`. Um caso antigo pagava outra cobrança para
 tirar do atraso — o caso foi acertado para pagar a que falhou: ele guardava o defeito.
 
-### 2.54 🟠 `[DECISÃO]` O que a revisão de 17/10/2026 achou e ficou registrado
+### 2.54 🟡 `[TÉCNICO]` O que a revisão de 17/10/2026 achou — decidido por você em 18/10, quase tudo feito (§2.55)
 
-**Esperando você — explicados na conversa de 17/10:**
+~~Esperando você: o cancelar que removia a assinatura da outra barbearia do mesmo dono; o cancelar
+que dava um mês grátis; o telefone de barbeiro preso para sempre; o cadastro que dizia se um
+telefone tem conta; a sessão do cliente que valia em outra barbearia; reativar um barbeiro
+ressuscitando as sessões dele; o link mexendo em horário que já passou.~~ ✅ **Os sete, decididos
+por você em 18/10/2026 e feitos no mesmo dia — §2.55.**
 
-- 🔴 **Cancelar uma barbearia remove a assinatura da outra do mesmo dono** (`cancelarAssinatura`,
-  em `apps/barbearia/src/lib/cobranca.ts`): sem assinatura ligada, o cancelar lista e remove TODAS
-  as do cliente da Asaas. Acontece com dono de duas barbearias e o aviso ambíguo da Asaas — o estado
-  que a própria suíte monta. Conserto proposto: sem saber qual, não remover nada, e pedir olho.
-- 🔴 **Cancelar dá um mês grátis:** o fim do período pago usa o `nextDueDate`, que a Asaas já
-  avançou — ela gera cada cobrança 40 dias antes do vencimento (documentação). Remover a assinatura
-  apaga a cobrança pendente, e quem pagou até 16/11 fica até 16/12. Conserto proposto: o fim é o
-  vencimento da cobrança pendente mais antiga, lida antes de remover — a confirmar no sandbox
-  (§4.14).
+**O que continua registrado, sem conserto:**
 
-**Registrados, sem conserto ainda:**
-
-- 🟠 **Telefone de barbeiro preso para sempre:** o telefone não se edita, e o índice único é
-  global. O barbeiro desligado da barbearia A não entra na B; telefone digitado errado fica
-  errado; e quem faz o teste grátis pode cadastrar o WhatsApp de barbeiros de outras barbearias,
-  que ficam sem poder se cadastrar. Pede decisão: editar o telefone, e/ou liberar o de barbeiro
-  desligado.
-- 🟡 **O cadastro diz se um telefone tem conta**, sem criar nada — a ordem das recusas (o telefone
-  antes dos serviços repetidos). Só com `CADASTRO_ABERTO=1`.
-- 🟡 **A sessão da área do cliente não guarda a barbearia:** o cookie copiado vale em outra. Só com
-  o cookie na mão — computador compartilhado.
-- 🟡 **Reativar um barbeiro desligado ressuscita as sessões abertas dele**, se a senha não mudou.
-- 🟡 **O link desmarca ou remarca agendamento cuja hora já passou** — o atendido ontem, não
-  concluído, sai da receita. Pede decisão de produto: até quando o cliente mexe.
-- 🟡 **Cancelar com a assinatura já removida** falha sempre (404 da Asaas) ou tira do ar na hora;
-  e o cancelar que cruza com uma falha de cobrança remove a assinatura sem gravar a saída. Janelas
-  pequenas.
+- 🟡 **Cancelar com a assinatura ligada já removida** falha sempre (404 da Asaas) ou tira do ar na
+  hora; e o cancelar que cruza com uma falha de cobrança remove a assinatura sem gravar a saída.
+  Janelas pequenas.
+- 🟡 **O `SUBSCRIPTION_DELETED` vindo de fora do painel** marca a saída pelo `nextDueDate` do
+  evento — o mesmo mês a mais do cancelar, que no cancelar foi consertado (§2.55). Depois da remoção
+  a Asaas apaga as cobranças pendentes, e não há mais de onde ler a data certa. Raro: é a remoção
+  feita à mão no painel da Asaas.
+- 🟡 **Quem faz o teste grátis ainda pode cadastrar o WhatsApp de outra pessoa como barbeiro.**
+  Desde §2.55 o dono do número consegue se cadastrar assim que aquele barbeiro for desligado — e o
+  operador pode desligá-lo —, mas nada prova que o número é de quem o cadastrou.
 - *Hipóteses, não conferidas:* em Manaus e no Acre, entre 22h/23h e meia-noite, o Checkout manda à
   Asaas uma data que já é "ontem" em Brasília; o `past_due_since` grava a hora em que o evento foi
   processado, não o vencimento — com a fila parada dias, a carência começa atrasada; e o mapa do
   limite de tentativas (`rateLimit.ts`) nunca descarta entrada vencida.
+
+### 2.55 ✅ `[TÉCNICO]` As sete decisões de 18/10/2026 — FEITAS no mesmo dia
+
+Você respondeu, item a item, o que o §2.54 esperava. Cada conserto foi desfeito de propósito e o
+caso certo ficou vermelho — 17 reintroduções, as 17 pegas, uma só depois de o teste ganhar o caso.
+
+1. 🔴 **"Cada barbearia é independente, mesmo com o mesmo dono."** O cancelar, sem a assinatura
+   ligada, removia TODAS as assinaturas do cliente da Asaas — a da outra barbearia do mesmo dono ia
+   junto. **Agora** só remove a comprovadamente desta: a ligada, ou, entre as do cliente, a que traz
+   a referência `barbearia:<id>` ou um Checkout dela. Nenhuma: não remove nada, e a tela diz para
+   falar com o suporte (`cancelarAssinatura`, em `apps/barbearia/src/lib/cobranca.ts`).
+2. 🔴 **O cancelar dava um mês grátis** — feito agora, como você escolheu, sem esperar o sandbox. O
+   fim do período pago é o vencimento da cobrança PENDENTE mais antiga da assinatura, lida na Asaas
+   antes de remover (`GET /subscriptions/{id}/payments?status=PENDING`); sem nenhuma pendente, o
+   `nextDueDate`, como antes (`vencimentoQueNaoVaiHaver`). ⚠️ O formato da resposta é o da
+   documentação, **não conferido no sandbox** — é uma das perguntas do §4.14.
+3. 🟠 **O telefone de barbeiro: "deixe evitável".** Único só entre os barbeiros ATIVOS (migration
+   0017: `barbers_phone_ativo_uq` no lugar de `barbers_phone_uq`), e o dono edita o WhatsApp de
+   login na Equipe. Desligado na barbearia A, o barbeiro entra na B, e o número dele serve para
+   cadastrar a barbearia própria. Reativar em A com o número já ativo em outra é recusado, com o
+   que fazer ("troque o WhatsApp dele antes de reativar"). O login e o "esqueci a senha" acham o
+   ativo.
+4. 🟡 **O cadastro não diz mais se um telefone tem conta sem criar nada:** a conferência do telefone
+   passou para depois de todas as outras (`apps/barbearia/src/lib/provisionarBarbearia.ts`). Só o
+   formulário que, sem conta, criaria a barbearia ouve "este WhatsApp já é o login de outro
+   barbeiro".
+5. 🟡 **A sessão do cliente vale só na barbearia em que ele entrou:** o cookie guarda a barbearia
+   (`apps/barbearia/src/lib/customerSession.ts`). O de antes, sem ela, não vale mais — quem estava
+   dentro entra de novo uma vez.
+6. 🟡 **Desligar derruba as sessões abertas do barbeiro;** reativar não as ressuscita.
+7. 🟡 **O link do cliente trava no início do horário:** depois dele, o link só mostra, e diz para
+   falar com a barbearia pelo WhatsApp; desmarcar e remarcar respondem 409 com a mesma frase
+   (`apps/barbearia/src/lib/linkDoCliente.ts`). Antes do horário, nada muda.
+
+**Verificado:** `apps/barbearia/tests/telefone-evitavel.test.ts`,
+`apps/barbearia/tests/link-do-cliente.test.ts`, e casos novos em `apps/barbearia/tests/cobranca.test.ts`
+e `apps/barbearia/tests/cadastro.test.ts`; a 0017 aplicada pelo boot de produção sobre um banco
+parado na 0016, com o backup de antes, e rodando de novo sem nada a fazer.
+
+⚠️ **O que muda para quem usa:** o cliente logado em "Meus agendamentos" entra de novo uma vez; o
+dono que editar alguém da Equipe sem WhatsApp precisa preenchê-lo — é por ele que se entra.
 
 ---
 
@@ -2458,7 +2489,7 @@ a migration anterior e a barbearia, e o boot sobre ele reaplicou a seguinte.
 ⚠️ **Nada de 10/10 à tarde para cá está no ar** (conferido no GitHub em 16/10): a `main`, de onde
 o EasyPanel constrói, parou no merge do PR #1, e a `monorepo` está à frente dela com a cobrança, o
 operador, o fuso, a exportação, a trava de horário duplo e o resto. O primeiro deploy vai levar
-tudo de uma vez — 7 migrations, da 0010 à 0016, e o Dockerfile novo, que nunca passou por um
+tudo de uma vez — 8 migrations, da 0010 à 0017, e o Dockerfile novo, que nunca passou por um
 `docker build` de verdade (§3.12). Com o banco vazio de hoje, é o deploy mais barato que vai
 existir; cada semana a mais engorda o lote. O passo a passo, com os nomes do servidor, está no
 projeto do claude.ai.
@@ -4108,12 +4139,17 @@ pedido por você, a área do cliente com o total de cada visita (§2.43); e, ach
 datas em português (§2.44). E Configurações em abas, como você escolheu (§2.45), e a barra lateral
 presa na tela, pedida por você (§2.46).
 
+**18/10/2026, as sete decisões suas sobre o que a revisão deixou, ✅ feitas no mesmo dia (§2.55):**
+cada barbearia independente no cancelar, o mês grátis do cancelar, o telefone evitável (migration
+0017), o cadastro que não revela telefone, a sessão do cliente por barbearia, desligar derrubando as
+sessões e o link travando no início do horário.
+
 **17/10/2026, a segunda revisão, pedida por você — os escolhidos, ✅ consertados:** o painel só no
 endereço do painel, sem moldura (§2.49); o link de senha nova que sobrevivia e o login por conta
 (§2.50); a agenda que não via o link, o barbeiro desligado, as vagas, o combo e o e-mail (§2.51); o
 domínio próprio fora do ar (§2.52); o pagamento antigo que tirava do atraso e o que pede mão chegando
 ao operador (§2.53); e a imagem do Docker provada no CI (§3.2). **Esperando você:** os dois do
-cancelar (§2.54).
+cancelar (§2.54) — decididos e feitos em 18/10 (§2.55).
 
 **16/10/2026, a revisão do projeto, pedida por você; 17/10, os achados dela, ✅ consertados:** o
 backup antes das migrations (§3.2), a fila do webhook parada visível no operador (§3.13), o rodapé

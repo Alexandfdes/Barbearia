@@ -48,7 +48,7 @@ outro repositório, o `Alexandfdes/Barbearia-Bayron` (a `main` de lá parou em `
 `docs/ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2 diz o que mudou com o app já no ar.
 
 ⚠️ **A `main` parou em `0d86871` (10/10/2026), e é dela que o EasyPanel constrói:** o que entrou
-na `monorepo` depois — sete migrations, `0010` a `0016`, e o `Dockerfile` novo — não está em
+na `monorepo` depois — oito migrations, `0010` a `0017`, e o `Dockerfile` novo — não está em
 produção. Antes de juntar, o `docs/PENDENCIAS-ABERTAS.md` §3.2.
 
 ⚠️ **Os dois repositórios estão públicos**, este e o `Barbearia-Bayron` (conferido em
@@ -217,6 +217,15 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   (`apps/barbearia/src/lib/redefinicaoDeSenha.ts`) — senão o link de senha nova pedido antes continua
   abrindo. Senha nova, em qualquer tela, tem pelo menos `SENHA_MINIMA` (8) caracteres
   (`docs/PENDENCIAS-ABERTAS.md` §2.50).
+- **Cada barbearia é independente, mesmo com o mesmo dono** (decisão de 18/10/2026): nada que remove
+  na Asaas age sobre "todas as do cliente" — o cancelar só remove a assinatura comprovadamente da
+  barbearia (`docs/PENDENCIAS-ABERTAS.md` §2.55).
+- **O telefone de login é único só entre os barbeiros ATIVOS** (migration 0017,
+  `barbers_phone_ativo_uq`), e se edita na Equipe: busca por telefone filtra `active`. Desligar grava
+  `senha_trocada_em` — as sessões abertas caem e não voltam ao reativar.
+- **O cliente final:** a sessão de "Meus agendamentos" vale só na barbearia dela
+  (`getCustomerSession(request, tenantId)`), e o link `/a/<token>` não desmarca nem remarca depois de o
+  horário começar (`horarioJaComecou`, em `apps/barbearia/src/lib/linkDoCliente.ts`).
 - **Desfecho novo do webhook que pede mão começa por um de `DESFECHOS_QUE_PEDEM_OLHO`**
   (`apps/barbearia/src/lib/operadorBarbearias.ts`) — é a lista que o Início e a Cobrança do operador
   leem; o `tests/cobranca.test.ts` reprova "tratar à mão" fora dela (`docs/PENDENCIAS-ABERTAS.md` §2.53).
