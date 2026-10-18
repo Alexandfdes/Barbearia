@@ -136,6 +136,27 @@ export interface AssinaturaAsaas {
   nextDueDate?: string;
   deleted?: boolean;
   dateCreated?: string;
+  /** `barbearia:<id>`, quando a assinatura nasceu do Checkout de uma barbearia. */
+  externalReference?: string | null;
+  checkoutSession?: string | null;
+}
+
+/** Uma cobrança de assinatura, como `GET /subscriptions/{id}/payments` devolve. */
+export interface CobrancaAsaas {
+  id: string;
+  status?: string;
+  /** "AAAA-MM-DD" */
+  dueDate?: string;
+}
+
+/**
+ * As cobranças PENDENTES de uma assinatura — as já geradas e ainda não pagas. A Asaas gera
+ * cada uma 40 dias antes do vencimento (documentação, conferida em 17/10/2026; não testado
+ * no sandbox): logo depois de pagar, a do mês seguinte já existe aqui.
+ */
+export async function cobrancasPendentes(cfg: ConfigAsaas, assinaturaId: string): Promise<CobrancaAsaas[]> {
+  const r = await pedir<{ data?: CobrancaAsaas[] }>(cfg, 'GET', `/subscriptions/${id(assinaturaId)}/payments?status=PENDING`);
+  return r?.data ?? [];
 }
 
 export async function assinatura(cfg: ConfigAsaas, assinaturaId: string): Promise<AssinaturaAsaas> {
