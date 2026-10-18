@@ -739,12 +739,19 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
 
   it('a Asaas para de cobrar, e o site fica no ar até o fim do período pago', async () => {
     const dia = diaNoFuso(new Date(Date.now() + 12 * DIA));
-    responder = (c) => (c.metodo === 'GET'
-      ? { corpo: { id: 'sub_emdia', status: 'ACTIVE', nextDueDate: dia, deleted: false } }
-      : { corpo: { deleted: true, id: 'sub_emdia' } });
+    // A cobrança de daqui a 12 dias já foi gerada e está pendente; o `nextDueDate` já é o
+    // do mês seguinte — como a Asaas faz, gerando 40 dias antes. O fim é o da pendente.
+    const mesSeguinte = diaNoFuso(new Date(Date.now() + 42 * DIA));
+    responder = (c) => (c.metodo !== 'GET'
+      ? { corpo: { deleted: true, id: 'sub_emdia' } }
+      : c.caminho.includes('/payments')
+        ? { corpo: { data: [{ id: 'pay_futuro', status: 'PENDING', dueDate: mesSeguinte }, { id: 'pay_pendente', status: 'PENDING', dueDate: dia }] } }
+        : { corpo: { id: 'sub_emdia', status: 'ACTIVE', nextDueDate: mesSeguinte, deleted: false } });
     const r = await pedir(CANCELAR, { barberId: 70, role: 'admin', tenantId: 7 });
     expect(r.status).toBe(200);
-    expect(chamadas.map((c) => `${c.metodo} ${c.caminho}`)).toEqual(['GET /subscriptions/sub_emdia', 'DELETE /subscriptions/sub_emdia']);
+    expect(chamadas.map((c) => `${c.metodo} ${c.caminho}`)).toEqual([
+      'GET /subscriptions/sub_emdia', 'GET /subscriptions/sub_emdia/payments?status=PENDING', 'DELETE /subscriptions/sub_emdia',
+    ]);
     expect((await linha(7)).subscription_ends_at.toISOString()).toBe(meiaNoite(dia).toISOString());
     expect(r.corpo.noArAte).toBe(formatInTimeZone(new Date(meiaNoite(dia).getTime() - 1), TZ, 'dd/MM'));
 
@@ -753,6 +760,54 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
     await enviar({ id: 'evt_del_emdia', event: 'SUBSCRIPTION_DELETED', subscription: { id: 'sub_emdia', customer: 'cus_emdia', nextDueDate: outroDia } });
     expect((await desfecho('evt_del_emdia')).outcome).toMatch(/já estava marcada/);
     expect((await linha(7)).subscription_ends_at.toISOString()).toBe(meiaNoite(dia).toISOString());
+  });
+
+  it('sem cobrança pendente, o fim é o próximo vencimento da assinatura, como antes', async () => {
+    await conn`INSERT INTO tenants (id, slug, business_name, status, asaas_customer_id, asaas_subscription_id) VALUES
+                 (22, 'sem-pendente', 'Sem Pendente', 'active', 'cus_sp', 'sub_sp')`;
+    await conn`INSERT INTO barbers (tenant_id, id, name, slug, role, password_hash, active, phone) VALUES
+                 (22, 220, 'Dono SP', 'dono', 'admin', 'x', true, '84990000220')`;
+    await carregarTenants(true);
+    const dia = diaNoFuso(new Date(Date.now() + 9 * DIA));
+    responder = (c) => (c.metodo !== 'GET' ? { corpo: { deleted: true } }
+      : c.caminho.includes('/payments') ? { corpo: { data: [] } }
+      : { corpo: { id: 'sub_sp', status: 'ACTIVE', nextDueDate: dia, deleted: false } });
+    expect((await pedir(CANCELAR, { barberId: 220, role: 'admin', tenantId: 22 })).status).toBe(200);
+    expect((await linha(22)).subscription_ends_at.toISOString()).toBe(meiaNoite(dia).toISOString());
+  });
+
+  it('cada barbearia é independente, mesmo com o mesmo dono: sem assinatura ligada, só remove a que é dela', async () => {
+    // As duas do mesmo dono, com o mesmo cliente na Asaas. A 20 ficou sem a assinatura
+    // ligada (o aviso ambíguo); a 21 tem a dela, que NÃO pode ir junto.
+    await conn`INSERT INTO tenants (id, slug, business_name, status, asaas_customer_id, asaas_subscription_id, asaas_checkout_ids) VALUES
+                 (20, 'irma-a', 'Irmã A', 'active', 'cus_irmas', NULL, '{chk_irma_a}'),
+                 (21, 'irma-b', 'Irmã B', 'active', 'cus_irmas', 'sub_irma_b', '{chk_irma_b}')`;
+    await conn`INSERT INTO barbers (tenant_id, id, name, slug, role, password_hash, active, phone) VALUES
+                 (20, 200, 'Dono A', 'dono', 'admin', 'x', true, '84990000200'),
+                 (21, 210, 'Dono B', 'dono', 'admin', 'x', true, '84990000210')`;
+    await carregarTenants(true);
+    const dia = diaNoFuso(new Date(Date.now() + 15 * DIA));
+    const daA = { id: 'sub_irma_a', status: 'ACTIVE', nextDueDate: dia, checkoutSession: 'chk_irma_a' };
+    const daB = { id: 'sub_irma_b', status: 'ACTIVE', nextDueDate: dia, externalReference: 'barbearia:21' };
+    responder = (c) => (c.metodo !== 'GET' ? { corpo: { deleted: true } }
+      : c.caminho.startsWith('/subscriptions?customer=') ? { corpo: { data: [daB, daA] } }
+      : { corpo: { data: [] } });
+    expect((await pedir(CANCELAR, { barberId: 200, role: 'admin', tenantId: 20 })).status).toBe(200);
+    expect(chamadas.filter((c) => c.metodo === 'DELETE').map((c) => c.caminho)).toEqual(['/subscriptions/sub_irma_a']);
+  });
+
+  it('e se nenhuma do cliente é comprovadamente dela, não remove nada — e diz para falar com o suporte', async () => {
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await conn`UPDATE tenants SET subscription_ends_at = NULL, asaas_checkout_ids = '{chk_outro}' WHERE id = 20`;
+    await carregarTenants(true);
+    const alheia = { id: 'sub_irma_b', status: 'ACTIVE', externalReference: 'barbearia:21' };
+    responder = (c) => (c.metodo !== 'GET' ? { corpo: { deleted: true } } : { corpo: { data: [alheia] } });
+    const r = await pedir(CANCELAR, { barberId: 200, role: 'admin', tenantId: 20 });
+    expect(r.status).toBe(409);
+    expect(String(r.corpo.error)).toMatch(/suporte.*nada foi cancelado/);
+    expect(chamadas.filter((c) => c.metodo === 'DELETE')).toEqual([]);
+    expect((await linha(20)).subscription_ends_at).toBeNull();
+    aviso.mockRestore();
   });
 
   it('cancelar de novo não chama a Asaas outra vez', async () => {
@@ -784,6 +839,7 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
     const [{ past_due_since }] = await conn`SELECT past_due_since FROM tenants WHERE id = 8`;
     const r = await pedir(CANCELAR, { barberId: 80, role: 'admin', tenantId: 8 });
     expect(r.status).toBe(200);
+    // Atrasada, o fim é o da carência: a Asaas nem é perguntada pelas cobranças pendentes.
     expect(chamadas.map((c) => `${c.metodo} ${c.caminho}`)).toEqual(['GET /subscriptions/sub_atr', 'DELETE /subscriptions/sub_atr']);
     const depois = await linha(8);
     expect(depois).toMatchObject({ status: 'active', past_due_since: null });

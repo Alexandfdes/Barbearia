@@ -83,6 +83,8 @@ interface LinhaDaBarbearia {
   asaas_subscription_id: string | null;
   /** O fuso da barbearia (migration 0013): os prazos acabam na meia-noite dela. */
   timezone: string;
+  /** Os Checkouts abertos por ela — só `linhaDaBarbearia` lê. */
+  asaas_checkout_ids?: string[] | null;
 }
 
 /**
@@ -170,7 +172,7 @@ export interface DonoDaBarbearia {
 async function linhaDaBarbearia(id: number): Promise<LinhaDaBarbearia | null> {
   const [t] = await sqlConn<LinhaDaBarbearia[]>`
     SELECT id, status, trial_ends_at, past_due_since, carencia_ate, subscription_ends_at,
-           asaas_customer_id, asaas_subscription_id, timezone
+           asaas_customer_id, asaas_subscription_id, timezone, asaas_checkout_ids
     FROM tenants WHERE id = ${id}`;
   return t ?? null;
 }
@@ -586,6 +588,23 @@ export async function registrarEventoComFalha(e: EventoAsaas, erro: unknown): Pr
  * Nos dois casos a barbearia passa a `active` com `subscription_ends_at`: é como
  * o cancelamento se escreve (`lib/situacao.ts`), e é o que deixa assinar de novo.
  */
+/**
+ * O vencimento da cobrança que o cancelar faz não acontecer — o fim do período pago.
+ *
+ * Até 18/10/2026 era o `nextDueDate` da assinatura. Mas a Asaas gera cada cobrança 40 dias
+ * antes do vencimento, e o `nextDueDate` é o da próxima a GERAR: logo depois de pagar, ele
+ * já está um mês à frente. Remover a assinatura apaga a cobrança pendente, e quem pagou
+ * até 16/11 ficava no ar até 16/12 de graça. Agora: o da cobrança pendente mais antiga; sem
+ * nenhuma pendente, o `nextDueDate`, como antes.
+ */
+async function vencimentoQueNaoVaiHaver(cfg: asaas.ConfigAsaas, a: asaas.AssinaturaAsaas): Promise<string | undefined> {
+  const pendentes = (await asaas.cobrancasPendentes(cfg, a.id))
+    .map((c) => c.dueDate)
+    .filter((d): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d))
+    .sort();
+  return pendentes[0] ?? a.nextDueDate;
+}
+
 export async function cancelarAssinatura(tenantId: number, cfg: asaas.ConfigAsaas, agora: Date = new Date()): Promise<Date> {
   const t = await linhaDaBarbearia(tenantId);
   if (!t) throw new ErroDeCobranca('Barbearia não encontrada.', 404);
@@ -598,10 +617,22 @@ export async function cancelarAssinatura(tenantId: number, cfg: asaas.ConfigAsaa
     throw new ErroDeCobranca('Esta assinatura não se cancela por aqui. Fale com o suporte.', 409);
   }
 
+  // Cada barbearia é independente, mesmo com o mesmo dono (decisão de 18/10/2026). O mesmo
+  // cliente da Asaas pode ser de duas barbearias — a Asaas reaproveita o cliente pelo CPF —,
+  // e até aqui, sem a assinatura ligada, o cancelar removia TODAS as do cliente: a da outra
+  // barbearia ia junto. Agora só a que é comprovadamente desta: a ligada, ou, entre as do
+  // cliente, a que traz a referência dela ou um Checkout dela. Nenhuma: não remove nada.
   let alvos: asaas.AssinaturaAsaas[];
   if (t.asaas_subscription_id) alvos = [await asaas.assinatura(cfg, t.asaas_subscription_id)];
-  else if (t.asaas_customer_id) alvos = await asaas.assinaturasDoCliente(cfg, t.asaas_customer_id);
-  else throw new ErroDeCobranca('Esta barbearia não tem assinatura na Asaas para cancelar.', 409);
+  else if (t.asaas_customer_id) {
+    const dela = new Set(t.asaas_checkout_ids ?? []);
+    alvos = (await asaas.assinaturasDoCliente(cfg, t.asaas_customer_id)).filter((a) =>
+      a.externalReference === referenciaDaBarbearia(t.id) || (a.checkoutSession != null && dela.has(a.checkoutSession)));
+    if (alvos.length === 0) {
+      console.warn(`[cobrança] ⚠️ cancelar a barbearia ${t.id}: nenhuma assinatura do cliente ${t.asaas_customer_id} é comprovadamente dela — nada foi removido; trate à mão.`);
+      throw new ErroDeCobranca('Não encontramos a assinatura desta barbearia. Fale com o suporte: nada foi cancelado.', 409);
+    }
+  } else throw new ErroDeCobranca('Esta barbearia não tem assinatura na Asaas para cancelar.', 409);
   alvos = alvos.filter((a) => a && !a.deleted);
 
   const maior = (a: Date, b: Date) => (b.getTime() > a.getTime() ? b : a);
@@ -610,7 +641,8 @@ export async function cancelarAssinatura(tenantId: number, cfg: asaas.ConfigAsaa
     ? (atrasadaDesde
       ? maior(agora, fimDaCarenciaDoAtraso({ atrasadaDesde, carenciaAte: comoData(t.carencia_ate), fuso: fusoDaLinha(t) }))
       : agora)
-    : alvos.reduce((m, a) => maior(m, fimDoPeriodoPago(a.nextDueDate, fusoDaLinha(t), agora)), agora);
+    : (await Promise.all(alvos.map((a) => vencimentoQueNaoVaiHaver(cfg, a))))
+      .reduce((m, dia) => maior(m, fimDoPeriodoPago(dia, fusoDaLinha(t), agora)), agora);
 
   for (const a of alvos) await asaas.removerAssinatura(cfg, a.id);
   // Só se nada mudou desde a leitura: um pagamento que chegou no meio já pôs a
