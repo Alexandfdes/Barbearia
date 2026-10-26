@@ -22,7 +22,7 @@ import { recriarSchema } from './migrations.js';
 import {
   contaNaReceita, itensContam, receitaDe, somaDosItens, totalParaOCliente, valorDoAtendimento, type ParaOValor,
 } from '../src/lib/valorDoAtendimento.js';
-import { aparenciaDaSituacao, BORDAS_DA_SITUACAO, linhaApagada } from '../src/lib/situacaoNaAgenda.js';
+import { aparenciaDaSituacao, BORDAS_DA_SITUACAO, linhaApagada, nomeRiscado } from '../src/lib/situacaoNaAgenda.js';
 import type { Tenant } from '../src/lib/tenant.js';
 import type { VisitaDoHistorico, FichaDoCliente } from '../src/lib/agendaDoDia.js';
 
@@ -199,6 +199,8 @@ describe('a linha que muda na hora é a da página recarregada (`src/lib/situaca
     expect(aparenciaDaSituacao('confirmed', true).rotulo).toBe('Atrasado');
     expect(aparenciaDaSituacao('completed', true)).toEqual(aparenciaDaSituacao('completed'));
     expect(SITUACOES.filter(linhaApagada)).toEqual(['completed', 'cancelled', 'no_show']);
+    // Riscado só o que não aconteceu — o concluído riscado parecia desmarcado (26/10/2026).
+    expect(SITUACOES.filter(nomeRiscado)).toEqual(['cancelled', 'no_show']);
   });
 
   it('o navegador conhece toda borda que a regra dá — senão a antiga ficaria junto da nova', () => {
@@ -212,8 +214,12 @@ describe('a linha que muda na hora é a da página recarregada (`src/lib/situaca
   it('a lista e o script usam a mesma regra; nenhum dos dois tem a sua cópia', () => {
     expect(lista).toMatch(/const st = aparenciaDaSituacao\(a\.status, a\.isLate\)/);
     expect(lista).toMatch(/const muted = linhaApagada\(a\.status\)/);
+    expect(lista).toMatch(/const riscado = nomeRiscado\(a\.status\)/);
+    expect(lista).toMatch(/riscado && 'line-through decoration-1'/);
+    expect(lista).not.toMatch(/muted \? 'text-slate-500 line-through/);
     const atualizar = script.slice(script.indexOf('function updateApptCardStatus'), script.indexOf('function recalculateRevenue'));
     expect(atualizar).toMatch(/const st = aparenciaDaSituacao\(newStatus\)/);
+    expect(atualizar).toMatch(/const riscado = nomeRiscado\(newStatus\);\s*for \(const c of \['line-through', 'decoration-1'\]\) nameEl\.classList\.toggle\(c, riscado\)/);
     expect(atualizar).toMatch(/row\.classList\.remove\(\.\.\.BORDAS_DA_SITUACAO\);\s*row\.classList\.add\(st\.borda\)/);
     for (const parte of ['data-list-hora', 'data-list-nome', 'data-list-valor', 'data-list-status']) {
       expect(lista, parte).toContain(`<p ${parte} `);

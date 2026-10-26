@@ -34,3 +34,12 @@ export const BORDAS_DA_SITUACAO = [
 export function linhaApagada(status: string): boolean {
   return status === 'completed' || status === 'cancelled' || status === 'no_show';
 }
+
+/**
+ * O nome RISCADO é só do que não aconteceu — cancelado ou falta. Decisão do dono em
+ * 26/10/2026: o concluído riscado parecia desmarcado para quem bate o olho; ele fica só
+ * mais claro, com o "✓ Concluído" ao lado.
+ */
+export function nomeRiscado(status: string): boolean {
+  return status === 'cancelled' || status === 'no_show';
+}
