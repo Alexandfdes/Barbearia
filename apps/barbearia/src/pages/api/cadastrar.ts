@@ -38,7 +38,7 @@ import { sqlConn } from '../../db/index.js';
 import { provisionarBarbearia } from '../../lib/provisionarBarbearia.js';
 import { CATALOGO_SUGERIDO } from '../../lib/catalogoSugerido.js';
 import { json } from '../../lib/api.js';
-import { checkRateLimit } from '../../lib/rateLimit.js';
+import { checkRateLimit, consultarRateLimit } from '../../lib/rateLimit.js';
 import { getClientIp } from '../../lib/clientIp.js';
 import { carregarTenants, invalidarTenants, resolverHost, urlDoSite } from '../../lib/tenant.js';
 import { makeSessionCookie } from '../../lib/session.js';
@@ -91,16 +91,29 @@ const bodySchema = z.object({
   email:     z.string().trim().min(3).max(254),
 });
 
+const UMA_HORA = 60 * 60 * 1000;
+const LIMITE_DE_CRIADOS = { maxTries: 5, windowMs: UMA_HORA };
+const LIMITE_DE_TENTATIVAS = { maxTries: 30, windowMs: UMA_HORA };
+
 export const POST: APIRoute = async ({ request, clientAddress }) => {
   if (!CADASTRO_ABERTO()) return new Response('Not found', { status: 404 });
 
   // Cria linha no banco e gasta bcrypt a cost 12 — sem limite, um laço simples
   // enche o banco de barbearias e ocupa a CPU do processo que atende os sites
   // que já estão no ar.
+  //
+  // ⚠️ DOIS limites (26/10/2026). Até aqui era um só, de 5 por hora, e contava toda
+  // tentativa — inclusive as que falharam: o dono que tentava 4 endereços já tomados
+  // levava 429 por uma hora no quinto, válido. E atrás de 4G o IP é de muita gente.
+  // Agora: CRIADOS, 5 por hora (conta só depois de dar certo); TENTATIVAS, 30 por
+  // hora — o teto do laço, que barra quem testa endereços ou WhatsApps em massa.
   const ip = getClientIp(request, clientAddress);
-  const rl = checkRateLimit(`cadastro:${ip}`, { maxTries: 5, windowMs: 60 * 60 * 1000 });
-  if (!rl.ok) {
-    return json({ error: `Muitas tentativas. Tente em ${rl.retryAfterSecs}s` }, 429);
+  const tentativas = checkRateLimit(`cadastro-tentativa:${ip}`, LIMITE_DE_TENTATIVAS);
+  const criados = consultarRateLimit(`cadastro:${ip}`, LIMITE_DE_CRIADOS);
+  const travado = !tentativas.ok ? tentativas : !criados.ok ? criados : null;
+  if (travado) {
+    const minutos = Math.max(1, Math.ceil((travado.retryAfterSecs ?? 60) / 60));
+    return json({ error: `Muitos cadastros feitos desta conexão. Tente de novo em ${minutos} min.` }, 429);
   }
 
   // ⚠️ Só JSON. Esta rota ABRE SESSÃO (ver o fim do arquivo), e o
@@ -128,6 +141,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   if (!r.ok) {
     return json({ error: r.erro, campo: r.campo }, r.conflito ? 409 : 400);
   }
+  checkRateLimit(`cadastro:${ip}`, LIMITE_DE_CRIADOS); // deu certo: este conta
 
   // O cache de tenants tem até 30s de atraso. Sem isto, o dono termina o
   // cadastro, é levado ao painel e leva 404 no próprio endereço — a primeira
@@ -181,8 +195,6 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     enviarEmail({
       para: email,
       ...emailDeBoasVindas({
-        dono: parsed.data.dono.trim(),
-        barbearia: r.nome,
         site,
         painel: urlDoPainel(),
         whatsapp: formatarTelefone(r.telefoneLogin),
@@ -203,6 +215,13 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
 /**
  * O e-mail de boas-vindas. Exportado para o teste ler o que o dono vai ler.
  *
+ * ⚠️ NADA que a pessoa digitou no formulário entra no assunto nem no texto
+ * (26/10/2026). O e-mail não é confirmado: quem cadastra escolhe para quem ele
+ * vai. Com o nome da barbearia no assunto e o do dono na saudação, dava para
+ * mandar, do remetente do produto, "URGENTE: regularize em http://golpe…" para
+ * qualquer endereço. O que entra agora é só o que o sistema monta: os endereços
+ * (do slug, que só tem letra, número e hífen), o WhatsApp formatado e a data.
+ *
  * ⚠️ Não diz que o site "está no ar" — até 10/10/2026 dizia, no assunto e no
  * corpo. O e-mail sai no segundo do cadastro, e o servidor não sabe se a internet
  * já chega no endereço novo: o certificado do subdomínio pode ainda não existir
@@ -210,17 +229,17 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
  * navegador do dono (`src/lib/noAr.ts`).
  */
 export function emailDeBoasVindas(d: {
-  dono: string;
-  barbearia: string;
   site: string | null;
   painel: string;
   whatsapp: string;
   ultimoDiaDoTeste: string | null;
 }): { assunto: string; texto: string } {
   return {
-    assunto: `${d.barbearia}: o seu site no ${NOME_PRODUTO}`,
+    assunto: `O seu cadastro no ${NOME_PRODUTO}`,
     texto: [
-      `Olá, ${d.dono}.`,
+      'Olá!',
+      '',
+      `O cadastro da sua barbearia no ${NOME_PRODUTO} foi feito.`,
       '',
       ...(d.site ? [`O endereço do site da barbearia: ${d.site}`, ''] : []),
       ...(d.painel ? [`O seu painel: ${d.painel}/admin`] : []),

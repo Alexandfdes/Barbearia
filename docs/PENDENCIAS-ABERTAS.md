@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **26/10** | **O cadastro, antes de abrir:** o limite que contava tentativa errada, o e-mail de boas-vindas que servia de golpe, o `/cadastrar` no endereço de outra barbearia e o 404 com a barbearia 1 — consertados no mesmo dia | §2.57 |
 | **26/10** | **A varredura: os três grupos escolhidos por você, consertados no mesmo dia** — o app que congelava com o pool cheio, os erros do painel (o serviço novo fora do site, a comanda em dobro, a falta no futuro, o barbeiro mexendo no cliente dos colegas, o portal em loop) e os documentos. **Decidido por você no mesmo dia:** concluir em qualquer hora do mesmo dia, sempre no horário marcado, sem liberar a vaga | §2.56 |
 | **18/10** | **Cada barbearia é independente, mesmo com o mesmo dono** — o cancelar só remove a assinatura comprovadamente dela. **O telefone de login fica preso só enquanto o barbeiro está ativo**, e se edita. **O link do cliente trava no início do horário.** **A sessão do cliente vale só na barbearia dela.** E o mês grátis do cancelar consertado sem esperar o sandbox | `PENDENCIAS-ABERTAS.md` §2.55 |
 | **24/09** | **Autoatendimento, com 7 dias grátis.** O dono se cadastra sozinho, recebe o painel na hora e escolhe entre três layouts de site. Substitui a montagem assistida (§4.8). Adiantou para o primeiro cadastro o prazo do contrato (§1.2), do domínio e da política de suporte (§1.4) | `PLANO-PRODUTIZACAO.md` §13 |
@@ -2516,6 +2517,32 @@ no site e o portal do cliente respondendo 302 com o cookie apagado em vez do loo
 **O que a varredura achou e ficou para depois** — o cadastro (antes de abri-lo), o site de vendas
 (antes de publicá-lo), a operação e os menores — está registrado fora deste repositório, que é
 público, no projeto do claude.ai (`claude/VARREDURA-26-10.md`).
+
+### 2.57 ✅ `[TÉCNICO]` O cadastro, antes de abrir — os quatro da varredura de 26/10/2026, CONSERTADOS no mesmo dia
+
+Achados da varredura (`claude/VARREDURA-26-10.md`, no projeto do claude.ai), escolhidos por você:
+
+- **O limite travava o dono por uma hora depois de tentativas que falharam.** Era um só, de 5 por hora,
+  e contava todo pedido: quem tentava quatro endereços já tomados levava 429 no quinto, válido — e
+  atrás de 4G o endereço de rede é de muita gente. Agora são dois: **5 barbearias criadas por hora**
+  (conta só depois de dar certo) e **30 tentativas por hora** no total, o teto de quem testa endereços
+  ou WhatsApps em massa. A mensagem diz em quantos minutos tentar de novo.
+- **O e-mail de boas-vindas servia para mandar golpe.** O endereço não é confirmado, e o assunto levava
+  o nome da barbearia e a saudação o nome do dono — texto livre: dava para mandar, do remetente do
+  produto, "URGENTE: regularize em http://golpe…" para qualquer pessoa. Agora **nada digitado no
+  formulário entra no e-mail**: o assunto é fixo, a saudação também, e o resto é o que o sistema monta.
+  *Não feito:* confirmar o e-mail antes de mandar — continua o desenho de 08/10 (§4.17).
+- **O `/cadastrar` funcionava no endereço de qualquer barbearia**, e o cookie de dono nascia ali:
+  aquele navegador passava a ver a barbearia nova no site da outra. Agora é caminho do painel, como o
+  `/admin` (§2.49): a tela vai para o painel, a rota responde 404.
+- **O 404 mostrava a barbearia 1 no endereço de outra**, nos caminhos que o middleware deixa passar
+  sem barbearia (`/api/tarefas/`, `/api/asaas/`, `/operador/`…): nome, telefone e endereço dela, com o
+  JSON-LD. Agora, sem barbearia na requisição, o 404 é seco.
+
+**Verificado:** os testes novos (`tests/cadastro.test.ts`, `tests/painel-central.test.ts`,
+`tests/404-sem-barbearia.test.ts`), cada conserto desfeito de propósito e o caso certo vermelho; e,
+contra o build: quatro endereços tomados e o válido passando, o `/cadastrar` do site indo para o painel
+e o 404 seco em `/api/tarefas/x`.
 
 ---
 

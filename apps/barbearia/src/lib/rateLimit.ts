@@ -25,6 +25,18 @@ export function checkRateLimit(key: string, opts: RLOptions = {}): { ok: boolean
   return { ok: true };
 }
 
+/**
+ * Confere o limite SEM contar uma tentativa — para quando só o que deu certo conta,
+ * como o cadastro (`pages/api/cadastrar.ts`): a conta vem depois, com `checkRateLimit`.
+ */
+export function consultarRateLimit(key: string, opts: RLOptions = {}): { ok: boolean; retryAfterSecs?: number } {
+  const maxTries = opts.maxTries ?? DEFAULT_MAX_TRIES;
+  const now = Date.now();
+  const entry = store.get(key);
+  if (!entry || entry.resetAt < now || entry.count < maxTries) return { ok: true };
+  return { ok: false, retryAfterSecs: Math.ceil((entry.resetAt - now) / 1000) };
+}
+
 export function resetRateLimit(key: string): void {
   store.delete(key);
 }
