@@ -19,6 +19,11 @@
 > inteiro — descreve o que está no ar hoje e deixa de valer quando o novo fluxo existir.
 > Reescrever antes disso poria aqui um produto que ainda não existe.
 >
+> ⚠️ **26/10/2026: o fluxo novo existe no código** (ainda não no ar), e mudou de novo em 08/10 —
+> **um layout só**, com a cor do dono, e **o cartão no fim do teste**, não no cadastro
+> (`PLANO-PRODUTIZACAO.md` §13). O que este documento diz sobre o cadastro está velho duas vezes; o
+> caminho certo, passo a passo, é o `JORNADA-DO-BARBEIRO.md`.
+>
 > Os outros documentos explicam *como fazer*: `ESTADO-ATUAL.md` (onde o código
 > está), `ARQUITETURA-MULTI-TENANT-V1.md` (como o sistema é montado por dentro),
 > `ARQUITETURA-COBRANCA-V1.md` (o dinheiro), `PRECIFICACAO.md` (os números) e

@@ -8,8 +8,11 @@
 > banco único. Quem manda é `ARQUITETURA-MULTI-TENANT-V1.md`, que substitui a **D1
 > inteira**, a **D3.1** (cache de settings) e o gatilho de 15–25 clientes.
 >
-> **O resto continua valendo** — D2 a D7 (tabela `settings`, SSR, mídia em volume,
-> cor de destaque, fronteira entre env e settings) são decisões vivas.
+> **O resto continua valendo** — D3 a D7 (SSR, mídia em volume, cor de destaque, fronteira
+> entre env e settings) são decisões vivas. **A D2 vale pela metade:** a tabela `settings` com uma
+> coluna tipada por configuração continua; a **linha única com `id = 1` não** — desde o porte
+> multi-tenant é uma linha por barbearia (`ARQUITETURA-MULTI-TENANT-V1.md` §5.4). *(Corrigido em
+> 26/10/2026: este cabeçalho dizia "D2 a D7" inteiras, e a regra 2 do `CLAUDE.md` proíbe o `id = 1`.)*
 > Decisão de negócio e go-to-market: ver `docs/PLANO-PRODUTIZACAO.md`.
 > O que ainda **não** está decidido: ver `docs/PENDENCIAS-ABERTAS.md`.
 >
@@ -80,7 +83,7 @@ Levantamento completo. Nada aqui é suposição.
 | `src/pages/agendar.astro:7-8,24` | title, description, nome no cabeçalho |
 
 > **Inconsistência encontrada:** `Layout.astro:49` tem o telefone **real**
-> (`+5584999051196`) no JSON-LD, enquanto `config.ts:6` tem o número de teste. Os CTAs
+> (o número fica fora deste documento, que é público) no JSON-LD, enquanto `config.ts:6` tem o número de teste. Os CTAs
 > de WhatsApp do site apontam para o número errado; o schema.org aponta para o certo.
 
 ### 3.3 Assets processados em build time
@@ -167,6 +170,10 @@ isolamento de dados de graça. Revisar por volta de 15–25 clientes.
 lojas, zero clientes para justificar). Fork por cliente (ver `PLANO-PRODUTIZACAO.md` §2).
 
 ### D2 — Tabela `settings` de linha única, com colunas tipadas
+
+> ⚠️ **Substituída em parte** pelo `ARQUITETURA-MULTI-TENANT-V1.md` §5.4: hoje é **uma linha por
+> barbearia**, e `settings.id = 1` em código novo é proibido (`CLAUDE.md`, regra 2). As colunas
+> tipadas continuam valendo.
 
 Uma tabela `settings` com `id = 1` fixo e uma coluna por configuração.
 
@@ -454,7 +461,7 @@ Cada fase termina com a instância do Bayron funcionando. Ela é o demo de venda
 pode ficar quebrada entre fases.
 
 **Fase 0 — Destravar o demo (minutos)**
-Corrigir `config.ts:6` para `5584999051196`. *(Sem objeto desde 09/10/2026: a constante saiu, e o
+Corrigir `config.ts:6` para o número real. *(Sem objeto desde 09/10/2026: a constante saiu, e o
 número que o site usa é o do banco — `PENDENCIAS-ABERTAS.md` §2.6.)*
 *Aceite:* clicar em qualquer CTA de WhatsApp abre a conversa certa.
 

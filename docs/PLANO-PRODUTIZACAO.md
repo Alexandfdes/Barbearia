@@ -272,7 +272,7 @@ pagante, em vez de suposição.
 1. **`src/config.ts:6` — `WHATSAPP_NUMBER = "15551547238"` é um número de teste
    americano.** O próprio comentário no arquivo avisa. Alimenta todos os CTAs de
    WhatsApp: barra flutuante, rodapé, localização e tela de confirmação. O número real
-   está no README (`+55 84 99905-1196` → `5584999051196`). Abrir o demo para um dono de
+   está no README (o número fica fora deste documento, que é público). Abrir o demo para um dono de
    barbearia e ele cair num número americano encerra a conversa. *(A constante saiu em
    09/10/2026; o número que o site usa é o do banco — `PENDENCIAS-ABERTAS.md` §2.6.)*
 2. **`src/config.ts` inteiro está hardcoded** — ver §3.1.

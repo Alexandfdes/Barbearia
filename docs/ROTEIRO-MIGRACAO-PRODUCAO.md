@@ -13,10 +13,10 @@
 
 ## 0. Por que existe
 
-A branch `monorepo` está **50 commits à frente da `main`**. Porte para Postgres,
-multi-tenant, RLS, resolução por endereço, carregador da migração, backup das fotos e
-catálogo sugerido — nada disso está no ar. A produção do Bayron roda a `main`, em
-SQLite.
+Porte para Postgres, multi-tenant, RLS, resolução por endereço, carregador da migração,
+backup das fotos e catálogo sugerido — nada disso chega ao Bayron antes deste roteiro. O site
+dele roda de **outro repositório**, o `Barbearia-Bayron`, em SQLite (`CLAUDE.md`). *(Até 26/10 esta
+seção dizia "50 commits à frente da `main`; o Bayron roda a `main`" — o estado de 06/09.)*
 
 Este é o roteiro que transforma isso em realidade. É também **a operação mais arriscada
 do projeto**: troca o motor do banco embaixo de uma barbearia que está atendendo.
@@ -62,6 +62,10 @@ A pergunta que a sessão de 10/10 deixou — se a `0003` aguenta o papel já exi
 papel é do servidor e sobrevive ao banco apagado — está respondida: aguenta (`IF NOT EXISTS`),
 e a `0004` também. O SQLite do ensaio é o mesmo de mentira do teste de carga: **dado torto do
 banco real só aparece com o banco real** — ensaie com uma cópia dele antes do dia (§2).
+
+⚠️ *26/10/2026: hoje são **18** migrations — a `0017` (o telefone único só entre os ativos) entrou
+em 18/10 e **não foi ensaiada sobre a carga do Bayron**. Ela só troca um índice; o risco é baixo,
+mas o próximo ensaio deve incluí-la.*
 
 **Ensaiado de novo em 13/10/2026, com as 17 migrations** — escolhido por você, com dado de
 mentira —, pela cópia da imagem do app, como no console do container, e na ordem do dia, com a
