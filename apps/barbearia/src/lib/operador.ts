@@ -57,8 +57,11 @@ export const COOKIE_DO_OPERADOR = '__fadeline_operador';
 /** 8 horas: um dia de trabalho. Fechou e voltou no dia seguinte, entra de novo. */
 export const DURACAO_DA_SESSAO = 8 * 60 * 60;
 
-/** A senha mínima que o script aceita. Sem o segundo fator ligado, a senha é tudo. */
-export const SENHA_MINIMA = 12;
+/**
+ * A senha mínima que o script aceita. Sem o segundo fator ligado, a senha é tudo.
+ * Era 12; 9 desde 26/10/2026, por decisão do dono (`docs/PENDENCIAS-ABERTAS.md` §3.9).
+ */
+export const SENHA_MINIMA = 9;
 
 interface Parametros { custo: number; r: number; p: number; sal: Buffer; chave: Buffer }
 

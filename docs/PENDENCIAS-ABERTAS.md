@@ -2971,8 +2971,11 @@ aqui: este repositório é público.
   cobrado até alguém cancelar lá. A tela avisa antes do botão, e o pagamento que chegar para
   barbearia tirada à mão aparece em "pedem olho" — o webhook o ignora de propósito.
 - **O hash fica nas variáveis do servidor:** quem vê o EasyPanel vê o hash, e com senha fraca dá
-  para adivinhar fora do servidor. O script recusa menos de 12 caracteres; use uma frase de
-  quatro ou cinco palavras.
+  para adivinhar fora do servidor. O script recusa menos de 9 caracteres; use uma frase de
+  quatro ou cinco palavras. ⚠️ *Era 12 até 26/10/2026 — baixado para 9 por decisão sua. Na tentativa
+  pela tela, o limite de tentativas segura; o risco é o hash visto no EasyPanel: uma senha de 9 só com
+  números, ou uma palavra com números, se adivinha fora do servidor em dias. Com o segundo fator
+  ligado, o hash sozinho não basta para entrar.*
 - **A lista e o Início carregam todas as barbearias de uma vez:** servem para dezenas, não para
   milhares. O Registro e a Cobrança vão de 50 em 50.
 

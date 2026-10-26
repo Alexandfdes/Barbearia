@@ -232,7 +232,7 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **Senha mudou ou e-mail mudou, por qualquer caminho: `cancelarPedidosDeSenha`**
   (`apps/barbearia/src/lib/redefinicaoDeSenha.ts`) — senão o link de senha nova pedido antes continua
   abrindo. Senha nova de barbeiro, em qualquer tela, tem pelo menos `SENHA_MINIMA` (8, de `redefinicaoDeSenha.ts`) caracteres —
-  a do operador tem outra, 12, em `operador.ts`
+  a do operador tem outra, 9 (era 12 até 26/10/2026), em `operador.ts`
   (`docs/PENDENCIAS-ABERTAS.md` §2.50).
 - **Cada barbearia é independente, mesmo com o mesmo dono** (decisão de 18/10/2026): nada que remove
   na Asaas age sobre "todas as do cliente" — o cancelar só remove a assinatura comprovadamente da
