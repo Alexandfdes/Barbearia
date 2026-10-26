@@ -160,7 +160,7 @@ tinham andado — agora cita a função, como a skill de documentos manda para s
 | O endereço tem que servir de subdomínio | `provisionarBarbearia` (`apps/barbearia/src/lib/provisionarBarbearia.ts`) |
 | **O endereço não pode ser reservado** — `painel`, `admin`, `www`, `api`, o nome do produto e outros, 40 ao todo; desde 08/10 | `provisionarBarbearia`, com a lista e o porquê de cada grupo em `apps/barbearia/src/lib/enderecosReservados.ts` |
 | O endereço não pode estar tomado | `provisionarBarbearia` |
-| O WhatsApp não pode ser o login de outro barbeiro **ativo**, em barbearia nenhuma — o de quem foi desligado fica livre desde 18/10 (migration 0017) | `provisionarBarbearia` |
+| O WhatsApp não pode ser o login de outro barbeiro **ativo**, em barbearia nenhuma — o de quem foi desligado fica livre desde 18/10 (migration 0017); o da equipe de barbearia fora do ar, o operador libera na ficha desde 26/10 (`PENDENCIAS-ABERTAS.md` §2.59) | `provisionarBarbearia` |
 | **O e-mail é obrigatório pela web** e tem que ter forma de e-mail; grava em minúsculas; desde 08/10 | `apps/barbearia/src/pages/api/cadastrar.ts` e `provisionarBarbearia` |
 | **O estado é obrigatório pela web** e decide o fuso; sigla desconhecida, recusa; a cidade é gravada como "Cidade/UF"; desde 12/10 | `apps/barbearia/src/pages/api/cadastrar.ts` e `provisionarBarbearia` |
 

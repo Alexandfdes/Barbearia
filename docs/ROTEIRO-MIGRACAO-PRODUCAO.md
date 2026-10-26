@@ -63,9 +63,10 @@ papel é do servidor e sobrevive ao banco apagado — está respondida: aguenta 
 e a `0004` também. O SQLite do ensaio é o mesmo de mentira do teste de carga: **dado torto do
 banco real só aparece com o banco real** — ensaie com uma cópia dele antes do dia (§2).
 
-⚠️ *26/10/2026: hoje são **18** migrations — a `0017` (o telefone único só entre os ativos) entrou
-em 18/10 e **não foi ensaiada sobre a carga do Bayron**. Ela só troca um índice; o risco é baixo,
-mas o próximo ensaio deve incluí-la.*
+⚠️ *26/10/2026: hoje são **19** migrations — a `0017` (o telefone único só entre os ativos, 18/10) e
+a `0018` (a ação "liberou os telefones" no registro do operador, 26/10) **não foram ensaiadas sobre a
+carga do Bayron**. Uma só troca um índice e a outra, a regra de uma coluna da tabela do operador; o
+risco é baixo, mas o próximo ensaio deve incluí-las.*
 
 **Ensaiado de novo em 13/10/2026, com as 17 migrations** — escolhido por você, com dado de
 mentira —, pela cópia da imagem do app, como no console do container, e na ordem do dia, com a

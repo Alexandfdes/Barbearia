@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **26/10** | **Os dois últimos da varredura:** o telefone preso na barbearia fora do ar — o operador o libera agora, na ficha — e o backup interrompido que contava como bom — consertados no mesmo dia | §2.59 |
 | **26/10** | **O concluído sem risco na agenda e o formulário antigo do site de vendas fora**, decididos por você | §2.58 |
 | **26/10** | **O cadastro, antes de abrir:** o limite que contava tentativa errada, o e-mail de boas-vindas que servia de golpe, o `/cadastrar` no endereço de outra barbearia e o 404 com a barbearia 1 — consertados no mesmo dia | §2.57 |
 | **26/10** | **A varredura: os três grupos escolhidos por você, consertados no mesmo dia** — o app que congelava com o pool cheio, os erros do painel (o serviço novo fora do site, a comanda em dobro, a falta no futuro, o barbeiro mexendo no cliente dos colegas, o portal em loop) e os documentos. **Decidido por você no mesmo dia:** concluir em qualquer hora do mesmo dia, sempre no horário marcado, sem liberar a vaga | §2.56 |
@@ -2562,6 +2563,44 @@ e o 404 seco em `/api/tarefas/x`.
 telas e as rotas antigas dão 404; o conferidor de tipos com zero erro; o `npm ci` com o npm 10 e o 11, e o
 `npm audit --omit=dev` com zero.
 
+### 2.59 ✅ `[TÉCNICO]` O telefone preso na barbearia fora do ar e o backup interrompido — os dois últimos da varredura de 26/10/2026, CONSERTADOS no mesmo dia
+
+**O telefone preso.** Desde a 0017 o WhatsApp de login é único só entre os barbeiros ativos. Mas a
+barbearia que sai do ar — o teste abandonado, a cobrança que não voltou — continua com a equipe ativa,
+e o dono fora do ar só alcança a tela de assinatura: o funcionário dela não entrava em outra barbearia
+nem cadastrava a sua. Só pelo `psql`.
+
+- **Na ficha da barbearia, no painel do operador: "Liberar os telefones da equipe"** — só quando ela
+  está fora do ar ou encerrada. Desliga os barbeiros dela, **menos o dono**, derruba as sessões deles,
+  como o desligar da Equipe, e grava no registro quem foi desligado (`liberarTelefones`, em
+  `apps/barbearia/src/lib/operadorBarbearias.ts`; a ação nova no registro é a **migration 0018**).
+- **No ar, recusa:** quem desliga a equipe de barbearia no ar é o dono, na Equipe. Sem ninguém além do
+  dono, diz que não há telefone preso.
+- **Volta atrás:** se a barbearia voltar ao ar, o dono religa quem quiser na Equipe — desde que o número
+  não tenha virado o login de outro barbeiro ativo nesse meio-tempo.
+- **Decidido na implementação — ⚠️ falta você confirmar:** o botão não pede confirmação, como o
+  estender e o reativar; só o "tirar do ar" pede que se digite o endereço. Errar aqui desliga
+  funcionários de uma barbearia que já está fora do ar, e o dono religa. **O dono nunca é desligado:**
+  o telefone dele continua preso enquanto a barbearia existir — se ele quiser cadastrar outra, é
+  outro caso, ainda sem saída pelo painel.
+
+**O backup interrompido.** O `pg_dump` e o `tar` gravavam direto no nome final. Um redeploy no meio
+do backup deixava no disco um `.sql.gz` truncado com o nome de um bom: contava como o mais recente, o
+backup do boot era pulado por 12 horas e a tela de Sistema o mostrava como o último. Agora o arquivo
+em gravação termina em `.parcial` e só ganha o nome final depois de terminar bem; o que falha sai na
+hora, e o `.parcial` de um backup que morreu no meio sai na retenção depois de 6 horas
+(`apps/barbearia/scripts/backup.mjs`). Vale para o diário, para as fotos e para o backup de antes das
+migrations. **No mesmo arquivo:** `BACKUP_RETENTION_DAYS=0` apagava o backup recém-feito, e um valor
+que não fosse número nunca apagava nada — os dois agora valem 30, a mesma leitura da tela de Sistema.
+
+**Verificado:** 110 arquivos, **1278 de 1278** contra PostgreSQL 16; o `astro check` com zero nos dois
+apps; 18 defeitos reintroduzidos, os 18 vermelhos — um só depois de o teste ganhar o caso da
+barbearia encerrada; o `kill -9` de verdade num processo fazendo backup — o que sobra não conta como
+recente, e o backup seguinte não é pulado (`apps/barbearia/tests/backup-interrompido.test.ts`); a 0018
+aplicada pelo boot de produção sobre um banco na 0017, com o backup de antes; e contra o build, no
+navegador, o botão ausente na barbearia no ar, presente na fora do ar, o barbeiro desligado, o dono
+não, a linha no registro e, na segunda vez, a recusa.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -2622,7 +2661,7 @@ a migration anterior e a barbearia, e o boot sobre ele reaplicou a seguinte.
 ⚠️ **Nada de 10/10 à tarde para cá está no ar** (conferido no GitHub em 16/10): a `main`, de onde
 o EasyPanel constrói, parou no merge do PR #1, e a `monorepo` está à frente dela com a cobrança, o
 operador, o fuso, a exportação, a trava de horário duplo e o resto. O primeiro deploy vai levar
-tudo de uma vez — 8 migrations, da 0010 à 0017, e o Dockerfile novo, construído de verdade pela
+tudo de uma vez — 9 migrations, da 0010 à 0018, e o Dockerfile novo, construído de verdade pela
 primeira vez no CI de 25/10 (§3.12; o job `imagem`, abaixo). Com o banco vazio de hoje, é o deploy mais barato que vai
 existir; cada semana a mais engorda o lote. O passo a passo, com os nomes do servidor, está no
 projeto do claude.ai.
@@ -2940,6 +2979,9 @@ aqui: este repositório é público.
 *Não feito, sugestões:* ~~o segundo fator~~ — ✅ feito em 13/10/2026, abaixo —; ~~estender a carência de quem tem a cobrança
 atrasada~~ — ✅ feito em 12/10/2026, abaixo —; cancelar a assinatura na Asaas pelo próprio
 painel; encerrar uma barbearia; e o alerta no celular (§3.4) — o painel mostra, mas não chama.
+
+**26/10/2026 — liberar os telefones da equipe**, da varredura: na ficha de barbearia fora do ar ou
+encerrada, desliga a equipe menos o dono, e o WhatsApp de cada um volta a servir noutra (§2.59).
 
 **12/10/2026 — estender a carência**, escolhido por você. Na ficha de quem está com a cobrança
 atrasada: de 1 a 60 dias, contados do último dia da carência — ou de hoje, se ela já venceu, e
