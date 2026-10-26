@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-15.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-26.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -1469,6 +1469,23 @@ contrário do que este item supunha: o serviço dele constrói do `Alexandfdes/B
 parado em 10/07 com o Astro 6.3.7 (visto no EasyPanel em 10/10; `ROTEIRO-MIGRACAO-PRODUCAO.md`
 §0.2). Fecha com a migração, ou com a mesma atualização naquele repositório.
 
+✅ **26/10/2026, de novo no que vai para produção**, pedido por você: o `npm audit --omit=dev` de
+25/10 apontava três pacotes com falha publicada depois de 09/10 — o `nodemailer` (o leitor de
+endereços entrega a destinatário que o cabeçalho não nomeia; moderada), o `undici` (estouro de
+memória e falha de integridade; alta, vem do Astro) e o `zod` (estouro de memória ao validar
+coleção grande; alta). No site de vendas, os dois últimos e o `vite` 8.2.2. **Feito:**
+`nodemailer` 10.0.10 → **10.1.7**, `undici` 8.11.2 → **8.12.3**, `zod` 4.6.5 → **4.6.7** (no site
+de vendas, de 4.5.4) e, só no site de vendas, `vite` 8.2.2 → **8.3.5**. Escolhida a versão com a
+correção que já tinha uma semana publicada — o `nodemailer` soltou quatro versões em 18/10, e a
+10.2, de 22/10, ficou de fora. Do jeito do ⚠️ acima: lock gerado com o npm 11 e regravado com o
+npm 10, e o `npm ci` passando nos dois.
+
+**Conferido:** o `npm audit --omit=dev` dá **zero** nos dois apps; o `astro check`, zero erro nos
+dois; a suíte, **1239 de 1239** contra PostgreSQL 16; e o build dos dois. ⚠️ **O que sobra no
+`npm audit` sem `--omit=dev`** — `@vitest/mocker`, `esbuild`, `fast-uri` e outros — é só de
+desenvolvimento e teste: não entra na imagem (§3.12). Corrigir pede o Vitest de outra versão
+maior; fica para quando houver outro motivo para mexer nele.
+
 ### 2.30 ✅ `[TÉCNICO]` Um script no site de uma barbearia age no painel de outra — o CSRF entre subdomínios — RESOLVIDO em 09/10/2026
 
 Era: a sessão do painel é `SameSite=Lax` (`lib/session.ts:173`), e o `checkOrigin` do Astro
@@ -2504,9 +2521,10 @@ na 0009 — o estado de produção —, sobe o container com o CMD dele e confer
 tem de fazer: o backup de antes das migrations no volume, as migrations aplicadas, o papel do app,
 a saúde, só as dependências de produção na imagem, o provisionador rodando dentro dele e o site da
 barbearia nova abrindo; reiniciado, nada pendente e nenhum backup a mais. O deploy pelo CI (§3.8)
-espera este job também. ⚠️ **Não rodado aqui:** este ambiente não pode ligar o Docker. Os mesmos
-passos rodaram sem ele, sobre o build, e passaram (13 conferências); o primeiro push depois de
-17/10 é a prova da imagem — antes da `main`.
+espera este job também. ✅ **Provado no GitHub em 25/10/2026**, no push do `28ea4aa`, e de novo em
+26/10 (`4e88e3e`): a imagem construída de verdade, com o Docker, e todas as conferências verdes. Até
+então só tinha rodado sem Docker, sobre o build (13 conferências), porque o ambiente onde foi escrito
+não pode ligá-lo.
 
 ### 3.3 🟠 `[TÉCNICO]` Backup — um só para todas as barbearias; o teste de restauração já foi feito, e sair da VPS está pronto no código desde 12/10/2026
 
@@ -4138,6 +4156,14 @@ valor na linha da agenda, no detalhe, na comanda, na ficha do cliente e no Iníc
 pedido por você, a área do cliente com o total de cada visita (§2.43); e, achadas no caminho, as
 datas em português (§2.44). E Configurações em abas, como você escolheu (§2.45), e a barra lateral
 presa na tela, pedida por você (§2.46).
+
+**25 e 26/10/2026, ✅ feitos:** o primeiro push depois de 17/10 provou a imagem do Docker no
+GitHub (§3.2) — e achou a suíte vermelha sozinha: um teste de `tests/senha-nova.test.ts` dava à
+barbearia de teste um prazo cravado em 14/10 e usava o relógio de verdade; vencido o prazo, a sessão
+caía. Consertado em `4e88e3e`. **Procurados os outros:** a suíte inteira rodou com o relógio do app
+e o do banco adiantados 30 e 180 dias — nenhum outro teste vence; as quatro falhas que aparecem são
+do próprio experimento (a retenção do backup compara a data do arquivo, que o relógio adiantado não
+alcança). E as dependências com falha publicada depois de 09/10, nos dois apps (§2.29).
 
 **18/10/2026, as sete decisões suas sobre o que a revisão deixou, ✅ feitas no mesmo dia (§2.55):**
 cada barbearia independente no cancelar, o mês grátis do cancelar, o telefone evitável (migration
