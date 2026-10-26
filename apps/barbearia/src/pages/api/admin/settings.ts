@@ -35,7 +35,7 @@ const updateSchema = z.object({
   heroSubtitle:    z.string().max(400),
   aboutText:       z.string().max(600),
   // Só dígitos, no formato do wa.me: DDI + DDD + número.
-  whatsappNumber:  z.string().regex(/^\d{10,15}$/, 'O WhatsApp deve ter só dígitos, com DDI e DDD (ex: 5584999051196)'),
+  whatsappNumber:  z.string().regex(/^\d{10,15}$/, 'O WhatsApp deve ter só dígitos, com DDI e DDD (ex: 5584999999999)'),
   whatsappDisplay: z.string().max(40),
   instagramUrl:    urlOuVazio(300),
   instagramHandle: z.string().max(60),
