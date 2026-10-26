@@ -23,6 +23,8 @@ export interface ItemDaComanda {
  */
 export interface AtendimentoDaAgenda {
   id: number;
+  /** O início, como o banco grava (ISO, UTC) — para a tela saber se a falta já vale. */
+  startsAt: string;
   status: string;
   customerName: string;
   customerPhone: string;

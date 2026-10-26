@@ -222,6 +222,25 @@ describe('o que a tela faz', () => {
     expect(readFileSync('src/pages/cliente/entrar.astro', 'utf8')).toMatch(/redirect\('\/cliente'\)/);
   });
 
+  it('o aviso da correção do cliente diz o que vai acontecer — para o dono e para o barbeiro comum', () => {
+    const pagina = readFileSync('src/pages/admin/dia/[date].astro', 'utf8');
+    expect(pagina).not.toMatch(/propaga pra todos os agendamentos/);
+    const aviso = pagina.slice(pagina.indexOf('id="dm-edit-alcance"'), pagina.indexOf('</p>', pagina.indexOf('id="dm-edit-alcance"')));
+    expect(aviso).toMatch(/session\.role === 'admin'/);
+    expect(aviso).toMatch(/todos os agendamentos desta cliente/);
+    expect(aviso).toMatch(/só para os seus agendamentos/);
+  });
+
+  it('o que o servidor recusaria nem fica clicável: concluir em outro dia, falta antes da hora', () => {
+    const pagina = readFileSync('src/pages/admin/dia/[date].astro', 'utf8');
+    const abrir = pagina.slice(pagina.indexOf('function openDetailModal'), pagina.indexOf('function closeDetail'));
+    expect(abrir).toMatch(/const podeConcluir = isConfirmed && clientData\.date <= clientData\.todayStr;/);
+    expect(abrir).toMatch(/const podeFalta = isConfirmed && Date\.parse\(appt\.startsAt\) <= Date\.now\(\);/);
+    expect(abrir).toMatch(/libera\(dmComplete, podeConcluir\)/);
+    expect(abrir).toMatch(/libera\(dmNoshow, podeFalta\)/);
+    expect(abrir).toMatch(/dm-acoes-motivo/);
+  });
+
   it('marcar falta pede confirmação antes de chamar a rota, como o cancelar', () => {
     const pagina = readFileSync('src/pages/admin/dia/[date].astro', 'utf8');
     const ramo = pagina.slice(pagina.indexOf("if (action === 'no-show')"));
