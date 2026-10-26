@@ -4,12 +4,20 @@ export const prerender = false;
 import Layout from '../layouts/Layout.astro';
 import { getSettings } from '../lib/settings';
 import { tenantDoHost } from '../lib/tenant.js';
+import { armazemTenant } from '../db/contexto.js';
 
 // ⚠️ A página de 404 lê `settings`, e `getSettings()` sem barbearia identificada
 // cai na barbearia única. Num endereço que não é de ninguém isso mostraria a
 // marca do PRIMEIRO cliente para quem apontar qualquer domínio para o servidor.
 if (!tenantDoHost(Astro.request)) {
   return new Response('Barbearia não encontrada', { status: 404 });
+}
+// ⚠️ E num caminho que o middleware deixa passar SEM barbearia (`/api/tarefas/`,
+// `/api/asaas/`, `/operador/`…), o 404 renderiza fora de `comTenant`: o `getSettings()`
+// daqui e o do `Layout` caíam na barbearia de id 1 — nome, telefone e endereço DELA
+// no endereço de outra (achado na varredura de 26/10/2026). Ali não há marca a mostrar.
+if (!armazemTenant.getStore()?.tenant) {
+  return new Response('Página não encontrada', { status: 404 });
 }
 
 const s = await getSettings();

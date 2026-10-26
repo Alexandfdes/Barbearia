@@ -154,7 +154,8 @@ tinham andado — agora cita a função, como a skill de documentos manda para s
 | Conferência | Onde |
 |---|---|
 | A tela responde 404 sem a chave | `apps/barbearia/src/pages/cadastrar.astro`, no topo (`CADASTRO_ABERTO`) |
-| No máximo 5 cadastros por hora por endereço de rede | `apps/barbearia/src/pages/api/cadastrar.ts`, `POST` (`checkRateLimit`) |
+| No máximo 5 barbearias **criadas** por hora por endereço de rede — tentativa que falha não conta —, e 30 tentativas por hora no total; desde 26/10 | `apps/barbearia/src/pages/api/cadastrar.ts`, `POST` |
+| O cadastro só funciona no endereço do painel: no de uma barbearia, a tela vai para o painel e a rota responde 404; desde 26/10 | `apps/barbearia/src/lib/painelCentral.ts` |
 | Só aceita JSON — página de outro site não cria conta nem loga ninguém | `apps/barbearia/src/pages/api/cadastrar.ts`, `POST` |
 | O endereço tem que servir de subdomínio | `provisionarBarbearia` (`apps/barbearia/src/lib/provisionarBarbearia.ts`) |
 | **O endereço não pode ser reservado** — `painel`, `admin`, `www`, `api`, o nome do produto e outros, 40 ao todo; desde 08/10 | `provisionarBarbearia`, com a lista e o porquê de cada grupo em `apps/barbearia/src/lib/enderecosReservados.ts` |

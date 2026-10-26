@@ -31,10 +31,16 @@ import { ehEnderecoDoPainel, urlDoPainel } from './tenant.js';
 
 type Ambiente = Record<string, string | undefined>;
 
-/** As telas e as rotas do painel do dono — as de entrar inclusive. */
+/**
+ * As telas e as rotas do painel do dono — as de entrar inclusive, e o CADASTRO
+ * (26/10/2026): ele abre sessão de dono, e feito no endereço de uma barbearia o
+ * cookie nascia ali — aquele navegador passava a ver a barbearia nova no site da
+ * outra, e o "você já está no painel" era falso.
+ */
 export function ehCaminhoDoPainel(caminho: string): boolean {
   return caminho === '/admin' || caminho.startsWith('/admin/')
-    || caminho.startsWith('/api/admin/') || caminho.startsWith('/api/auth/');
+    || caminho.startsWith('/api/admin/') || caminho.startsWith('/api/auth/')
+    || caminho === '/cadastrar' || caminho === '/api/cadastrar';
 }
 
 /** `null`: segue. Senão, a resposta que leva ao painel — ou o 404 da API no endereço errado. */

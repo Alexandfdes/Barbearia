@@ -26,6 +26,16 @@ describe('o desvio para o painel', () => {
     expect(desvioParaOPainel(pedido('https://www.barbeariadoze.com.br/api/admin/settings', 'PUT'), ENV)?.status).toBe(404);
   });
 
+  it('o cadastro também é do painel: feito no endereço de uma barbearia, o cookie nascia lá (26/10/2026)', () => {
+    const r = desvioParaOPainel(pedido('https://ze.fadeline.com.br/cadastrar'), ENV)!;
+    expect(r.status).toBe(302);
+    expect(r.headers.get('location')).toBe('https://painel.fadeline.com.br/cadastrar');
+    expect(desvioParaOPainel(pedido('https://ze.fadeline.com.br/api/cadastrar', 'POST'), ENV)?.status).toBe(404);
+    expect(desvioParaOPainel(pedido('https://painel.fadeline.com.br/cadastrar'), ENV)).toBeNull();
+    expect(desvioParaOPainel(pedido('https://painel.fadeline.com.br/api/cadastrar', 'POST'), ENV)).toBeNull();
+    expect(ehCaminhoDoPainel('/cadastrarx')).toBe(false);
+  });
+
   it('no endereço do painel, e fora dos caminhos do painel, segue', () => {
     expect(desvioParaOPainel(pedido('https://painel.fadeline.com.br/admin'), ENV)).toBeNull();
     expect(desvioParaOPainel(pedido('https://painel.fadeline.com.br/api/auth/login', 'POST'), ENV)).toBeNull();

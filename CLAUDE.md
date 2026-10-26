@@ -214,6 +214,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   … `RETURNING`), não só na leitura antes: dois pedidos ao mesmo tempo passavam os dois
   (`lib/fecharAtendimento.ts`). Falta só depois do início; concluído em qualquer hora do mesmo dia,
   **sem mudar o horário marcado e sem liberar a vaga** (decisão do dono, 26/10/2026).
+- **E-mail que sai para endereço não confirmado não leva texto digitado** (o de boas-vindas do cadastro):
+  nome de barbearia ou de dono no assunto vira golpe com o remetente do produto (`api/cadastrar.ts`,
+  `emailDeBoasVindas`; `docs/PENDENCIAS-ABERTAS.md` §2.57). O `/cadastrar` é caminho do painel.
 - **O app não precisa de superusuário no banco:** `scripts/usuario-do-app.mjs` faz a troca, e
   migration nova não pode pedir superusuário. **Restaurou um backup?** `scripts/permissoes-do-app.mjs`
   — o boot recusa subir se o papel do app não ler as tabelas (`docs/PENDENCIAS-ABERTAS.md` §3.10 e `docs/PENDENCIAS-ABERTAS.md` §3.11).
