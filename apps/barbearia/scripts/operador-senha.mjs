@@ -16,8 +16,8 @@
  * ⚠️ Sem o segundo fator ligado (`npm run operador:segundo-fator`, desde 13/10/2026),
  *    a senha é a única coisa entre quem a descobrir e o poder de tirar qualquer
  *    barbearia do ar. Com ou sem ele, use uma frase de quatro ou cinco palavras que não
- *    esteja em lugar nenhum — o mínimo aceito é 12 caracteres, e o mínimo não é o
- *    recomendado.
+ *    esteja em lugar nenhum — o mínimo aceito é 9 caracteres (era 12 até 26/10/2026,
+ *    baixado por decisão do dono), e o mínimo não é o recomendado.
  * ⚠️ Trocar o hash derruba toda sessão de operador aberta. É assim que se tira de
  *    dentro quem soube a senha velha.
  *
@@ -30,7 +30,7 @@
  */
 import { scrypt, randomBytes } from 'node:crypto';
 
-const SENHA_MINIMA = 12;
+const SENHA_MINIMA = 9;
 const CUSTO = 15;
 const R = 8;
 const P = 1;
