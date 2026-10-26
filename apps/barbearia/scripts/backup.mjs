@@ -53,7 +53,7 @@
  * Dockerfile. Se ele quebrar, o backup diário para **em silêncio**. É o que
  * `PENDENCIAS-ABERTAS.md` §3.3 chama de "backup que não existe".
  */
-import { createWriteStream, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -61,7 +61,13 @@ import { createGzip } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
 
 const BACKUP_DIR     = process.env.BACKUP_DIR ?? '/data/backups';
-const RETENTION_DAYS = parseInt(process.env.BACKUP_RETENTION_DAYS ?? '30', 10);
+// Inteiro de 1 para cima (26/10/2026): com 0 ou negativo, a retenção apagava o backup
+// recém-feito na mesma rodada; com um valor que não é número, o corte virava NaN e
+// nada nunca era apagado, até o disco encher.
+// A mesma leitura de `backupNoPainel` (src/lib/operadorSistema.ts), para a tela de Sistema
+// mostrar o prazo que de fato vale.
+const RETENCAO_LIDA = Number.parseInt(process.env.BACKUP_RETENTION_DAYS ?? '30', 10);
+const RETENTION_DAYS = Number.isFinite(RETENCAO_LIDA) && RETENCAO_LIDA > 0 ? RETENCAO_LIDA : 30;
 const SUFIXO         = '.sql.gz';
 const SUFIXO_FOTOS   = '-fotos.tar.gz';
 
@@ -79,6 +85,18 @@ const SUFIXO_FOTOS   = '-fotos.tar.gz';
 const UPLOAD_ROOT =
   process.env.UPLOAD_ROOT ??
   (process.env.NODE_ENV === 'production' ? '/data/uploads' : './data/uploads');
+
+/**
+ * O arquivo em gravação ganha este fim, e só vira o nome final depois de terminar
+ * bem (26/10/2026). Antes, o `pg_dump` e o `tar` gravavam direto no nome final: o
+ * backup interrompido no meio — um redeploy, um `docker stop` — ficava no disco
+ * truncado e com o nome de bom, e contava como o mais recente: o backup do boot era
+ * pulado por 12 horas e a tela de Sistema o mostrava como o último. Com o fim
+ * `.parcial`, nada que procura `.sql.gz` ou `-fotos.tar.gz` o vê; a retenção o apaga.
+ */
+const PARCIAL = '.parcial';
+/** Um `.parcial` mais velho que isto é de um backup que morreu no meio. */
+const PARCIAL_ABANDONADO_MS = 6 * 60 * 60 * 1000;
 
 /** Idade (ms) do backup mais recente, ou Infinity se não houver nenhum. */
 export function newestBackupAgeMs() {
@@ -136,10 +154,18 @@ function pgDumpPara(dest, url) {
       });
     });
 
-    const gravou = pipeline(proc.stdout, createGzip(), createWriteStream(dest));
+    const gravou = pipeline(proc.stdout, createGzip(), createWriteStream(dest + PARCIAL));
 
-    // Espera as DUAS: escrever o arquivo inteiro e o processo sair com 0.
-    Promise.all([gravou, saida]).then(() => resolve(), reject);
+    // Espera as DUAS: escrever o arquivo inteiro e o processo sair com 0 — e só
+    // então o nome final. Falhou: o parcial sai.
+    // O `rename` dentro do mesmo encadeamento: se ele falhar, cai no mesmo `catch`
+    // em vez de deixar a promessa pendurada para sempre.
+    Promise.all([gravou, saida])
+      .then(() => renameSync(dest + PARCIAL, dest))
+      .then(resolve, (e) => {
+        try { unlinkSync(dest + PARCIAL); } catch { /* nunca chegou a existir */ }
+        reject(e);
+      });
   });
 }
 
@@ -166,7 +192,7 @@ function temFotos() {
  */
 function tarDasFotos(dest) {
   return new Promise((resolve, reject) => {
-    const proc = spawn('tar', ['-czf', dest, '-C', UPLOAD_ROOT, '.'], {
+    const proc = spawn('tar', ['-czf', dest + PARCIAL, '-C', UPLOAD_ROOT, '.'], {
       stdio: ['ignore', 'ignore', 'pipe'],
     });
 
@@ -182,8 +208,12 @@ function tarDasFotos(dest) {
     });
 
     proc.on('close', (codigo) => {
-      if (codigo === 0) resolve();
-      else reject(new Error(`tar saiu com código ${codigo}: ${erro.trim() || '(sem mensagem)'}`));
+      let falha = codigo === 0 ? null : new Error(`tar saiu com código ${codigo}: ${erro.trim() || '(sem mensagem)'}`);
+      if (!falha) {
+        try { renameSync(dest + PARCIAL, dest); resolve(); return; } catch (e) { falha = e; }
+      }
+      try { unlinkSync(dest + PARCIAL); } catch { /* nunca chegou a existir */ }
+      reject(falha);
     });
   });
 }
@@ -239,9 +269,17 @@ export async function runBackup(opts = {}) {
   // são a única cópia daquele período e apagá-los seria destruir histórico.
   const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
   let removed = 0;
+  const abandonado = Date.now() - PARCIAL_ABANDONADO_MS;
   for (const f of readdirSync(BACKUP_DIR)) {
-    if (!f.endsWith(SUFIXO) && !f.endsWith(SUFIXO_FOTOS)) continue;
     const p = join(BACKUP_DIR, f);
+    if (f.endsWith(PARCIAL)) {
+      // O resto de um backup que morreu no meio — nunca é o desta rodada, que já
+      // ganhou o nome final.
+      if (statSync(p).mtimeMs < abandonado) { unlinkSync(p); removed++; }
+      continue;
+    }
+    if (!f.endsWith(SUFIXO) && !f.endsWith(SUFIXO_FOTOS)) continue;
+    if (p === dest || p === fotos) continue; // o desta rodada nunca sai, qualquer que seja a retenção
     if (statSync(p).mtimeMs < cutoff) { unlinkSync(p); removed++; }
   }
 
