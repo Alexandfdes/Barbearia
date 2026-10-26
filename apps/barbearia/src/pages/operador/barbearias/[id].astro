@@ -47,6 +47,8 @@ if (f && feito === 'estender-teste') {
     : `Voltou ao ar — ${f.tela.rotulo.toLowerCase()}, ${f.tela.detalhe}.`;
 } else if (f && feito === 'anotar') {
   mensagem = 'Anotação guardada.';
+} else if (f && feito === 'liberar-telefones') {
+  mensagem = `Telefones liberados: a equipe, menos o dono, foi desligada — ${f.equipe.ativos} ${f.equipe.ativos === 1 ? 'ativo' : 'ativos'} agora.`;
 }
 
 const wa = f?.dono?.telefone ? waPhone(f.dono.telefone) : null;

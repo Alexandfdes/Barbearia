@@ -17,7 +17,7 @@ import { json } from '../../../lib/api.js';
 import { getClientIp } from '../../../lib/clientIp.js';
 import { naoEncontrado, operadorAutenticado, portaoDoOperador } from '../../../lib/operador.js';
 import {
-  ANOTACAO_MAXIMA, DIAS_MAXIMOS_DE_EXTENSAO, ErroDoOperador, anotar, estenderCarencia, estenderTeste, reativar, suspender,
+  ANOTACAO_MAXIMA, DIAS_MAXIMOS_DE_EXTENSAO, ErroDoOperador, anotar, estenderCarencia, estenderTeste, liberarTelefones, reativar, suspender,
 } from '../../../lib/operadorBarbearias.js';
 
 const barbearia = z.number().int().positive();
@@ -27,6 +27,7 @@ const corpoSchema = z.discriminatedUnion('acao', [
   z.object({ acao: z.literal('estender-carencia'), barbearia, dias: z.number().int().min(1).max(DIAS_MAXIMOS_DE_EXTENSAO) }),
   z.object({ acao: z.literal('suspender'), barbearia, confirmacao: z.string().max(100), motivo: z.string().max(300).optional() }),
   z.object({ acao: z.literal('reativar'), barbearia, comoEra: z.enum(['trial', 'active']).optional() }),
+  z.object({ acao: z.literal('liberar-telefones'), barbearia }),
   // Folga de 200 sobre o máximo: quem conta os caracteres de verdade é `anotar`,
   // depois de limpar as quebras de linha — e a mensagem de lá diz o limite certo.
   z.object({ acao: z.literal('anotar'), barbearia, texto: z.string().max(ANOTACAO_MAXIMA + 200) }),
@@ -60,6 +61,11 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
       // O texto não vai para o log: é do operador, e pode ter o que ele combinou.
       console.info(`[operador] anotou em ${slug} (ip ${ip})`);
       return json({ ok: true, slug });
+    }
+    if (d.acao === 'liberar-telefones') {
+      const r = await liberarTelefones(d.barbearia, ip);
+      console.info(`[operador] liberou os telefones de ${r.slug}: ${r.desligados.length} desligado(s) (ip ${ip})`);
+      return json({ ok: true, slug: r.slug, desligados: r.desligados });
     }
     const r = d.acao === 'estender-teste' ? await estenderTeste(d.barbearia, d.dias, ip)
       : d.acao === 'estender-carencia' ? await estenderCarencia(d.barbearia, d.dias, ip)
