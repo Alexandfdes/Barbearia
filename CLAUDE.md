@@ -50,7 +50,7 @@ outro repositório, o `Alexandfdes/Barbearia-Bayron` (a `main` de lá parou em `
 `docs/ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2 diz o que mudou com o app já no ar.
 
 ⚠️ **A `main` parou em `0d86871` (10/10/2026), e é dela que o EasyPanel constrói:** o que entrou
-na `monorepo` depois — oito migrations, `0010` a `0017`, e o `Dockerfile` novo — não está em
+na `monorepo` depois — nove migrations, `0010` a `0018`, e o `Dockerfile` novo — não está em
 produção. Antes de juntar, o `docs/PENDENCIAS-ABERTAS.md` §3.2.
 
 ⚠️ **Os dois repositórios estão públicos**, este e o `Barbearia-Bayron` (conferido em
@@ -166,6 +166,10 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   um dump do banco antes de aplicar a primeira pendente, e não aplica nada se o dump falhar.
   `MIGRAR_SEM_BACKUP=1` pula, de propósito (`tests/backup-antes-das-migrations.test.ts`;
   `docs/PENDENCIAS-ABERTAS.md` §3.2).
+- **Arquivo de backup só tem o nome final depois de terminar bem:** grava em `<nome>.parcial` e
+  renomeia. Quem procura backup (`newestBackupAgeMs`, a tela de Sistema) olha só `.sql.gz` e
+  `-fotos.tar.gz` — um processo novo que grave direto no nome final volta a fazer o interrompido
+  contar como bom (`tests/backup-interrompido.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.59).
 - **Commit sem as linhas `Co-Authored-By` e `Claude-Session`** — decisão do dono em 16/10/2026.
   Os commits anteriores ficam como estão.
 - **CI:** `.github/workflows/testes.yml` roda a suíte com banco a cada push na `main` e na
