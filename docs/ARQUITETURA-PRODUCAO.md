@@ -263,5 +263,5 @@ instâncias por VPS de 8 GB, sem medir, e o multi-tenant ficava para os 15 a 25 
 
 O cabeçalho de 01/09 trazia ainda dois avisos que perderam o objeto: o `PRECIFICACAO.md`, que
 não existia em repositório nenhum, está nesta pasta; e a contagem de **9 arquivos de teste
-para 49 rotas**, o maior risco operacional daquele desenho, é hoje de 75 arquivos e 893 casos
-contra o Postgres (`ESTADO-ATUAL.md` §8).
+para 49 rotas**, o maior risco operacional daquele desenho, é hoje de 105 arquivos e 1239 casos
+contra o Postgres (26/10/2026) (`ESTADO-ATUAL.md` §8).

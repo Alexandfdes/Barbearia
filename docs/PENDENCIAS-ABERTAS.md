@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **26/10** | **A varredura: os três grupos escolhidos por você, consertados no mesmo dia** — o app que congelava com o pool cheio, os erros do painel (o serviço novo fora do site, a comanda em dobro, a falta no futuro, o barbeiro mexendo no cliente dos colegas, o portal em loop) e os documentos. **Decidido na implementação — falta você confirmar:** concluir a partir de uma hora antes do horário | §2.56 |
 | **18/10** | **Cada barbearia é independente, mesmo com o mesmo dono** — o cancelar só remove a assinatura comprovadamente dela. **O telefone de login fica preso só enquanto o barbeiro está ativo**, e se edita. **O link do cliente trava no início do horário.** **A sessão do cliente vale só na barbearia dela.** E o mês grátis do cancelar consertado sem esperar o sandbox | `PENDENCIAS-ABERTAS.md` §2.55 |
 | **24/09** | **Autoatendimento, com 7 dias grátis.** O dono se cadastra sozinho, recebe o painel na hora e escolhe entre três layouts de site. Substitui a montagem assistida (§4.8). Adiantou para o primeiro cadastro o prazo do contrato (§1.2), do domínio e da política de suporte (§1.4) | `PLANO-PRODUTIZACAO.md` §13 |
 | **24/09** | **Cartão no cadastro**, cobrado só depois dos 7 dias. **Três layouts** de site, com **as cores escolhidas pelo dono** (§1.3, §4.13) | `PLANO-PRODUTIZACAO.md` §13 |
@@ -596,7 +597,7 @@ era constante de código, e o trabalho de multi-tenant o copiou para dentro do b
 `settings.whatsapp_number` é **`15551547238`**, exibido como `+1 (555) 154-7238`. É um
 número de área fictícia norte-americana — o `555` é o prefixo que Hollywood usa
 justamente para não existir. **O número real está no README — e estava no comentário do
-`src/config.ts`, até a constante sair em 09/10/2026: `+55 84 99905-1196` → `5584999051196`.**
+`src/config.ts`, até a constante sair em 09/10/2026. O número fica fora deste documento, que é público.**
 
 O valor morava em dois lugares, e só um deles importa:
 
@@ -1255,12 +1256,12 @@ WhatsApp do site usava esse número: o rodapé, a localização, a barra flutuan
 agendamento (`a/[token].astro`) e o link que a API devolve
 (`api/appointments/by-token/[token].ts`). O `schema.org` publicava `+84996658951` para o
 Google. **E o teste travava o defeito:** `tests/cadastro.test.ts` esperava `'84999990000'`. O
-próprio painel pede o número com o 55 (`admin/configuracoes.astro:60`, *"Ex: 5584999051196"*)
+próprio painel pede o número com o 55 (`admin/configuracoes.astro:60`, *"Ex: 5584999999999"* — um número de exemplo desde 26/10/2026; até então era um número real)
 — o cadastro não seguia a regra do painel.
 
 **O que mudou, dos dois lados:**
 
-- **Gravar:** o cadastro grava o número da loja com o 55 (`lib/provisionarBarbearia.ts:383`,
+- **Gravar:** o cadastro grava o número da loja com o 55 (`provisionarBarbearia`,
   `:384`). O telefone de login continua sem ele — é outra regra (`PENDENCIAS-ABERTAS.md` §1.5).
 - **Ler:** `numeroDaLojaInternacional()` (`lib/settings.ts:221`) completa o 55 de quem está
   gravado sem ele, e é por ela que passam o `waUrl()` (`lib/settings.ts:200-205`) e o
@@ -2446,6 +2447,60 @@ parado na 0016, com o backup de antes, e rodando de novo sem nada a fazer.
 ⚠️ **O que muda para quem usa:** o cliente logado em "Meus agendamentos" entra de novo uma vez; o
 dono que editar alguém da Equipe sem WhatsApp precisa preenchê-lo — é por ele que se entra.
 
+### 2.56 ✅ `[TÉCNICO]` A varredura de 26/10/2026 — os escolhidos por você, CONSERTADOS no mesmo dia
+
+Cinco revisões em paralelo sobre o `a3cc57b` — o código de 18 a 26/10, o cadastro e o site de vendas,
+o painel do dono, a operação e os documentos —, cada achado conferido no código e quase todos
+reproduzidos. **O escopo por barbearia aguentou em tudo:** nenhum achado vaza dado de cliente de uma
+barbearia para outra. Você escolheu os três primeiros grupos:
+
+**1. 🔴 O app inteiro congelava** (`src/db/index.ts`). `comTenant` reservava uma conexão do pool para
+a requisição e, no meio dela, `sqlConn`/`dbDono` pediam outra ao mesmo pool — trocar o fuso, a tela
+de assinatura, o cancelar. Com `max` requisições assim ao mesmo tempo, cada uma esperava uma
+conexão que só as outras liberariam, sem prazo: **reproduzido**, 12 trocas de fuso simultâneas
+deixaram todas as barbearias sem resposta até reiniciar o container; com pool de 1, bastava uma.
+Agora: **dois pools** — as reservadas (`DATABASE_POOL_MAX`, 10) e as do dono
+(`DATABASE_POOL_DONO_MAX`, 5) —, e quem segura uma reservada nunca espera por outra reservada;
+**prazo** de 15 s para conseguir conexão (`DATABASE_ESPERA_MS`), com a conexão que chega atrasada
+devolvida ao pool; e um **`HEALTHCHECK`** no Dockerfile, com 15 minutos de partida para não matar o
+container no meio do backup do boot. ⚠️ A soma dos dois pools tem de caber no `max_connections` do
+Postgres. Guarda: `tests/pool-sem-trava.test.ts` e `tests/deploy.test.ts`.
+
+**2. O painel** (`tests/painel-fechar-e-propagar.test.ts`):
+- **Serviço criado no painel não aparecia no site** — nascia sem barbeiro em `barber_services`. Agora
+  nasce ligado a cada barbeiro ativo, com 30 minutos, editáveis na mesma tela.
+- **Fechar a comanda duas vezes ao mesmo tempo lançava os extras em dobro.** A condição
+  `status = 'confirmed'` passou para dentro do UPDATE, e a transação para se ele não pegar a linha.
+  O mesmo na falta.
+- **"Faltou" e "concluído" valiam para horário futuro**, e a falta liberava a vaga sem volta. Agora a
+  falta só depois do início, e o concluído a partir de uma hora antes (`lib/fecharAtendimento.ts`);
+  e o botão de falta pede confirmação, como o cancelar. *Decidido na implementação — falta você
+  confirmar:* a uma hora de antecedência para concluir.
+- **O barbeiro comum reescrevia o cliente nos agendamentos dos colegas** — e telefone e nascimento
+  são o login da área do cliente. Agora propaga só nos dele; o dono, em todos.
+- **Data de nascimento que não existe** (31/02) passava na correção e no encaixe, e trancava o cliente
+  para fora. Agora é recusada.
+- **O portal do cliente entrava em redirecionamento sem fim** quando a sessão não achava mais
+  agendamento (o dono corrigiu a data de nascimento, por exemplo). Agora o cookie é apagado.
+
+**3. Os documentos:** um número de WhatsApp real era o exemplo do campo de WhatsApp das
+Configurações — que todo dono novo vê — e estava em três documentos; trocado por um de exemplo
+(⚠️ continua no histórico do git, e é o contato do site de vendas, `apps/vendas/src/config.ts` — se for
+de outra pessoa, o lugar certo é você decidir). E as afirmações que alguém ia seguir: a D2 inteira
+"valendo" (o `settings.id = 1`), o passo 6 "aplicado" sem dizer que é por endereço, o plano anual e o
+aviso de 30 dias como vigentes, o site de vendas como dono do cadastro e da cobrança, "o Dockerfile
+não mudou", o README mandando para a fila velha, o telefone "único no mundo", referências
+`arquivo:linha` em seção viva, números velhos e o §3.13 dentro do §4.
+
+**Verificado:** a suíte, **1251 de 1251** em 107 arquivos, contra PostgreSQL 16; o `astro check` com zero
+erro nos dois apps; 19 defeitos reintroduzidos de propósito, os 19 vermelhos; e, contra o build, o
+comando do `HEALTHCHECK` (0 com o app no ar, 1 na porta errada), o serviço criado no painel aparecendo
+no site e o portal do cliente respondendo 302 com o cookie apagado em vez do loop.
+
+**O que a varredura achou e ficou para depois** — o cadastro (antes de abri-lo), o site de vendas
+(antes de publicá-lo), a operação e os menores — está registrado fora deste repositório, que é
+público, no projeto do claude.ai (`claude/VARREDURA-26-10.md`).
+
 ---
 
 ## 3. Operação com vários clientes
@@ -2506,8 +2561,8 @@ a migration anterior e a barbearia, e o boot sobre ele reaplicou a seguinte.
 ⚠️ **Nada de 10/10 à tarde para cá está no ar** (conferido no GitHub em 16/10): a `main`, de onde
 o EasyPanel constrói, parou no merge do PR #1, e a `monorepo` está à frente dela com a cobrança, o
 operador, o fuso, a exportação, a trava de horário duplo e o resto. O primeiro deploy vai levar
-tudo de uma vez — 8 migrations, da 0010 à 0017, e o Dockerfile novo, que nunca passou por um
-`docker build` de verdade (§3.12). Com o banco vazio de hoje, é o deploy mais barato que vai
+tudo de uma vez — 8 migrations, da 0010 à 0017, e o Dockerfile novo, construído de verdade pela
+primeira vez no CI de 25/10 (§3.12; o job `imagem`, abaixo). Com o banco vazio de hoje, é o deploy mais barato que vai
 existir; cada semana a mais engorda o lote. O passo a passo, com os nomes do servidor, está no
 projeto do claude.ai.
 
@@ -3022,6 +3077,35 @@ Guarda: `apps/barbearia/tests/deploy.test.ts` — o estágio de produção; todo
 importa em `dependencies`, com o provisionador seguido até o `src/`; e o `src/` que ele usa
 dentro da imagem.
 
+### 3.13 ✅ `[TÉCNICO]` A fila do webhook da Asaas parada não aparecia em lugar nenhum do app — RESOLVIDO em 17/10/2026
+
+**O que a Asaas faz** (documentação conferida em 17/10/2026): quando a entrega do webhook falha,
+ela tenta de novo; com **15 falhas seguidas, interrompe a fila**. Os avisos novos continuam sendo
+gerados e deixam de ser enviados até alguém reativá-la — no painel dela, em *Integrações →
+Webhooks*, ou pela API —, e aí os parados voltam a ser processados, na ordem, se o envio for
+sequencial. **Ficam guardados por 14 dias; depois disso, são apagados.** Ela também manda e-mail
+durante a falha e a interrupção, para o e-mail cadastrado no webhook.
+
+**Por que importa aqui:** a fase de cada barbearia só muda pelo webhook (`ARQUITETURA-COBRANCA-V1.md`
+§5.3). Com a fila parada, quem pôs o cartão no fim do teste ou pagou na carência continua com o
+prazo correndo e sai do ar tendo pago — e o aviso de atraso de quem não pagou também não chega. ⚠️
+*A revisão de 16/10 disse que "aviso perdido não volta". Estava errado: volta, ao reativar a
+fila, dentro dos 14 dias. O risco é ninguém perceber.*
+
+**Agora:** o Início e o Sistema do painel do operador perguntam à Asaas como está o webhook que
+aponta para este app (`GET /webhooks`; `filaDoWebhook`, em `apps/barbearia/src/lib/operadorSistema.ts`)
+e avisam: fila interrompida, webhook desligado, nenhum webhook com o endereço deste app, sem o token,
+fora de ordem e as falhas que a Asaas já contou. A tela só lê — reativar é na Asaas, **depois** de
+consertar o motivo: reativar sem consertar interrompe de novo. A pergunta sai das telas, não da
+conta dos números, que continua rodando sem rede. *Não conferido contra a Asaas de verdade — só
+contra a documentação e uma Asaas de mentira, como o resto da cobrança (§4.14).*
+
+**Verificado:** 11 casos (`apps/barbearia/tests/fila-do-webhook.test.ts`), 7 reintroduções, as 7
+vermelhas — e uma oitava trocada por ser equivalente: comparar o nome sem minúsculas, que o `URL`
+já devolve em minúsculas. Contra o build, com uma Asaas de mentira: a fila interrompida no Início e
+no Sistema, as 15 falhas, a fila reativada e o aviso sumindo, e a Asaas fora do ar virando atenção
+sem travar a tela. O build do `22ecd85` reprova sete delas.
+
 ## 4. Especificações que faltam escrever
 
 ### 4.1 ✅ `[TÉCNICO]` Tela inicial sem fotos — RESOLVIDA em 06/09/2026
@@ -3083,36 +3167,6 @@ que as migrations plantavam os dados do Bayron em qualquer banco novo e desarmav
 isto — caiu em 13/09/2026 com o §4.6. O que sobrava era o discriminador do §4.7: o portão
 era `shortName === "Bayron"`, texto que o próprio cliente edita. Desde 09/10/2026 é o endereço,
 `ehOBayron()` (`lib/bayron.ts`).
-
-
-### 3.13 ✅ `[TÉCNICO]` A fila do webhook da Asaas parada não aparecia em lugar nenhum do app — RESOLVIDO em 17/10/2026
-
-**O que a Asaas faz** (documentação conferida em 17/10/2026): quando a entrega do webhook falha,
-ela tenta de novo; com **15 falhas seguidas, interrompe a fila**. Os avisos novos continuam sendo
-gerados e deixam de ser enviados até alguém reativá-la — no painel dela, em *Integrações →
-Webhooks*, ou pela API —, e aí os parados voltam a ser processados, na ordem, se o envio for
-sequencial. **Ficam guardados por 14 dias; depois disso, são apagados.** Ela também manda e-mail
-durante a falha e a interrupção, para o e-mail cadastrado no webhook.
-
-**Por que importa aqui:** a fase de cada barbearia só muda pelo webhook (`ARQUITETURA-COBRANCA-V1.md`
-§5.3). Com a fila parada, quem pôs o cartão no fim do teste ou pagou na carência continua com o
-prazo correndo e sai do ar tendo pago — e o aviso de atraso de quem não pagou também não chega. ⚠️
-*A revisão de 16/10 disse que "aviso perdido não volta". Estava errado: volta, ao reativar a
-fila, dentro dos 14 dias. O risco é ninguém perceber.*
-
-**Agora:** o Início e o Sistema do painel do operador perguntam à Asaas como está o webhook que
-aponta para este app (`GET /webhooks`; `filaDoWebhook`, em `apps/barbearia/src/lib/operadorSistema.ts`)
-e avisam: fila interrompida, webhook desligado, nenhum webhook com o endereço deste app, sem o token,
-fora de ordem e as falhas que a Asaas já contou. A tela só lê — reativar é na Asaas, **depois** de
-consertar o motivo: reativar sem consertar interrompe de novo. A pergunta sai das telas, não da
-conta dos números, que continua rodando sem rede. *Não conferido contra a Asaas de verdade — só
-contra a documentação e uma Asaas de mentira, como o resto da cobrança (§4.14).*
-
-**Verificado:** 11 casos (`apps/barbearia/tests/fila-do-webhook.test.ts`), 7 reintroduções, as 7
-vermelhas — e uma oitava trocada por ser equivalente: comparar o nome sem minúsculas, que o `URL`
-já devolve em minúsculas. Contra o build, com uma Asaas de mentira: a fila interrompida no Início e
-no Sistema, as 15 falhas, a fila reativada e o aviso sumindo, e a Asaas fora do ar virando atenção
-sem travar a tela. O build do `22ecd85` reprova sete delas.
 
 ---
 
@@ -3869,15 +3923,15 @@ fotos por ali está esperando resposta.
 
 No autoatendimento, qualquer um escolhe o endereço e o que escreve, e vai ao ar na hora
 sob o seu domínio. Conferido em 24/09/2026: o provisionador só conferia se o endereço é um
-rótulo de DNS válido (hoje em `lib/provisionarBarbearia.ts:250`) e se já existe (hoje em
-`lib/provisionarBarbearia.ts:318`). Não havia lista de reservados.
+rótulo de DNS válido e se já existe (as duas em `provisionarBarbearia`,
+`lib/provisionarBarbearia.ts`). Não havia lista de reservados.
 
 - ✅ **Reservar — feito em 08/10/2026.** `lib/enderecosReservados.ts` lista 39: as portas
   do produto (`painel`, `admin`, `www`, `api`, `login`…), os nomes de e-mail e de
   infraestrutura que o domínio vai precisar (`mail`, `postmaster`, `ns1`…), os da cobrança,
   do atendimento e dos ambientes, e o nome do produto — lido de `NOME_PRODUTO`, não escrito
   à mão — mais o antigo, `barbearianoar`. O provisionador recusa antes de tocar o banco
-  (`lib/provisionarBarbearia.ts:281`), com a mensagem no campo do endereço; vale para o
+  (`provisionarBarbearia`), com a mensagem no campo do endereço; vale para o
   `/cadastrar` e para o script, que usam a mesma função. `demo` ficou de fora de propósito:
   nome reservado fica proibido para você também. Vale para quem se cadastra daqui em diante
   — não confere as barbearias que já existem. Teste: `tests/enderecos-reservados.test.ts`.

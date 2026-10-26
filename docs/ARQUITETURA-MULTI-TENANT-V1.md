@@ -2,7 +2,9 @@
 
 > Especificação da migração. Data: 2026-09-01. Revisado em 06/09/2026 e em 12/10/2026.
 > Status: **os sete passos do §9 aplicados** — o último, o banco recusando horário duplo (§7.1),
-> em 12/10/2026. O estado de cada um: `ESTADO-ATUAL.md` §4. *(Até 12/10, este cabeçalho dizia
+> em 12/10/2026. ⚠️ O passo 6 foi feito como **separação por endereço**, não como dois apps: o
+> site responde no endereço da barbearia e o painel no do painel, mas continuam num app e num
+> processo só (`MONOREPO.md`). *(Esclarecido em 26/10/2026.)* O estado de cada um: `ESTADO-ATUAL.md` §4. *(Até 12/10, este cabeçalho dizia
 > "passos 1 a 4 escritos e testados, NÃO aplicados" — parado em 06/09.)*
 >
 > ⚠️ **Quatro coisas que este desenho não previa** apareceram ao implementar. Estão
@@ -280,7 +282,10 @@ Cada passo termina com o sistema funcionando.
    `tenant_id` — útil, mas é a ponta. Os `SELECT` sem filtro ele não vê, e são eles que
    vazam. Um deles, `admin/reservations/index.ts`, não tinha `.where()` nenhum.
 5. **Ligar RLS** — a rede que pega o que escapou do passo 4.
-6. **Separar os dois apps** — extrair o site público do painel.
+6. **Separar os dois apps** — extrair o site público do painel. ✅ **Feito em 11/09/2026 como
+   separação por endereço** (`resolverHost`, `painelCentral.ts`): cada endereço só serve o que é
+   dele. A extração física em dois apps **não foi feita** — continua um app só
+   (`MONOREPO.md` §4).
 7. **Login por telefone** (§6) e a exclusion constraint (§7). ✅ O login em 09/09/2026; a
    constraint em 12/10/2026 (§7.1).
 

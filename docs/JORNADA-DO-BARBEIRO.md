@@ -148,19 +148,20 @@ blocos (`cadastrar.astro:205-327`):
   Instagram e *"Como você descreveria a sua barbearia?"*. Tudo opcional.
 - **Horário** e **serviços com preço** — o passo 3.
 
-**O que o sistema faz, hoje:**
+**O que o sistema faz, hoje** *(26/10/2026: a coluna "Onde" citava `arquivo:linha`, e as linhas
+tinham andado — agora cita a função, como a skill de documentos manda para seção viva)*:
 
 | Conferência | Onde |
 |---|---|
-| A tela responde 404 sem a chave | `apps/barbearia/src/pages/cadastrar.astro:34` |
-| No máximo 5 cadastros por hora por endereço de rede | `apps/barbearia/src/pages/api/cadastrar.ts:97` |
-| Só aceita JSON — página de outro site não cria conta nem loga ninguém | `apps/barbearia/src/pages/api/cadastrar.ts:108` |
-| O endereço tem que servir de subdomínio | `apps/barbearia/src/lib/provisionarBarbearia.ts:250` |
-| **O endereço não pode ser reservado** — `painel`, `admin`, `www`, `api`, o nome do produto e outros, 39 ao todo; desde 08/10 | `apps/barbearia/src/lib/provisionarBarbearia.ts:281`, com a lista e o porquê de cada grupo em `apps/barbearia/src/lib/enderecosReservados.ts` |
-| O endereço não pode estar tomado | `apps/barbearia/src/lib/provisionarBarbearia.ts:318` |
-| O WhatsApp não pode ser o login de outro barbeiro, em barbearia nenhuma | `apps/barbearia/src/lib/provisionarBarbearia.ts:323` |
-| **O e-mail é obrigatório pela web** e tem que ter forma de e-mail; grava em minúsculas; desde 08/10 | `apps/barbearia/src/pages/api/cadastrar.ts:87` e `apps/barbearia/src/lib/provisionarBarbearia.ts:288-291` |
-| **O estado é obrigatório pela web** e decide o fuso; sigla desconhecida, recusa; a cidade é gravada como "Cidade/UF"; desde 12/10 | `apps/barbearia/src/pages/api/cadastrar.ts:78` e `apps/barbearia/src/lib/provisionarBarbearia.ts:263` |
+| A tela responde 404 sem a chave | `apps/barbearia/src/pages/cadastrar.astro`, no topo (`CADASTRO_ABERTO`) |
+| No máximo 5 cadastros por hora por endereço de rede | `apps/barbearia/src/pages/api/cadastrar.ts`, `POST` (`checkRateLimit`) |
+| Só aceita JSON — página de outro site não cria conta nem loga ninguém | `apps/barbearia/src/pages/api/cadastrar.ts`, `POST` |
+| O endereço tem que servir de subdomínio | `provisionarBarbearia` (`apps/barbearia/src/lib/provisionarBarbearia.ts`) |
+| **O endereço não pode ser reservado** — `painel`, `admin`, `www`, `api`, o nome do produto e outros, 40 ao todo; desde 08/10 | `provisionarBarbearia`, com a lista e o porquê de cada grupo em `apps/barbearia/src/lib/enderecosReservados.ts` |
+| O endereço não pode estar tomado | `provisionarBarbearia` |
+| O WhatsApp não pode ser o login de outro barbeiro **ativo**, em barbearia nenhuma — o de quem foi desligado fica livre desde 18/10 (migration 0017) | `provisionarBarbearia` |
+| **O e-mail é obrigatório pela web** e tem que ter forma de e-mail; grava em minúsculas; desde 08/10 | `apps/barbearia/src/pages/api/cadastrar.ts` e `provisionarBarbearia` |
+| **O estado é obrigatório pela web** e decide o fuso; sigla desconhecida, recusa; a cidade é gravada como "Cidade/UF"; desde 12/10 | `apps/barbearia/src/pages/api/cadastrar.ts` e `provisionarBarbearia` |
 
 **O que falta:**
 
@@ -599,8 +600,8 @@ fase, não pelo status: no teste e na carência, o site está no ar
 (`apps/barbearia/src/lib/tenant.ts:205`, nas linhas 201 e 205), e `tests/teste-gratis.test.ts`
 confere as oito combinações de status e prazo.
 
-⚠️ **A pendente prende o próprio dono.** O WhatsApp de login é único no mundo
-(`provisionarBarbearia.ts:323-331`): quem fecha a aba do Checkout e tenta se cadastrar de novo
+⚠️ **A pendente prende o próprio dono.** O WhatsApp de login é único entre os barbeiros ativos
+(`provisionarBarbearia`; a migration 0017): quem fecha a aba do Checkout e tenta se cadastrar de novo
 uma hora depois ouve *"Este WhatsApp já é o login de outro barbeiro"* — sobre o cadastro
 dele mesmo. O `/cadastrar` precisa reconhecer esse caso e mandá-lo entrar e terminar, em
 vez de recusar.

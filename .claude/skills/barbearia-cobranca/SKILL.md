@@ -78,4 +78,4 @@ Asaas — assinatura, cobrança — pode agir sobre "todas as do cliente".
 - [ ] O caso que paga uma cobrança DIFERENTE da que falhou?
 - [ ] Desfecho novo que pede mão está na lista do "pede olho"?
 - [ ] O que a documentação disse e o código assumiu virou pergunta no `docs/PENDENCIAS-ABERTAS.md` §4.14?
-- [ ] O conserto foi desfeito e o caso certo ficou vermelho (skill `barbearia-provar-o-teste`)?
+- [ ] O conserto foi desfeito e o caso certo ficou vermelho? (A skill `barbearia-provar-o-teste`, da conta do dono, tem o método — não vem com o clone.)

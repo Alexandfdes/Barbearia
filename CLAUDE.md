@@ -27,7 +27,8 @@ Tudo vive em `C:\DEV\barbearia`. Os dois projetos foram unificados em 06/09/2026
 Por que num repositório só, e o que foi rejeitado: `docs/MONOREPO.md`.
 
 ⚠️ **O build do Docker precisa de `apps/barbearia` como contexto**, não da raiz.
-O `Dockerfile` não mudou, mas o caminho sim — `docs/MONOREPO.md` §3.
+O caminho mudou (`docs/MONOREPO.md` §3), e o `Dockerfile` também, desde então: o estágio só com as
+dependências de produção, o backup antes das migrations e a saúde (`HEALTHCHECK`).
 
 ⚠️ **Padrão de `.gitignore` para conteúdo sensível nunca é ancorado na raiz.** Ao mover
 o app para `apps/barbearia/`, `data/**/*.db` parou de casar e o git tentou versionar o
@@ -38,7 +39,8 @@ banco com os dados reais dos clientes. Use `**/data/...` — `docs/MONOREPO.md` 
 Na branch **`monorepo`**, os sete passos de `docs/ARQUITETURA-MULTI-TENANT-V1.md` §9 estão
 aplicados: Postgres, a tabela `tenants` com `tenant_id` nas tabelas de dados, RLS, a sessão e
 o endereço decidindo a barbearia, o login por telefone e — desde 12/10/2026 — o banco
-recusando dois agendamentos do mesmo barbeiro no mesmo horário. O estado de cada passo:
+recusando dois agendamentos do mesmo barbeiro no mesmo horário. O passo 6 ("separar os apps")
+é por endereço: site e painel continuam **num app e num processo só**. O estado de cada passo:
 `docs/ESTADO-ATUAL.md` §4.
 
 ⚠️ **A `main` recebeu a `monorepo` em 09/10/2026** (PR #1), e desde 10/10 o app novo roda
@@ -205,6 +207,12 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   (`docs/PENDENCIAS-ABERTAS.md` §3.9). **Tela nova
   abre com `exigirOperador`, antes de qualquer consulta:** o middleware deixa `/operador/` inteiro
   passar sem barbearia, e o `tests/operador-telas.test.ts` reprova a que não abrir.
+- **Dois pools de conexão, de propósito** (`src/db/index.ts`): as reservadas por requisição e as do dono
+  (`sqlConn`/`dbDono`). Num pool só, a requisição que segura a sua e pede outra trava o app inteiro
+  quando ele enche — aconteceu (`tests/pool-sem-trava.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.56).
+- **Mudança de situação de agendamento leva a condição no próprio UPDATE** (`WHERE status = 'confirmed'`
+  … `RETURNING`), não só na leitura antes: dois pedidos ao mesmo tempo passavam os dois
+  (`lib/fecharAtendimento.ts`).
 - **O app não precisa de superusuário no banco:** `scripts/usuario-do-app.mjs` faz a troca, e
   migration nova não pode pedir superusuário. **Restaurou um backup?** `scripts/permissoes-do-app.mjs`
   — o boot recusa subir se o papel do app não ler as tabelas (`docs/PENDENCIAS-ABERTAS.md` §3.10 e `docs/PENDENCIAS-ABERTAS.md` §3.11).
@@ -215,7 +223,8 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   resposta se deixa emoldurar (`docs/PENDENCIAS-ABERTAS.md` §2.49).
 - **Senha mudou ou e-mail mudou, por qualquer caminho: `cancelarPedidosDeSenha`**
   (`apps/barbearia/src/lib/redefinicaoDeSenha.ts`) — senão o link de senha nova pedido antes continua
-  abrindo. Senha nova, em qualquer tela, tem pelo menos `SENHA_MINIMA` (8) caracteres
+  abrindo. Senha nova de barbeiro, em qualquer tela, tem pelo menos `SENHA_MINIMA` (8, de `redefinicaoDeSenha.ts`) caracteres —
+  a do operador tem outra, 12, em `operador.ts`
   (`docs/PENDENCIAS-ABERTAS.md` §2.50).
 - **Cada barbearia é independente, mesmo com o mesmo dono** (decisão de 18/10/2026): nada que remove
   na Asaas age sobre "todas as do cliente" — o cancelar só remove a assinatura comprovadamente da

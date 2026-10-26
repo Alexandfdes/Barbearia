@@ -1,7 +1,7 @@
 # Estado atual do código — comece por aqui
 
 > Registro vivo de **onde o código está**, para quem chega ao projeto ou volta
-> depois de um tempo. Atualizado: 17/10/2026 (§8).
+> depois de um tempo. Atualizado: 26/10/2026 (§8).
 >
 > Companheiro de `PENDENCIAS-ABERTAS.md` (o que ainda não foi **decidido**).
 > Este documento é sobre o que já foi **feito** e o que está pela metade.
@@ -26,7 +26,7 @@
 3. ~~Todo esse trabalho está na branch **`monorepo`**. A `main` não foi tocada.~~ A `main`
    recebeu a `monorepo` em 09/10/2026 (PR #1) e é dela que o EasyPanel constrói. ⚠️ **E parou
    ali:** conferido no GitHub em 16/10, a `main` continua no merge do PR #1, e a `monorepo` — já
-   no GitHub, com o CI verde — está 61 commits à frente (e mais os de 17/10, ainda sem push). **Em produção roda o código de 10/10.**
+   no GitHub, com o CI verde — está à frente dela com tudo o que veio depois — empurrada até o `a3cc57b` em 26/10, CI verde. **Em produção roda o código de 10/10.**
    Tudo marcado ✅ daqui em diante, de 10/10 à tarde para cá, existe no código e não no ar
    (`PENDENCIAS-ABERTAS.md` §3.2).
 4. O site do Bayron está **no ar** e não foi afetado por nada disto.
@@ -283,13 +283,14 @@ grava o dump completo, falha apaga o parcial e sai com código 1.
 
 ## 5. Skills do projeto
 
-`.claude/skills/` tem três, versionadas — chegam junto com o clone:
+`.claude/skills/` tem quatro, versionadas — chegam junto com o clone:
 
 | Skill | Quando vale |
 |---|---|
 | `barbearia-multi-tenant` | qualquer código: migration, rota, consulta, tela |
 | `barbearia-paleta` | cor, tema, botão, texto sobre fundo colorido |
 | `barbearia-docs` | criar ou editar arquivo em `docs/` |
+| `barbearia-cobranca` | a cobrança pela Asaas: webhook, eventos, cancelar, o operador |
 
 A de paleta merece destaque: **as regras de botão dos dois sites são
 invertidas**. No site de vendas o botão é claro com texto grafite; no site da
@@ -329,7 +330,7 @@ Lista completa e priorizada em `PENDENCIAS-ABERTAS.md`. Os que travam mais:
 | | O quê | Onde |
 |---|---|---|
 | 🔴 | **Nada de 10/10 à tarde para cá está no ar.** A `main`, de onde o EasyPanel constrói, parou no merge do PR #1 (conferido no GitHub em 16/10), e a `monorepo` está à frente com a cobrança, o operador, o fuso, a exportação, a trava de horário duplo e o resto. O primeiro deploy leva tudo junto — 8 migrations e o Dockerfile novo —, e com o banco vazio de hoje é o mais barato que vai existir. O merge é seu | `PENDENCIAS-ABERTAS.md` §3.2 |
-| ✅ | ~~Como o barbeiro entra no painel com várias barbearias~~ — decidido em 09/09 e **implementado**: o login é por **telefone**, único no mundo, e é ele que grava o tenant na sessão (`api/auth/login.ts`). Falta só cadastrar o telefone dos três barbeiros do Bayron antes do segundo cliente | `PENDENCIAS-ABERTAS.md` §1.5 |
+| ✅ | ~~Como o barbeiro entra no painel com várias barbearias~~ — decidido em 09/09 e **implementado**: o login é por **telefone**, único entre os barbeiros ativos (desde a 0017, 18/10), e é ele que grava o tenant na sessão (`api/auth/login.ts`). Falta só cadastrar o telefone dos três barbeiros do Bayron antes do segundo cliente | `PENDENCIAS-ABERTAS.md` §1.5 |
 | 🔴 | **O telefone de contato no banco é um número falso** (+1 555), conhecido desde 27/08 e ainda não conferido em produção. O botão de WhatsApp do site não leva a lugar nenhum | `PENDENCIAS-ABERTAS.md` §2.6 |
 | ✅ | ~~As migrations plantam os dados do Bayron em todo banco novo~~ — **sem objeto desde 13/09**: as migrations de SQLite saíram do repositório e as de Postgres não inserem dado de barbearia nenhum | `PENDENCIAS-ABERTAS.md` §4.6 |
 | ✅ | ~~**`shortName === "Bayron"` decide o que aparece no site**~~ — em dez lugares, não oito; desde 09/10 decide o **endereço**, que o dono não edita, numa função só (`lib/bayron.ts`). O conteúdo do Bayron continua cravado no repositório | `PENDENCIAS-ABERTAS.md` §4.7 |
@@ -367,6 +368,7 @@ dono não reparou vira o preço no site dele.
 
 | Quando | O quê |
 |---|---|
+| 26/10 | **A varredura** (`PENDENCIAS-ABERTAS.md` §2.56): **o app congelava** com o pool de conexões cheio — dois pools agora, prazo para conseguir conexão e `HEALTHCHECK`; **o painel** — o serviço novo fora do site, a comanda em dobro, falta e concluído no futuro, o barbeiro mexendo no cliente dos colegas, a data de nascimento impossível, o portal do cliente em loop —; e **os documentos**, com o número de WhatsApp real fora do exemplo das Configurações. **Verificado:** 107 arquivos, **1251 de 1251** contra PostgreSQL 16; `astro check` zero nos dois apps; 19 defeitos reintroduzidos, os 19 vermelhos; contra o build, o `HEALTHCHECK` respondendo, o serviço novo no site e o portal do cliente saindo do loop |
 | 26/10 | **A imagem do Docker provada no GitHub** — o primeiro push depois de 17/10, todas as conferências do job `imagem` verdes (`PENDENCIAS-ABERTAS.md` §3.2). **Um teste que vencia sozinho**: o prazo da barbearia de teste em `tests/senha-nova.test.ts` era uma data cravada, 14/10, e a suíte ficou vermelha em 25/10 sem mudança no código; consertado, e a suíte rodada com os relógios do app e do banco 30 e 180 dias à frente — nenhum outro vence. **As dependências com falha nova** no que vai para produção: `nodemailer` 10.1.7, `undici` 8.12.3, `zod` 4.6.7 e, no site de vendas, `vite` 8.3.5 (`PENDENCIAS-ABERTAS.md` §2.29). **Verificado:** `npm audit --omit=dev` zero nos dois apps; `astro check` zero; **1239 de 1239** contra PostgreSQL 16; o build dos dois; o `npm ci` com o npm 10 e o 11 |
 | 18/10 | **As sete decisões do dono sobre o que a revisão de 17/10 deixou**, feitas no mesmo dia (`PENDENCIAS-ABERTAS.md` §2.55): **cada barbearia é independente no cancelar** — sem a assinatura ligada, ele removia todas as do cliente da Asaas, a da outra barbearia do mesmo dono junto; **o mês grátis do cancelar** — o fim do período pago passou a ser o vencimento da cobrança pendente mais antiga; **o telefone evitável** — único só entre os ativos (migration 0017) e editável na Equipe; **o cadastro que não revela telefone**; **a sessão do cliente por barbearia**; **desligar derrubando as sessões**; e **o link do cliente travando no início do horário**. **Verificado:** 105 arquivos, **1239 de 1239** contra PostgreSQL 16, nenhum pulado; o `astro check` com 0 erros; 17 defeitos reintroduzidos, os 17 vermelhos — um só depois de o teste ganhar o caso; a 0017 aplicada pelo boot de produção sobre um banco na 0016, com o backup de antes |
 | 17/10 (2) | **A segunda revisão, pedida pelo dono** — quatro em paralelo (cobrança, contas e senhas, porta de entrada e operador, agendamento), cada achado conferido no código antes de virar conserto. Escolhidos por ele e ✅ feitos: **o painel só no endereço do painel**, e nenhuma página emoldurável (`PENDENCIAS-ABERTAS.md` §2.49) — o rodapé levava a `<barbearia>/admin`, e o painel ali desfazia a proteção do `PENDENCIAS-ABERTAS.md` §2.30; **o link de senha nova que sobrevivia** a outra troca de senha ou de e-mail, o **limite do login por conta**, o relógio que dizia quem tem conta e a senha mínima de 8 na Equipe (`PENDENCIAS-ABERTAS.md` §2.50); **a agenda aberta que não via o desmarcar e o remarcar pelo link**, o barbeiro desligado com vagas, as vagas por sobreposição e pela duração do agendamento, o combo remarcado e o e-mail com o produto (`PENDENCIAS-ABERTAS.md` §2.51); **o domínio próprio fora do ar** (`PENDENCIAS-ABERTAS.md` §2.52); e, na cobrança, **o pagamento antigo que tirava do atraso** e **o que pede mão chegando ao operador** (`PENDENCIAS-ABERTAS.md` §2.53). **A imagem do Docker no CI** (`PENDENCIAS-ABERTAS.md` §3.2), e o merge da `monorepo` na `main` conferido sem conflito. **Esperando o dono:** os dois do cancelar e o resto registrado (`PENDENCIAS-ABERTAS.md` §2.54). **Verificado:** 103 arquivos, **1219 de 1219** contra PostgreSQL 16, nenhum pulado; o `astro check` com 0 erros; 30 defeitos reintroduzidos, os 30 vermelhos — três só depois de o teste ganhar o caso; contra o build, as 16 conferências de antes e 8 novas no navegador, sem erro de JavaScript; o job `imagem` rodado sem Docker, sobre o build, 13 conferências |

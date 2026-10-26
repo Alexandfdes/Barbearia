@@ -1,7 +1,7 @@
 # Arquitetura — Cobrança recorrente e onboarding (V1)
 
 > Especificação técnica. Data: 2026-08-28. Números revisados em 06/09/2026.
-> Status: **especificado, não implementado.**
+> Status: ~~especificado, não implementado~~ — **implementado em 10/10/2026** (abaixo).
 >
 > ⚠️ **10/10/2026: implementado no app da barbearia — e não testado no sandbox da Asaas.** O
 > que o código faz está no §5.3, novo. As tabelas `subscriptions` e `payments` do §5 e as rotas
