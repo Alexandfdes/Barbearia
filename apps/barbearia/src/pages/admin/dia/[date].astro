@@ -1165,7 +1165,7 @@ const clientData: DadosDaAgenda = {
   import { diaDaSemana, horariosLivres, horariosParaMover, ocupacaoDoBarbeiro } from '../../../lib/gradeDeHorarios';
   import type { DadosDaAgenda, FichaDoCliente, VisitaDoHistorico } from '../../../lib/agendaDoDia';
   import { itensContam, receitaDe, somaDosItens, valorDoAtendimento } from '../../../lib/valorDoAtendimento';
-  import { aparenciaDaSituacao, BORDAS_DA_SITUACAO, linhaApagada } from '../../../lib/situacaoNaAgenda';
+  import { aparenciaDaSituacao, BORDAS_DA_SITUACAO, linhaApagada, nomeRiscado } from '../../../lib/situacaoNaAgenda';
 
   // Os tipos deste script (`as`, `!`, parâmetros) só servem ao conferidor de tipos:
   // somem no build e não mudam o que roda. Os elementos com `as` existem sempre no
@@ -1458,7 +1458,9 @@ const clientData: DadosDaAgenda = {
       const nameEl = row.querySelector('[data-list-nome]');
       if (nameEl) {
         nameEl.classList.toggle('text-slate-900', !apagada);
-        for (const c of ['text-slate-500', 'line-through', 'decoration-1']) nameEl.classList.toggle(c, apagada);
+        nameEl.classList.toggle('text-slate-500', apagada);
+        const riscado = nomeRiscado(newStatus);
+        for (const c of ['line-through', 'decoration-1']) nameEl.classList.toggle(c, riscado);
       }
       const priceEl = row.querySelector('[data-list-valor]');
       if (priceEl) {

@@ -12,7 +12,7 @@
 // Concluído, cancelado ou falta, o script da página refaz a linha sem recarregar — pelos
 // `data-list-*` e com a mesma aparência daqui (`lib/situacaoNaAgenda.ts`): a linha que muda
 // na hora tem de ser a que a página recarregada mostra.
-import { aparenciaDaSituacao, linhaApagada } from '../../lib/situacaoNaAgenda.js';
+import { aparenciaDaSituacao, linhaApagada, nomeRiscado } from '../../lib/situacaoNaAgenda.js';
 
 interface Appt {
   id: number;
@@ -37,6 +37,7 @@ const { appts, role } = Astro.props;
   {appts.map(a => {
     const st = aparenciaDaSituacao(a.status, a.isLate);
     const muted = linhaApagada(a.status);
+    const riscado = nomeRiscado(a.status);
     return (
       <button
         type="button"
@@ -55,7 +56,7 @@ const { appts, role } = Astro.props;
         </div>
 
         <div class="flex-1 min-w-0">
-          <p data-list-nome class:list={['text-sm font-medium truncate', muted ? 'text-slate-500 line-through decoration-1' : 'text-slate-900']}>
+          <p data-list-nome class:list={['text-sm font-medium truncate', muted ? 'text-slate-500' : 'text-slate-900', riscado && 'line-through decoration-1']}>
             {a.customerName}
           </p>
           <p class="text-xs text-slate-500 truncate">
