@@ -176,6 +176,7 @@ const nowUtc = new Date();
 
 // Calcula tudo que a timeline precisa por agendamento
 interface ApptView {
+  startsAt:        string;
   id: number;
   status: string;
   durationMinutes: number;
@@ -225,6 +226,7 @@ const apptList: ApptView[] = apptRows.map(a => {
 
   return {
     id:              a.id,
+    startsAt:        a.startsAt,
     status:          a.status,
     durationMinutes: a.durationMinutes,
     priceCents:      a.priceCents,
@@ -339,6 +341,7 @@ const filterQs = filterBarberId ? `?barber=${filterBarberId}` : '';
 // Dados leves dos agendamentos pra usar no client (modal de detalhes / reschedule)
 const apptsLite = apptList.map(a => ({
   id:                a.id,
+  startsAt:          a.startsAt,
   status:            a.status,
   customerName:      a.customerName,
   customerPhone:     a.customerPhone,
@@ -988,8 +991,12 @@ const clientData: DadosDaAgenda = {
                        class="w-full bg-slate-100 border border-slate-200 focus:border-teal/40 rounded px-3 py-2 text-sm text-slate-800 tabular-nums outline-none transition-colors" />
               </div>
             </div>
-            <p class="text-[10px] text-slate-400 leading-relaxed">
-              A alteração propaga pra todos os agendamentos com este telefone.
+            <!-- O texto depende de quem edita (26/10/2026): o barbeiro comum corrige só os
+                 agendamentos DELE com a cliente (`api/admin/appointments/[id]/customer.ts`). -->
+            <p id="dm-edit-alcance" class="text-[10px] text-slate-400 leading-relaxed">
+              {session.role === 'admin'
+                ? 'A alteração vale para todos os agendamentos desta cliente.'
+                : 'A alteração vale só para os seus agendamentos com esta cliente. Nos dos outros barbeiros, quem corrige é o dono.'}
             </p>
             <div class="flex items-center justify-between h-5">
               <span id="dm-edit-status" class="text-[10px] text-slate-400"></span>
@@ -1031,7 +1038,9 @@ const clientData: DadosDaAgenda = {
       </div>
 
       <!-- Footer com ações principais (fixo no rodapé do modal) -->
-      <div class="border-t border-slate-200 p-4 flex gap-2 sticky bottom-0 bg-white z-10">
+      <div class="border-t border-slate-200 p-4 sticky bottom-0 bg-white z-10">
+      <p id="dm-acoes-motivo" class="hidden text-[11px] text-slate-500 mb-2"></p>
+      <div class="flex gap-2">
         <button data-action="complete" data-id="" id="dm-complete"
                 class="flex-1 border border-teal/30 hover:bg-teal/15 text-teal text-xs font-bold uppercase tracking-widest py-2.5 rounded transition-colors">
           ✓ Concluir
@@ -1044,6 +1053,7 @@ const clientData: DadosDaAgenda = {
                 class="flex-1 border border-red-500/25 hover:bg-red-500/10 text-red-600 text-xs font-bold uppercase tracking-widest py-2.5 rounded transition-colors">
           Cancelar
         </button>
+      </div>
       </div>
     </div>
   </div>
@@ -1915,13 +1925,29 @@ const clientData: DadosDaAgenda = {
     dmMoveSlots.innerHTML = '<span class="text-slate-500">Selecione uma data acima.</span>';
     dmMoveConfirm.disabled = true;
 
-    // Bloquear ações se status != confirmed
+    // Bloquear ações se status != confirmed — e, desde 26/10/2026, o que o servidor
+    // recusaria nem fica clicável (`lib/fecharAtendimento.ts`): concluir só horário de
+    // hoje ou de antes; falta só depois de o horário começar. O motivo fica escrito.
     const isConfirmed = appt.status === 'confirmed';
-    [dmComplete, dmNoshow, dmCancel].forEach(b => {
-      b.disabled = !isConfirmed;
-      b.classList.toggle('opacity-40', !isConfirmed);
-      b.classList.toggle('cursor-not-allowed', !isConfirmed);
-    });
+    const podeConcluir = isConfirmed && clientData.date <= clientData.todayStr;
+    const podeFalta = isConfirmed && Date.parse(appt.startsAt) <= Date.now();
+    const libera = (b: HTMLButtonElement, ok: boolean) => {
+      b.disabled = !ok;
+      b.classList.toggle('opacity-40', !ok);
+      b.classList.toggle('cursor-not-allowed', !ok);
+    };
+    libera(dmComplete, podeConcluir);
+    libera(dmNoshow, podeFalta);
+    libera(dmCancel, isConfirmed);
+    const motivo = document.getElementById('dm-acoes-motivo');
+    if (motivo) {
+      const texto = !isConfirmed ? ''
+        : !podeConcluir ? 'Este horário é de outro dia: concluir e marcar falta só no dia dele.'
+        : !podeFalta ? 'Falta só depois de o horário começar.'
+        : '';
+      motivo.textContent = texto;
+      motivo.classList.toggle('hidden', !texto);
+    }
     dmMoveDate.disabled = !isConfirmed;
     dmMoveConfirm.disabled = true;
     if (isConfirmed) loadMoveSlots();

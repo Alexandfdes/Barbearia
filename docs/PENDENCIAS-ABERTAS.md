@@ -2502,6 +2502,17 @@ erro nos dois apps; 19 defeitos reintroduzidos de propósito, os 19 vermelhos; e
 comando do `HEALTHCHECK` (0 com o app no ar, 1 na porta errada), o serviço criado no painel aparecendo
 no site e o portal do cliente respondendo 302 com o cookie apagado em vez do loop.
 
+**Depois do teste à mão, seu, no mesmo dia** — os cinco passaram, e a tela mostrou três coisas:
+- **O aviso da correção do cliente mentia para o barbeiro comum** ("propaga pra todos os
+  agendamentos"): agora diz, para o dono, que vale para todos os agendamentos da cliente e, para o
+  barbeiro comum, que vale só para os dele — nos dos colegas, quem corrige é o dono.
+- **Concluir e falta ficavam clicáveis quando o servidor ia recusar** — o barbeiro escolhia extras na
+  comanda e só no fim levava o erro. Agora os dois botões ficam desligados, com o motivo escrito:
+  concluir só no dia do horário (ou depois), falta só depois de o horário começar.
+- ✅ **Decidido por você: o barbeiro comum vê o histórico INTEIRO da cliente na barbearia** — também os
+  atendimentos dela com os colegas (data, serviço, valor). Ajuda a atender bem. *Rejeitado:* cada
+  barbeiro ver só os próprios atendimentos. Não é defeito: não "conserte".
+
 **O que a varredura achou e ficou para depois** — o cadastro (antes de abri-lo), o site de vendas
 (antes de publicá-lo), a operação e os menores — está registrado fora deste repositório, que é
 público, no projeto do claude.ai (`claude/VARREDURA-26-10.md`).
