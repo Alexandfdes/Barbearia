@@ -12,6 +12,7 @@ import { bookAppointment } from '../../../../lib/bookAppointment.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { reais } from '../../../../lib/dinheiro.js';
 import { fusoDe } from '../../../../lib/timezone.js';
+import { dataExiste } from '../../../../lib/dataExiste.js';
 
 
 const createSchema = z.object({
@@ -20,7 +21,8 @@ const createSchema = z.object({
   customerName:      z.string().min(2).max(100),
   customerPhone:     z.string().min(8).max(20),
   // Barbeiro pode criar sem birthdate (cliente pode não querer informar no balcão)
-  customerBirthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  // A data tem de existir: `2000-02-31` passava no formato e travava o login do cliente.
+  customerBirthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(dataExiste, 'Data de nascimento inválida').optional().nullable(),
   startsAt:          z.string().refine(s => !isNaN(new Date(s).getTime()), 'Data/hora inválida'),
 });
 
