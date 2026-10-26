@@ -12,8 +12,13 @@ export const NOME_PRODUTO = 'Fadeline';
 /** Frase de uma linha que acompanha o nome. */
 export const SUBTITULO = 'Site e agendamento para barbearias';
 
-/** WhatsApp que recebe os contatos da página — formato wa.me: DDI + DDD + número. */
-export const WHATSAPP = '5584999051196';
+/**
+ * WhatsApp que recebe os contatos da página — formato wa.me: DDI + DDD + número.
+ * É o do dono do produto. ⚠️ Até 26/10/2026 era um número de teste: todo botão "falar no
+ * WhatsApp" da landing, da demonstração e do formulário ia para ele, e o interessado não
+ * chegava a ninguém.
+ */
+export const WHATSAPP = '5584996658951';
 
 /**
  * Domínio onde este site vai rodar. Alimenta o link canônico e a prévia de compartilhamento.
