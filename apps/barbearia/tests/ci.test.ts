@@ -104,8 +104,10 @@ describe('o workflow', () => {
     };
     expect(pacote.scripts.check).toBe('astro check');
     expect(Object.keys(pacote.devDependencies ?? {})).toEqual(
-      expect.arrayContaining(['@astrojs/check', 'typescript', '@types/node', '@types/better-sqlite3']),
+      expect.arrayContaining(['@astrojs/check', 'typescript', '@types/node']),
     );
+    // O `@types/better-sqlite3` saiu com o banco do site de vendas, em 26/10/2026.
+    expect(Object.keys(pacote.devDependencies ?? {})).not.toContain('@types/better-sqlite3');
     const v = job('vendas');
     expect(v).toMatch(/\n\s+run: npm run check\n/);
     expect(v.indexOf('npm run check')).toBeGreaterThan(v.indexOf('npm ci'));
