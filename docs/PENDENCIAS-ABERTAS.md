@@ -24,7 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
-| **26/10** | **A varredura: os três grupos escolhidos por você, consertados no mesmo dia** — o app que congelava com o pool cheio, os erros do painel (o serviço novo fora do site, a comanda em dobro, a falta no futuro, o barbeiro mexendo no cliente dos colegas, o portal em loop) e os documentos. **Decidido por você no mesmo dia:** concluir em qualquer hora do mesmo dia, com o tempo que sobrava ficando livre | §2.56 |
+| **26/10** | **A varredura: os três grupos escolhidos por você, consertados no mesmo dia** — o app que congelava com o pool cheio, os erros do painel (o serviço novo fora do site, a comanda em dobro, a falta no futuro, o barbeiro mexendo no cliente dos colegas, o portal em loop) e os documentos. **Decidido por você no mesmo dia:** concluir em qualquer hora do mesmo dia, sempre no horário marcado, sem liberar a vaga | §2.56 |
 | **18/10** | **Cada barbearia é independente, mesmo com o mesmo dono** — o cancelar só remove a assinatura comprovadamente dela. **O telefone de login fica preso só enquanto o barbeiro está ativo**, e se edita. **O link do cliente trava no início do horário.** **A sessão do cliente vale só na barbearia dela.** E o mês grátis do cancelar consertado sem esperar o sandbox | `PENDENCIAS-ABERTAS.md` §2.55 |
 | **24/09** | **Autoatendimento, com 7 dias grátis.** O dono se cadastra sozinho, recebe o painel na hora e escolhe entre três layouts de site. Substitui a montagem assistida (§4.8). Adiantou para o primeiro cadastro o prazo do contrato (§1.2), do domínio e da política de suporte (§1.4) | `PLANO-PRODUTIZACAO.md` §13 |
 | **24/09** | **Cartão no cadastro**, cobrado só depois dos 7 dias. **Três layouts** de site, com **as cores escolhidas pelo dono** (§1.3, §4.13) | `PLANO-PRODUTIZACAO.md` §13 |
@@ -2475,12 +2475,11 @@ Postgres. Guarda: `tests/pool-sem-trava.test.ts` e `tests/deploy.test.ts`.
 - **"Faltou" e "concluído" valiam para horário futuro**, e a falta liberava a vaga sem volta. Agora a
   falta só depois do início (`lib/fecharAtendimento.ts`), e o botão de falta pede confirmação, como o
   cancelar. **O concluído, decidido por você no mesmo dia:** em qualquer hora do **mesmo dia**, no fuso da
-  barbearia — e o tempo que sobrava **fica livre** para outro cliente: concluído no meio do horário, ele
-  termina agora; concluído antes de começar (o cliente veio cedo), vira a duração dele terminando agora,
-  sem cair no dia anterior. Se esse horário novo cruzar com outro agendamento do barbeiro, o banco
-  recusa e o atendimento fica concluído no horário marcado — sem erro, só a vaga não abre. *Rejeitado:*
-  uma hora antes do início (a primeira versão, de hoje), porque o barbeiro que atendeu bem mais cedo
-  teria de remarcar antes de concluir; e só depois do início, pelo mesmo motivo.
+  barbearia, e **sempre no horário que foi marcado** — concluído mais cedo, o agendamento aparece
+  concluído no horário original, e a vaga **continua ocupada**: o site não a oferece a mais ninguém.
+  *Rejeitados:* uma hora antes do início (a primeira versão, de hoje), porque o barbeiro que atendeu bem
+  mais cedo teria de remarcar antes de concluir; e, também de hoje, mover o agendamento para quando o
+  atendimento aconteceu e liberar o resto do horário — você preferiu o horário marcado e a vaga presa.
 - **O barbeiro comum reescrevia o cliente nos agendamentos dos colegas** — e telefone e nascimento
   são o login da área do cliente. Agora propaga só nos dele; o dono, em todos.
 - **Data de nascimento que não existe** (31/02) passava na correção e no encaixe, e trancava o cliente

@@ -8,9 +8,8 @@ import { appointments, appointmentItems, services } from '../../../../../db/sche
 import { json } from '../../../../../lib/api.js';
 import { getSession } from '../../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../../lib/tenant.js';
-import { janelaDoAtendimentoConcluido, limiteParaConcluir, RECUSA_CONCLUIR_ANTES } from '../../../../../lib/fecharAtendimento.js';
+import { limiteParaConcluir, RECUSA_CONCLUIR_ANTES } from '../../../../../lib/fecharAtendimento.js';
 import { fusoDe } from '../../../../../lib/timezone.js';
-import { TRAVA_DE_HORARIO_DUPLO, violouExclusao } from '../../../../../lib/api.js';
 
 // Extras da "comanda": serviços adicionais feitos no balcão (ex.: barba além do corte).
 // priceCents vem do fechamento (permite ajuste/desconto); o nome é snapshot do serviço.
@@ -42,8 +41,7 @@ export const POST: APIRoute = async ({ request, params }) => {
   }
 
   const appt = await first(db
-    .select({ id: appointments.id, status: appointments.status, barberId: appointments.barberId,
-             startsAt: appointments.startsAt, endsAt: appointments.endsAt, durationMinutes: appointments.durationMinutes })
+    .select({ id: appointments.id, status: appointments.status, barberId: appointments.barberId, startsAt: appointments.startsAt })
     .from(appointments)
     .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id))));
 
@@ -88,21 +86,8 @@ export const POST: APIRoute = async ({ request, params }) => {
       .returning({ id: appointments.id });
     if (feitos.length === 0) return false;
 
-    // Concluído antes do fim marcado: o tempo que sobrava fica livre (decisão de
-    // 26/10/2026). Num SAVEPOINT: se o horário novo cruzar com outro agendamento,
-    // o banco recusa e o atendimento fica concluído no horário marcado.
-    const janela = janelaDoAtendimentoConcluido(appt, fuso, agora);
-    if (janela) {
-      try {
-        await tx.transaction(async (sp) => {
-          await sp.update(appointments)
-            .set({ startsAt: janela.startsAt, endsAt: janela.endsAt })
-            .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id)));
-        });
-      } catch (err) {
-        if (!violouExclusao(err, TRAVA_DE_HORARIO_DUPLO)) throw err;
-      }
-    }
+    // ⚠️ O horário NÃO muda (decisão do dono, 26/10/2026): concluído mais cedo, o
+    // agendamento continua no horário marcado, e a vaga continua ocupada.
 
     for (const it of items) {
       await tx.insert(appointmentItems)
