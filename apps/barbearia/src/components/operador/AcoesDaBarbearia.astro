@@ -95,7 +95,21 @@ const nenhuma = !(b.status === 'trial' || b.status === 'active' || b.status === 
     </details>
   )}
 
+  {(b.tela.tom === 'fora' || b.tela.tom === 'encerrada') && (
+    <details class="group" data-painel-acao>
+      <summary class="cursor-pointer select-none text-sm font-medium border border-slate-300 rounded-md px-3 py-2 hover:border-slate-400 flex items-center justify-between">
+        Liberar os telefones da equipe <span class="text-slate-400 group-open:rotate-90 transition-transform" aria-hidden="true">›</span>
+      </summary>
+      <form data-acao="liberar-telefones" data-barbearia={b.id} class="mt-2 bg-slate-50 border border-slate-200 rounded-md p-3 space-y-2">
+        <p class="text-xs text-slate-600">Desliga os barbeiros desta barbearia — <strong class="text-slate-900">menos o dono</strong> —, e o WhatsApp de cada um volta a servir para entrar noutra barbearia ou cadastrar a sua. Use quando alguém da equipe de uma barbearia fora do ar precisar do número.</p>
+        <p class="text-xs text-slate-500">Se ela voltar ao ar, o dono religa quem quiser na Equipe.</p>
+        <button type="submit" class="text-xs px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded transition-colors">Liberar os telefones</button>
+        <p data-erro role="alert" class="hidden text-sm text-red-700"></p>
+      </form>
+    </details>
+  )}
+
   {nenhuma && (
-    <p class="text-sm text-slate-500">Encerrada: nenhuma ação daqui. Ela saiu do produto.</p>
+    <p class="text-sm text-slate-500">Encerrada: ela saiu do produto — daqui, só liberar os telefones da equipe.</p>
   )}
 </div>

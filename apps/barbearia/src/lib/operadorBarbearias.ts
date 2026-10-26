@@ -254,7 +254,7 @@ export async function eventosQuePedemOlho(limite = 20): Promise<EventoQuePedeOlh
 
 // ── O registro ──────────────────────────────────────────────────────────────
 
-export type Acao = 'entrou' | 'estendeu-teste' | 'estendeu-carencia' | 'suspendeu' | 'reativou' | 'anotou';
+export type Acao = 'entrou' | 'estendeu-teste' | 'estendeu-carencia' | 'suspendeu' | 'reativou' | 'anotou' | 'liberou-telefones';
 
 export interface AcaoRegistrada {
   acao: Acao;
@@ -279,7 +279,7 @@ export type FiltroDoRegistro = 'tudo' | 'entradas' | 'acoes' | 'anotacoes';
 
 const ACOES_DO_FILTRO: Record<Exclude<FiltroDoRegistro, 'tudo'>, Acao[]> = {
   entradas: ['entrou'],
-  acoes: ['estendeu-teste', 'estendeu-carencia', 'suspendeu', 'reativou'],
+  acoes: ['estendeu-teste', 'estendeu-carencia', 'suspendeu', 'reativou', 'liberou-telefones'],
   anotacoes: ['anotou'],
 };
 
@@ -353,6 +353,10 @@ export function descreverAcao(a: AcaoRegistrada): string {
     }
     case 'reativou':
       return `Reativou ${quem}${typeof d.status === 'string' ? ` — ${statusPorExtenso(d.status)}` : ''}`;
+    case 'liberou-telefones': {
+      const nomes = Array.isArray(d.barbeiros) ? (d.barbeiros as unknown[]).filter((n) => typeof n === 'string') as string[] : [];
+      return `Liberou os telefones da equipe de ${quem}${nomes.length ? ` — desligou ${nomes.join(', ')}` : ''}`;
+    }
     default:
       return String(a.acao);
   }
@@ -582,6 +586,43 @@ export async function reativar(
   });
   invalidarTenants();
   return r as ResultadoDaAcao;
+}
+
+/**
+ * Libera os telefones da equipe de uma barbearia FORA DO AR: desliga os barbeiros
+ * dela — menos o dono —, e o telefone de cada um volta a servir para entrar noutra
+ * barbearia ou cadastrar a sua (o índice da 0017 só vale entre os ativos).
+ *
+ * Por que existe (varredura de 26/10/2026): fora do ar, o dono só alcança a tela de
+ * assinatura e não desliga ninguém na Equipe — o funcionário de um teste abandonado
+ * ficava com o número preso, e só o `psql` resolvia.
+ *
+ * - **Só fora do ar** (fase `suspensa` ou `cancelada`): no ar, quem desliga é o dono.
+ * - **O dono fica:** é ele quem volta para pagar, e entra pelo telefone dele.
+ * - **As sessões dos desligados caem** (`senha_trocada_em`), como no desligar da Equipe.
+ * - **Volta atrás pela Equipe:** se a barbearia voltar ao ar, o dono religa quem quiser —
+ *   desde que o número não tenha virado login de outro barbeiro ativo nesse meio-tempo.
+ */
+export async function liberarTelefones(tenantId: number, ip: string, agora: Date = new Date()): Promise<ResultadoDaAcao & { desligados: string[] }> {
+  const r = await sqlConn.begin(async (tx) => {
+    const t = await travar(tx, tenantId);
+    const atual = resultado(t, agora);
+    if (atual.situacao.fase !== 'suspensa' && atual.situacao.fase !== 'cancelada') {
+      throw new ErroDoOperador('Só dá para liberar os telefones de barbearia fora do ar. No ar, quem desliga a equipe é o dono, na Equipe.', 409);
+    }
+    const desligados = await tx<{ name: string }[]>`
+      UPDATE barbers SET active = false, senha_trocada_em = ${agora.toISOString()}::timestamptz
+       WHERE tenant_id = ${tenantId} AND active AND role <> 'admin'
+      RETURNING name`;
+    if (desligados.length === 0) {
+      throw new ErroDoOperador('Não há barbeiro ativo além do dono — nenhum telefone preso aqui.', 409);
+    }
+    const nomes = desligados.map((d) => d.name);
+    await tx`INSERT INTO acoes_do_operador (tenant_id, acao, detalhe, ip)
+             VALUES (${tenantId}, 'liberou-telefones', ${JSON.stringify({ barbeiros: nomes })}::text::jsonb, ${ip})`;
+    return { ...atual, desligados: nomes };
+  });
+  return r as ResultadoDaAcao & { desligados: string[] };
 }
 
 // ── A ficha ─────────────────────────────────────────────────────────────────
