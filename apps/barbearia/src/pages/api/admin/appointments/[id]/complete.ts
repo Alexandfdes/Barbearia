@@ -2,13 +2,15 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { and, eq, lte } from 'drizzle-orm';
+import { and, eq, lt } from 'drizzle-orm';
 import { db, first } from '../../../../../db/index.js';
 import { appointments, appointmentItems, services } from '../../../../../db/schema.js';
 import { json } from '../../../../../lib/api.js';
 import { getSession } from '../../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../../lib/tenant.js';
-import { limiteParaConcluir, RECUSA_CONCLUIR_ANTES } from '../../../../../lib/fecharAtendimento.js';
+import { janelaDoAtendimentoConcluido, limiteParaConcluir, RECUSA_CONCLUIR_ANTES } from '../../../../../lib/fecharAtendimento.js';
+import { fusoDe } from '../../../../../lib/timezone.js';
+import { TRAVA_DE_HORARIO_DUPLO, violouExclusao } from '../../../../../lib/api.js';
 
 // Extras da "comanda": serviços adicionais feitos no balcão (ex.: barba além do corte).
 // priceCents vem do fechamento (permite ajuste/desconto); o nome é snapshot do serviço.
@@ -40,7 +42,8 @@ export const POST: APIRoute = async ({ request, params }) => {
   }
 
   const appt = await first(db
-    .select({ id: appointments.id, status: appointments.status, barberId: appointments.barberId, startsAt: appointments.startsAt })
+    .select({ id: appointments.id, status: appointments.status, barberId: appointments.barberId,
+             startsAt: appointments.startsAt, endsAt: appointments.endsAt, durationMinutes: appointments.durationMinutes })
     .from(appointments)
     .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id))));
 
@@ -51,8 +54,10 @@ export const POST: APIRoute = async ({ request, params }) => {
   if (appt.status !== 'confirmed') {
     return json({ error: `Não pode concluir (status: ${appt.status})` }, 409);
   }
-  const limite = limiteParaConcluir();
-  if (appt.startsAt > limite) return json({ error: RECUSA_CONCLUIR_ANTES }, 409);
+  const fuso = fusoDe(tenant);
+  const agora = new Date();
+  const limite = limiteParaConcluir(fuso, agora);
+  if (appt.startsAt >= limite) return json({ error: RECUSA_CONCLUIR_ANTES }, 409);
 
   // Resolve nome (snapshot) e valida cada serviço extra antes de gravar.
   const items: { serviceId: number; name: string; priceCents: number }[] = [];
@@ -79,9 +84,25 @@ export const POST: APIRoute = async ({ request, params }) => {
         lastModifiedAt:   new Date().toISOString(),
       })
       .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id),
-        eq(appointments.status, 'confirmed'), lte(appointments.startsAt, limite)))
+        eq(appointments.status, 'confirmed'), lt(appointments.startsAt, limite)))
       .returning({ id: appointments.id });
     if (feitos.length === 0) return false;
+
+    // Concluído antes do fim marcado: o tempo que sobrava fica livre (decisão de
+    // 26/10/2026). Num SAVEPOINT: se o horário novo cruzar com outro agendamento,
+    // o banco recusa e o atendimento fica concluído no horário marcado.
+    const janela = janelaDoAtendimentoConcluido(appt, fuso, agora);
+    if (janela) {
+      try {
+        await tx.transaction(async (sp) => {
+          await sp.update(appointments)
+            .set({ startsAt: janela.startsAt, endsAt: janela.endsAt })
+            .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id)));
+        });
+      } catch (err) {
+        if (!violouExclusao(err, TRAVA_DE_HORARIO_DUPLO)) throw err;
+      }
+    }
 
     for (const it of items) {
       await tx.insert(appointmentItems)
