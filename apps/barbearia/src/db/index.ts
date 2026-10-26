@@ -48,27 +48,72 @@ import { armazemTenant } from './contexto.js';
  * tipo. E produção não perdeu nada: `scripts/startup.mjs` roda antes do servidor
  * no CMD do Dockerfile e já recusa subir sem a variável.
  */
+/*
+ * ── DOIS POOLS, E NÃO UM (26/10/2026) ───────────────────────────────────────
+ *
+ * Até 26/10 havia um pool só. `comTenant` reservava uma conexão dele para a
+ * requisição inteira — e, no meio da requisição, `sqlConn`/`dbDono` pediam OUTRA
+ * ao mesmo pool (trocar o fuso, a tela de assinatura, o cancelar). Com `max`
+ * requisições assim ao mesmo tempo, cada uma segurava a sua e esperava uma que só
+ * as outras liberariam — e o postgres.js espera sem prazo. Reproduzido: 12 trocas
+ * de fuso simultâneas deixaram TODAS as barbearias sem resposta, a saúde em 503,
+ * até reiniciar o container. Com `DATABASE_POOL_MAX=1`, bastava uma.
+ *
+ * Agora as conexões reservadas saem de um pool (`DATABASE_POOL_MAX`) e as do dono
+ * de outro (`DATABASE_POOL_DONO_MAX`). Quem segura uma reservada pode esperar pelo
+ * do dono; quem está no do dono nunca espera por uma reservada — não há ciclo.
+ * `tests/pool-sem-trava.test.ts` reproduz o travamento.
+ *
+ * ⚠️ A soma dos dois `max` (mais o de outros apps no mesmo Postgres) tem de caber
+ * no `max_connections` do servidor — senão o banco recusa e derruba os dois.
+ */
 let poolCriado: ReturnType<typeof postgres> | null = null;
+let poolDasRequisicoesCriado: ReturnType<typeof postgres> | null = null;
 
-function pool(): ReturnType<typeof postgres> {
-  if (poolCriado) return poolCriado;
-
+function novoPool(max: number): ReturnType<typeof postgres> {
   const url = process.env.DATABASE_URL;
   if (!url) {
     throw new Error(
       'DATABASE_URL não definido. Exemplo: postgres://usuario:senha@host:5432/barbearia'
     );
   }
-
-  // `max` limita o pool: com dois apps no mesmo Postgres, somar pools maiores que
-  // o `max_connections` do servidor derruba os dois ao mesmo tempo.
-  poolCriado = postgres(url, {
-    max: Number(process.env.DATABASE_POOL_MAX ?? 10),
+  return postgres(url, {
+    max,
     // As colunas de data são TEXT com ISO string, não timestamptz — o driver não
     // deve tentar converter nada sozinho. Ver o comentário no schema.
     transform: { undefined: null },
   });
-  return poolCriado;
+}
+
+function maximo(valor: string | undefined, padrao: number): number {
+  const n = Number(valor ?? padrao);
+  return Number.isInteger(n) && n >= 1 ? n : padrao;
+}
+
+/** O pool do dono: `sqlConn`, `dbDono`, scripts, migrations e testes. */
+function pool(): ReturnType<typeof postgres> {
+  return (poolCriado ??= novoPool(maximo(process.env.DATABASE_POOL_DONO_MAX, 5)));
+}
+
+/** O pool das conexões reservadas por requisição (`comTenant`). */
+function poolDasRequisicoes(): ReturnType<typeof postgres> {
+  return (poolDasRequisicoesCriado ??= novoPool(maximo(process.env.DATABASE_POOL_MAX, 10)));
+}
+
+/**
+ * Quanto uma requisição espera por uma conexão reservada antes de desistir. Sem
+ * prazo, uma fila de requisições num pool cheio crescia sem fim; com ele, a que
+ * passou do tempo responde erro e o resto do app segue.
+ */
+const esperaPorConexaoMs = (): number => maximo(process.env.DATABASE_ESPERA_MS, 15_000);
+
+/**
+ * Fecha os dois pools — é o que o `sqlConn.end()` faz. Fechado, fica fechado: a consulta
+ * seguinte falha, como antes de haver dois (`tests/saude.test.ts` conta com isso).
+ */
+async function encerrarPools(opcoes?: { timeout?: number }): Promise<void> {
+  const abertos = [poolCriado, poolDasRequisicoesCriado].filter(Boolean) as ReturnType<typeof postgres>[];
+  await Promise.all(abertos.map((p) => p.end(opcoes)));
 }
 
 let dbDonoCriado: ReturnType<typeof drizzle> | null = null;
@@ -89,7 +134,7 @@ export const sqlConn: ReturnType<typeof postgres> = new Proxy(
       // Fechar uma conexão que nunca foi aberta não precisa abri-la primeiro.
       // Sem esta saída, o `afterAll` de um teste sem banco criaria o pool só
       // para encerrá-lo — e estouraria por falta de `DATABASE_URL`.
-      if (propriedade === 'end' && !poolCriado) return async () => {};
+      if (propriedade === 'end') return encerrarPools;
       const real = pool();
       const valor = Reflect.get(real as object, propriedade);
       return typeof valor === 'function' ? valor.bind(real) : valor;
@@ -225,11 +270,25 @@ export async function comTenant<T>(
   tenant: { id: number; slug: string; status: string; domain: string | null },
   fn: () => Promise<T>,
 ): Promise<T> {
-  const conexao = await sqlConn.reserve();
+  const doPool = poolDasRequisicoes();
+  const pedido = doPool.reserve();
+  let prazo: ReturnType<typeof setTimeout> | undefined;
+  const conexao = await Promise.race([
+    pedido,
+    new Promise<never>((_, recusar) => {
+      prazo = setTimeout(() => recusar(new Error(
+        `Nenhuma conexão com o banco livre em ${esperaPorConexaoMs() / 1000}s — o pool das requisições está cheio.`,
+      )), esperaPorConexaoMs());
+    }),
+  ]).catch((erro) => {
+    // A conexão que chegar depois do prazo volta ao pool em vez de ficar presa.
+    pedido.then((c) => c.release(), () => {});
+    throw erro;
+  }).finally(() => clearTimeout(prazo));
 
   // O Drizzle lê `options` do cliente para instalar os parsers dele, e a conexão
   // reservada não expõe as do pool. Sem esta linha ele estoura em `parsers`.
-  (conexao as unknown as { options: unknown }).options = sqlConn.options;
+  (conexao as unknown as { options: unknown }).options = doPool.options;
   ensinarTransacao(conexao);
 
   try {

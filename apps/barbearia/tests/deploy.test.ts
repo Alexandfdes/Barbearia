@@ -73,6 +73,16 @@ describe('a imagem tem o que o app precisa em produção', () => {
     expect(fonte).toMatch(/-fotos\.tar\.gz|SUFIXO_FOTOS/);
   });
 
+  it('o container tem saúde: o app travado é reiniciado, mas não no meio do backup do boot (26/10/2026)', () => {
+    // Sem HEALTHCHECK, o app travado continuava com o processo vivo e nada o reiniciava.
+    const inicio = dockerfile.indexOf('\nHEALTHCHECK ');
+    const linha = inicio < 0 ? '' : dockerfile.slice(inicio, dockerfile.indexOf('\n\n', inicio));
+    expect(linha).toMatch(/\/api\/saude/);
+    expect(linha).toMatch(/process\.env\.PORT/);
+    const partida = Number(linha.match(/--start-period=(\d+)m/)?.[1] ?? 0);
+    expect(partida).toBeGreaterThanOrEqual(10);
+  });
+
   it('o boot avisa se o pg_dump não estiver lá', () => {
     // Não basta instalar: se alguém trocar a imagem base, o aviso é o que
     // transforma "backup silenciosamente quebrado" em "erro na tela do deploy".

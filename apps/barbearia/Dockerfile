@@ -63,6 +63,15 @@ COPY --from=build /app/src/assets/fotos-videos/carrosel*.jpg ./seed/galeria-bayr
 VOLUME ["/data"]
 EXPOSE 4321
 
+# A saúde, para o orquestrador reiniciar o container que parou de responder. Até
+# 26/10/2026 não havia: o app travado (o pool, `src/db/index.ts`) continuava com o
+# processo vivo, e nada o reiniciava. `/api/saude` responde 503 quando o banco não
+# responde em 3 s. O prazo de partida é longo de propósito: no deploy com migration,
+# o boot faz o backup antes — com o banco grande, minutos — e matar o container no
+# meio seria pior que esperar. A porta é a que o servidor ouve (o EasyPanel põe 80).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15m --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||4321)+'/api/saude').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+
 # Roda as migrations, sobe os daemons — o de backup (diário às 03:00) e o dos avisos
 # por e-mail (de hora em hora, `scripts/avisos-daemon.mjs`) — e inicia o servidor
 CMD ["sh", "-c", "node scripts/startup.mjs && (node scripts/backup-daemon.mjs &) && (node scripts/avisos-daemon.mjs &) && node dist/server/entry.mjs"]
