@@ -111,7 +111,7 @@ describe.skipIf(!TEM_BANCO)('o painel, com banco', () => {
   });
 
   // ── Concluir: qualquer hora do MESMO dia, no fuso da barbearia (decisão do dono,
-  // 26/10/2026), e o tempo que sobrava fica livre para outro cliente.
+  // 26/10/2026) — e o horário marcado nunca muda.
   const fimDeHoje = () => {
     const hoje = formatInTimeZone(new Date(), A.fuso, 'yyyy-MM-dd');
     return fromZonedTime(`${somarDias(hoje, 1)}T00:00:00`, A.fuso).getTime();
@@ -136,46 +136,28 @@ describe.skipIf(!TEM_BANCO)('o painel, com banco', () => {
     expect((await horario(amanha)).status).toBe('confirmed');
   });
 
-  it('concluído antes da hora (o cliente veio cedo): o horário vira o de agora, e a vaga marcada fica livre', async () => {
+  it('concluído antes da hora (o cliente veio cedo): fica no horário MARCADO, e a vaga continua ocupada', async () => {
     const sobra = fimDeHoje() - Date.now();
     if (sobra < 70 * MIN) return; // perto da meia-noite não há "mais tarde hoje" — o caso não se aplica
     const b = await novoBarbeiro();
     const marcado = new Date(Date.now() + Math.min(120 * MIN, sobra - 35 * MIN)).toISOString();
     const id = await agendar(b, marcado);
-    const antes = Date.now();
+    const antes = await horario(id);
     expect((await concluir(id)).status).toBe(200);
     const h = await horario(id);
     expect(h.status).toBe('completed');
-    expect(Date.parse(h.ends_at)).toBeGreaterThanOrEqual(antes - 1000);
-    expect(Date.parse(h.ends_at)).toBeLessThanOrEqual(Date.now());
-    expect(Date.parse(h.ends_at) - Date.parse(h.starts_at)).toBeLessThanOrEqual(30 * MIN);
-    // A vaga marcada ficou livre: outro cliente agenda nela, e o banco aceita.
-    const outro = await agendar(b, marcado, '84977779999');
-    expect((await horario(outro)).status).toBe('confirmed');
+    expect([h.starts_at, h.ends_at]).toEqual([antes.starts_at, antes.ends_at]);
+    // A vaga não abriu: o banco recusa outro cliente no mesmo horário do mesmo barbeiro.
+    await expect(agendar(b, marcado, '84977779999')).rejects.toThrow(/appointments_sem_horario_duplo/);
   });
 
-  it('concluído no meio do horário: termina agora, e o resto fica livre', async () => {
+  it('concluído no meio do horário: o horário também não muda', async () => {
     const b = await novoBarbeiro();
-    const inicio = daqui(-10);
-    const id = await agendar(b, inicio);
+    const id = await agendar(b, daqui(-10));
+    const antes = await horario(id);
     expect((await concluir(id)).status).toBe(200);
     const h = await horario(id);
-    expect(h.starts_at).toBe(inicio);
-    expect(Date.parse(h.ends_at)).toBeLessThanOrEqual(Date.now());
-    expect(Date.parse(h.ends_at)).toBeGreaterThan(Date.now() - 60_000);
-  });
-
-  it('se o horário de agora cruzar com outro do barbeiro, conclui no horário marcado — sem erro', async () => {
-    const sobra = fimDeHoje() - Date.now();
-    if (sobra < 70 * MIN) return;
-    const b = await novoBarbeiro();
-    await agendar(b, daqui(-20));              // um cliente agora, ainda no horário dele
-    const marcado = daqui(Math.min(120, Math.floor((sobra - 35 * MIN) / MIN)));
-    const id = await agendar(b, marcado);
-    expect((await concluir(id)).status).toBe(200);
-    const h = await horario(id);
-    expect(h.status).toBe('completed');
-    expect(h.starts_at).toBe(marcado);
+    expect([h.starts_at, h.ends_at]).toEqual([antes.starts_at, antes.ends_at]);
   });
 
   it('falta: só depois de o horário começar — e duas ao mesmo tempo passam uma vez', async () => {
@@ -252,14 +234,12 @@ describe('o que a tela faz', () => {
   });
 });
 
-describe('a janela do atendimento concluído — com o relógio cravado', () => {
-  let janela: typeof import('../src/lib/fecharAtendimento.js')['janelaDoAtendimentoConcluido'];
+describe('o limite do concluído — com o relógio cravado', () => {
   let limite: typeof import('../src/lib/fecharAtendimento.js')['limiteParaConcluir'];
   const FUSO = 'America/Fortaleza'; // UTC−3
-  const at = (inicio: string, fim: string) => ({ startsAt: inicio, endsAt: fim, durationMinutes: 30 });
 
   beforeAll(async () => {
-    ({ janelaDoAtendimentoConcluido: janela, limiteParaConcluir: limite } = await import('../src/lib/fecharAtendimento.js'));
+    ({ limiteParaConcluir: limite } = await import('../src/lib/fecharAtendimento.js'));
   });
 
   it('o limite é a meia-noite que encerra o dia de HOJE no fuso da barbearia, não no UTC', () => {
@@ -268,23 +248,4 @@ describe('a janela do atendimento concluído — com o relógio cravado', () => 
     expect(limite('America/Rio_Branco', new Date('2026-10-27T01:00:00.000Z'))).toBe('2026-10-27T05:00:00.000Z');
   });
 
-  it('concluído depois do fim: nada muda', () => {
-    expect(janela(at('2026-10-26T12:00:00.000Z', '2026-10-26T12:30:00.000Z'), FUSO, new Date('2026-10-26T12:40:00.000Z'))).toBeNull();
-  });
-
-  it('no meio: termina agora', () => {
-    expect(janela(at('2026-10-26T12:00:00.000Z', '2026-10-26T12:30:00.000Z'), FUSO, new Date('2026-10-26T12:10:00.000Z')))
-      .toEqual({ startsAt: '2026-10-26T12:00:00.000Z', endsAt: '2026-10-26T12:10:00.000Z' });
-  });
-
-  it('antes do início: a duração dele, terminando agora', () => {
-    expect(janela(at('2026-10-26T18:00:00.000Z', '2026-10-26T18:30:00.000Z'), FUSO, new Date('2026-10-26T14:00:00.000Z')))
-      .toEqual({ startsAt: '2026-10-26T13:30:00.000Z', endsAt: '2026-10-26T14:00:00.000Z' });
-  });
-
-  it('logo depois da meia-noite: não volta para o dia anterior', () => {
-    // 00:10 em Fortaleza = 03:10 UTC; o começo do dia é 03:00 UTC.
-    expect(janela(at('2026-10-26T15:00:00.000Z', '2026-10-26T15:30:00.000Z'), FUSO, new Date('2026-10-26T03:10:00.000Z')))
-      .toEqual({ startsAt: '2026-10-26T03:00:00.000Z', endsAt: '2026-10-26T03:10:00.000Z' });
-  });
 });
