@@ -22,7 +22,7 @@ Tudo vive em `C:\DEV\barbearia`. Os dois projetos foram unificados em 06/09/2026
 | Pasta | O que é | Porta |
 |---|---|---|
 | `apps/barbearia/` | O que cada barbearia recebe: site público, agendamento e painel | 4321 |
-| `apps/vendas/` | O site de vendas: landing, `/onboarding`, caixa de entrada `/envios` | 4322 |
+| `apps/vendas/` | O site de vendas: a landing, a demonstração e o `/acessar` — sem banco, desde 26/10/2026 | 4322 |
 
 Por que num repositório só, e o que foi rejeitado: `docs/MONOREPO.md`.
 

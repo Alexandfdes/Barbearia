@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **26/10** | **O concluído sem risco na agenda e o formulário antigo do site de vendas fora**, decididos por você | §2.58 |
 | **26/10** | **O cadastro, antes de abrir:** o limite que contava tentativa errada, o e-mail de boas-vindas que servia de golpe, o `/cadastrar` no endereço de outra barbearia e o 404 com a barbearia 1 — consertados no mesmo dia | §2.57 |
 | **26/10** | **A varredura: os três grupos escolhidos por você, consertados no mesmo dia** — o app que congelava com o pool cheio, os erros do painel (o serviço novo fora do site, a comanda em dobro, a falta no futuro, o barbeiro mexendo no cliente dos colegas, o portal em loop) e os documentos. **Decidido por você no mesmo dia:** concluir em qualquer hora do mesmo dia, sempre no horário marcado, sem liberar a vaga | §2.56 |
 | **18/10** | **Cada barbearia é independente, mesmo com o mesmo dono** — o cancelar só remove a assinatura comprovadamente dela. **O telefone de login fica preso só enquanto o barbeiro está ativo**, e se edita. **O link do cliente trava no início do horário.** **A sessão do cliente vale só na barbearia dela.** E o mês grátis do cancelar consertado sem esperar o sandbox | `PENDENCIAS-ABERTAS.md` §2.55 |
@@ -2544,6 +2545,23 @@ Achados da varredura (`claude/VARREDURA-26-10.md`, no projeto do claude.ai), esc
 contra o build: quatro endereços tomados e o válido passando, o `/cadastrar` do site indo para o painel
 e o 404 seco em `/api/tarefas/x`.
 
+### 2.58 ✅ `[TÉCNICO]` O concluído sem risco na agenda, e o formulário antigo do site de vendas fora — decididos por você em 26/10/2026
+
+- **O nome do atendimento concluído não é mais riscado** na agenda do dia: riscado parecia desmarcado
+  para quem bate o olho. Ele fica só mais claro, com o "✓ Concluído" ao lado; riscado continua o
+  cancelado e a falta (`nomeRiscado`, em `apps/barbearia/src/lib/situacaoNaAgenda.ts`).
+- **O `/onboarding`, o `/obrigado`, o `/entrar` e o `/envios` saíram do site de vendas** — o formulário e
+  a caixa de entrada da montagem assistida, que o autoatendimento substituiu (§4.15). A varredura achou
+  que o formulário aceitava 30 arquivos de 15 MB de qualquer pessoa, sem senha nem limite, com a
+  extensão que ela quisesse — enchia o disco —, e que o `/obrigado` público prometia "eu monto o seu
+  site". Com eles saíram o banco SQLite do site de vendas e o `better-sqlite3`. ⚠️ **O arquivo do banco
+  na sua máquina não foi tocado** (`apps/vendas/data/produto.db`, com os 6 envios de 30 e 31/08) — o
+  código que o lia é que saiu; ele continua no histórico do git.
+
+**Verificado:** contra o build do site de vendas, `/`, `/demo` e `/acessar` respondem, e as quatro
+telas e as rotas antigas dão 404; o conferidor de tipos com zero erro; o `npm ci` com o npm 10 e o 11, e o
+`npm audit --omit=dev` com zero.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -3921,6 +3939,7 @@ contagem dos dias e do botão de cancelar.
 >   máquina (`apps/vendas/data/produto.db`) tem 6 envios, de 30 e 31/08, nenhum respondido — 3
 >   iguais, do mesmo responsável e do mesmo WhatsApp, em 9 minutos de madrugada: cara de teste
 >   seu. E o site de vendas nunca esteve no ar neste projeto. Aposentar é decisão sua.
+>   ✅ **26/10/2026: aposentados, por decisão sua** (§2.58).
 >
 > Conferido no build: as duas larguras sem rolagem de lado, os 4 botões levando ao cadastro (ou
 > ao WhatsApp, com o cadastro fechado), nenhum erro de JavaScript e nenhuma das frases da
