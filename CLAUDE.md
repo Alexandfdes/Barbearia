@@ -212,7 +212,8 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   quando ele enche — aconteceu (`tests/pool-sem-trava.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.56).
 - **Mudança de situação de agendamento leva a condição no próprio UPDATE** (`WHERE status = 'confirmed'`
   … `RETURNING`), não só na leitura antes: dois pedidos ao mesmo tempo passavam os dois
-  (`lib/fecharAtendimento.ts`).
+  (`lib/fecharAtendimento.ts`). Falta só depois do início; concluído em qualquer hora do mesmo dia, e o
+  tempo que sobrava fica livre (decisão do dono, 26/10/2026).
 - **O app não precisa de superusuário no banco:** `scripts/usuario-do-app.mjs` faz a troca, e
   migration nova não pode pedir superusuário. **Restaurou um backup?** `scripts/permissoes-do-app.mjs`
   — o boot recusa subir se o papel do app não ler as tabelas (`docs/PENDENCIAS-ABERTAS.md` §3.10 e `docs/PENDENCIAS-ABERTAS.md` §3.11).

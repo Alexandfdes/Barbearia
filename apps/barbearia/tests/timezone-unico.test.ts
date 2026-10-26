@@ -91,6 +91,7 @@ describe('o fuso horário vem da barbearia', () => {
     const RECEBEM_O_FUSO: Record<string, string> = {
       'src/lib/occupancy.ts': '`computeOccupancy({ tz })`: relatórios e a agenda do dia passam `fusoDe(barbearia)`',
       'src/lib/exportacao.ts': 'as duas rotas de `api/admin/exportar/` passam `fusoDe(tenant)`',
+      'src/lib/fecharAtendimento.ts': '`limiteParaConcluir(fuso)` e `janelaDoAtendimentoConcluido(…, fuso)`: a rota de concluir passa `fusoDe(tenant)`',
     };
     const semImportar = arquivos.filter((c) => {
       const s = readFileSync(c, 'utf8');

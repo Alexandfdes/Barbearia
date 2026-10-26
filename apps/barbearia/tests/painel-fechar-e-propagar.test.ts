@@ -13,6 +13,8 @@ import postgres from 'postgres';
 import { exigirBancoDeTeste } from './guardaBanco.js';
 import { recriarSchema } from './migrations.js';
 import type { Tenant } from '../src/lib/tenant.js';
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
+import { somarDias } from '../src/lib/calendario.js';
 
 process.env.SESSION_SECRET ??= 'segredo-de-teste-com-mais-de-32-caracteres-ok';
 
@@ -108,17 +110,72 @@ describe.skipIf(!TEM_BANCO)('o painel, com banco', () => {
     expect(n).toBe(1);
   });
 
-  it('concluir: a partir de uma hora antes do início, não antes', async () => {
-    const amanha = await agendar(2, daqui(24 * 60));
-    const r = await doPainel(rotas.concluir, 'dono', 'POST', `/api/admin/appointments/${amanha}/complete`, { id: String(amanha) });
-    expect(r.status).toBe(409);
-    expect((await r.json()).error).toMatch(/ainda não chegou/);
-    const [{ status }] = await sql`SELECT status FROM appointments WHERE id = ${amanha}`;
-    expect(status).toBe('confirmed');
+  // ── Concluir: qualquer hora do MESMO dia, no fuso da barbearia (decisão do dono,
+  // 26/10/2026), e o tempo que sobrava fica livre para outro cliente.
+  const fimDeHoje = () => {
+    const hoje = formatInTimeZone(new Date(), A.fuso, 'yyyy-MM-dd');
+    return fromZonedTime(`${somarDias(hoje, 1)}T00:00:00`, A.fuso).getTime();
+  };
+  const horario = async (id: number) => (await sql<{ starts_at: string; ends_at: string; status: string }[]>`
+    SELECT starts_at, ends_at, status FROM appointments WHERE id = ${id}`)[0];
+  const concluir = (id: number) => doPainel(rotas.concluir, 'dono', 'POST', `/api/admin/appointments/${id}/complete`, { id: String(id) });
+  let barbeiroNovo = 10;
+  const novoBarbeiro = async () => {
+    const id = ++barbeiroNovo;
+    await sql`INSERT INTO barbers (id, tenant_id, name, slug, role, password_hash, active, phone)
+              VALUES (${id}, 1, ${'Barbeiro ' + id}, ${'barbeiro-' + id}, 'barber', 'x', true, ${'8499100' + String(id).padStart(4, '0')})`;
+    return id;
+  };
 
-    const daquiAPouco = await agendar(2, daqui(30));
-    const ok = await doPainel(rotas.concluir, 'dono', 'POST', `/api/admin/appointments/${daquiAPouco}/complete`, { id: String(daquiAPouco) });
-    expect(ok.status).toBe(200);
+  it('concluir um horário de amanhã é recusado; o de hoje, não', async () => {
+    const b = await novoBarbeiro();
+    const amanha = await agendar(b, new Date(fimDeHoje() + 60 * MIN).toISOString());
+    const r = await concluir(amanha);
+    expect(r.status).toBe(409);
+    expect((await r.json()).error).toMatch(/outro dia/);
+    expect((await horario(amanha)).status).toBe('confirmed');
+  });
+
+  it('concluído antes da hora (o cliente veio cedo): o horário vira o de agora, e a vaga marcada fica livre', async () => {
+    const sobra = fimDeHoje() - Date.now();
+    if (sobra < 70 * MIN) return; // perto da meia-noite não há "mais tarde hoje" — o caso não se aplica
+    const b = await novoBarbeiro();
+    const marcado = new Date(Date.now() + Math.min(120 * MIN, sobra - 35 * MIN)).toISOString();
+    const id = await agendar(b, marcado);
+    const antes = Date.now();
+    expect((await concluir(id)).status).toBe(200);
+    const h = await horario(id);
+    expect(h.status).toBe('completed');
+    expect(Date.parse(h.ends_at)).toBeGreaterThanOrEqual(antes - 1000);
+    expect(Date.parse(h.ends_at)).toBeLessThanOrEqual(Date.now());
+    expect(Date.parse(h.ends_at) - Date.parse(h.starts_at)).toBeLessThanOrEqual(30 * MIN);
+    // A vaga marcada ficou livre: outro cliente agenda nela, e o banco aceita.
+    const outro = await agendar(b, marcado, '84977779999');
+    expect((await horario(outro)).status).toBe('confirmed');
+  });
+
+  it('concluído no meio do horário: termina agora, e o resto fica livre', async () => {
+    const b = await novoBarbeiro();
+    const inicio = daqui(-10);
+    const id = await agendar(b, inicio);
+    expect((await concluir(id)).status).toBe(200);
+    const h = await horario(id);
+    expect(h.starts_at).toBe(inicio);
+    expect(Date.parse(h.ends_at)).toBeLessThanOrEqual(Date.now());
+    expect(Date.parse(h.ends_at)).toBeGreaterThan(Date.now() - 60_000);
+  });
+
+  it('se o horário de agora cruzar com outro do barbeiro, conclui no horário marcado — sem erro', async () => {
+    const sobra = fimDeHoje() - Date.now();
+    if (sobra < 70 * MIN) return;
+    const b = await novoBarbeiro();
+    await agendar(b, daqui(-20));              // um cliente agora, ainda no horário dele
+    const marcado = daqui(Math.min(120, Math.floor((sobra - 35 * MIN) / MIN)));
+    const id = await agendar(b, marcado);
+    expect((await concluir(id)).status).toBe(200);
+    const h = await horario(id);
+    expect(h.status).toBe('completed');
+    expect(h.starts_at).toBe(marcado);
   });
 
   it('falta: só depois de o horário começar — e duas ao mesmo tempo passam uma vez', async () => {
@@ -192,5 +249,42 @@ describe('o que a tela faz', () => {
     const desistiu = ramo.search(/if \(!\w+\) return;/);
     expect(desistiu).toBeGreaterThan(ramo.indexOf('showConfirm('));
     expect(desistiu).toBeLessThan(ramo.indexOf('/no-show`'));
+  });
+});
+
+describe('a janela do atendimento concluído — com o relógio cravado', () => {
+  let janela: typeof import('../src/lib/fecharAtendimento.js')['janelaDoAtendimentoConcluido'];
+  let limite: typeof import('../src/lib/fecharAtendimento.js')['limiteParaConcluir'];
+  const FUSO = 'America/Fortaleza'; // UTC−3
+  const at = (inicio: string, fim: string) => ({ startsAt: inicio, endsAt: fim, durationMinutes: 30 });
+
+  beforeAll(async () => {
+    ({ janelaDoAtendimentoConcluido: janela, limiteParaConcluir: limite } = await import('../src/lib/fecharAtendimento.js'));
+  });
+
+  it('o limite é a meia-noite que encerra o dia de HOJE no fuso da barbearia, não no UTC', () => {
+    // 22:00 em Fortaleza é 01:00 UTC do dia seguinte: o dia ainda é o 26.
+    expect(limite(FUSO, new Date('2026-10-27T01:00:00.000Z'))).toBe('2026-10-27T03:00:00.000Z');
+    expect(limite('America/Rio_Branco', new Date('2026-10-27T01:00:00.000Z'))).toBe('2026-10-27T05:00:00.000Z');
+  });
+
+  it('concluído depois do fim: nada muda', () => {
+    expect(janela(at('2026-10-26T12:00:00.000Z', '2026-10-26T12:30:00.000Z'), FUSO, new Date('2026-10-26T12:40:00.000Z'))).toBeNull();
+  });
+
+  it('no meio: termina agora', () => {
+    expect(janela(at('2026-10-26T12:00:00.000Z', '2026-10-26T12:30:00.000Z'), FUSO, new Date('2026-10-26T12:10:00.000Z')))
+      .toEqual({ startsAt: '2026-10-26T12:00:00.000Z', endsAt: '2026-10-26T12:10:00.000Z' });
+  });
+
+  it('antes do início: a duração dele, terminando agora', () => {
+    expect(janela(at('2026-10-26T18:00:00.000Z', '2026-10-26T18:30:00.000Z'), FUSO, new Date('2026-10-26T14:00:00.000Z')))
+      .toEqual({ startsAt: '2026-10-26T13:30:00.000Z', endsAt: '2026-10-26T14:00:00.000Z' });
+  });
+
+  it('logo depois da meia-noite: não volta para o dia anterior', () => {
+    // 00:10 em Fortaleza = 03:10 UTC; o começo do dia é 03:00 UTC.
+    expect(janela(at('2026-10-26T15:00:00.000Z', '2026-10-26T15:30:00.000Z'), FUSO, new Date('2026-10-26T03:10:00.000Z')))
+      .toEqual({ startsAt: '2026-10-26T03:00:00.000Z', endsAt: '2026-10-26T03:10:00.000Z' });
   });
 });
