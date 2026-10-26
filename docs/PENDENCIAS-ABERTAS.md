@@ -2483,10 +2483,11 @@ Postgres. Guarda: `tests/pool-sem-trava.test.ts` e `tests/deploy.test.ts`.
 - **O portal do cliente entrava em redirecionamento sem fim** quando a sessão não achava mais
   agendamento (o dono corrigiu a data de nascimento, por exemplo). Agora o cookie é apagado.
 
-**3. Os documentos:** um número de WhatsApp real era o exemplo do campo de WhatsApp das
-Configurações — que todo dono novo vê — e estava em três documentos; trocado por um de exemplo
-(⚠️ continua no histórico do git, e é o contato do site de vendas, `apps/vendas/src/config.ts` — se for
-de outra pessoa, o lugar certo é você decidir). E as afirmações que alguém ia seguir: a D2 inteira
+**3. Os documentos:** o exemplo do campo de WhatsApp das Configurações — que todo dono novo vê — usava
+o número que os documentos chamavam de "o real do Bayron"; trocado por um de exemplo. ✏️ *Esclarecido
+por você no mesmo dia: era um número de teste, não de ninguém.* **E era o contato do site de vendas**
+(`apps/vendas/src/config.ts`): todo botão de WhatsApp da landing, da demonstração e do formulário
+levava o interessado a um número de teste. Agora leva ao seu. E as afirmações que alguém ia seguir: a D2 inteira
 "valendo" (o `settings.id = 1`), o passo 6 "aplicado" sem dizer que é por endereço, o plano anual e o
 aviso de 30 dias como vigentes, o site de vendas como dono do cadastro e da cobrança, "o Dockerfile
 não mudou", o README mandando para a fila velha, o telefone "único no mundo", referências
