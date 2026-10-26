@@ -71,7 +71,10 @@ beforeAll(async () => {
   await recriarSchema(sql);
 
   const h = await hash(SENHA_ANTIGA, 4);
-  const fimDoTeste = new Date(AGORA.getTime() + 5 * 24 * UMA_HORA).toISOString();
+  // O teste grátis da Vintage tem de valer no relógio cravado (AGORA) E no de verdade: os casos
+  // de "trocar a senha derruba as sessões" usam o relógio real. Cravado em AGORA + 5 dias, ele
+  // venceu e a suíte ficou vermelha sozinha em 25/10/2026, sem ninguém mexer no código.
+  const fimDoTeste = new Date(Math.max(AGORA.getTime(), Date.now()) + 5 * 24 * UMA_HORA).toISOString();
   await sql`INSERT INTO tenants (id, slug, business_name, status, trial_ends_at) VALUES
               (1, 'bayron',  'Barbearia Bayron',  'active',    NULL),
               (2, 'vintage', 'Barbearia Vintage', 'trial',     ${fimDoTeste}),
