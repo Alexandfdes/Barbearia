@@ -236,9 +236,11 @@ describe.skipIf(!TEM_BANCO)('no banco: a receita do Início, a comanda fechada e
   let cookieDoDono = '';
 
   const FUSO = 'America/Fortaleza';
-  const DIA = '2030-03-20';
-  const VESPERA = '2030-03-19';
-  const DIA_SEGUINTE = '2030-03-21';
+  // Um dia que já passou: concluir só vale a partir de uma hora antes do horário
+  // (`lib/fecharAtendimento.ts`, 26/10/2026) — num dia de 2030 a comanda seria recusada.
+  const DIA = '2025-03-20';
+  const VESPERA = '2025-03-19';
+  const DIA_SEGUINTE = '2025-03-21';
   const hora = (dia: string, hhmm: string) => fromZonedTime(`${dia}T${hhmm}:00`, FUSO).toISOString();
   // A janela da agenda do dia e do "hoje" do Início.
   const INICIO = hora(DIA, '00:00');
@@ -332,7 +334,7 @@ describe.skipIf(!TEM_BANCO)('no banco: a receita do Início, a comanda fechada e
   });
 
   it('a semana: a véspera e o dia seguinte entram, cada um com o seu', async () => {
-    const semana = await receitaDoPeriodo(A.id, hora(VESPERA, '00:00'), hora('2030-03-22', '00:00'), null);
+    const semana = await receitaDoPeriodo(A.id, hora(VESPERA, '00:00'), hora('2025-03-22', '00:00'), null);
     expect(semana).toEqual({ centavos: 17000 + 7000 + 9900, considerados: 3 });
   });
 

@@ -1509,6 +1509,13 @@ const clientData: DadosDaAgenda = {
     }
 
     if (action === 'no-show') {
+      // Falta não volta atrás e libera o horário: pede confirmação, como o cancelar.
+      const confirmado = await showConfirm({
+        title:   'Marcar como falta?',
+        message: 'O cliente não veio. O horário fica livre e isto não pode ser desfeito.',
+        okLabel: 'Sim, faltou',
+      });
+      if (!confirmado) return;
       btn.disabled = true;
       const { ok, data } = await callApi(`/api/admin/appointments/${id}/no-show`);
       if (ok) {

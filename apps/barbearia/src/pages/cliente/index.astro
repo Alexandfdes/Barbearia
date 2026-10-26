@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import Layout from '../../layouts/Layout.astro';
-import { getCustomerSession } from '../../lib/customerSession.js';
+import { getCustomerSession, clearCustomerSessionCookie } from '../../lib/customerSession.js';
 import { tenantDoHost } from '../../lib/tenant.js';
 import { getSettings } from '../../lib/settings.js';
 import { formatInTimeZone } from 'date-fns-tz';
@@ -33,9 +33,16 @@ if (!session) return Astro.redirect('/cliente/entrar');
 // itens dele (`lib/agendamentosDoCliente.ts`).
 const rows = await agendamentosDoCliente(tenant.id, session.phone, session.birthdate);
 
-// Se a sessão é válida mas não tem mais agendamentos (todos deletados manualmente, por ex),
-// devolve pra entrar.
-if (rows.length === 0) return Astro.redirect('/cliente/entrar');
+// Se a sessão é válida mas não acha mais agendamento nenhum, devolve para entrar —
+// APAGANDO o cookie (26/10/2026). Sem isso, o `/cliente/entrar` via a sessão ainda
+// valendo e mandava de volta para cá, sem fim: bastava o dono corrigir a data de
+// nascimento do cliente, e o botão Sair, que mora nesta página, nunca aparecia.
+if (rows.length === 0) {
+  return new Response(null, {
+    status: 302,
+    headers: { Location: '/cliente/entrar', 'Set-Cookie': clearCustomerSessionCookie() },
+  });
+}
 
 const nowIso = new Date().toISOString();
 
