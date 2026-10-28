@@ -617,6 +617,62 @@ const comuns = { valor, opcoesDeFuso, fusoAtual, mapaAgora };
   (horariosIniciais.length ? horariosIniciais : [null]).forEach((h) => wrap.appendChild(linhaHorario(h)));
   document.getElementById('add-horario').addEventListener('click', () => wrap.appendChild(linhaHorario(null)));
 
+  // ── O que foi digitado e não salvo sobrevive ao envio da logo e da capa ─────
+  // A imagem sobe na hora e a página recarrega para mostrá-la — e o recarregar apagava o
+  // que estava digitado e não salvo (varredura de 26/10, nº 6; achado de novo na revisão de
+  // 27/10, porque não tinha sido consertado). Antes de recarregar, o rascunho vai para a
+  // sessão desta aba; depois, volta aos campos, e a tela diz que falta salvar.
+  const CHAVE_RASCUNHO = 'fadeline:configuracoes:rascunho';
+  function linhasDeHorario() {
+    return [...wrap.children].map((linha) => ({
+      label: linha.querySelector('[data-h-label]').value,
+      hours: linha.querySelector('[data-h-hours]').value,
+      closed: linha.querySelector('[data-h-closed]').checked,
+    }));
+  }
+  const horariosAoAbrir = JSON.stringify(linhasDeHorario());
+  function guardarRascunho() {
+    const campos = {};
+    document.querySelectorAll('[data-campo]').forEach((el) => {
+      const mudou = el.tagName === 'SELECT'
+        ? [...el.options].some((o) => o.selected !== o.defaultSelected)
+        : el.value !== el.defaultValue;
+      if (mudou) campos[el.dataset.campo] = el.value;
+    });
+    const horarios = linhasDeHorario();
+    const mudouHorario = JSON.stringify(horarios) !== horariosAoAbrir;
+    if (!Object.keys(campos).length && !mudouHorario) return;
+    try {
+      sessionStorage.setItem(CHAVE_RASCUNHO, JSON.stringify({ campos, horarios: mudouHorario ? horarios : null, em: Date.now() }));
+    } catch {
+      // Sem armazenamento: o recarregar perde, como antes. (Sem comentário de bloco aqui: o
+      // "image/*" do campo de arquivo, mais acima, casaria com ele nas guardas dos testes.)
+    }
+  }
+  function devolverRascunho() {
+    let rascunho = null;
+    try {
+      rascunho = JSON.parse(sessionStorage.getItem(CHAVE_RASCUNHO) ?? 'null');
+      sessionStorage.removeItem(CHAVE_RASCUNHO);
+    } catch { return; }
+    if (!rascunho || Date.now() - rascunho.em > 10 * 60 * 1000) return;
+    for (const [campo, valor] of Object.entries(rascunho.campos ?? {})) {
+      const el = document.querySelector(`[data-campo="${CSS.escape(campo)}"]`);
+      if (!el) continue;
+      el.value = valor;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (Array.isArray(rascunho.horarios)) {
+      wrap.replaceChildren(...rascunho.horarios.map((h) => linhaHorario(h)));
+      wrap.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const aviso = document.getElementById('cfg-msg');
+    aviso.textContent = 'Imagem salva. O que você tinha digitado continua aqui — falta clicar em Salvar.';
+    aviso.className = 'text-sm rounded px-3 py-2 bg-amber-50 border border-amber-200 text-amber-950';
+  }
+  devolverRascunho();
+
   const msg = document.getElementById('cfg-msg');
   const status = document.getElementById('cfg-status');
   const btn = document.getElementById('btn-salvar');
@@ -644,7 +700,7 @@ const comuns = { valor, opcoesDeFuso, fusoAtual, mapaAgora };
       try {
         const res = await fetch('/api/admin/settings/media', { method: 'POST', body: fd });
         const data = await res.json();
-        if (res.ok) { location.reload(); return; }
+        if (res.ok) { guardarRascunho(); location.reload(); return; }
         mostrar(data.error ?? 'Não consegui enviar a imagem', true);
       } catch { mostrar('Erro de conexão ao enviar a imagem', true); }
       status.textContent = '';
@@ -661,7 +717,7 @@ const comuns = { valor, opcoesDeFuso, fusoAtual, mapaAgora };
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tipo: b.dataset.remover }),
         });
-        if (res.ok) { location.reload(); return; }
+        if (res.ok) { guardarRascunho(); location.reload(); return; }
         const d = await res.json();
         mostrar(d.error ?? 'Não consegui remover', true);
       } catch { mostrar('Erro de conexão', true); }
