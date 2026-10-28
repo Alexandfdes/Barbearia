@@ -417,6 +417,8 @@ describe.skipIf(!TEM_BANCO)('com banco: os números, a ficha, a cobrança, o reg
     await sql`INSERT INTO working_hours (tenant_id, barber_id, weekday, start_time, end_time) VALUES (1, 9, 1, '08:00', '18:00'), (1, 1, 2, '08:00', '18:00')`;
     await sql`INSERT INTO services (id, tenant_id, name, slug, price_cents, active) VALUES
       (1, 1, 'Corte', 'corte', 4000, true), (2, 1, 'Barba', 'barba', 0, true), (3, 1, 'Antigo', 'antigo', 3000, false)`;
+    // Quem faz cada serviço: sem isso, nenhum é agendável, e a ficha acusa (revisão de 27/10/2026).
+    await sql`INSERT INTO barber_services (tenant_id, barber_id, service_id, duration_minutes) VALUES (1, 9, 1, 30)`;
     await sql`INSERT INTO gallery_images (tenant_id, path) VALUES (1, 'a.webp'), (1, 'b.webp'), (1, 'c.webp')`;
     const quando = (ms: number) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
     await sql`INSERT INTO appointments (tenant_id, barber_id, service_id, customer_name, customer_phone, customer_birthdate,

@@ -665,7 +665,7 @@ interface LinhaDaFicha {
   logo_path: string | null; hero_path: string | null; tagline: string | null; about_text: string | null;
   instagram_url: string | null; google_rating: string | null; google_review_count: number | null; seo_title: string | null;
   seo_description: string | null; accent_color: string | null; business_hours: string | null;
-  equipe_total: number; servicos_ativos: number; servicos_com_preco: number; barbeiros_com_agenda: number;
+  equipe_total: number; servicos_ativos: number; servicos_com_preco: number; barbeiros_com_agenda: number; servicos_agendaveis: number;
   fotos: number; agendamentos_total: number; agendamentos_7_dias: number; proximos: number;
   primeiro_agendamento: string | null;
 }
@@ -705,6 +705,11 @@ export async function fichaDaBarbearia(tenantId: number, agora: Date = new Date(
            (SELECT count(*)::int FROM services sv WHERE sv.tenant_id = t.id AND sv.active AND sv.price_cents > 0) AS servicos_com_preco,
            (SELECT count(DISTINCT b.id)::int FROM barbers b JOIN working_hours w ON w.barber_id = b.id
              WHERE b.tenant_id = t.id AND b.active) AS barbeiros_com_agenda,
+           (SELECT count(DISTINCT sv.id)::int FROM services sv
+              JOIN barber_services bs ON bs.service_id = sv.id AND bs.active
+              JOIN barbers b ON b.id = bs.barber_id AND b.active
+             WHERE sv.tenant_id = t.id AND sv.active
+               AND EXISTS (SELECT 1 FROM working_hours w WHERE w.barber_id = b.id)) AS servicos_agendaveis,
            (SELECT count(*)::int FROM gallery_images g WHERE g.tenant_id = t.id) AS fotos,
            (SELECT count(*)::int FROM appointments a WHERE a.tenant_id = t.id) AS agendamentos_total,
            (SELECT count(*)::int FROM appointments a WHERE a.tenant_id = t.id AND a.created_at >= ${seteDias}) AS agendamentos_7_dias,
@@ -723,6 +728,7 @@ export async function fichaDaBarbearia(tenantId: number, agora: Date = new Date(
     horariosPublicados: parseBusinessHours(f.business_hours).length,
     servicosAtivos: f.servicos_ativos,
     barbeirosComAgenda: f.barbeiros_com_agenda,
+    servicosAgendaveis: f.servicos_agendaveis,
     fotosNaGaleria: f.fotos,
   });
 

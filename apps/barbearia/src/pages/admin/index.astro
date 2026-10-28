@@ -5,7 +5,7 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { and, sql, eq, gte, lt, desc } from 'drizzle-orm';
 import { getSession } from '../../lib/session.js';
 import { db, first } from '../../db/index.js';
-import { barbers, appointments, services, settings, workingHours } from '../../db/schema.js';
+import { barbers, appointments, services, settings, workingHours, barberServices } from '../../db/schema.js';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { ptBR } from 'date-fns/locale';
 import { tenantDaSessao } from '../../lib/tenant.js';
@@ -282,6 +282,13 @@ const completude = cfg ? calcularCompletude({
     .from(barbers)
     .innerJoin(workingHours, eq(workingHours.barberId, barbers.id))
     .where(and(eq(barbers.tenantId, tenant.id), eq(barbers.active, true)))))?.n ?? 0),
+  // Serviço que alguém, ativo e com expediente, faz: sem nenhum, o site não agenda nada.
+  servicosAgendaveis: Number((await first(db.select({ n: sql<number>`count(DISTINCT ${services.id})::int` })
+    .from(services)
+    .innerJoin(barberServices, and(eq(barberServices.serviceId, services.id), eq(barberServices.active, true)))
+    .innerJoin(barbers, and(eq(barbers.id, barberServices.barberId), eq(barbers.active, true)))
+    .where(and(eq(services.tenantId, tenant.id), eq(services.active, true),
+      sql`EXISTS (SELECT 1 FROM ${workingHours} w WHERE w.barber_id = ${barbers.id})`))))?.n ?? 0),
   fotosNaGaleria: await quantasFotos(tenant),
 }) : null;
 

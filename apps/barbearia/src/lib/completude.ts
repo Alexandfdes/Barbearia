@@ -48,6 +48,13 @@ export interface EstadoDaBarbearia {
   servicosAtivos: number;
   /** Barbeiros ativos QUE TÊM expediente cadastrado. */
   barbeirosComAgenda: number;
+  /**
+   * Serviços ativos que ALGUM barbeiro ativo, com expediente, faz (o "eu ofereço" ligado).
+   * As duas contas acima, separadas, deixavam passar o caso em que nenhum serviço é
+   * agendável — o Início dizia que estava tudo certo e o site respondia "agende pelo
+   * WhatsApp" (revisão de 27/10/2026). Ausente = não conferido (quem ainda não conta).
+   */
+  servicosAgendaveis?: number;
   /** Fotos na galeria do site (`gallery_images`). */
   fotosNaGaleria: number;
 }
@@ -87,6 +94,13 @@ function bloqueiosDe(e: EstadoDaBarbearia): Item[] {
     titulo: 'Defina o horário de trabalho',
     porque: 'Sem expediente cadastrado a agenda não tem vaga nenhuma para oferecer.',
     href: '/admin/horarios', peso: 0,
+  });
+
+  if (e.servicosAtivos > 0 && e.barbeirosComAgenda > 0 && e.servicosAgendaveis === 0) b.push({
+    id: 'ninguem-faz',
+    titulo: 'Diga quem faz cada serviço',
+    porque: 'Nenhum serviço tem um barbeiro com expediente que o faça — o site mostra o serviço, mas ninguém consegue marcar. Ligue o "eu ofereço" em Serviços.',
+    href: '/admin/servicos', peso: 0,
   });
 
   if (vazio(e.whatsappNumber)) b.push({
