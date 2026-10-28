@@ -43,6 +43,15 @@ describe('o que impede de FUNCIONAR', () => {
     expect(r.bloqueios.map((b) => b.id)).toEqual(['agenda']);
   });
 
+  it('serviço e barbeiro com expediente, mas ninguém faz serviço nenhum: bloqueia (revisão de 27/10/2026)', () => {
+    // As duas contas separadas passavam, e o Início dizia que estava tudo certo enquanto o
+    // site respondia "agende pelo WhatsApp".
+    expect(calcularCompletude({ ...COMPLETA, servicosAgendaveis: 0 }).bloqueios.map((b) => b.id)).toEqual(['ninguem-faz']);
+    expect(calcularCompletude({ ...COMPLETA, servicosAgendaveis: 1 }).bloqueios).toEqual([]);
+    // Sem serviço ou sem expediente, o bloqueio é o deles — não os dois juntos.
+    expect(calcularCompletude({ ...COMPLETA, barbeirosComAgenda: 0, servicosAgendaveis: 0 }).bloqueios.map((b) => b.id)).toEqual(['agenda']);
+  });
+
   it('sem WhatsApp e sem endereço, os dois bloqueiam', () => {
     const r = calcularCompletude({
       ...COMPLETA, whatsappNumber: null, addressStreet: '  ', addressCity: null,
