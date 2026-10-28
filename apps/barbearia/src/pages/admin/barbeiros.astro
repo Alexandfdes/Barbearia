@@ -346,12 +346,23 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
 
       saveBtn.disabled = true; saveBtn.textContent = '...';
       try {
-        const res  = await fetch(`/api/admin/barbers/${id}`, {
+        const salvar = (mesmoComAgendados = false) => fetch(`/api/admin/barbers/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, role, active, email, phone, avisarAgendamentos: avisosEl.checked }),
+          body: JSON.stringify({ name, role, active, email, phone, avisarAgendamentos: avisosEl.checked, mesmoComAgendados }),
         });
-        const data = await res.json();
+        let res  = await salvar();
+        let data = await res.json();
+        // Desligar quem tem cliente marcado: a tela diz quantos e o próximo, e só desliga
+        // se o dono confirmar (revisão de 27/10/2026).
+        if (res.status === 409 && data.pedeConfirmacao) {
+          if (!confirm(`${data.error}\n\nDesligar mesmo assim?`)) {
+            saveBtn.disabled = false; saveBtn.textContent = 'Salvar';
+            return;
+          }
+          res  = await salvar(true);
+          data = await res.json();
+        }
         if (!res.ok) {
           errorEl.textContent = data.error ?? 'Erro ao salvar'; errorEl.classList.remove('hidden');
           saveBtn.disabled = false; saveBtn.textContent = 'Salvar';
