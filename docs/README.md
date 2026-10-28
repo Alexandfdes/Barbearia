@@ -1,6 +1,6 @@
 # Documentação do Fadeline
 
-> Índice de tudo que existe em `docs/`. Atualizado: 27/09/2026.
+> Índice de tudo que existe em `docs/`. Atualizado: 26/10/2026.
 >
 > **Se você está chegando agora ou voltando depois de um tempo, leia
 > `ESTADO-ATUAL.md` primeiro.** Ele diz onde o código está e qual é o próximo
@@ -13,7 +13,7 @@
 
 | Documento | O que responde |
 |---|---|
-| **`ESTADO-ATUAL.md`** | Onde o código está hoje, o que está pela metade, e a fila do que fazer (`ESTADO-ATUAL.md` §9) |
+| **`ESTADO-ATUAL.md`** | Onde o código está hoje e o que está pela metade. A fila do que fazer é a do `PENDENCIAS-ABERTAS.md` §6 — o `ESTADO-ATUAL.md` §9 é registro de 06/09 |
 | **`PENDENCIAS-ABERTAS.md`** | O que ainda **não** foi decidido, por prioridade |
 | **`COMO-FUNCIONA.md`** | O produto inteiro em português claro, sem termo técnico |
 | **`ROTEIRO-MIGRACAO-PRODUCAO.md`** | 🔴 **Ainda não executado.** A ordem, comando por comando, para pôr o Postgres no ar para o Bayron — com as conferências e o caminho de volta |
@@ -33,8 +33,8 @@
 |---|---|---|
 | `ARQUITETURA-MULTI-TENANT-V1.md` | ✅ **vigente** | Como o sistema é montado: um banco, `tenant_id`, RLS, três aplicações. **Manda em tudo que for código novo.** `ARQUITETURA-MULTI-TENANT-V1.md` §12 registra as quatro coisas que o desenho não previa |
 | `ARQUITETURA-COBRANCA-V1.md` | ⚠️ premissas vencidas | Asaas, estados do tenant, os dois aplicativos. Números recalculados em 06/09; o raciocínio de `ARQUITETURA-COBRANCA-V1.md` §1.1 dependia do setup abolido |
-| `ARQUITETURA-PRODUCAO.md` | ✅ vigente | Como fica com N barbearias: VPS, capacidade, custo |
-| `ARQUITETURA-PRODUTO-V1.md` | ⚠️ D1 revertida | D2 a D7 continuam valendo (settings, SSR, mídia, cor de destaque). **A D1 foi substituída** |
+| `ARQUITETURA-PRODUCAO.md` | ✅ reescrito em 12/10/2026 | O que roda onde com N barbearias: o app, o banco, o volume, o roteamento, o deploy e o raio de dano. Até 12/10 descrevia uma instância por barbearia |
+| `ARQUITETURA-PRODUTO-V1.md` | ⚠️ D1 revertida | D3 a D7 continuam valendo (SSR, mídia, cor de destaque); a D2 só nas colunas tipadas — `settings` é uma linha por barbearia. **A D1 foi substituída** |
 | `MONOREPO.md` | ✅ implementado | Por que os dois projetos viraram um repositório, e as três alternativas rejeitadas |
 
 ## Página de vendas
@@ -62,27 +62,16 @@ Servem para entender por que o código é como é.
 | `PLANO-HORARIOS-TRABALHO.md` | 📦 implantado |
 | `PLANO-PORTAL-CLIENTE-V3.md` | 📦 implantado |
 
-## Migrações escritas e não aplicadas
+## Entregas antigas — saíram em 12/10/2026
 
-Duas pastas fora de `docs/`, cada uma com o próprio LEIA-ME. Nenhuma foi aplicada; a
-branch `monorepo` não tem nada delas.
-
-| Pasta | O que é | Estado |
-|---|---|---|
-| `migracao-postgres/` | Passo 2: o porte de SQLite para Postgres, 101 arquivos | testado contra um Postgres 16 real |
-| `migracao-tenants/` | Passos 3, 3.5 e 4: `tenants`, `tenant_id`, rede de testes e o escopo de 53 de 54 rotas e páginas, 63 arquivos | testado; aplica **em cima** do passo 2 |
-
-A ordem de aplicação e o que trava o quê estão em `ESTADO-ATUAL.md` §9.
-
-## Procedimentos
-
-| Documento | O que faz |
-|---|---|
-| `WIPE-APPOINTMENTS.md` | ⚠️ Apaga agendamentos reais. Confira o backup antes |
+`migracao-postgres/` (o passo 2, o porte para Postgres) e `migracao-tenants/` (os passos 3,
+3.5 e 4) eram pastas fora de `docs/`, com patches e LEIA-ME próprios. Foram aplicadas em
+06/09/2026 e saíram do repositório em 12/10/2026, com o `WIPE-APPOINTMENTS.md` — o
+procedimento de um script da época do SQLite, apagado junto. Continuam no histórico do git.
 
 ---
 
-## As três skills
+## As quatro skills
 
 Vivem em `.claude/skills/` e chegam junto com o clone. São regras que já custaram
 erro neste projeto — leia antes de mexer na área de cada uma.
@@ -92,6 +81,7 @@ erro neste projeto — leia antes de mexer na área de cada uma.
 | `barbearia-multi-tenant` | qualquer código: migration, rota, consulta ao banco, tela |
 | `barbearia-paleta` | cor, tema, botão, texto sobre fundo colorido |
 | `barbearia-docs` | criar ou editar arquivo em `docs/` |
+| `barbearia-cobranca` | a cobrança pela Asaas: o webhook, os eventos, o cancelar — desde 17/10/2026 |
 
 ---
 

@@ -17,20 +17,22 @@ import { globSync } from 'node:fs';
 import { sep } from 'node:path';
 
 /**
- * Tabelas com `tenant_id`: as doze da migration 0001, a galeria (0005) e as duas
- * da senha nova e dos avisos (0008).
+ * Tabelas com `tenant_id`: as doze da migration 0001, a galeria (0005), as duas
+ * da senha nova e dos avisos (0008), a dos eventos da Asaas (0010) e o registro
+ * do painel do operador (0012).
  */
 const TABELAS = [
   'barbers', 'services', 'products', 'appointments', 'appointmentItems',
   'barberServices', 'workingHours', 'timeOff', 'productSales', 'reservations',
   'combos', 'settings', 'galleryImages', 'redefinicoesDeSenha', 'avisosEnviados',
+  'webhookEvents', 'acoesDoOperador',
   'appointment_items', 'barber_services', 'working_hours', 'time_off', 'product_sales',
-  'gallery_images', 'redefinicoes_de_senha', 'avisos_enviados',
+  'gallery_images', 'redefinicoes_de_senha', 'avisos_enviados', 'webhook_events',
+  'acoes_do_operador',
 ];
 
 /**
  * Rotas ainda não escopadas. **Só encolhe.**
- * Ver `migracao-tenants/LEIA-ME.md` para a ordem sugerida.
  */
 const PENDENTES = new Set<string>([
   // ✅ VAZIA desde 09/09/2026. Com o glob e o regex consertados em 22/09 e os
@@ -217,6 +219,7 @@ const TABELAS_DRIZZLE = [
   'barbers', 'services', 'products', 'appointments', 'appointmentItems',
   'barberServices', 'workingHours', 'timeOff', 'productSales', 'reservations',
   'combos', 'settings', 'galleryImages', 'redefinicoesDeSenha', 'avisosEnviados',
+  'webhookEvents', 'acoesDoOperador',
   // apelidos de importação (`import { services as servicesTable }`)
   'servicesTable', 'settingsTable',
 ];

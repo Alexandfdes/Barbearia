@@ -33,8 +33,8 @@ let dbDono: typeof import('../src/db/index.js')['dbDono'];
 let comTenant: typeof import('../src/db/index.js')['comTenant'];
 
 /** A barbearia como o middleware a entrega: o objeto inteiro, não só o id. */
-const BAYRON = { id: 1, slug: 'bayron', status: 'active', domain: null };
-const VINTAGE = { id: 2, slug: 'vintage', status: 'active', domain: null };
+const BAYRON = { id: 1, slug: 'bayron', status: 'active', domain: null, fuso: 'America/Fortaleza' };
+const VINTAGE = { id: 2, slug: 'vintage', status: 'active', domain: null, fuso: 'America/Fortaleza' };
 
 /** Quantos barbeiros a conexão ENXERGA — a consulta não filtra nada. */
 async function barbeirosVisiveis(qual: typeof db): Promise<number> {
@@ -278,6 +278,18 @@ describe('a rede não tem furo por descuido', () => {
       'src/pages/api/cadastrar.ts',       // cria a barbearia: ela ainda não existe para ter contexto
       'src/lib/redefinicaoDeSenha.ts',    // a senha nova: acha o barbeiro pelo telefone, como o login
       'src/lib/avisos.ts',                // a tarefa dos avisos: não vem de requisição de barbearia nenhuma
+      'src/lib/cobranca.ts',              // o webhook da Asaas acha a barbearia pelo evento, e a cobrança grava em
+                                          // `tenants`, que o papel do app só lê (0003)
+      'src/lib/operadorBarbearias.ts',    // o painel do operador: lista TODAS as barbearias e muda `tenants`;
+                                          // atrás da senha do operador (`lib/operador.ts`), sem dado de cliente
+      'src/lib/operadorNumeros.ts',       // o Início e a Cobrança do operador: contagens de `tenants` e os eventos
+                                          // da Asaas — do corpo, só o valor —, atrás da mesma senha
+      'src/lib/operadorSistema.ts',       // a tela de Sistema: pergunta ao banco a versão, o tamanho e as migrations;
+                                          // não lê tabela de barbearia nenhuma
+      'src/lib/fusoDaBarbearia.ts',       // o fuso de Configurações mora em `tenants`, que o papel do app só lê
+                                          // (0003): um UPDATE só, com o WHERE na barbearia da sessão
+      'src/lib/bancoAtrasado.ts',         // só no `npm run dev`: lê os nomes da `schema_migrations` para dizer
+                                          // que faltam migrations; não lê tabela de barbearia nenhuma
     ];
 
     const arquivos = [...globSync('src/**/*.ts'), ...globSync('src/**/*.astro')]

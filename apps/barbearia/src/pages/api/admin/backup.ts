@@ -11,7 +11,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { sql } from 'drizzle-orm';
 import { db, first } from '../../../db/index.js';
 import { tenantDaSessao } from '../../../lib/tenant.js';
-import { TZ } from '../../../lib/timezone.js';
+import { fusoDe } from '../../../lib/timezone.js';
 
 /**
  * GET /api/admin/backup — baixa um backup consistente do banco, gerado na hora.
@@ -84,6 +84,7 @@ export const GET: APIRoute = async ({ request }) => {
   if (session.role !== 'admin') return json({ error: 'Apenas admin' }, 403);
 
   const tenant = tenantDaSessao(session);
+  const fuso = fusoDe(tenant);
 
   // ⚠️ TRAVA DELIBERADA, E A CONDIÇÃO JÁ ESTEVE ERRADA AQUI.
   //
@@ -124,7 +125,7 @@ export const GET: APIRoute = async ({ request }) => {
     const buf = readFileSync(dest);
     // Data no fuso da barbearia, não em UTC: backup tirado às 22h em Fortaleza
     // sairia com a data de amanhã no nome do arquivo.
-    const stamp = formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
+    const stamp = formatInTimeZone(new Date(), fuso, 'yyyy-MM-dd');
     return new Response(buf, {
       status: 200,
       headers: {

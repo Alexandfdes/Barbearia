@@ -1,4 +1,4 @@
-// Guarda-corpo do `PENDENCIAS-ABERTAS.md` §2.1: o fuso mora num lugar só.
+// Guarda-corpo do `PENDENCIAS-ABERTAS.md` §2.1: o fuso é o DA BARBEARIA.
 //
 // Não precisa de banco: lê o código-fonte.
 //
@@ -9,12 +9,20 @@
 // e o Acre é UTC-5: vender para lá com o fuso cravado dá horário errado em
 // silêncio, que num sistema de agendamento é o pior defeito possível.
 //
+// Em 10/09/2026 o fuso foi para um lugar só (`lib/timezone.ts`), lido de uma
+// variável de ambiente. Em 12/10/2026 passou a ser de cada barbearia
+// (`tenants.timezone`, lido por `fusoDe`): um processo só atende Manaus e Mossoró
+// ao mesmo tempo, e variável de ambiente vale para o processo inteiro. Então o que
+// este arquivo reprova é todo fuso que não venha DELA — o nome cravado, o padrão
+// usado onde há barbearia, o fuso do ambiente e o do relógio de quem roda.
+//
 // Espalhar de novo é fácil: basta alguém copiar uma linha de outro arquivo.
 import { describe, it, expect } from 'vitest';
 import { readFileSync, globSync } from 'node:fs';
 import { sep } from 'node:path';
+import { diaDaSemana } from '../src/lib/calendario';
 
-/** O único arquivo onde o nome do fuso pode aparecer. */
+/** O único arquivo onde o nome do fuso pode aparecer: a lista dos fusos do Brasil. */
 const FONTE_UNICA = 'src/lib/timezone.ts';
 
 const arquivos = [...globSync('src/**/*.ts'), ...globSync('src/**/*.astro')]
@@ -22,7 +30,7 @@ const arquivos = [...globSync('src/**/*.ts'), ...globSync('src/**/*.astro')]
   .filter((c) => c !== FONTE_UNICA)
   .sort();
 
-describe('o fuso horário tem uma fonte só', () => {
+describe('o fuso horário vem da barbearia', () => {
   it('o glob encontrou os arquivos (guarda contra falhar em silêncio)', () => {
     expect(arquivos.length).toBeGreaterThan(50);
   });
@@ -36,25 +44,113 @@ describe('o fuso horário tem uma fonte só', () => {
     expect(cravaram).toEqual([]);
   });
 
-  it('quem precisa do fuso importa de lib/timezone', () => {
-    // Se um arquivo usa `timeZone:` ou `AT TIME ZONE`, ele tem que ter pegado o
-    // valor de algum lugar — e o único lugar é o módulo comum.
+  it('o fuso do processo não existe mais: `lib/timezone` não exporta `TZ`, e ninguém o importa', () => {
+    // Até 12/10/2026 era `export const TZ`, lido de `TZ_BARBEARIA` — o mesmo
+    // fuso para todas as barbearias do processo. Sumir com ele é o que fez o
+    // compilador apontar cada lugar que precisava do fuso DELA.
+    expect(soCodigo(readFileSync(FONTE_UNICA, 'utf8'))).not.toMatch(/export\s+const\s+TZ\b(?!_)/);
+    const importam = arquivos.filter((c) =>
+      /import\s*\{[^}]*\bTZ\b(?!_)[^}]*\}\s*from\s*'[^']*timezone(\.js)?'/.test(readFileSync(c, 'utf8'))
+    );
+    expect(importam).toEqual([]);
+  });
+
+  it('o fuso padrão só vale onde não há barbearia — lista fechada', () => {
+    // `TZ_PADRAO` é Fortaleza. Usado onde há uma barbearia, é o defeito antigo de
+    // volta, com outro nome: certo em Mossoró, uma hora errado em Manaus.
+    const PERMITIDOS: Record<string, string> = {
+      'src/lib/tenant.ts': 'a barbearia única, sem requisição (`TENANT_UNICO`) — o mesmo padrão da coluna',
+      'src/db/schema.ts': 'o padrão da coluna `tenants.timezone`, o mesmo da migration 0013',
+      'src/lib/operadorTela.ts':
+        'o relógio do operador, que não é de barbearia nenhuma; as datas de cada barbearia, nas telas dele, saem no fuso dela',
+    };
+    const usam = arquivos.filter((c) => /\bTZ_PADRAO\b/.test(soCodigo(readFileSync(c, 'utf8'))));
+    expect(usam).toEqual(Object.keys(PERMITIDOS).sort());
+  });
+
+  it('ninguém tira o fuso do ambiente nem do relógio de quem roda', () => {
+    // `process.env.TZ` é o fuso do container (UTC, no Docker); `resolvedOptions()`
+    // é o do servidor — ou, no navegador, o do celular de quem abre o site. Nenhum
+    // dos dois é o da barbearia. `TZ_BARBEARIA` não é mais lida (o boot avisa,
+    // `scripts/startup.mjs`).
+    const PROIBIDOS = /TZ_BARBEARIA|process\.env\.TZ\b|import\.meta\.env\.TZ\b|resolvedOptions\(\)\.timeZone/;
+    const achados = [...arquivos, FONTE_UNICA].filter((c) => PROIBIDOS.test(soCodigo(readFileSync(c, 'utf8'))));
+    expect(achados).toEqual([]);
+  });
+
+  it('quem formata no fuso pega o da barbearia em `fusoDe` — ou o recebe de quem pegou', () => {
+    // Se um arquivo usa `timeZone:`, `AT TIME ZONE` ou `formatInTimeZone`, o fuso
+    // tem de ter vindo de algum lugar. O lugar é `fusoDe(barbearia)`, de
+    // `lib/timezone`. A outra saída é receber o fuso como argumento — e cada
+    // arquivo que faz isso está na lista, com quem passa.
+    //
+    // ⚠️ Até 25/09/2026 aceitava também `define:vars={{ TZ }}` — e foi esse o
+    // caminho que quebrou a agenda do dia: `define:vars` deixa o script inline,
+    // sem `import` e sem TypeScript. O fuso chega ao navegador pelos dados da
+    // página (`clientData.tz`, `data-tz`). Ver `tests/scripts-inline.test.ts`.
+    const RECEBEM_O_FUSO: Record<string, string> = {
+      'src/lib/occupancy.ts': '`computeOccupancy({ tz })`: relatórios e a agenda do dia passam `fusoDe(barbearia)`',
+      'src/lib/exportacao.ts': 'as duas rotas de `api/admin/exportar/` passam `fusoDe(tenant)`',
+      'src/lib/fecharAtendimento.ts': '`limiteParaConcluir(fuso)` e `janelaDoAtendimentoConcluido(…, fuso)`: a rota de concluir passa `fusoDe(tenant)`',
+    };
     const semImportar = arquivos.filter((c) => {
       const s = readFileSync(c, 'utf8');
       // `AT TIME ZONE 'UTC'` não conta: UTC é a zona de ARMAZENAMENTO, igual em
-      // qualquer barbearia. O que precisa de fonte única é o fuso LOCAL.
+      // qualquer barbearia. O que precisa de origem é o fuso LOCAL.
       const semUtc = s.replace(/AT TIME ZONE 'UTC'/g, '');
       const usaFuso = /timeZone:|AT TIME ZONE|formatInTimeZone|fromZonedTime|toZonedTime/.test(semUtc);
-      if (!usaFuso) return false;
       // Aceita o import de qualquer profundidade (`./timezone.js` dentro de lib/).
-      //
-      // ⚠️ Até 25/09/2026 aceitava também `define:vars={{ TZ }}` — e foi esse o
-      // caminho que quebrou a agenda do dia: `define:vars` deixa o script inline,
-      // sem `import` e sem TypeScript. O fuso chega ao navegador pelos dados da
-      // página (`clientData.tz`). Ver `tests/scripts-inline.test.ts`.
-      return !/from '[^']*timezone(\.js)?'/.test(s);
+      return usaFuso && !/from '[^']*timezone(\.js)?'/.test(s);
     });
-    expect(semImportar).toEqual([]);
+    expect(semImportar).toEqual(Object.keys(RECEBEM_O_FUSO).sort());
+  });
+
+  it('no navegador, toda data e hora mostrada leva o fuso da barbearia', () => {
+    // Sem `timeZone`, `toLocaleDateString` e o `Intl` usam o fuso de quem abre: o
+    // celular do barbeiro em viagem, o cliente de outro estado. Até 12/10/2026 a
+    // ficha do cliente, na agenda do dia, mostrava a hora no fuso da barbearia e a
+    // DATA no do navegador — um corte às 23:30 saía com a data do dia seguinte.
+    //
+    // A exceção é a hora de agora para quem está na tela: o "Salvo às" de
+    // Configurações é o relógio de quem salvou, não um horário da barbearia.
+    const EXCECOES = ["src/pages/admin/configuracoes.astro: new Date().toLocaleTimeString('pt-BR')"];
+    const chamadas = arquivos.flatMap((c) =>
+      [...soCodigo(readFileSync(c, 'utf8')).matchAll(/(new Date\(\)\.)?(toLocaleDateString|toLocaleTimeString|new Intl\.DateTimeFormat)\(([^)]*)\)/g)]
+        .map((m) => ({ onde: `${c}: ${m[0].replace(/\s+/g, ' ')}`, temFuso: /timeZone:/.test(m[3]) }))
+    );
+    // Guarda contra o padrão parar de achar: hoje são mais de cinco.
+    expect(chamadas.length).toBeGreaterThan(5);
+    expect(chamadas.filter((c) => !c.temFuso).map((c) => c.onde)).toEqual(EXCECOES);
+  });
+
+  it('o dia da semana sai de `diaDaSemana` (`lib/calendario.ts`), nunca do relógio de quem roda', () => {
+    // `getDay()` lê o dia no fuso do PROCESSO. Até 12/10/2026, cinco lugares — o cálculo
+    // de vagas, o agendamento, os dois reagendamentos e o título da agenda do dia — faziam
+    // `new Date(Date.UTC(y, m - 1, d, 12)).getDay()`: certo com o servidor no Brasil ou em
+    // UTC; num servidor com fuso de +12 h ou mais (Fiji, Nova Zelândia), segunda virava
+    // terça — e o expediente do dia, que decide as vagas, era o de terça. O mini-calendário
+    // da agenda do dia, no navegador, também passou para `diaDaSemana`: a regra não tem
+    // exceção para lembrar.
+    const usam = arquivos.flatMap((c) =>
+      soCodigo(readFileSync(c, 'utf8')).split('\n').flatMap((linha, i) =>
+        /\.getDay\(/.test(linha) ? [`${c}:${i + 1}: ${linha.trim()}`] : []
+      )
+    );
+    expect(usam).toEqual([]);
+  });
+
+  it('controle: com o processo em Kiritimati (+14), `getDay` erra o dia e `diaDaSemana` não', () => {
+    // Prova que o defeito de cima é de verdade, e não teoria: o Node troca o fuso do
+    // processo quando `TZ` muda. 12/10/2026 é uma segunda-feira.
+    const antes = process.env.TZ;
+    try {
+      process.env.TZ = 'Pacific/Kiritimati';
+      expect(new Date(Date.UTC(2026, 9, 12, 12)).getDay()).toBe(2);
+      expect(diaDaSemana('2026-10-12')).toBe(1);
+    } finally {
+      if (antes === undefined) delete process.env.TZ;
+      else process.env.TZ = antes;
+    }
   });
 });
 

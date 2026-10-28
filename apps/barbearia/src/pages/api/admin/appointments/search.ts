@@ -7,7 +7,7 @@ import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { sql } from 'drizzle-orm';
 import { db } from '../../../../db/index.js';
-import { TZ } from '../../../../lib/timezone.js';
+import { fusoDe } from '../../../../lib/timezone.js';
 
 
 // Busca por telefone (customer_phone é só dígitos) OU por nome. Quando um dos
@@ -64,6 +64,7 @@ export const GET: APIRoute = async ({ request, url }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
   const tenant = tenantDaSessao(session);
+  const fuso = fusoDe(tenant);
 
   // ⚠️ BARBEIRO COMUM SÓ ACHA OS PRÓPRIOS. Esta era a Única rota de agendamento
   // sem conferência de papel — todas as outras começam com
@@ -104,8 +105,8 @@ export const GET: APIRoute = async ({ request, url }) => {
     startsAt:        r.starts_at,
     endsAt:          r.ends_at,
     cancelledAt:     r.cancelled_at,
-    dateLocal:       formatInTimeZone(new Date(r.starts_at), TZ, 'dd/MM/yyyy'),
-    timeLocal:       formatInTimeZone(new Date(r.starts_at), TZ, 'HH:mm'),
+    dateLocal:       formatInTimeZone(new Date(r.starts_at), fuso, 'dd/MM/yyyy'),
+    timeLocal:       formatInTimeZone(new Date(r.starts_at), fuso, 'HH:mm'),
   }));
 
   return json({ results, count: results.length });

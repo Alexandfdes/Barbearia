@@ -1,6 +1,8 @@
 /**
  * O expediente de verdade na tela da agenda — para onde um atendimento pode ser
- * movido, e a faixa do dia que aparece no topo.
+ * movido, e a faixa do dia que aparece no topo. E, desde 12/10/2026, só os horários
+ * livres: a grade oferecia o horário de outro cliente, e só o servidor recusava, ao
+ * confirmar (`horariosLivres`).
  *
  * ── O DEFEITO QUE ISTO CONSERTA ──────────────────────────────────────────────
  *
@@ -33,11 +35,8 @@ const emMinutos = (hm: string): number => {
 const emHoraMinuto = (minutos: number): string =>
   `${String(Math.floor(minutos / 60)).padStart(2, '0')}:${String(minutos % 60).padStart(2, '0')}`;
 
-/** Dia da semana (0 = domingo) de uma data "YYYY-MM-DD". Conta de calendário: não depende de fuso. */
-export function diaDaSemana(data: string): number {
-  const [y, m, d] = data.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay();
-}
+/** Dia da semana (0 = domingo) de uma data "YYYY-MM-DD" — a conta é a de `lib/calendario.ts`, num lugar só. */
+export { diaDaSemana } from './calendario.js';
 
 /**
  * Os horários para onde um atendimento de `duracaoMin` minutos pode ir, de `passoMin`
@@ -53,6 +52,48 @@ export function horariosParaMover(janelas: Janela[], duracaoMin: number, passoMi
     for (let m = abre; m + duracaoMin <= fecha; m += passoMin) horarios.add(emHoraMinuto(m));
   }
   return [...horarios].sort();
+}
+
+/** Um intervalo que ocupa a cadeira — atendimento ou bloqueio —, em ISO UTC. */
+export interface Ocupado {
+  startsAt: string;
+  endsAt: string;
+}
+
+/**
+ * O que ocupa a cadeira do barbeiro, para quem vai mover um atendimento dele: os
+ * outros atendimentos confirmados ou concluídos — o que está sendo movido, não — e
+ * os bloqueios dele ou da casa toda (sem barbeiro). As mesmas regras da conferência
+ * do servidor ao reagendar (`lib/reagendar.ts`).
+ */
+export function ocupacaoDoBarbeiro(
+  barbeiroId: number,
+  movendoId: number,
+  atendimentos: { id: number; barberId: number; status: string; startsAt: string; endsAt: string }[],
+  bloqueios: { barberId: number | null; startsAt: string; endsAt: string }[],
+): Ocupado[] {
+  const ocupa = (s: string) => s === 'confirmed' || s === 'completed';
+  return [
+    ...atendimentos.filter((a) => Number(a.barberId) === Number(barbeiroId) && Number(a.id) !== Number(movendoId) && ocupa(a.status)),
+    ...bloqueios.filter((b) => b.barberId === null || Number(b.barberId) === Number(barbeiroId)),
+  ].map(({ startsAt, endsAt }) => ({ startsAt, endsAt }));
+}
+
+/**
+ * Dos horários da grade, os livres: um atendimento de `duracaoMin` minutos começando
+ * ali não cruza nada de `ocupados`. Intervalo [início, fim), como no servidor e na
+ * trava do banco: terminar às 10:30 e o outro começar às 10:30 não é cruzar.
+ *
+ * Recebe instantes, não horas locais — quem chama converte cada horário pelo fuso da
+ * barbearia (`lib/timezone.ts`), e esta função continua sem fuso.
+ */
+export function horariosLivres<T extends { inicio: string }>(candidatos: T[], duracaoMin: number, ocupados: Ocupado[]): T[] {
+  const faixas = ocupados.map((o) => [Date.parse(o.startsAt), Date.parse(o.endsAt)] as const);
+  return candidatos.filter((c) => {
+    const comeca = Date.parse(c.inicio);
+    const termina = comeca + duracaoMin * 60_000;
+    return !faixas.some(([inicio, fim]) => comeca < fim && termina > inicio);
+  });
 }
 
 /** A faixa do dia, para o rótulo da agenda: do primeiro início ao último fim. Sem janela, `null`. */

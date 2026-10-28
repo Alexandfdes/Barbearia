@@ -5,15 +5,18 @@ import { tenantAtual, urlDoSite } from '../lib/tenant.js';
 import { iconeDaAba } from '../lib/iconeDaAba.js';
 import { situacaoDe } from '../lib/situacao.js';
 import { avisoDoPainel, TELA_DE_ASSINATURA } from '../lib/assinatura.js';
+import { formatInTimeZone } from 'date-fns-tz';
+import { fusoDe } from '../lib/timezone.js';
 
 const s = await getSettings();
 const barbearia = tenantAtual();
+const fuso = fusoDe(barbearia);
 // Vazio quando não há domínio próprio nem DOMINIO_BASE: aí o link some,
 // em vez de levar o dono para uma página de "barbearia não encontrada".
 const enderecoDoSite = urlDoSite(barbearia);
 // A faixa do teste e da carência, em toda tela do painel: o prazo que ele não
 // vê é o prazo que ele perde (decisão de 08/10/2026, `lib/assinatura.ts`).
-const aviso = avisoDoPainel(situacaoDe(barbearia));
+const aviso = avisoDoPainel(situacaoDe(barbearia), fuso);
 
 interface Props {
   title?:     string;
@@ -23,6 +26,8 @@ interface Props {
 const { title = 'Painel', barberName, role } = Astro.props;
 const path = Astro.url.pathname;
 const norm = path.endsWith('/') && path.length > 1 ? path.slice(0, -1) : path;
+// A agenda de hoje é a do dia da barbearia, não a do servidor (regra 5 do `CLAUDE.md`).
+const hoje = formatInTimeZone(new Date(), fuso, 'yyyy-MM-dd');
 
 /**
  * Navegação em grupos, não em fila de abas.
@@ -35,9 +40,14 @@ const grupos: { titulo: string; itens: { href: string; label: string; ativo: boo
   {
     titulo: 'Atendimento',
     itens: [
-      { href: '/admin',          label: 'Agenda do dia', ativo: norm === '/admin' || norm.startsWith('/admin/dia'), icone: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
+      // Até 10/10/2026, "Agenda do dia" levava a esta tela de resumo, que se chama
+      // Início — e a agenda de verdade ficava atrás de um botão dela.
+      { href: '/admin',          label: 'Início',        ativo: norm === '/admin', icone: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
+      { href: `/admin/dia/${hoje}`, label: 'Agenda do dia', ativo: norm.startsWith('/admin/dia'), icone: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
       { href: '/admin/buscar',   label: 'Buscar cliente', ativo: norm === '/admin/buscar', icone: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
-      { href: '/admin/reservas', label: 'Reservas',      ativo: norm === '/admin/reservas', icone: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
+      // De PRODUTO: o site chama o agendamento de "Reservar horário", e o barbeiro
+      // procurava o agendamento aqui (roteiro de 10/10/2026).
+      { href: '/admin/reservas', label: 'Reservas de produto', ativo: norm === '/admin/reservas', icone: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4' },
     ],
   },
   {
@@ -78,12 +88,20 @@ const grupos: { titulo: string; itens: { href: string; label: string; ativo: boo
   <body class="bg-slate-50 text-slate-800 min-h-screen font-sans">
     <div class="flex min-h-screen">
 
-      <!-- Lateral. Fundo escuro neutro de propósito: a cor de destaque é
-           configurável por barbearia (Fase 5), e uma lateral inteira na cor
-           escolhida pelo cliente pode ficar horrível. O acento entra só no
-           item ativo, onde qualquer cor funciona. -->
+      {/* Lateral. Fundo escuro neutro de propósito: a cor de destaque é configurável por
+          barbearia (Fase 5), e uma lateral inteira na cor escolhida pelo cliente pode ficar
+          horrível. O acento entra só no item ativo, onde qualquer cor funciona.
+
+          No computador ela fica presa na tela, da altura da janela, enquanto a página rola —
+          pedido do dono em 15/10/2026 (docs/PENDENCIAS-ABERTAS.md §2.46). Até então ela
+          rolava junto, e no fim de uma tela longa o menu tinha sumido. Se o menu não cabe na
+          janela, ele rola por dentro, e o Sair fica sempre à vista, no rodapé. No celular,
+          nada muda: é a gaveta que o botão do topo abre. O z-40 decide o que fica por cima,
+          também no computador: a lateral fica acima da barra de salvar de Configurações
+          (z-30), que vai de ponta a ponta, e abaixo das janelas das telas (z-50), que
+          escurecem tudo (tests/barra-lateral-presa.test.ts). */}
       <aside id="lateral"
-        class="fixed lg:static inset-y-0 left-0 z-40 w-64 shrink-0 bg-slate-900 text-slate-300 flex flex-col
+        class="fixed lg:sticky inset-y-0 lg:bottom-auto lg:h-screen left-0 z-40 w-64 shrink-0 bg-slate-900 text-slate-300 flex flex-col
                -translate-x-full lg:translate-x-0 transition-transform duration-200">
         <div class="h-16 flex items-center gap-2.5 px-5 border-b border-white/10">
           <span class="font-semibold text-white truncate">{s.shortName}</span>
@@ -92,9 +110,14 @@ const grupos: { titulo: string; itens: { href: string; label: string; ativo: boo
           )}
         </div>
 
-        <nav class="flex-1 overflow-y-auto py-4">
+        {/* A barra de rolagem fina e escura: a padrão do Windows é uma faixa clara no meio
+            da lateral escura. Os grupos a 16 px um do outro, o último sem sobra embaixo e o
+            Sair em bloco (sem a sobra da linha de texto em volta dele): assim o menu inteiro
+            do dono cabe numa janela a partir de 853 px de altura, sem rolar por dentro por
+            causa de espaço vazio. Eram 889. */}
+        <nav class="flex-1 overflow-y-auto py-4 [scrollbar-width:thin] [scrollbar-color:var(--color-slate-700)_transparent]">
           {grupos.map((g) => (
-            <div class="mb-5">
+            <div class="mb-4 last:mb-0">
               <p class="px-5 mb-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">{g.titulo}</p>
               {g.itens.map((i) => (
                 <a href={i.href}
@@ -114,7 +137,7 @@ const grupos: { titulo: string; itens: { href: string; label: string; ativo: boo
 
         <div class="border-t border-white/10 px-5 py-3.5">
           <p class="text-xs text-slate-400 truncate">{barberName}</p>
-          <button id="__logout" class="mt-1 text-xs text-slate-500 hover:text-red-400 transition-colors">Sair</button>
+          <button id="__logout" class="mt-1 block text-xs text-slate-500 hover:text-red-400 transition-colors">Sair</button>
         </div>
       </aside>
 
@@ -149,6 +172,9 @@ const grupos: { titulo: string; itens: { href: string; label: string; ativo: boo
           </div>
         )}
 
+        {/* A única área principal da tela, a que o leitor de tela anuncia e para onde ele
+            pula: as páginas do painel não abrem outra. Até 13/10/2026, treze abriam —
+            duas, uma dentro da outra (tests/area-principal.test.ts). */}
         <main class="flex-1"><slot /></main>
       </div>
     </div>

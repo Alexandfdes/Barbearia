@@ -33,6 +33,7 @@ import { db } from '../db/index.js';
 import { armazemTenant } from '../db/contexto.js';
 import { tenants as tenantsTable } from '../db/schema.js';
 import { situacaoDe, noAr, type StatusDaBarbearia } from './situacao.js';
+import { TZ_PADRAO } from './timezone.js';
 
 export interface Tenant {
   id: number;
@@ -46,6 +47,15 @@ export interface Tenant {
   testeAte?: Date | null;
   /** Quando a cobrança falhou (`past_due_since`). */
   atrasadaDesde?: Date | null;
+  /** O fim da carência estendido pelo operador (`carencia_ate`, migration 0016). */
+  carenciaAte?: Date | null;
+  /** Assinatura cancelada: no ar até aqui (`subscription_ends_at`). */
+  encerraEm?: Date | null;
+  /**
+   * O fuso da barbearia (`tenants.timezone`, migration 0013). Toda conta de data
+   * lê por `fusoDe(tenant)`, de `lib/timezone.ts` — nunca o relógio do processo.
+   */
+  fuso: string;
 }
 
 /** No ar AGORA: pagando, no teste ou na carência. */
@@ -62,6 +72,7 @@ export const TENANT_UNICO: Tenant = {
   slug: 'principal',
   status: 'active',
   domain: null,
+  fuso: TZ_PADRAO,
 };
 
 /** Sessão do painel. O `tenantId` é gravado no login (passo 7). */
@@ -92,6 +103,9 @@ export async function carregarTenants(forcar = false): Promise<void> {
     domain: tenantsTable.domain,
     testeAte: tenantsTable.trialEndsAt,
     atrasadaDesde: tenantsTable.pastDueSince,
+    carenciaAte: tenantsTable.carenciaAte,
+    encerraEm: tenantsTable.subscriptionEndsAt,
+    fuso: tenantsTable.timezone,
   }).from(tenantsTable);
 
   const id = new Map<number, Tenant>();
@@ -106,6 +120,9 @@ export async function carregarTenants(forcar = false): Promise<void> {
       domain: l.domain ?? null,
       testeAte: l.testeAte ?? null,
       atrasadaDesde: l.atrasadaDesde ?? null,
+      carenciaAte: l.carenciaAte ?? null,
+      encerraEm: l.encerraEm ?? null,
+      fuso: l.fuso,
     };
     id.set(t.id, t);
     slug.set(t.slug, t);
@@ -198,7 +215,11 @@ export function resolverHost(host: string | null): Tenant | null {
   const limpo = host.toLowerCase().split(':')[0].replace(/\.$/, '');
 
   const porDominioProprio = porDominio.get(limpo);
-  if (estaNoAr(porDominioProprio)) return porDominioProprio;
+  // Domínio próprio é de UMA barbearia, no ar ou não: fora do ar, o endereço dela mostra
+  // o aviso (`tenantSuspensoDoHost`) — nunca cai no slug igual ao primeiro pedaço. Até
+  // 17/10/2026 caía: `barbeariadoze.com.br` fora do ar servia a barbearia de slug
+  // `barbeariadoze`, e os clientes de uma agendavam na outra.
+  if (porDominioProprio) return estaNoAr(porDominioProprio) ? porDominioProprio : null;
 
   const sub = limpo.split('.')[0];
   const t = porSlug.get(sub);
@@ -305,6 +326,22 @@ export function urlDoPainel(env: Record<string, string | undefined> = process.en
 
   if (env.NODE_ENV !== 'production') return `http://localhost:${env.PORT?.trim() || '4321'}`;
   return '';
+}
+
+/**
+ * O `Host` é o do painel? Compara nome e porta — a porta padrão do protocolo vale
+ * escrita ou não (`painel.x.com` e `painel.x.com:443`, com `https`).
+ */
+export function ehEnderecoDoPainel(host: string | null, painel: string): boolean {
+  if (!host || !painel) return false;
+  try {
+    const p = new URL(painel);
+    const h = new URL(`${p.protocol}//${host.trim()}`);
+    const sem = (n: string) => n.toLowerCase().replace(/\.$/, '');
+    return sem(h.hostname) === sem(p.hostname) && h.port === p.port;
+  } catch {
+    return false;
+  }
 }
 
 /**

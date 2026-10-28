@@ -8,8 +8,11 @@
 > banco único. Quem manda é `ARQUITETURA-MULTI-TENANT-V1.md`, que substitui a **D1
 > inteira**, a **D3.1** (cache de settings) e o gatilho de 15–25 clientes.
 >
-> **O resto continua valendo** — D2 a D7 (tabela `settings`, SSR, mídia em volume,
-> cor de destaque, fronteira entre env e settings) são decisões vivas.
+> **O resto continua valendo** — D3 a D7 (SSR, mídia em volume, cor de destaque, fronteira
+> entre env e settings) são decisões vivas. **A D2 vale pela metade:** a tabela `settings` com uma
+> coluna tipada por configuração continua; a **linha única com `id = 1` não** — desde o porte
+> multi-tenant é uma linha por barbearia (`ARQUITETURA-MULTI-TENANT-V1.md` §5.4). *(Corrigido em
+> 26/10/2026: este cabeçalho dizia "D2 a D7" inteiras, e a regra 2 do `CLAUDE.md` proíbe o `id = 1`.)*
 > Decisão de negócio e go-to-market: ver `docs/PLANO-PRODUTIZACAO.md`.
 > O que ainda **não** está decidido: ver `docs/PENDENCIAS-ABERTAS.md`.
 >
@@ -80,7 +83,7 @@ Levantamento completo. Nada aqui é suposição.
 | `src/pages/agendar.astro:7-8,24` | title, description, nome no cabeçalho |
 
 > **Inconsistência encontrada:** `Layout.astro:49` tem o telefone **real**
-> (`+5584999051196`) no JSON-LD, enquanto `config.ts:6` tem o número de teste. Os CTAs
+> (o número fica fora deste documento, que é público) no JSON-LD, enquanto `config.ts:6` tem o número de teste. Os CTAs
 > de WhatsApp do site apontam para o número errado; o schema.org aponta para o certo.
 
 ### 3.3 Assets processados em build time
@@ -167,6 +170,10 @@ isolamento de dados de graça. Revisar por volta de 15–25 clientes.
 lojas, zero clientes para justificar). Fork por cliente (ver `PLANO-PRODUTIZACAO.md` §2).
 
 ### D2 — Tabela `settings` de linha única, com colunas tipadas
+
+> ⚠️ **Substituída em parte** pelo `ARQUITETURA-MULTI-TENANT-V1.md` §5.4: hoje é **uma linha por
+> barbearia**, e `settings.id = 1` em código novo é proibido (`CLAUDE.md`, regra 2). As colunas
+> tipadas continuam valendo.
 
 Uma tabela `settings` com `id = 1` fixo e uma coluna por configuração.
 
@@ -454,7 +461,7 @@ Cada fase termina com a instância do Bayron funcionando. Ela é o demo de venda
 pode ficar quebrada entre fases.
 
 **Fase 0 — Destravar o demo (minutos)**
-Corrigir `config.ts:6` para `5584999051196`. *(Sem objeto desde 09/10/2026: a constante saiu, e o
+Corrigir `config.ts:6` para o número real. *(Sem objeto desde 09/10/2026: a constante saiu, e o
 número que o site usa é o do banco — `PENDENCIAS-ABERTAS.md` §2.6.)*
 *Aceite:* clicar em qualquer CTA de WhatsApp abre a conversa certa.
 
@@ -503,8 +510,10 @@ novos de apresentação (D6.1) · AdminLayout deixa de dizer "Bayron Admin".
 `Layout.astro` injeta `<style>` com a sobrescrita dos três tokens.
 *Verificado no navegador:* a cor derivada retinge o `background-color` real do botão e
 o `color` real do texto — `#1b2a5a` → `rgb(27,42,90)`, `#c9a227` → `rgb(141,114,27)`.
-**Falta:** campo de cor na tela `/admin/configuracoes` chamando `derivarAccent()` na
-gravação, e a extração de cores candidatas a partir da logo no onboarding.
+~~**Falta:** campo de cor na tela `/admin/configuracoes` chamando `derivarAccent()` na
+gravação, e a extração de cores candidatas a partir da logo no onboarding.~~ *Feitos: o campo,
+conferido em 11/09/2026, e as cores da logo em 13/10/2026 — em Configurações, e não no cadastro,
+que não recebe logo (`PENDENCIAS-ABERTAS.md` §4.2).*
 
 **Fase 6 — Provisionamento**
 `scripts/provision.mjs --slug --name --whatsapp --domain` · parametrizar `seed.mjs`
@@ -531,11 +540,13 @@ modelo de instância por cliente.
 
 **🟠 Compatibilidade de caminhos de mídia.** Ver §7.
 
-**🔴 `America/Fortaleza` está escrito em 19 arquivos de `src/`** (22 ocorrências), como
+**✅ ~~`America/Fortaleza` está escrito em 19 arquivos de `src/`~~** (22 ocorrências), como
 constante de código e não lido de `process.env.TZ` — só `scripts/backup-daemon.mjs`
 respeita o ambiente. Funciona por coincidência enquanto o cliente for UTC-3 (Nordeste,
 Sudeste, Sul); Manaus e Cuiabá são UTC-4 e o Acre é UTC-5. Vender para lá gera horário
 errado em silêncio. Corrigir antes de sair do UTC-3 — ver `PENDENCIAS-ABERTAS.md` §2.1.
+*Centralizado em 10/09/2026; desde 12/10/2026 o fuso é de cada barbearia, escolhido pelo
+estado no cadastro e editável em Configurações.*
 
 **✅ O wizard obrigava a escolher barbeiro mesmo com um só** — resolvido em 09/10/2026: com
 um barbeiro só, o agendamento tem três passos. Ver `PENDENCIAS-ABERTAS.md` §2.2.
@@ -552,6 +563,11 @@ Hero são texto de marketing por barbearia. Entram como campos de settings, não
 string traduzível.
 
 ## 10. Fora de escopo
+
+> ⚠️ **Lista de 27/08/2026, superada em parte.** Entraram depois: o multi-tenant (D1 revertida
+> em 01/09), o cadastro sozinho (24/09, `PLANO-PRODUTIZACAO.md` §13), a cobrança online (no
+> código em 10/10, `PENDENCIAS-ABERTAS.md` §4.14) e o painel de super-admin — o do operador,
+> em 11/10 (`PENDENCIAS-ABERTAS.md` §3.9).
 
 Multi-tenant com `tenant_id`. Painel de super-admin. Onboarding self-service. Múltiplos
 templates visuais. Lembrete de WhatsApp (só depois do primeiro cliente pagante).

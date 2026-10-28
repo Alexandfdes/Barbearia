@@ -28,12 +28,6 @@ const SPLIT_WEEKDAY = new Date(Date.UTC(2030, 2, 18, 12)).getUTCDay();
 const LATE_DATE = '2030-03-19';                              // dia com expediente NOTURNO
 const LATE_WEEKDAY = new Date(Date.UTC(2030, 2, 19, 12)).getUTCDay();
 
-/**
- * Acha o SQL da migration. O `0000_init_postgres.sql` vive em
- * `migracao-postgres/` até o passo 2 ser aplicado, quando é copiado para
- * `drizzle/` — ver o §2 do `migracao-postgres/LEIA-ME.md`. Procurar nos dois
- * lugares evita o ENOENT críptico de quem roda o teste antes dessa cópia.
- */
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 
 // ⚠️ Esta suíte roda DROP SCHEMA. A guarda recusa qualquer banco cujo nome não
@@ -215,7 +209,7 @@ describe.skipIf(!TEM_BANCO)('bookAppointment (integração com Postgres)', () =>
     const r = await comTenant(tenant, () => bookAppointment({ ...base, startsAt: at('13:00') }));
     expect(r.ok).toBe(true);
     if (r.ok) {
-      const [linha] = await sqlConn`SELECT tenant_id FROM appointments WHERE id = ${r.id}`;
+      const [linha] = await sqlConn`SELECT tenant_id FROM appointments WHERE id = ${Number(r.id)}`;
       expect(Number(linha.tenant_id)).toBe(Number(tid));
     }
   });
@@ -223,5 +217,81 @@ describe.skipIf(!TEM_BANCO)('bookAppointment (integração com Postgres)', () =>
   it('todo agendamento nasce com tenant_id', async () => {
     const rows = await sqlConn`SELECT count(*)::int AS n FROM appointments WHERE tenant_id IS NULL`;
     expect(rows[0].n).toBe(0);
+  });
+});
+
+/**
+ * Outro caminho grava SEM passar pela fila do barbeiro — e segura a transação
+ * aberta. A conferência do app não enxerga a linha (ainda não confirmada) e segue
+ * até gravar; quem decide, então, é a trava do banco (migration 0015). Só solta a
+ * outra transação depois de ver o app parado na trava, esperando por ela: assim o
+ * caso prova a trava, e não a conferência.
+ */
+async function gravadoSemAFila<T>(inicio: Date, token: string, acao: () => Promise<T>): Promise<T> {
+  const outro = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
+  const olho = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
+  let liberar = () => {};
+  try {
+    const [{ id: tid }] = await sqlConn`SELECT id FROM tenants WHERE slug = 'bayron'`;
+    const segura = new Promise<void>((r) => { liberar = r; });
+    let gravou = () => {};
+    const gravado = new Promise<void>((r) => { gravou = r; });
+    const transacao = outro.begin(async (tx) => {
+      await tx`INSERT INTO appointments (tenant_id, barber_id, service_id, customer_name, customer_phone,
+                                         starts_at, ends_at, duration_minutes, price_cents, manage_token)
+               VALUES (${tid}, 1, 1, 'Sem a fila', '84999991111', ${inicio.toISOString()},
+                       ${new Date(inicio.getTime() + 30 * 60_000).toISOString()}, 30, 4500, ${token})`;
+      gravou();
+      await segura;
+    });
+    await gravado;
+
+    let terminou = false;
+    const resultado = acao().then((v) => ({ v }), (e: unknown) => ({ e })).finally(() => { terminou = true; });
+    const limite = Date.now() + 10_000;
+    for (;;) {
+      const [{ n }] = await olho`SELECT count(*)::int AS n FROM pg_stat_activity
+                                  WHERE datname = current_database()
+                                    AND wait_event_type = 'Lock' AND wait_event = 'transactionid'`;
+      if (n > 0 || terminou) break;
+      if (Date.now() > limite) throw new Error('o app não chegou à gravação em 10 s');
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect(terminou, 'o app respondeu antes de chegar à gravação: quem segurou foi a conferência, não a trava').toBe(false);
+    liberar();
+    await transacao;
+    const r = await resultado;
+    if ('e' in r) throw r.e;
+    return r.v;
+  } finally {
+    liberar();
+    await outro.end({ timeout: 5 });
+    await olho.end({ timeout: 5 });
+  }
+}
+
+describe.skipIf(!TEM_BANCO)('a trava do banco atrás da fila (migration 0015)', () => {
+  it('agendar: quem gravou sem a fila ganha, e o app responde o mesmo 409 — não um 500', async () => {
+    const r = await gravadoSemAFila(at('15:00'), 'tk-sem-fila-1', () => bookAppointment({ ...base, startsAt: at('15:15') }));
+    expect(r).toEqual({ ok: false, httpStatus: 409, error: 'Horário não está mais disponível' });
+    const [{ n }] = await sqlConn`SELECT count(*)::int AS n FROM appointments
+                                   WHERE barber_id = 1 AND starts_at >= ${at('15:00').toISOString()}
+                                     AND starts_at < ${at('16:00').toISOString()}`;
+    expect(n).toBe(1);
+  });
+
+  it('remarcar: o mesmo — o conflito de sempre, não um 500', async () => {
+    const { reagendarAtomicamente } = await import('../src/lib/reagendar');
+    const marcado = await bookAppointment({ ...base, startsAt: at('09:00') });
+    expect(marcado.ok).toBe(true);
+    if (!marcado.ok) return;
+    const [{ id: tid }] = await sqlConn`SELECT id FROM tenants WHERE slug = 'bayron'`;
+    const r = await gravadoSemAFila(at('12:00'), 'tk-sem-fila-2', () => reagendarAtomicamente({
+      tenantId: Number(tid), appointmentId: Number(marcado.id), barberId: 1, editorId: null,
+      newStartIso: at('12:15').toISOString(), newEndIso: new Date(at('12:15').getTime() + 30 * 60_000).toISOString(),
+    }));
+    expect(r).toEqual({ ok: false, httpStatus: 409, motivo: 'conflito_agendamento' });
+    const [linha] = await sqlConn`SELECT starts_at FROM appointments WHERE id = ${Number(marcado.id)}`;
+    expect(linha.starts_at).toBe(at('09:00').toISOString());
   });
 });

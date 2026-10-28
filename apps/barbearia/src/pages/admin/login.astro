@@ -23,7 +23,7 @@ const senhaTrocada = Astro.url.searchParams.get('senha') === 'trocada';
     <title>Entrar — {NOME_PRODUTO}</title>
   </head>
   <body class="bg-dark text-cream min-h-screen flex items-center justify-center px-4">
-    <div class="w-full max-w-sm">
+    <main class="w-full max-w-sm">
 
       <div class="text-center mb-8">
         <p class="text-xs text-gray uppercase tracking-widest mb-1">{NOME_PRODUTO}</p>
@@ -118,7 +118,7 @@ const senhaTrocada = Astro.url.searchParams.get('senha') === 'trocada';
         </button>
       </form>
 
-    </div>
+    </main>
 
     <script>
       const form     = document.getElementById('login-form') as HTMLFormElement;

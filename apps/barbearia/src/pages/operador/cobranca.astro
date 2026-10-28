@@ -1,0 +1,135 @@
+---
+export const prerender = false;
+
+/**
+ * A cobrança, vista daqui: se ela está ligada e em que ambiente, as assinaturas,
+ * o que a Asaas confirmou no mês, as falhas, os eventos que o sistema não resolveu
+ * sozinho e a lista de tudo o que o webhook recebeu (`lib/operadorNumeros.ts`).
+ *
+ * Do corpo de cada evento, só o valor e o meio de pagamento: o resto traz nome,
+ * e-mail e CPF do dono, e para achar o evento na Asaas basta o id.
+ */
+import OperadorLayout from '../../layouts/OperadorLayout.astro';
+import Numero from '../../components/operador/Numero.astro';
+import { exigirOperador } from '../../lib/operador.js';
+import { cobrancaNoPainel } from '../../lib/operadorNumeros.js';
+import { dinheiro, meioDePagamento, nomeDoMes, quando, quandoComAno, rotuloDoEvento, type GrupoDeEvento } from '../../lib/operadorTela.js';
+
+const fechada = await exigirOperador(Astro.request, Astro.response.headers);
+if (fechada) return fechada;
+
+const GRUPOS: { id: GrupoDeEvento | 'todos'; rotulo: string }[] = [
+  { id: 'todos', rotulo: 'Todos' },
+  { id: 'pagamentos', rotulo: 'Pagamentos' },
+  { id: 'assinaturas', rotulo: 'Assinaturas' },
+  { id: 'checkout', rotulo: 'Cartão (checkout)' },
+  { id: 'outros', rotulo: 'Outros' },
+];
+const pedido = Astro.url.searchParams.get('grupo');
+const grupo = GRUPOS.find((g) => g.id === pedido)?.id ?? 'todos';
+const antes = Number(Astro.url.searchParams.get('antes'));
+const agora = new Date();
+const c = await cobrancaNoPainel({ grupo, antesDe: Number.isInteger(antes) && antes > 0 ? antes : undefined }, agora);
+
+const linkDoGrupo = (id: string) => (id === 'todos' ? '/operador/cobranca' : `/operador/cobranca?grupo=${id}`);
+---
+<OperadorLayout titulo="Cobrança" ativo="cobranca">
+  {!c.ligada ? (
+    <p class="text-sm bg-amber-50 border border-amber-200 text-amber-950 rounded-lg px-4 py-3">
+      <strong>A cobrança está desligada neste servidor.</strong> Sem a chave da Asaas, a tela de assinatura do dono diz que ainda não dá
+      para pagar — e quem sai do teste não tem como pagar. Os eventos abaixo são os que chegaram até aqui.
+    </p>
+  ) : c.ambiente === 'sandbox' ? (
+    <p class="text-sm bg-sky-50 border border-sky-200 text-sky-950 rounded-lg px-4 py-3">
+      <strong>Ambiente de teste da Asaas (sandbox).</strong> Nenhum dinheiro aqui é de verdade.
+      {!c.tokenDoWebhook && ' E falta o token do webhook: todo aviso da Asaas é recusado.'}
+    </p>
+  ) : (
+    <p class="text-sm bg-emerald-50 border border-emerald-200 text-emerald-950 rounded-lg px-4 py-3">
+      <strong>Asaas em produção.</strong> O dinheiro é de verdade.
+      {!c.tokenDoWebhook && ' Mas falta o token do webhook: todo aviso da Asaas é recusado.'}
+    </p>
+  )}
+
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-label="Os números da cobrança">
+    <Numero rotulo="Assinaturas em vigor" valor={String(c.assinaturasEmVigor)}
+      detalhe={c.cancelando ? `${c.cancelando} ${c.cancelando === 1 ? 'cancelou e sai' : 'cancelaram e saem'} no fim do período` : 'cartão cadastrado, sem ter cancelado'} />
+    <Numero rotulo="Na carência pela cobrança" valor={String(c.atrasadas)} alerta={c.atrasadas > 0}
+      detalhe="a cobrança falhou; 3 dias para pagar" />
+    <Numero rotulo={`Confirmado em ${nomeDoMes(agora)}`} valor={dinheiro(c.pagamentosDoMes.total)}
+      detalhe={`${c.pagamentosDoMes.quantos} ${c.pagamentosDoMes.quantos === 1 ? 'pagamento' : 'pagamentos'}, valor bruto`} />
+    <Numero rotulo={`Falhas em ${nomeDoMes(agora)}`} valor={String(c.falhasDoMes)} alerta={c.falhasDoMes > 0}
+      detalhe="cobranças vencidas e cartões recusados" />
+  </section>
+
+  {c.pedemOlho.length > 0 && (
+    <section class="bg-white border border-red-200 rounded-lg" aria-labelledby="titulo-olho">
+      <div class="px-5 py-4 border-b border-red-100">
+        <h2 id="titulo-olho" class="text-sm font-semibold text-slate-900">Pedem olho</h2>
+        <p class="text-xs text-slate-500 mt-0.5">O webhook não resolveu sozinho: falhou, não achou barbearia, ou chegou para barbearia tirada do ar à mão ou encerrada — um pagamento aqui é dinheiro de quem não está no ar.</p>
+      </div>
+      <ul id="pedem-olho" class="divide-y divide-slate-200 text-sm">
+        {c.pedemOlho.map((e) => (
+          <li class="px-5 py-3 flex flex-wrap gap-x-3 gap-y-0.5">
+            <span class="text-slate-500 tabular-nums">{quando(e.recebidoEm)}</span>
+            <span class="font-medium text-slate-900">{rotuloDoEvento(e.evento)}</span>
+            <span class="text-slate-700">{e.slug ?? 'sem barbearia'}</span>
+            <span class="text-slate-600 basis-full">{e.desfecho}</span>
+            <span class="text-xs text-slate-500 font-mono basis-full break-all">{e.idNaAsaas}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  <section class="bg-white border border-slate-200 rounded-lg" aria-labelledby="titulo-eventos">
+    <div class="px-5 py-4 border-b border-slate-200 space-y-3">
+      <div>
+        <h2 id="titulo-eventos" class="text-sm font-semibold text-slate-900">Tudo o que a Asaas avisou</h2>
+        <p class="text-xs text-slate-500 mt-0.5">Mais novo primeiro, no seu relógio. O desfecho é o que o sistema fez com o aviso.</p>
+      </div>
+      <nav class="flex flex-wrap gap-2" aria-label="Filtrar os eventos">
+        {GRUPOS.map((g) => (
+          <a href={linkDoGrupo(g.id)} aria-current={g.id === grupo ? 'page' : undefined}
+            class:list={['text-xs rounded-full border px-3 py-1.5 transition-colors',
+              g.id === grupo ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400']}>
+            {g.rotulo}
+          </a>
+        ))}
+      </nav>
+    </div>
+    {c.eventos.length === 0 ? (
+      <p class="px-5 py-8 text-sm text-slate-500 text-center">Nenhum aviso da Asaas {grupo === 'todos' ? 'ainda' : 'neste filtro'}.</p>
+    ) : (
+      <ul id="eventos" class="divide-y divide-slate-200 text-sm">
+        {c.eventos.map((e) => (
+          <li class="px-5 py-3 grid gap-x-4 gap-y-1 sm:grid-cols-[8.5rem_minmax(0,1fr)_7rem]">
+            <span class="text-slate-500 tabular-nums">{quandoComAno(e.recebidoEm)}</span>
+            <div class="min-w-0">
+              <p class="text-slate-900">
+                <span class="font-medium">{rotuloDoEvento(e.evento)}</span>
+                {e.pedeOlho && <span class="ml-2 text-[11px] font-medium rounded-full px-2 py-0.5 bg-red-50 text-red-900 ring-1 ring-inset ring-red-600/25">pede olho</span>}
+              </p>
+              <p class="text-xs text-slate-600">
+                {e.tenantId
+                  ? <a href={`/operador/barbearias/${e.tenantId}`} class="text-teal hover:underline">{e.nome ?? e.slug}</a>
+                  : 'sem barbearia'}
+                {e.desfecho && <> · {e.desfecho}</>}
+              </p>
+              <p class="text-xs text-slate-500 font-mono break-all">{e.evento} · {e.idNaAsaas}</p>
+            </div>
+            <span class="text-slate-900 tabular-nums sm:text-right">
+              {e.valor !== null ? dinheiro(e.valor) : ''}
+              {e.meio && <span class="block text-xs text-slate-500">{meioDePagamento(e.meio)}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+    )}
+    {c.proximo && (
+      <div class="px-5 py-3 border-t border-slate-200">
+        <a href={`${linkDoGrupo(grupo)}${grupo === 'todos' ? '?' : '&'}antes=${c.proximo}`} class="text-sm font-medium text-teal hover:underline">Mais antigos →</a>
+      </div>
+    )}
+  </section>
+</OperadorLayout>

@@ -1,0 +1,83 @@
+---
+/**
+ * A tela de entrar do painel do operador — a senha e, com o segundo fator ligado, o
+ * código do aplicativo (`pedeCodigo`, `lib/segundoFator.ts`). Documento inteiro, sem a
+ * lateral: quem ainda não entrou não vê nem o nome das telas.
+ *
+ * `volta` é a tela de onde a pessoa veio (`voltaValida`, em `lib/operador.ts`):
+ * depois da senha certa, é para lá que ela vai.
+ */
+import '../../styles/global.css';
+import { iconeComLetra } from '../../lib/iconeDaAba.js';
+import { ACCENT_PADRAO } from '../../lib/accent.js';
+import { NOME_PRODUTO } from '../../lib/produto.js';
+
+interface Props { volta: string; pedeCodigo?: boolean }
+const { volta, pedeCodigo = false } = Astro.props;
+---
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/svg+xml" href={iconeComLetra(NOME_PRODUTO, ACCENT_PADRAO.color)} />
+    <title>Operador — {NOME_PRODUTO}</title>
+  </head>
+  <body class="bg-dark text-cream min-h-screen flex items-center justify-center px-4">
+    <main class="w-full max-w-sm">
+      <div class="text-center mb-8">
+        <p class="text-xs text-gray uppercase tracking-widest mb-1">{NOME_PRODUTO}</p>
+        <h1 class="font-serif text-2xl font-medium text-white">Operador</h1>
+      </div>
+      <form id="entrar" data-volta={volta} class="bg-dark-card border border-white/10 rounded-md p-6 space-y-4">
+        <div>
+          <label for="senha" class="block text-xs text-gray-light uppercase tracking-widest mb-2">Senha</label>
+          <input id="senha" type="password" autocomplete="current-password" required autofocus
+            class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2.5 text-sm text-cream focus:outline-none focus:border-teal-light/60 transition-colors" />
+        </div>
+        {pedeCodigo && (
+          <div>
+            <label for="codigo" class="block text-xs text-gray-light uppercase tracking-widest mb-2">Código do aplicativo</label>
+            <input id="codigo" type="text" inputmode="numeric" autocomplete="one-time-code" required
+              pattern="[0-9 ]{6,7}" maxlength="7" placeholder="6 dígitos"
+              class="w-full bg-dark-surface border border-white/10 rounded px-3 py-2.5 text-sm text-cream tracking-[0.3em] focus:outline-none focus:border-teal-light/60 transition-colors" />
+          </div>
+        )}
+        <p id="entrar-erro" role="alert" class="hidden text-red-400 text-sm text-center"></p>
+        <button id="entrar-btn" type="submit"
+          class="w-full bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest px-6 py-3 rounded transition-colors text-sm">
+          Entrar
+        </button>
+      </form>
+    </main>
+
+    <script>
+      const entrar = document.getElementById('entrar') as HTMLFormElement | null;
+      entrar?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const erro = document.getElementById('entrar-erro') as HTMLParagraphElement;
+        const btn = document.getElementById('entrar-btn') as HTMLButtonElement;
+        const senha = (document.getElementById('senha') as HTMLInputElement).value;
+        // Só existe com o segundo fator ligado.
+        const codigo = (document.getElementById('codigo') as HTMLInputElement | null)?.value;
+        erro.classList.add('hidden');
+        btn.disabled = true;
+        try {
+          const r = await fetch('/api/operador/entrar', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(codigo === undefined ? { senha } : { senha, codigo }),
+          });
+          // `volta` já veio conferida do servidor — só tela do próprio painel.
+          if (r.ok) { location.replace(entrar.dataset.volta || '/operador'); return; }
+          const d = await r.json().catch(() => ({}));
+          erro.textContent = d.error ?? 'Não deu para entrar.';
+        } catch {
+          erro.textContent = 'Erro de conexão. Tente de novo.';
+        }
+        erro.classList.remove('hidden');
+        btn.disabled = false;
+      });
+    </script>
+  </body>
+</html>

@@ -5,7 +5,7 @@ import { NOME_PRODUTO, SUBTITULO, SITE_URL } from '../config';
 interface Props { title?: string; description?: string; }
 const {
   title = `${NOME_PRODUTO} — ${SUBTITULO}`,
-  description = 'O site da sua barbearia, no seu domínio, com agendamento online e controle de faturamento. Montado por quem entende, entregue pronto.',
+  description = 'O site da sua barbearia, com o nome dela no endereço, agendamento online e faturamento. 7 dias grátis.',
 } = Astro.props;
 
 const canonical = new URL(Astro.url.pathname, SITE_URL).href;

@@ -6,7 +6,7 @@ import {
 import { pastaDeMidia, urlDeMidia } from '../src/lib/uploads.js';
 
 /** Como um tenant de verdade vai ser depois do passo 3. */
-const OUTRO: Tenant = { id: 7, slug: 'vintage', status: 'active', domain: null };
+const OUTRO: Tenant = { id: 7, slug: 'vintage', status: 'active', domain: null, fuso: 'America/Fortaleza' };
 
 describe('resolvedor de tenant — sessão', () => {
   it('recusa sessão sem tenantId em vez de cair num padrão', () => {
@@ -83,8 +83,8 @@ describe('caminho de mídia — escopo por tenant', () => {
   });
 
   it('barbearias diferentes nunca compartilham pasta', () => {
-    const a = pastaDeMidia('galeria', { id: 2, slug: 'a', status: 'active', domain: null });
-    const b = pastaDeMidia('galeria', { id: 3, slug: 'b', status: 'active', domain: null });
+    const a = pastaDeMidia('galeria', { id: 2, slug: 'a', status: 'active', domain: null, fuso: 'America/Fortaleza' });
+    const b = pastaDeMidia('galeria', { id: 3, slug: 'b', status: 'active', domain: null, fuso: 'America/Fortaleza' });
     expect(a).not.toBe(b);
   });
 });

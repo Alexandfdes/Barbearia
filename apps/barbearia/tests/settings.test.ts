@@ -5,9 +5,9 @@
 // O QUE MUDOU NO PORTE, e é o principal:
 //   A migration 0009 do SQLite CRIAVA a tabela `settings` e SEMEAVA a linha 1
 //   com os dados do Bayron. O `0000_init_postgres.sql` cria a tabela e não
-//   semeia nada — a carga dos dados está listada como pendente no §6 do
-//   `migracao-postgres/LEIA-ME.md`. Por isso este teste agora INSERE a linha que
-//   antes vinha pronta, em vez de afirmar que a migration a criou.
+//   semeia nada — os dados vêm da carga (`scripts/carregar-sqlite.mjs`) ou do
+//   provisionamento. Por isso este teste INSERE a linha que antes vinha pronta,
+//   em vez de afirmar que a migration a criou.
 //
 // Sem `DATABASE_URL` a suíte de integração é PULADA; os testes de função pura
 // (waUrl, parseBusinessHours) rodam sempre.
@@ -19,12 +19,6 @@ import postgres from 'postgres';
 import { exigirBancoDeTeste } from './guardaBanco.js';
 import { recriarSchema } from './migrations.js';
 
-/**
- * Acha o SQL da migration. O `0000_init_postgres.sql` vive em
- * `migracao-postgres/` até o passo 2 ser aplicado, quando é copiado para
- * `drizzle/` — ver o §2 do `migracao-postgres/LEIA-ME.md`. Procurar nos dois
- * lugares evita o ENOENT críptico de quem roda o teste antes dessa cópia.
- */
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 
 // ⚠️ Esta suíte roda DROP SCHEMA. A guarda recusa qualquer banco cujo nome não

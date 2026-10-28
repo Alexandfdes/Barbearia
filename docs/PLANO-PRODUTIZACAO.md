@@ -272,7 +272,7 @@ pagante, em vez de suposição.
 1. **`src/config.ts:6` — `WHATSAPP_NUMBER = "15551547238"` é um número de teste
    americano.** O próprio comentário no arquivo avisa. Alimenta todos os CTAs de
    WhatsApp: barra flutuante, rodapé, localização e tela de confirmação. O número real
-   está no README (`+55 84 99905-1196` → `5584999051196`). Abrir o demo para um dono de
+   está no README (o número fica fora deste documento, que é público). Abrir o demo para um dono de
    barbearia e ele cair num número americano encerra a conversa. *(A constante saiu em
    09/10/2026; o número que o site usa é o do banco — `PENDENCIAS-ABERTAS.md` §2.6.)*
 2. **`src/config.ts` inteiro está hardcoded** — ver §3.1.
@@ -280,7 +280,9 @@ pagante, em vez de suposição.
 ## 10. Armadilhas registradas
 
 - **Os dados do banco local são sintéticos.** Os 617 agendamentos vêm de
-  `scripts/seed-relatorio-demo.mjs`: nomes como "Alexandre Fernandes 2" e taxa de
+  `scripts/seed-relatorio-demo.mjs` *(apagado em 12/10/2026; os agendamentos que ele gerou
+  continuam no SQLite da máquina de desenvolvimento, marcados `[FICTICIO]` — 606 dos 617,
+  conferido nesse dia)*: nomes como "Alexandre Fernandes 2" e taxa de
   no-show **fixada em 8% na linha 194 do script**. Não usar esses números em material
   de venda — a taxa de no-show é ótimo argumento de ROI nessa categoria, mas o número
   precisa vir de uma barbearia real.

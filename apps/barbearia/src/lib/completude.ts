@@ -23,6 +23,7 @@
  *   2. `pendencias` + `percentual` — o que falta para ficar APRESENTÁVEL.
  */
 import { MINIMO_PARA_APARECER } from './galeria.js';
+import { notaDoGoogle } from './avaliacao.js';
 
 /** O estado da barbearia, do jeito que o medidor precisa ver. */
 export interface EstadoDaBarbearia {
@@ -34,7 +35,9 @@ export interface EstadoDaBarbearia {
   addressStreet: string | null;
   addressCity: string | null;
   instagramUrl: string | null;
-  googleReviewsUrl: string | null;
+  /** A nota do Google e quantas avaliações — o que faz o bloco aparecer no site (`lib/avaliacao.ts`). */
+  googleRating: string | null;
+  googleReviewCount: number | null;
   seoTitle: string | null;
   seoDescription: string | null;
   /** Cor de marca escolhida pelo dono; o padrão do template não conta. */
@@ -45,6 +48,13 @@ export interface EstadoDaBarbearia {
   servicosAtivos: number;
   /** Barbeiros ativos QUE TÊM expediente cadastrado. */
   barbeirosComAgenda: number;
+  /**
+   * Serviços ativos que ALGUM barbeiro ativo, com expediente, faz (o "eu ofereço" ligado).
+   * As duas contas acima, separadas, deixavam passar o caso em que nenhum serviço é
+   * agendável — o Início dizia que estava tudo certo e o site respondia "agende pelo
+   * WhatsApp" (revisão de 27/10/2026). Ausente = não conferido (quem ainda não conta).
+   */
+  servicosAgendaveis?: number;
   /** Fotos na galeria do site (`gallery_images`). */
   fotosNaGaleria: number;
 }
@@ -86,18 +96,25 @@ function bloqueiosDe(e: EstadoDaBarbearia): Item[] {
     href: '/admin/horarios', peso: 0,
   });
 
+  if (e.servicosAtivos > 0 && e.barbeirosComAgenda > 0 && e.servicosAgendaveis === 0) b.push({
+    id: 'ninguem-faz',
+    titulo: 'Diga quem faz cada serviço',
+    porque: 'Nenhum serviço tem um barbeiro com expediente que o faça — o site mostra o serviço, mas ninguém consegue marcar. Ligue o "eu ofereço" em Serviços.',
+    href: '/admin/servicos', peso: 0,
+  });
+
   if (vazio(e.whatsappNumber)) b.push({
     id: 'whatsapp',
     titulo: 'Informe o WhatsApp',
     porque: 'É o botão que o cliente mais aperta no site. Vazio, ele não leva a lugar nenhum.',
-    href: '/admin/configuracoes', peso: 0,
+    href: '/admin/configuracoes#contatos', peso: 0,
   });
 
   if (vazio(e.addressStreet) || vazio(e.addressCity)) b.push({
     id: 'endereco',
     titulo: 'Informe o endereço',
     porque: 'O cliente não descobre onde é, e o mapa e a rota não abrem.',
-    href: '/admin/configuracoes', peso: 0,
+    href: '/admin/configuracoes#endereco', peso: 0,
   });
 
   return b;
@@ -112,27 +129,27 @@ function pendenciasDe(e: EstadoDaBarbearia): { faltando: Item[]; total: number }
     { id: 'logo', peso: 20, ok: !vazio(e.logoPath),
       titulo: 'Suba a logo',
       porque: 'Sem ela o topo do site mostra só o nome escrito.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#imagens' },
 
     { id: 'horarios-publicados', peso: 15, ok: e.horariosPublicados > 0,
       titulo: 'Publique os horários de funcionamento',
       porque: '"Vocês abrem domingo?" é a pergunta que mais chega no WhatsApp.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#horario-do-site' },
 
     { id: 'sobre', peso: 15, ok: !vazio(e.aboutText),
       titulo: 'Escreva o texto sobre a barbearia',
-      porque: 'É o que aparece no rodapé. Vazio, sobra um buraco.',
-      href: '/admin/configuracoes' },
+      porque: 'É o que aparece no rodapé, para o cliente conhecer a barbearia antes de ir.',
+      href: '/admin/configuracoes#textos' },
 
     { id: 'tagline', peso: 15, ok: !vazio(e.tagline),
       titulo: 'Escreva a frase do topo',
       porque: 'É a primeira coisa que o cliente lê. Sem ela, o topo fica genérico.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#textos' },
 
     { id: 'hero', peso: 10, ok: !vazio(e.heroPath),
       titulo: 'Suba uma foto de capa',
       porque: 'Opcional: sem foto o topo usa uma versão só com texto, que também fica boa.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#imagens' },
 
     // A pergunta que evita: "como eu coloco as fotos dos meus cortes no site?".
     { id: 'galeria', peso: 10, ok: e.fotosNaGaleria >= MINIMO_PARA_APARECER,
@@ -143,22 +160,24 @@ function pendenciasDe(e: EstadoDaBarbearia): { faltando: Item[]; total: number }
     { id: 'cor', peso: 10, ok: !vazio(e.accentColor) && e.accentColor !== ACCENT_PADRAO,
       titulo: 'Escolha a cor da sua marca',
       porque: 'O site está no verde padrão do sistema, igual ao de todo mundo.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#cor' },
 
     { id: 'instagram', peso: 5, ok: !vazio(e.instagramUrl),
       titulo: 'Ligue o Instagram',
       porque: 'O botão do rodapé leva o cliente para o seu perfil.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#contatos' },
 
-    { id: 'avaliacoes', peso: 5, ok: !vazio(e.googleReviewsUrl),
+    // A nota e a quantidade, e não o link: é com as duas que o site mostra a nota. Até
+    // 13/10/2026 bastava o link — e a nota não aparecia em site nenhum (§4.11).
+    { id: 'avaliacoes', peso: 5, ok: notaDoGoogle(e.googleRating, e.googleReviewCount) !== null,
       titulo: 'Ligue as avaliações do Google',
       porque: 'Mostra sua nota real no site — quem tem avaliação boa vende mais.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#avaliacoes' },
 
     { id: 'seo', peso: 5, ok: !vazio(e.seoTitle) && !vazio(e.seoDescription),
       titulo: 'Ajuste como o site aparece no Google',
       porque: 'É o título e a descrição que saem na busca.',
-      href: '/admin/configuracoes' },
+      href: '/admin/configuracoes#busca' },
   ];
 
   const total = todos.reduce((s, i) => s + i.peso, 0);

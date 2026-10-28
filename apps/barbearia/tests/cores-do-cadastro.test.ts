@@ -11,7 +11,7 @@ import { calcularCompletude, type EstadoDaBarbearia } from '../src/lib/completud
 const ESTADO: EstadoDaBarbearia = {
   logoPath: null, heroPath: null, tagline: null, aboutText: null,
   whatsappNumber: '5584999990000', addressStreet: 'R. A, 1', addressCity: 'Mossoró/RN',
-  instagramUrl: null, googleReviewsUrl: null, seoTitle: null, seoDescription: null,
+  instagramUrl: null, googleRating: null, googleReviewCount: null, seoTitle: null, seoDescription: null,
   accentColor: null, horariosPublicados: 1, servicosAtivos: 1, barbeirosComAgenda: 1,
   fotosNaGaleria: 0,
 };

@@ -31,7 +31,7 @@ export interface SessionData extends SessaoComTenant {
   emitidaEm?: number;
 }
 
-function secret(): string {
+export function secret(): string {
   const s = process.env.SESSION_SECRET;
   if (!s) {
     throw new Error(

@@ -41,7 +41,9 @@ beforeAll(async () => {
   await conn`INSERT INTO tenants (id, slug, business_name, status, domain) VALUES
     (1, 'bayron',  'Barbearia Bayron',  'active',    NULL),
     (2, 'vintage', 'Barbearia Vintage', 'active',    'vintagebarber.com.br'),
-    (3, 'sumida',  'Barbearia Sumida',  'suspended', NULL)`;
+    (3, 'sumida',  'Barbearia Sumida',  'suspended', NULL),
+    (4, 'da-maria-antiga', 'Da Maria (fora do ar)', 'suspended', 'barbeariadamaria.com.br'),
+    (5, 'barbeariadamaria', 'Outra, com o slug igual', 'active', NULL)`;
   await conn.end({ timeout: 5 });
 
   tenant = await import('../src/lib/tenant.js');
@@ -75,6 +77,14 @@ describe.skipIf(!TEM_BANCO)('o endereço decide a barbearia', () => {
 
   it('barbearia suspensa não é servida — é assim que o inadimplente sai do ar', () => {
     expect(tenant.tenantDoHost(pedido('sumida.fadeline.com.br'))).toBeNull();
+  });
+
+  it('domínio próprio fora do ar mostra o aviso dela — não cai no slug igual de OUTRA barbearia', () => {
+    // Até 17/10/2026, `barbeariadamaria.com.br` fora do ar servia a barbearia de slug
+    // `barbeariadamaria`: os clientes de uma agendavam na outra.
+    expect(tenant.tenantDoHost(pedido('barbeariadamaria.com.br'))).toBeNull();
+    expect(tenant.tenantSuspensoDoHost('barbeariadamaria.com.br')?.id).toBe(4);
+    expect(tenant.tenantDoHost(pedido('barbeariadamaria.fadeline.com.br'))?.id).toBe(5);
   });
 
   it('a porta no host não atrapalha', () => {
@@ -120,6 +130,32 @@ describe('nenhuma página pública serve barbearia sem perguntar de quem é o en
       'a barbearia sai do token do link do e-mail, não do endereço — lib/redefinicaoDeSenha.ts',
     'src/pages/api/tarefas/avisos.ts':
       'tarefa agendada, chamada pela porta local com token: olha todas as barbearias de propósito — lib/avisos.ts',
+    'src/pages/api/asaas/webhook.ts':
+      'chamada pela Asaas, com token: a barbearia sai das chaves do evento, não do endereço — lib/cobranca.ts',
+    // O painel do operador (11/10/2026) não é de barbearia nenhuma: abre só no
+    // endereço do painel e com a senha do operador — 404 fora disso (lib/operador.ts).
+    // Desde 12/10/2026, com telas: cada uma abre com `exigirOperador` antes de
+    // qualquer consulta (tests/operador-telas.test.ts).
+    'src/pages/operador/index.astro':
+      'o Início do operador, ou a tela de entrar: olha todas as barbearias de propósito, atrás da senha dele — lib/operadorNumeros.ts',
+    'src/pages/operador/barbearias/index.astro':
+      'a lista de TODAS as barbearias, atrás da senha do operador — lib/operadorBarbearias.ts',
+    'src/pages/operador/barbearias/[id].astro':
+      'a ficha da barbearia que o operador escolheu na lista, não a do endereço — atrás da senha dele',
+    'src/pages/operador/cobranca.astro':
+      'os eventos da Asaas de todas as barbearias, atrás da senha do operador — lib/operadorNumeros.ts',
+    'src/pages/operador/registro.astro':
+      'o registro do que o operador fez, atrás da senha dele — lib/operadorBarbearias.ts',
+    'src/pages/operador/sistema.astro':
+      'a saúde do servidor, sem dado de barbearia nenhuma, atrás da senha do operador — lib/operadorSistema.ts',
+    'src/pages/api/operador/entrar.ts':
+      'a entrada do operador: só a senha, conferida contra OPERADOR_SENHA_HASH',
+    'src/pages/api/operador/acao.ts':
+      'a barbearia é a que o operador escolheu na lista, não a do endereço — atrás da sessão de operador',
+    'src/pages/api/operador/sair.ts':
+      'só apaga o cookie do operador',
+    'src/pages/api/saude.ts':
+      'a pergunta do monitor externo: diz só se o app e o banco respondem, sem dado de barbearia nenhuma — lib/saude.ts',
   };
 
   it('toda rota e página pública chama `tenantDoHost`', () => {

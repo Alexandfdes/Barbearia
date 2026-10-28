@@ -14,20 +14,21 @@ import { tenantDaSessao } from '../../../lib/tenant.js';
 import { getSettings } from '../../../lib/settings.js';
 import { reais } from '../../../lib/dinheiro.js';
 import { diaDaSemana, faixaDoDia, type Semana } from '../../../lib/gradeDeHorarios.js';
-import { TZ } from '../../../lib/timezone.js';
+import type { DadosDaAgenda, ItemDaComanda } from '../../../lib/agendaDoDia.js';
+import { fusoDe } from '../../../lib/timezone.js';
+import { receitaDe, somaDosItens, valorDoAtendimento } from '../../../lib/valorDoAtendimento.js';
 
 
-// Janela da timeline (hardcoded por enquanto — pode virar dinâmico via working_hours depois).
-const START_HOUR = 8;
-const END_HOUR   = 19;
-const TOTAL_HOURS = END_HOUR - START_HOUR;
-// Altura visual de 1 hora controlada por CSS var pra responsividade.
-// Veja <style> no template e media query mobile.
-// JS lê de getComputedStyle quando precisa (click no buraco).
+// Até 13/10/2026 morava aqui a janela fixa de 08:00 às 19:00 da linha do tempo antiga —
+// que saiu da tela antes de 06/09 —, alimentando contas que a página não mostrava mais: a
+// posição de cada atendimento, a linha do "agora", as linhas de hora e o clique num espaço
+// vazio, com o menu que ele abria. A agenda segue o expediente de cada barbeiro
+// (`lib/gradeDeHorarios.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.27).
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
 const tenant = tenantDaSessao(session);
+const fuso = fusoDe(tenant);
 
 const { date } = Astro.params;
 if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -49,8 +50,8 @@ if (session.role === 'admin') {
   filterBarberId = session.barberId;
 }
 
-const dayStart = fromZonedTime(`${date}T00:00:00`, TZ).toISOString();
-const dayEnd   = fromZonedTime(`${date}T23:59:59`, TZ).toISOString();
+const dayStart = fromZonedTime(`${date}T00:00:00`, fuso).toISOString();
+const dayEnd   = fromZonedTime(`${date}T23:59:59`, fuso).toISOString();
 
 const apptRows = (await db
   .select({
@@ -81,20 +82,29 @@ const apptRows = (await db
   .orderBy(appointments.startsAt)
   );
 
-// Itens por agendamento (produto do combo Boris + extras da comanda). Usado pra
-// somar produtos na receita do dia — mesma base do relatório mensal.
+// Os itens da comanda de cada agendamento: o produto do combo, que nasce com o
+// agendamento, e os extras lançados ao fechar. Quando eles contam — na linha, no
+// detalhe e na receita — é a regra de `lib/valorDoAtendimento.ts`.
 const apptIds = apptRows.map(a => a.id);
-const itemsByAppt = new Map<number, number>();
+const itensPorAtendimento = new Map<number, ItemDaComanda[]>();
 if (apptIds.length > 0) {
   const itemRows = (await db
-    .select({ appointmentId: appointmentItems.appointmentId, priceCents: appointmentItems.priceCents })
+    .select({ appointmentId: appointmentItems.appointmentId, name: appointmentItems.name, priceCents: appointmentItems.priceCents })
     .from(appointmentItems)
     .where(and(inArray(appointmentItems.appointmentId, apptIds), eq(appointmentItems.tenantId, tenant.id)))
+    .orderBy(appointmentItems.id)
     );
   for (const it of itemRows) {
-    itemsByAppt.set(it.appointmentId, (itemsByAppt.get(it.appointmentId) ?? 0) + it.priceCents);
+    itensPorAtendimento.set(it.appointmentId, [
+      ...(itensPorAtendimento.get(it.appointmentId) ?? []),
+      { name: it.name, priceCents: it.priceCents },
+    ]);
   }
 }
+const itensDe = (id: number): ItemDaComanda[] => itensPorAtendimento.get(id) ?? [];
+/** O agendamento com a soma dos itens dele — o que a regra do valor pede. */
+const paraOValor = (a: { id: number; status: string; priceCents: number }) =>
+  ({ status: a.status, priceCents: a.priceCents, itemsCents: somaDosItens(itensDe(a.id)) });
 
 // Vendas de produto avulsas do dia (sem agendamento) — entram no faturamento como produto.
 const saleRows = (await db
@@ -166,6 +176,7 @@ const nowUtc = new Date();
 
 // Calcula tudo que a timeline precisa por agendamento
 interface ApptView {
+  startsAt:        string;
   id: number;
   status: string;
   durationMinutes: number;
@@ -181,9 +192,10 @@ interface ApptView {
   serviceName: string;
   timeLocal: string;
   endTimeLocal: string;
+  /** O preço do serviço agendado. */
   price: string;
-  topMin: number;
-  durationMin: number;
+  /** Quanto o atendimento vale — com os itens da comanda, se concluído (`lib/valorDoAtendimento.ts`). */
+  valor: string;
   /** Telefone normalizado p/ wa.me (55+DDD+número) ou null se inválido */
   wa: string | null;
   telUrl: string;
@@ -194,8 +206,6 @@ interface ApptView {
 interface BlockView {
   id: number;
   reason: string;
-  topMin: number;
-  durationMin: number;
   timeLocal: string;
   endTimeLocal: string;
 }
@@ -207,33 +217,16 @@ function formatPhoneDisplay(phone: string): string {
   return phone;
 }
 
-// Calcula topMin/durationMin pra qualquer faixa de horário tocando este dia.
-// O posicionamento visual é feito em CSS via calc(var(--hour-px) * topMin / 60).
-function timelinePos(startsAtUtc: string, endsAtUtc: string) {
-  const sLocal = formatInTimeZone(new Date(startsAtUtc), TZ, 'yyyy-MM-dd HH:mm');
-  const eLocal = formatInTimeZone(new Date(endsAtUtc),   TZ, 'yyyy-MM-dd HH:mm');
-  const sParts = sLocal.split(' ')[1].split(':').map(Number);
-  const eParts = eLocal.split(' ')[1].split(':').map(Number);
-  const sIsBefore = sLocal.split(' ')[0] < date;
-  const eIsAfter  = eLocal.split(' ')[0] > date;
-  const sMin = sIsBefore ? 0 : Math.max(0, (sParts[0] - START_HOUR) * 60 + sParts[1]);
-  const eMin = eIsAfter ? TOTAL_HOURS * 60 : Math.min(TOTAL_HOURS * 60, (eParts[0] - START_HOUR) * 60 + eParts[1]);
-  return {
-    topMin:      sMin,
-    durationMin: Math.max(0, eMin - sMin),
-  };
-}
-
 const apptList: ApptView[] = apptRows.map(a => {
-  const pos = timelinePos(a.startsAt, a.endsAt);
-  const time     = formatInTimeZone(new Date(a.startsAt), TZ, 'HH:mm');
-  const endTime  = formatInTimeZone(new Date(a.endsAt),   TZ, 'HH:mm');
+  const time     = formatInTimeZone(new Date(a.startsAt), fuso, 'HH:mm');
+  const endTime  = formatInTimeZone(new Date(a.endsAt),   fuso, 'HH:mm');
   const wa       = waPhone(a.customerPhone);
   const digits   = (a.customerPhone ?? '').replace(/\D/g, '');
   const telDigits = wa ?? (digits.startsWith('55') ? digits : `55${digits}`);
 
   return {
     id:              a.id,
+    startsAt:        a.startsAt,
     status:          a.status,
     durationMinutes: a.durationMinutes,
     priceCents:      a.priceCents,
@@ -243,7 +236,7 @@ const apptList: ApptView[] = apptRows.map(a => {
     customerBirthdate: a.customerBirthdate,
     notes:           a.notes,
     lastModifiedLabel: a.lastModifiedAt && a.lastModifiedById
-      ? `${barberNameById.get(a.lastModifiedById) ?? '—'} · ${formatInTimeZone(new Date(a.lastModifiedAt), TZ, "dd/MM 'às' HH:mm")}`
+      ? `${barberNameById.get(a.lastModifiedById) ?? '—'} · ${formatInTimeZone(new Date(a.lastModifiedAt), fuso, "dd/MM 'às' HH:mm")}`
       : null,
     barberName:      a.barberName,
     barberId:        a.barberId,
@@ -251,8 +244,7 @@ const apptList: ApptView[] = apptRows.map(a => {
     timeLocal:       time,
     endTimeLocal:    endTime,
     price:           reais(a.priceCents),
-    topMin:          pos.topMin,
-    durationMin:     pos.durationMin,
+    valor:           reais(valorDoAtendimento(paraOValor(a))),
     wa,
     telUrl:          `tel:+${telDigits}`,
     isPast:          new Date(a.endsAt) <= nowUtc,
@@ -268,41 +260,26 @@ const apptList: ApptView[] = apptRows.map(a => {
 const blockList: BlockView[] = timeOffRows
   .filter(b => new Date(b.endsAt) > new Date(dayStart))
   .map(b => {
-  const pos = timelinePos(b.startsAt, b.endsAt);
   return {
     id:           b.id,
     reason:       b.reason ?? 'Bloqueado',
-    topMin:       pos.topMin,
-    durationMin:  pos.durationMin,
-    timeLocal:    formatInTimeZone(new Date(b.startsAt), TZ, 'HH:mm'),
-    endTimeLocal: formatInTimeZone(new Date(b.endsAt),   TZ, 'HH:mm'),
+    timeLocal:    formatInTimeZone(new Date(b.startsAt), fuso, 'HH:mm'),
+    endTimeLocal: formatInTimeZone(new Date(b.endsAt),   fuso, 'HH:mm'),
   };
 });
 
-// Receita do dia: serviço de confirmados + concluídos, e os produtos/comanda dos
-// concluídos (produto só conta quando concluído — mesma regra do relatório mensal).
-const revenueCents = apptRows
-  .filter(a => a.status === 'confirmed' || a.status === 'completed')
-  .reduce((sum, a) => sum + a.priceCents + (a.status === 'completed' ? (itemsByAppt.get(a.id) ?? 0) : 0), 0)
-  + salesCents;
-const revenueLabel = reais(revenueCents);
-const revenueCount = apptRows.filter(a => a.status === 'confirmed' || a.status === 'completed').length;
+// Receita do dia: o valor de cada confirmado e concluído — a soma das linhas que contam —,
+// mais a venda avulsa. A regra, e por que ela mora num lugar só: `lib/valorDoAtendimento.ts`.
+const receitaDoDia = receitaDe(apptRows.map(paraOValor), salesCents);
+const revenueLabel = reais(receitaDoDia.centavos);
+const revenueCount = receitaDoDia.considerados;
 
 // Próximo agendamento (confirmed que ainda não acabou)
 const nextAppt = apptList.find(a => a.status === 'confirmed' && !a.isPast) ?? null;
 
-// Linha "Agora" (em minutos desde START_HOUR)
-const todayStr = formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
+// Hoje, no fuso da barbearia.
+const todayStr = formatInTimeZone(new Date(), fuso, 'yyyy-MM-dd');
 const isToday  = date === todayStr;
-let nowTopMin: number | null = null;
-if (isToday) {
-  const nowHm = formatInTimeZone(nowUtc, TZ, 'HH:mm');
-  const [nh, nm] = nowHm.split(':').map(Number);
-  const minutesFromStart = (nh - START_HOUR) * 60 + nm;
-  if (minutesFromStart >= 0 && minutesFromStart <= TOTAL_HOURS * 60) {
-    nowTopMin = minutesFromStart;
-  }
-}
 
 // Day navigation
 function offsetDate(d: string, days: number): string {
@@ -316,8 +293,7 @@ const nextDate = offsetDate(date, 1);
 const MONTHS   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const WEEKDAYS = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
 const [y, m, d] = date.split('-').map(Number);
-const dateObj    = new Date(Date.UTC(y, m - 1, d, 12));
-const weekday    = WEEKDAYS[dateObj.getDay()];
+const weekday    = WEEKDAYS[diaDaSemana(date)];
 const formattedDate = `${d} de ${MONTHS[m - 1]} de ${y}`;
 
 // ─── Insight de ocupação da próxima semana (só admin, só na visão de hoje) ────
@@ -329,8 +305,8 @@ if (session.role === 'admin' && isToday) {
     const [yy, mm, dd] = ds.split('-').map(Number);
     return { dateStr: ds, weekday: new Date(Date.UTC(yy, mm - 1, dd, 12)).getUTCDay() };
   });
-  const weekStartIso = fromZonedTime(`${nextDays[0].dateStr}T00:00:00`, TZ).toISOString();
-  const weekEndIso   = fromZonedTime(`${nextDays[6].dateStr}T23:59:59`, TZ).toISOString();
+  const weekStartIso = fromZonedTime(`${nextDays[0].dateStr}T00:00:00`, fuso).toISOString();
+  const weekEndIso   = fromZonedTime(`${nextDays[6].dateStr}T23:59:59`, fuso).toISOString();
 
   const whRows = (await db
     .select({ barberId: workingHours.barberId, weekday: workingHours.weekday, startTime: workingHours.startTime, endTime: workingHours.endTime })
@@ -349,7 +325,7 @@ if (session.role === 'admin' && isToday) {
     .where(and(lt(timeOff.startsAt, weekEndIso), gt(timeOff.endsAt, weekStartIso), eq(timeOff.tenantId, tenant.id)))
     );
 
-  const occ  = computeOccupancy({ days: nextDays, workingHours: whRows, timeOff: weekTimeOff, appointments: weekAppts });
+  const occ  = computeOccupancy({ days: nextDays, workingHours: whRows, timeOff: weekTimeOff, appointments: weekAppts, tz: fuso });
   const pick = pickEmptiestBand(occ);
   if (pick) {
     const ddmm = pick.dateStr.split('-').reverse().slice(0, 2).join('/');
@@ -362,16 +338,10 @@ if (session.role === 'admin' && isToday) {
 
 const filterQs = filterBarberId ? `?barber=${filterBarberId}` : '';
 
-// Linhas de hora pra render no eixo esquerdo (em "índice de hora" — multiplica por --hour-px no CSS)
-const hourLines = Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => ({
-  hour:  START_HOUR + i,
-  label: `${String(START_HOUR + i).padStart(2, '0')}:00`,
-  hourIdx: i,
-}));
-
 // Dados leves dos agendamentos pra usar no client (modal de detalhes / reschedule)
 const apptsLite = apptList.map(a => ({
   id:                a.id,
+  startsAt:          a.startsAt,
   status:            a.status,
   customerName:      a.customerName,
   customerPhone:     a.customerPhone,
@@ -384,7 +354,8 @@ const apptsLite = apptList.map(a => ({
   barberId:          a.barberId,
   durationMinutes:   a.durationMinutes,
   priceCents:        a.priceCents,
-  itemsCents:        itemsByAppt.get(a.id) ?? 0,
+  items:             itensDe(a.id),
+  itemsCents:        somaDosItens(itensDe(a.id)),
   price:             a.price,
   timeLocal:         a.timeLocal,
   endTimeLocal:      a.endTimeLocal,
@@ -409,7 +380,7 @@ const faixaDoExpediente = faixaDoDia(
     .flatMap(([, semana]) => semana[diaDaSemana(date)] ?? []),
 );
 
-const clientData = {
+const clientData: DadosDaAgenda = {
   date,
   role:              session.role,
   sessionBarberId:   session.barberId,
@@ -417,13 +388,11 @@ const clientData = {
   allBarbers,
   todayStr,
   appts:             apptsLite,
-  startHour:         START_HOUR,
-  totalHours:        TOTAL_HOURS,
   salesCents,
   products:          productListForSale,
   // O fuso vai para o navegador por aqui, e não por `define:vars` — ver o
   // comentário no <script> lá embaixo.
-  tz:                TZ,
+  tz:                fuso,
   // Assina as mensagens prontas de WhatsApp (`buildWaMessages`).
   businessName:      (await getSettings(tenant)).businessName,
   expediente,
@@ -435,9 +404,6 @@ const clientData = {
   <div id="admin-data-container" data-client={JSON.stringify(clientData)} class="hidden"></div>
 
   <style is:global>
-    .timeline-root { --hour-px: 96px; }
-    @media (max-width: 640px) { .timeline-root { --hour-px: 64px; } }
-
     /* Barra de rolagem discreta no tema escuro (substitui a branca do sistema) */
     .modal-scroll { scrollbar-width: thin; scrollbar-color: #3a3a3a transparent; }
     .modal-scroll::-webkit-scrollbar { width: 8px; }
@@ -564,7 +530,7 @@ const clientData = {
     </div>
   )}
 
-  <main class="max-w-4xl mx-auto px-4 py-6 space-y-5 pb-20">
+  <div class="max-w-4xl mx-auto px-4 py-6 space-y-5 pb-20">
 
     <!-- Stats: receita prevista -->
     <section class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -879,12 +845,15 @@ const clientData = {
       </button>
     </div>
 
-  </main>
+  </div>
 
   <!-- ============ MODAIS ============ -->
 
   <!-- Modal de confirmação genérico (cancelar etc.) -->
-  <div id="confirm-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+  <!-- A confirmação abre POR CIMA do detalhe e da comanda (z-[60]; eles são z-50): com o mesmo
+       z-50, o detalhe vinha depois no HTML e a cobria — o "Sim, faltou" ficava inalcançável
+       (revisão de 27/10/2026). tests/confirmacao-por-cima.test.ts -->
+  <div id="confirm-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
     <div class="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-sm w-full p-6">
       <p id="confirm-title" class="text-base font-medium text-slate-900 mb-2">Confirmar?</p>
       <p id="confirm-message" class="text-sm text-slate-500 mb-5 leading-relaxed">Tem certeza?</p>
@@ -1025,8 +994,12 @@ const clientData = {
                        class="w-full bg-slate-100 border border-slate-200 focus:border-teal/40 rounded px-3 py-2 text-sm text-slate-800 tabular-nums outline-none transition-colors" />
               </div>
             </div>
-            <p class="text-[10px] text-slate-400 leading-relaxed">
-              A alteração propaga pra todos os agendamentos com este telefone.
+            <!-- O texto depende de quem edita (26/10/2026): o barbeiro comum corrige só os
+                 agendamentos DELE com a cliente (`api/admin/appointments/[id]/customer.ts`). -->
+            <p id="dm-edit-alcance" class="text-[10px] text-slate-400 leading-relaxed">
+              {session.role === 'admin'
+                ? 'A alteração vale para todos os agendamentos desta cliente.'
+                : 'A alteração vale só para os seus agendamentos com esta cliente. Nos dos outros barbeiros, quem corrige é o dono.'}
             </p>
             <div class="flex items-center justify-between h-5">
               <span id="dm-edit-status" class="text-[10px] text-slate-400"></span>
@@ -1068,7 +1041,9 @@ const clientData = {
       </div>
 
       <!-- Footer com ações principais (fixo no rodapé do modal) -->
-      <div class="border-t border-slate-200 p-4 flex gap-2 sticky bottom-0 bg-white z-10">
+      <div class="border-t border-slate-200 p-4 sticky bottom-0 bg-white z-10">
+      <p id="dm-acoes-motivo" class="hidden text-[11px] text-slate-500 mb-2"></p>
+      <div class="flex gap-2">
         <button data-action="complete" data-id="" id="dm-complete"
                 class="flex-1 border border-teal/30 hover:bg-teal/15 text-teal text-xs font-bold uppercase tracking-widest py-2.5 rounded transition-colors">
           ✓ Concluir
@@ -1081,6 +1056,7 @@ const clientData = {
                 class="flex-1 border border-red-500/25 hover:bg-red-500/10 text-red-600 text-xs font-bold uppercase tracking-widest py-2.5 rounded transition-colors">
           Cancelar
         </button>
+      </div>
       </div>
     </div>
   </div>
@@ -1099,9 +1075,13 @@ const clientData = {
       </div>
 
       <div class="px-5 py-4 space-y-4">
-        <div class="flex items-center justify-between text-sm">
-          <span id="cm-main-name" class="text-slate-700 truncate">Serviço</span>
-          <span id="cm-main-price" class="text-slate-800 tabular-nums shrink-0 ml-3">R$ 0</span>
+        <div>
+          <div class="flex items-center justify-between text-sm">
+            <span id="cm-main-name" class="text-slate-700 truncate">Serviço</span>
+            <span id="cm-main-price" class="text-slate-800 tabular-nums shrink-0 ml-3">R$ 0</span>
+          </div>
+          {/* O que já está no agendamento — o produto do combo: entra no total, e não sai daqui. */}
+          <div id="cm-itens"></div>
         </div>
 
         <div>
@@ -1126,40 +1106,6 @@ const clientData = {
         <button id="cm-confirm" class="flex-1 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest py-2.5 rounded text-xs transition-colors">Concluir e fechar</button>
         <button id="cm-cancel" class="px-4 border border-slate-200 text-slate-500 hover:text-slate-800 rounded text-xs transition-colors">Cancelar</button>
       </div>
-    </div>
-  </div>
-
-  <!-- Modal: ação rápida no espaço vazio da timeline -->
-  <div id="express-modal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm">
-    <div class="bg-white border border-slate-200 rounded-t-lg sm:rounded-lg shadow-2xl max-w-sm w-full p-5">
-      <div class="flex items-start justify-between gap-3 mb-4">
-        <p class="text-sm font-medium text-slate-900">
-          <span id="ex-time" class="text-teal tabular-nums">—</span> — o que fazer?
-        </p>
-        <button id="ex-close" type="button" class="text-slate-500 hover:text-slate-800 text-xl leading-none -mt-1 -mr-1 p-1">×</button>
-      </div>
-
-      <div class="space-y-2">
-        <button id="ex-agendar" type="button"
-           class="w-full text-left bg-slate-100 border border-slate-200 hover:border-teal/40 rounded-md px-3 py-2.5 transition-colors group">
-          <p class="text-sm font-medium text-slate-800 group-hover:text-teal transition-colors">📅 Encaixar cliente</p>
-          <p class="text-[11px] text-slate-500 mt-0.5">Barbeiro e horário já preenchidos — só escolher serviço, nome e telefone</p>
-        </button>
-        <button id="ex-block-30" type="button" data-ex-minutes="30"
-           class="w-full text-left bg-slate-100 border border-slate-200 hover:border-red-500/40 rounded-md px-3 py-2.5 transition-colors group disabled:opacity-40 disabled:cursor-not-allowed">
-          <p class="text-sm font-medium text-slate-800 group-hover:text-red-600 transition-colors">☕ Bloquear 30 min</p>
-          <p class="text-[11px] text-slate-500 mt-0.5">Café, descanso, encaixe pessoal</p>
-        </button>
-        <button id="ex-block-60" type="button" data-ex-minutes="60"
-           class="w-full text-left bg-slate-100 border border-slate-200 hover:border-red-500/40 rounded-md px-3 py-2.5 transition-colors group disabled:opacity-40 disabled:cursor-not-allowed">
-          <p class="text-sm font-medium text-slate-800 group-hover:text-red-600 transition-colors">🍽️ Bloquear 1 hora</p>
-          <p class="text-[11px] text-slate-500 mt-0.5">Almoço, emergência</p>
-        </button>
-      </div>
-
-      <p id="ex-hint" class="hidden text-[11px] text-amber-600/80 mt-3">
-        Na visão "Todos", filtre por um barbeiro para usar o bloqueio rápido.
-      </p>
     </div>
   </div>
 
@@ -1219,10 +1165,18 @@ const clientData = {
   import { waPhone, waLink, buildWaMessages } from '../../../lib/whatsapp';
   import { reais } from '../../../lib/dinheiro';
   import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
-  import { diaDaSemana, horariosParaMover } from '../../../lib/gradeDeHorarios';
+  import { diaDaSemana, horariosLivres, horariosParaMover, ocupacaoDoBarbeiro } from '../../../lib/gradeDeHorarios';
+  import type { DadosDaAgenda, FichaDoCliente, VisitaDoHistorico } from '../../../lib/agendaDoDia';
+  import { itensContam, receitaDe, somaDosItens, valorDoAtendimento } from '../../../lib/valorDoAtendimento';
+  import { aparenciaDaSituacao, BORDAS_DA_SITUACAO, linhaApagada, nomeRiscado } from '../../../lib/situacaoNaAgenda';
+
+  // Os tipos deste script (`as`, `!`, parâmetros) só servem ao conferidor de tipos:
+  // somem no build e não mudam o que roda. Os elementos com `as` existem sempre no
+  // HTML acima; os que podem faltar — o seletor de barbeiro, só do dono — ficam com
+  // `| null` e a conferência no código.
 
   const container = document.getElementById('admin-data-container')!;
-  const clientData = JSON.parse(container.dataset.client!);
+  const clientData: DadosDaAgenda = JSON.parse(container.dataset.client!);
   const { date, role, sessionBarberId, filterBarberId, allBarbers } = clientData;
   const TZ: string = clientData.tz;
 
@@ -1246,19 +1200,24 @@ const clientData = {
     let viewYear  = py;
     let viewMonth = pm - 1; // 0-based
 
-    // Hoje no fuso local do navegador (basta pra destacar visualmente)
-    const now = new Date();
-    const todayY = now.getFullYear();
-    const todayM = now.getMonth();
-    const todayD = now.getDate();
+    // Hoje NA BARBEARIA (`TZ`, de `clientData.tz`) — o mesmo dia do "Agenda do
+    // dia" do menu. Até 12/10/2026 era o relógio do navegador: perto da meia-noite,
+    // um celular noutro fuso destacava outro dia, e o botão "Hoje" levava a ele.
+    const partesDeHoje = new Intl.DateTimeFormat('en-US', {
+      timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date());
+    const parteDeHoje = (tipo: string) => Number(partesDeHoje.find((p) => p.type === tipo)?.value);
+    const todayY = parteDeHoje('year');
+    const todayM = parteDeHoje('month') - 1; // 0-based, como viewMonth
+    const todayD = parteDeHoje('day');
 
-    function pad(n) { return String(n).padStart(2, '0'); }
-    function fmt(y, m, d) { return `${y}-${pad(m + 1)}-${pad(d)}`; }
+    function pad(n: number) { return String(n).padStart(2, '0'); }
+    function fmt(y: number, m: number, d: number) { return `${y}-${pad(m + 1)}-${pad(d)}`; }
 
     // Cache: "YYYY-MM" -> { "YYYY-MM-DD": qty }
     const monthCache = new Map();
 
-    async function fetchMonth(yyyymm) {
+    async function fetchMonth(yyyymm: string): Promise<Record<string, number>> {
       if (monthCache.has(yyyymm)) return monthCache.get(yyyymm);
       try {
         const params = new URLSearchParams({ month: yyyymm });
@@ -1274,12 +1233,13 @@ const clientData = {
       }
     }
 
+    // O `!` daqui para baixo: conferidos no começo de `setupCalendar` — o conferidor
+    // não leva a conferência para dentro de função declarada.
     async function render() {
-      title.textContent = `${MONTHS[viewMonth]} ${viewYear}`;
-      grid.innerHTML = '';
+      title!.textContent = `${MONTHS[viewMonth]} ${viewYear}`;
+      grid!.innerHTML = '';
 
-      const firstOfMonth = new Date(viewYear, viewMonth, 1);
-      const startDow     = firstOfMonth.getDay(); // 0 = domingo
+      const startDow     = diaDaSemana(`${viewYear}-${pad(viewMonth + 1)}-01`); // 0 = domingo
       const daysInMonth  = new Date(viewYear, viewMonth + 1, 0).getDate();
       const daysInPrev   = new Date(viewYear, viewMonth, 0).getDate();
 
@@ -1368,19 +1328,19 @@ const clientData = {
           location.href = `/admin/dia/${dateStr}${qs}`;
         });
 
-        grid.appendChild(cell);
+        grid!.appendChild(cell);
       }
     }
 
     function open() {
-      popover.classList.remove('hidden');
+      popover!.classList.remove('hidden');
       render();
     }
     function close() {
-      popover.classList.add('hidden');
+      popover!.classList.add('hidden');
     }
     function toggleOpen() {
-      popover.classList.contains('hidden') ? open() : close();
+      popover!.classList.contains('hidden') ? open() : close();
     }
 
     toggle.addEventListener('click', (e) => {
@@ -1404,7 +1364,7 @@ const clientData = {
     // Fecha ao clicar fora
     document.addEventListener('click', (e) => {
       if (popover.classList.contains('hidden')) return;
-      if (popover.contains(e.target) || toggle.contains(e.target)) return;
+      if (popover.contains(e.target as Node) || toggle.contains(e.target as Node)) return;
       close();
     });
     // ESC fecha
@@ -1417,11 +1377,11 @@ const clientData = {
   // Hora local da barbearia → instante UTC, pelo fuso que vem do servidor
   // (`clientData.tz`). Até 27/09/2026 esta conta somava 3 horas à mão: Fortaleza
   // cravada no código que roda no celular do dono (`PENDENCIAS-ABERTAS.md` §2.11).
-  function localTimeToUtcIso(dateStr, timeStr) {
+  function localTimeToUtcIso(dateStr: string, timeStr: string) {
     return fromZonedTime(`${dateStr}T${timeStr}:00`, TZ).toISOString();
   }
 
-  async function callApi(endpoint, method = 'POST', body = undefined) {
+  async function callApi(endpoint: string, method = 'POST', body: unknown = undefined) {
     const res = await fetch(endpoint, {
       method,
       headers: { 'Content-Type': 'application/json' },
@@ -1431,7 +1391,7 @@ const clientData = {
   }
 
   // ─── Toast ──────────────────────────────────────────────────────────────────
-  function toast(msg, kind = 'info') {
+  function toast(msg: string, kind = 'info') {
     const container = document.getElementById('toast-container');
     if (!container) return;
     const el = document.createElement('div');
@@ -1453,13 +1413,13 @@ const clientData = {
 
   // ─── Modal de confirmação ──────────────────────────────────────────────────
   const confirmModal = document.getElementById('confirm-modal');
-  const confirmTitle = document.getElementById('confirm-title');
-  const confirmMsg   = document.getElementById('confirm-message');
-  const confirmOk    = document.getElementById('confirm-ok');
+  const confirmTitle = document.getElementById('confirm-title') as HTMLElement;
+  const confirmMsg   = document.getElementById('confirm-message') as HTMLElement;
+  const confirmOk    = document.getElementById('confirm-ok') as HTMLButtonElement;
   const confirmCancel= document.getElementById('confirm-cancel');
-  let confirmResolve = null;
+  let confirmResolve: ((resultado: boolean) => void) | null = null;
 
-  function showConfirm(opts) {
+  function showConfirm(opts: { title?: string; message?: string; okLabel?: string; danger?: boolean }): Promise<boolean> {
     if (!confirmModal) return Promise.resolve(false);
     confirmTitle.textContent = opts.title ?? 'Confirmar?';
     confirmMsg.textContent   = opts.message ?? '';
@@ -1468,7 +1428,7 @@ const clientData = {
     confirmModal.classList.remove('hidden');
     return new Promise((resolve) => { confirmResolve = resolve; });
   }
-  function closeConfirm(result) {
+  function closeConfirm(result: boolean) {
     confirmModal?.classList.add('hidden');
     if (confirmResolve) { confirmResolve(result); confirmResolve = null; }
   }
@@ -1477,30 +1437,45 @@ const clientData = {
   confirmModal?.addEventListener('click',  (e) => { if (e.target === confirmModal) closeConfirm(false); });
 
   // ─── Atualização local sem reload ───────────────────────────────────────────
-  function updateApptCardStatus(id, newStatus) {
+  function updateApptCardStatus(id: string, newStatus: string) {
     // Atualiza o cache local primeiro (receita e modal usam isso)
     const appt = clientData.appts.find(a => String(a.id) === String(id));
     if (appt) appt.status = newStatus;
 
-    // Atualiza a linha na lista (AgendaLista) sem precisar recarregar
+    // Refaz a linha (AgendaLista) sem recarregar, igual à da página recarregada: a borda,
+    // a hora e o nome apagados, o valor e o rótulo (`lib/situacaoNaAgenda.ts`). Até
+    // 15/10/2026 a borda e a hora ficavam como estavam — o atendimento atrasado, concluído,
+    // continuava com a borda vermelha do "Atrasado".
     const row = document.querySelector(`[data-list-appt="${id}"]`);
     if (row) {
-      row.classList.add('opacity-70');
-      const nameEl = row.querySelector('.min-w-0 > p:first-child');
-      if (nameEl) {
-        nameEl.classList.remove('text-slate-900');
-        nameEl.classList.add('text-slate-500', 'line-through', 'decoration-1');
+      const st = aparenciaDaSituacao(newStatus);
+      const apagada = linhaApagada(newStatus);
+      row.classList.remove(...BORDAS_DA_SITUACAO);
+      row.classList.add(st.borda);
+      row.classList.toggle('opacity-70', apagada);
+      const horaEl = row.querySelector('[data-list-hora]');
+      if (horaEl) {
+        horaEl.classList.toggle('text-slate-500', apagada);
+        horaEl.classList.toggle('text-slate-900', !apagada);
       }
-      const priceEl = row.querySelector('.text-right > p:first-child');
+      const nameEl = row.querySelector('[data-list-nome]');
+      if (nameEl) {
+        nameEl.classList.toggle('text-slate-900', !apagada);
+        nameEl.classList.toggle('text-slate-500', apagada);
+        const riscado = nomeRiscado(newStatus);
+        for (const c of ['line-through', 'decoration-1']) nameEl.classList.toggle(c, riscado);
+      }
+      const priceEl = row.querySelector('[data-list-valor]');
       if (priceEl) {
-        priceEl.classList.remove('text-teal');
-        priceEl.classList.add('text-slate-400');
+        priceEl.classList.toggle('text-teal', !apagada);
+        priceEl.classList.toggle('text-slate-400', apagada);
+        // O concluído passa a valer o serviço e os itens da comanda (`lib/valorDoAtendimento.ts`).
+        if (appt) priceEl.textContent = reais(valorDoAtendimento(appt));
       }
       const badge = row.querySelector('[data-list-status]');
       if (badge) {
-        if (newStatus === 'completed')      { badge.textContent = '✓ Concluído'; badge.className = 'text-[10px] tabular-nums text-teal/80'; }
-        else if (newStatus === 'cancelled') { badge.textContent = '✕ Cancelado'; badge.className = 'text-[10px] tabular-nums text-red-600/80'; }
-        else if (newStatus === 'no_show')   { badge.textContent = '✗ No-show';   badge.className = 'text-[10px] tabular-nums text-amber-600/80'; }
+        badge.textContent = st.rotulo;
+        badge.className = `text-[10px] tabular-nums ${st.classe}`.trim();
       }
     }
 
@@ -1508,20 +1483,9 @@ const clientData = {
   }
 
   function recalculateRevenue() {
-    let total = 0;
-    let count = 0;
-    for (const a of clientData.appts) {
-      if (a.status === 'confirmed') {
-        total += a.priceCents || 0;
-        count++;
-      } else if (a.status === 'completed') {
-        // Concluído soma o serviço + produtos/comanda (itemsCents)
-        total += (a.priceCents || 0) + (a.itemsCents || 0);
-        count++;
-      }
-    }
-    // Vendas de produto avulsas do dia entram na receita (não no contador de agendamentos)
-    total += clientData.salesCents || 0;
+    // A mesma conta do servidor: o valor de cada confirmado e concluído, mais a venda
+    // avulsa — que não entra no contador de agendamentos (`lib/valorDoAtendimento.ts`).
+    const { centavos: total, considerados: count } = receitaDe(clientData.appts, clientData.salesCents || 0);
     const rev = document.querySelector('section [class*="text-teal"][class*="text-3xl"]');
     if (rev) rev.textContent = reais(total);
     const countEl = document.querySelector('section .text-xs.text-slate-500.mt-0\\.5');
@@ -1530,7 +1494,7 @@ const clientData = {
 
   // ─── Action buttons ─────────────────────────────────────────────────────────
   document.addEventListener('click', async (e) => {
-    const btn = e.target.closest('[data-action]');
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-action]');
     if (!btn) return;
     if (btn.hasAttribute('data-no-card-click')) return;
 
@@ -1560,6 +1524,13 @@ const clientData = {
     }
 
     if (action === 'no-show') {
+      // Falta não volta atrás e libera o horário: pede confirmação, como o cancelar.
+      const confirmado = await showConfirm({
+        title:   'Marcar como falta?',
+        message: 'O cliente não veio. O horário fica livre e isto não pode ser desfeito.',
+        okLabel: 'Sim, faltou',
+      });
+      if (!confirmado) return;
       btn.disabled = true;
       const { ok, data } = await callApi(`/api/admin/appointments/${id}/no-show`);
       if (ok) {
@@ -1592,13 +1563,13 @@ const clientData = {
   });
 
   // ─── Modal de mensagens rápidas WhatsApp ───────────────────────────────────
-  const waModal = document.getElementById('wa-modal');
-  const waSub   = document.getElementById('wa-sub');
+  const waModal = document.getElementById('wa-modal') as HTMLElement;
+  const waSub   = document.getElementById('wa-sub') as HTMLElement;
   const waClose = document.getElementById('wa-close');
-  const waOptLembrete = document.getElementById('wa-opt-lembrete');
-  const waOptAtrasoCliente = document.getElementById('wa-opt-atraso-cliente');
-  const waOptAtrasoBarbeiro = document.getElementById('wa-opt-atraso-barbeiro');
-  const waOptLivre = document.getElementById('wa-opt-livre');
+  const waOptLembrete = document.getElementById('wa-opt-lembrete') as HTMLAnchorElement;
+  const waOptAtrasoCliente = document.getElementById('wa-opt-atraso-cliente') as HTMLAnchorElement;
+  const waOptAtrasoBarbeiro = document.getElementById('wa-opt-atraso-barbeiro') as HTMLAnchorElement;
+  const waOptLivre = document.getElementById('wa-opt-livre') as HTMLAnchorElement;
 
   function diaLabel() {
     return clientData.date === clientData.todayStr
@@ -1606,7 +1577,7 @@ const clientData = {
       : `dia ${clientData.date.split('-').reverse().slice(0, 2).join('/')}`;
   }
 
-  function openWaMenu(id) {
+  function openWaMenu(id: string) {
     const appt = clientData.appts.find(a => String(a.id) === String(id));
     if (!appt) return;
     if (!appt.wa) {
@@ -1619,9 +1590,9 @@ const clientData = {
     waOptAtrasoCliente.href   = waLink(appt.wa, msgs.clienteAtrasado);
     waOptAtrasoBarbeiro.href  = waLink(appt.wa, msgs.barbeiroAtrasado);
     waOptLivre.href           = waLink(appt.wa);
-    waOptLembrete.querySelector('[data-wa-preview]').textContent       = msgs.lembrete;
-    waOptAtrasoCliente.querySelector('[data-wa-preview]').textContent  = msgs.clienteAtrasado;
-    waOptAtrasoBarbeiro.querySelector('[data-wa-preview]').textContent = msgs.barbeiroAtrasado;
+    waOptLembrete.querySelector('[data-wa-preview]')!.textContent       = msgs.lembrete;
+    waOptAtrasoCliente.querySelector('[data-wa-preview]')!.textContent  = msgs.clienteAtrasado;
+    waOptAtrasoBarbeiro.querySelector('[data-wa-preview]')!.textContent = msgs.barbeiroAtrasado;
     waModal.classList.remove('hidden');
   }
   function closeWaMenu() { waModal?.classList.add('hidden'); }
@@ -1633,50 +1604,50 @@ const clientData = {
   });
 
   // ─── Modal de detalhes ─────────────────────────────────────────────────────
-  const detailModal = document.getElementById('detail-modal');
-  const dmName      = document.getElementById('dm-name');
-  const dmService   = document.getElementById('dm-service');
-  const dmTime      = document.getElementById('dm-time');
-  const dmDuration  = document.getElementById('dm-duration');
-  const dmPrice     = document.getElementById('dm-price');
-  const dmTel       = document.getElementById('dm-tel');
-  const dmPhone     = document.getElementById('dm-phone');
-  const dmWhats     = document.getElementById('dm-whatsapp');
-  const dmCopyPhone = document.getElementById('dm-copy-phone');
-  const dmNotes     = document.getElementById('dm-notes');
-  const dmNotesSave = document.getElementById('dm-notes-save');
-  const dmNotesStatus = document.getElementById('dm-notes-status');
-  const dmClose     = document.getElementById('dm-close');
-  const dmComplete  = document.getElementById('dm-complete');
-  const dmNoshow    = document.getElementById('dm-noshow');
-  const dmCancel    = document.getElementById('dm-cancel');
-  const dmMoveDate  = document.getElementById('dm-move-date');
-  const dmMoveSlots = document.getElementById('dm-move-slots');
-  const dmMoveConfirm = document.getElementById('dm-move-confirm');
-  const dmHistory      = document.getElementById('dm-history');
-  const dmHistoryCount = document.getElementById('dm-history-count');
-  const dmStats        = document.getElementById('dm-stats');
-  const dmBirthday     = document.getElementById('dm-birthday');
-  const dmEditName     = document.getElementById('dm-edit-name');
-  const dmEditPhone    = document.getElementById('dm-edit-phone');
-  const dmEditBirthdate= document.getElementById('dm-edit-birthdate');
-  const dmEditSave     = document.getElementById('dm-edit-save');
-  const dmEditStatus   = document.getElementById('dm-edit-status');
+  const detailModal = document.getElementById('detail-modal') as HTMLElement;
+  const dmName      = document.getElementById('dm-name') as HTMLElement;
+  const dmService   = document.getElementById('dm-service') as HTMLElement;
+  const dmTime      = document.getElementById('dm-time') as HTMLElement;
+  const dmDuration  = document.getElementById('dm-duration') as HTMLElement;
+  const dmPrice     = document.getElementById('dm-price') as HTMLElement;
+  const dmTel       = document.getElementById('dm-tel') as HTMLAnchorElement;
+  const dmPhone     = document.getElementById('dm-phone') as HTMLElement;
+  const dmWhats     = document.getElementById('dm-whatsapp') as HTMLButtonElement;
+  const dmCopyPhone = document.getElementById('dm-copy-phone') as HTMLButtonElement;
+  const dmNotes     = document.getElementById('dm-notes') as HTMLTextAreaElement;
+  const dmNotesSave = document.getElementById('dm-notes-save') as HTMLButtonElement;
+  const dmNotesStatus = document.getElementById('dm-notes-status') as HTMLElement;
+  const dmClose     = document.getElementById('dm-close') as HTMLButtonElement;
+  const dmComplete  = document.getElementById('dm-complete') as HTMLButtonElement;
+  const dmNoshow    = document.getElementById('dm-noshow') as HTMLButtonElement;
+  const dmCancel    = document.getElementById('dm-cancel') as HTMLButtonElement;
+  const dmMoveDate  = document.getElementById('dm-move-date') as HTMLInputElement;
+  const dmMoveSlots = document.getElementById('dm-move-slots') as HTMLElement;
+  const dmMoveConfirm = document.getElementById('dm-move-confirm') as HTMLButtonElement;
+  const dmHistory      = document.getElementById('dm-history') as HTMLElement;
+  const dmHistoryCount = document.getElementById('dm-history-count') as HTMLElement;
+  const dmStats        = document.getElementById('dm-stats') as HTMLElement;
+  const dmBirthday     = document.getElementById('dm-birthday') as HTMLElement;
+  const dmEditName     = document.getElementById('dm-edit-name') as HTMLInputElement;
+  const dmEditPhone    = document.getElementById('dm-edit-phone') as HTMLInputElement;
+  const dmEditBirthdate= document.getElementById('dm-edit-birthdate') as HTMLInputElement;
+  const dmEditSave     = document.getElementById('dm-edit-save') as HTMLButtonElement;
+  const dmEditStatus   = document.getElementById('dm-edit-status') as HTMLElement;
 
-  let currentApptId = null;
-  let currentMoveSlot = null;
+  let currentApptId: string | null = null;
+  let currentMoveSlot: string | null = null;
   let notesOriginal = '';
   let editOriginal = { name: '', phone: '', birthdate: '' };
 
   // Estado visual do botão WhatsApp do modal conforme validade do telefone
-  function setWaButtonState(btn, wa) {
+  function setWaButtonState(btn: HTMLElement | null, wa: string | null | undefined) {
     if (!btn) return;
     btn.classList.toggle('opacity-40', !wa);
     btn.title = wa ? 'Mensagens rápidas no WhatsApp' : 'Telefone inválido — corrija abaixo';
   }
 
   // Máscara de telefone (DDD + número)
-  function maskPhone(raw) {
+  function maskPhone(raw: string | null | undefined) {
     const d = (raw ?? '').replace(/\D/g, '').slice(0, 11);
     if (d.length === 0) return '';
     if (d.length <= 2)  return `(${d}`;
@@ -1685,7 +1656,7 @@ const clientData = {
     return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
   }
   // Máscara dd/mm/aaaa
-  function maskBirthdate(raw) {
+  function maskBirthdate(raw: string | null | undefined) {
     const d = (raw ?? '').replace(/\D/g, '').slice(0, 8);
     if (d.length === 0) return '';
     if (d.length <= 2)  return d;
@@ -1693,7 +1664,7 @@ const clientData = {
     return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
   }
   // Converte 'dd/mm/aaaa' -> 'YYYY-MM-DD' ou null se inválido
-  function parseBirthdateInput(raw) {
+  function parseBirthdateInput(raw: string | null | undefined) {
     const m = (raw ?? '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     if (!m) return null;
     const dd = +m[1], mm = +m[2], yyyy = +m[3];
@@ -1704,11 +1675,11 @@ const clientData = {
     const min = new Date(now.getFullYear() - 100, now.getMonth(), now.getDate());
     const max = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
     if (dt < min || dt > max) return null;
-    const pad = n => String(n).padStart(2, '0');
+    const pad = (n: number) => String(n).padStart(2, '0');
     return `${yyyy}-${pad(mm)}-${pad(dd)}`;
   }
   // Converte 'YYYY-MM-DD' -> 'dd/mm/aaaa'
-  function formatBirthdateDisplay(iso) {
+  function formatBirthdateDisplay(iso: string | null | undefined) {
     if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
     const [y, m, d] = iso.split('-');
     return `${d}/${m}/${y}`;
@@ -1732,15 +1703,15 @@ const clientData = {
     if (changed) dmEditStatus.textContent = '';
   }
 
-  // Selo de aniversário no header (compara dia/mês no fuso de Fortaleza).
-  function setBirthdayBadge(iso) {
+  // Selo de aniversário no header (compara dia/mês no fuso da barbearia).
+  function setBirthdayBadge(iso: string | null | undefined) {
     if (!dmBirthday) return;
     dmBirthday.classList.add('hidden');
     dmBirthday.textContent = '';
     if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
     const [, bm, bd] = iso.split('-').map(Number);
-    const fortNow = new Date(new Date().toLocaleString('en-US', { timeZone: TZ }));
-    const tMonth = fortNow.getMonth() + 1, tDay = fortNow.getDate();
+    const agoraNaBarbearia = new Date(new Date().toLocaleString('en-US', { timeZone: TZ }));
+    const tMonth = agoraNaBarbearia.getMonth() + 1, tDay = agoraNaBarbearia.getDate();
     if (bm === tMonth && bd === tDay) {
       dmBirthday.textContent = '🎂 Aniversário hoje!';
       dmBirthday.classList.remove('hidden');
@@ -1751,9 +1722,9 @@ const clientData = {
   }
 
   // Ficha do cliente: faixa de stats agregados.
-  function renderClientStats(stats, total) {
+  function renderClientStats(stats: FichaDoCliente | null | undefined, total: number | undefined) {
     if (!dmStats) return;
-    const brl = (c) => reais(c || 0);
+    const brl = (c: number) => reais(c || 0);
 
     // Primeira visita: só existe o agendamento atual.
     if (!stats || (total ?? stats.totalCount) <= 1) {
@@ -1772,7 +1743,7 @@ const clientData = {
       since = d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit', timeZone: TZ });
     }
 
-    const cell = (label, value, cls = 'text-slate-800') => `
+    const cell = (label: string, value: string, cls = 'text-slate-800') => `
       <div class="bg-slate-100 border border-slate-200 rounded p-2 text-center">
         <p class="text-[9px] text-slate-500 uppercase tracking-wider">${label}</p>
         <p class="text-sm font-bold ${cls} tabular-nums mt-0.5">${value}</p>
@@ -1791,7 +1762,7 @@ const clientData = {
       </div>`;
   }
 
-  async function loadHistory(id) {
+  async function loadHistory(id: string) {
     if (!dmHistory) return;
     dmHistory.innerHTML = '<p class="text-slate-400 italic">Carregando...</p>';
     if (dmHistoryCount) dmHistoryCount.textContent = '';
@@ -1810,11 +1781,14 @@ const clientData = {
         return;
       }
       if (dmHistoryCount) dmHistoryCount.textContent = `${data.total} no total`;
-      dmHistory.innerHTML = data.history.map(h => {
+      dmHistory.innerHTML = data.history.map((h: VisitaDoHistorico) => {
         const d = new Date(h.startsAt);
-        const dateLabel = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit' });
+        // O dia também no fuso da barbearia, como a hora: sem ele, o navegador usa
+        // o fuso de quem abre — e um corte às 23:30 saía com a data do dia seguinte.
+        const dateLabel = d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: '2-digit', timeZone: TZ });
         const timeLabel = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
-        const price = reais(h.priceCents);
+        // A visita concluída vale o serviço e os itens da comanda — como na linha da agenda.
+        const price = reais(valorDoAtendimento(h));
         const statusColor = h.status === 'completed' ? 'text-teal'
                          : h.status === 'cancelled' ? 'text-red-600/70'
                          : h.status === 'no_show'   ? 'text-amber-600/80'
@@ -1901,17 +1875,21 @@ const clientData = {
     }
   });
 
-  function openDetailModal(id) {
+  function openDetailModal(id: string) {
     const appt = clientData.appts.find(a => String(a.id) === String(id));
     if (!appt) return;
     currentApptId = id;
     currentMoveSlot = null;
 
+    // O valor, e o que ele soma: no concluído, o serviço e os itens da comanda — "Corte +
+    // Barba · Zé · R$ 80" (`lib/valorDoAtendimento.ts`).
+    const valor = reais(valorDoAtendimento(appt));
+    const oQueSoma = [appt.serviceName, ...(itensContam(appt.status) ? appt.items : []).map(i => i.name)];
     dmName.textContent     = appt.customerName;
-    dmService.textContent  = `${appt.serviceName} · ${appt.barberName} · ${appt.price}`;
+    dmService.textContent  = `${oQueSoma.join(' + ')} · ${appt.barberName} · ${valor}`;
     dmTime.textContent     = `${appt.timeLocal} → ${appt.endTimeLocal}`;
     dmDuration.textContent = `${appt.durationMinutes}min`;
-    dmPrice.textContent    = appt.price;
+    dmPrice.textContent    = valor;
     dmPhone.textContent    = appt.customerPhoneDisplay || '—';
     dmTel.href             = appt.telUrl;
     dmWhats.dataset.id     = String(appt.id);
@@ -1952,13 +1930,29 @@ const clientData = {
     dmMoveSlots.innerHTML = '<span class="text-slate-500">Selecione uma data acima.</span>';
     dmMoveConfirm.disabled = true;
 
-    // Bloquear ações se status != confirmed
+    // Bloquear ações se status != confirmed — e, desde 26/10/2026, o que o servidor
+    // recusaria nem fica clicável (`lib/fecharAtendimento.ts`): concluir só horário de
+    // hoje ou de antes; falta só depois de o horário começar. O motivo fica escrito.
     const isConfirmed = appt.status === 'confirmed';
-    [dmComplete, dmNoshow, dmCancel].forEach(b => {
-      b.disabled = !isConfirmed;
-      b.classList.toggle('opacity-40', !isConfirmed);
-      b.classList.toggle('cursor-not-allowed', !isConfirmed);
-    });
+    const podeConcluir = isConfirmed && clientData.date <= clientData.todayStr;
+    const podeFalta = isConfirmed && Date.parse(appt.startsAt) <= Date.now();
+    const libera = (b: HTMLButtonElement, ok: boolean) => {
+      b.disabled = !ok;
+      b.classList.toggle('opacity-40', !ok);
+      b.classList.toggle('cursor-not-allowed', !ok);
+    };
+    libera(dmComplete, podeConcluir);
+    libera(dmNoshow, podeFalta);
+    libera(dmCancel, isConfirmed);
+    const motivo = document.getElementById('dm-acoes-motivo');
+    if (motivo) {
+      const texto = !isConfirmed ? ''
+        : !podeConcluir ? 'Este horário é de outro dia: concluir e marcar falta só no dia dele.'
+        : !podeFalta ? 'Falta só depois de o horário começar.'
+        : '';
+      motivo.textContent = texto;
+      motivo.classList.toggle('hidden', !texto);
+    }
     dmMoveDate.disabled = !isConfirmed;
     dmMoveConfirm.disabled = true;
     if (isConfirmed) loadMoveSlots();
@@ -2012,12 +2006,14 @@ const clientData = {
   });
 
   // Reagendar: carrega slots ao mudar data
+  let pedidoDaGrade = 0;
   async function loadMoveSlots() {
     if (!currentApptId) return;
     const appt = clientData.appts.find(a => String(a.id) === String(currentApptId));
     if (!appt) return;
     const targetDate = dmMoveDate.value;
     if (!targetDate) return;
+    const pedido = ++pedidoDaGrade;
     dmMoveSlots.innerHTML = '<span class="text-slate-500">Carregando horários...</span>';
     dmMoveConfirm.disabled = true;
     currentMoveSlot = null;
@@ -2025,28 +2021,48 @@ const clientData = {
     try {
       // A grade sai do expediente DO BARBEIRO naquele dia da semana — até
       // 27/09/2026 era 08:00 → 19:00 fixo, e oferecia horário que o servidor
-      // recusava (`lib/gradeDeHorarios.ts`). Conflito com outro atendimento o
-      // servidor continua conferindo ao confirmar.
-      dmMoveSlots.innerHTML = '';
+      // recusava (`lib/gradeDeHorarios.ts`).
       const janelas = clientData.expediente?.[appt.barberId]?.[diaDaSemana(targetDate)] ?? [];
       const horarios = horariosParaMover(janelas, appt.durationMinutes);
       if (horarios.length === 0) {
         dmMoveSlots.innerHTML = '<span class="text-slate-500">O barbeiro não trabalha neste dia.</span>';
         return;
       }
+      // E só os livres: sem outro atendimento do barbeiro nem bloqueio no caminho.
+      // Até 12/10/2026 a grade oferecia o horário de outro cliente, e só o servidor
+      // recusava, ao confirmar. A agenda do dia escolhido vem do servidor — pode ser
+      // outro dia —, e a conta é a dele (`horariosLivres`). Ele continua conferindo.
+      const [agenda, bloqueios] = await Promise.all([
+        callApi(`/api/admin/appointments?date=${targetDate}&barberId=${appt.barberId}`, 'GET'),
+        callApi('/api/admin/time-off', 'GET'),
+      ]);
+      if (pedido !== pedidoDaGrade) return; // a data mudou no meio: vale o pedido novo
+      if (!agenda.ok || !bloqueios.ok) throw new Error('agenda');
+      const ocupados = ocupacaoDoBarbeiro(appt.barberId, appt.id, agenda.data, bloqueios.data);
+      const livres = horariosLivres(
+        horarios.map(rotulo => ({ rotulo, inicio: localTimeToUtcIso(targetDate, rotulo) })),
+        appt.durationMinutes,
+        ocupados,
+      );
+      dmMoveSlots.innerHTML = livres.length === 0 ? '<span class="text-slate-500">Nenhum horário livre neste dia.</span>' : '';
+      if (livres.length === 0) return;
       const grid = document.createElement('div');
       grid.className = 'grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto';
 
-      for (const label of horarios) {
-        const utc = localTimeToUtcIso(targetDate, label);
-
+      for (const { rotulo: label, inicio: utc } of livres) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.textContent = label;
         btn.dataset.iso = utc;
         btn.className = 'text-xs px-2 py-1.5 border border-slate-200 rounded text-slate-700 hover:border-teal/40 hover:text-teal transition-colors tabular-nums';
-        // Marca o atual desabilitado
-        if (utc === '' /* impossivel */) {/* placeholder */}
+        // O horário em que ele já está: aparece, apagado — mover para ele não muda nada.
+        if (targetDate === date && label === appt.timeLocal) {
+          btn.disabled = true;
+          btn.title = 'Horário atual';
+          btn.className = 'text-xs px-2 py-1.5 border border-dashed border-slate-200 rounded text-slate-400 cursor-default tabular-nums';
+          grid.appendChild(btn);
+          continue;
+        }
         btn.addEventListener('click', () => {
           grid.querySelectorAll('button').forEach(b =>
             b.classList.remove('bg-teal/20', 'border-teal/50', 'text-teal'));
@@ -2058,7 +2074,8 @@ const clientData = {
       }
       dmMoveSlots.appendChild(grid);
     } catch {
-      dmMoveSlots.innerHTML = '<span class="text-red-600">Erro ao carregar.</span>';
+      if (pedido !== pedidoDaGrade) return;
+      dmMoveSlots.innerHTML = '<span class="text-red-600">Erro ao carregar os horários. Escolha a data de novo.</span>';
     }
   }
   dmMoveDate?.addEventListener('change', loadMoveSlots);
@@ -2087,107 +2104,6 @@ const clientData = {
       if (!confirmModal?.classList.contains('hidden')) closeConfirm(false);
     }
   });
-
-  // ─── Buraco clicável pra agendar ──────────────────────────────────────────
-  const emptyArea = document.getElementById('empty-click-area');
-  function readHourPx() {
-    const root = document.querySelector('.timeline-root');
-    if (!root) return 110;
-    const val = getComputedStyle(root).getPropertyValue('--hour-px').trim();
-    const n = parseFloat(val);
-    return isFinite(n) && n > 0 ? n : 110;
-  }
-  emptyArea?.addEventListener('click', (e) => {
-    if (e.target !== emptyArea) return;
-    const rect = emptyArea.getBoundingClientRect();
-    const offsetY = e.clientY - rect.top;
-    const hourPx = readHourPx();
-    const minutesFromStart = Math.floor((offsetY / hourPx) * 60);
-    const snapped = Math.floor(minutesFromStart / 15) * 15;
-    const totalH = clientData.startHour * 60 + snapped;
-    const h = Math.floor(totalH / 60);
-    const mm = totalH % 60;
-    const timeStr = `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
-
-    openExpressMenu(timeStr);
-  });
-
-  // ─── Menu de ação rápida (agendar / bloqueio expresso) ──────────────────────
-  const exModal   = document.getElementById('express-modal');
-  const exTimeEl  = document.getElementById('ex-time');
-  const exHint    = document.getElementById('ex-hint');
-  const exAgendar = document.getElementById('ex-agendar');
-  const exBlock30 = document.getElementById('ex-block-30');
-  const exBlock60 = document.getElementById('ex-block-60');
-  let exTimeStr = null;
-
-  // Barbeiro alvo do bloqueio expresso: o próprio (barber) ou o filtrado (admin)
-  function expressBarberId() {
-    return role === 'admin' ? filterBarberId : sessionBarberId;
-  }
-
-  function openExpressMenu(timeStr) {
-    exTimeStr = timeStr;
-    if (exTimeEl) exTimeEl.textContent = timeStr;
-    const canBlock = !!expressBarberId();
-    [exBlock30, exBlock60].forEach(b => { if (b) b.disabled = !canBlock; });
-    exHint?.classList.toggle('hidden', canBlock);
-    exModal?.classList.remove('hidden');
-  }
-  function closeExpressMenu() { exModal?.classList.add('hidden'); }
-  document.getElementById('ex-close')?.addEventListener('click', closeExpressMenu);
-  exModal?.addEventListener('click', (e) => { if (e.target === exModal) closeExpressMenu(); });
-
-  exAgendar?.addEventListener('click', () => {
-    closeExpressMenu();
-    formBlock?.classList.add('hidden');
-    formManual?.classList.remove('hidden');
-    loadServices();
-    // Encaixe rápido: pré-seleciona o barbeiro quando já se sabe quem é
-    // (admin com filtro ativo; barbeiro comum nem tem o select)
-    const mBarber = document.getElementById('m-barber');
-    if (mBarber && role === 'admin' && filterBarberId) {
-      mBarber.value = String(filterBarberId);
-    }
-    formManual?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    // Guarda preferência de horário pra pré-selecionar quando os slots carregarem
-    window.__preferredSlotTime = exTimeStr;
-    document.getElementById('m-service')?.focus();
-    toast(`Escolha o serviço para encaixar às ${exTimeStr}`, 'info');
-  });
-
-  async function expressBlock(minutes, btn) {
-    const barberId = expressBarberId();
-    if (!barberId || !exTimeStr) return;
-    btn.disabled = true;
-    const startsAt = localTimeToUtcIso(date, exTimeStr);
-    const endsAt   = new Date(new Date(startsAt).getTime() + minutes * 60_000).toISOString();
-    const { ok, data } = await callApi('/api/admin/time-off', 'POST', {
-      barberId,
-      startsAt,
-      endsAt,
-      reason: 'Bloqueio rápido',
-    });
-    if (ok) {
-      location.reload();
-      return;
-    }
-    btn.disabled = false;
-    closeExpressMenu();
-    if (data.conflicts?.length) {
-      const lista = data.conflicts.map(c => `${c.timeLocal} — ${c.customerName}`).join(', ');
-      await showConfirm({
-        title:   'Já tem cliente nesse intervalo',
-        message: `${lista}. Cancele ou mova o agendamento antes de bloquear.`,
-        okLabel: 'Entendi',
-        danger:  false,
-      });
-    } else {
-      toast(data.error ?? 'Erro ao bloquear', 'error');
-    }
-  }
-  exBlock30?.addEventListener('click', () => expressBlock(30, exBlock30));
-  exBlock60?.addEventListener('click', () => expressBlock(60, exBlock60));
 
   // ─── Toggle forms ────────────────────────────────────────────────────────────
   const formManual = document.getElementById('form-manual');
@@ -2226,26 +2142,61 @@ const clientData = {
   async function ensureServicesCatalog() {
     if (servicesCatalog) return servicesCatalog;
     try {
-      const res = await fetch('/api/services');
+      // A rota do PAINEL, pela sessão: a pública (`/api/services`) acha a barbearia pelo
+      // endereço, e o painel central não é endereço de barbearia — até 13/10/2026 isto
+      // voltava 404 e a comanda ficava sem os serviços extras (`api/admin/slots.ts`).
+      const res = await fetch('/api/admin/services');
       servicesCatalog = res.ok ? await res.json() : [];
     } catch { servicesCatalog = []; }
-    return servicesCatalog;
+    // As duas pontas acima gravam uma lista: aqui nunca é `null`.
+    return servicesCatalog!;
+  }
+
+  /** Um texto num `<span>`, sem innerHTML: os nomes vêm do catálogo que a barbearia escreve. */
+  function texto(classe: string, conteudo: string): HTMLSpanElement {
+    const el = document.createElement('span');
+    el.className = classe;
+    el.textContent = conteudo;
+    return el;
   }
 
   function renderComanda() {
     const appt = clientData.appts.find(a => String(a.id) === String(comandaApptId));
     const mainCents = appt ? appt.priceCents : 0;
+    // O que o agendamento já trouxe — o produto do combo — entra na conta, e o total é o
+    // que a linha vai mostrar depois de fechar. Até 15/10/2026 ele ficava de fora daqui:
+    // a comanda dizia um total, e a linha e a receita, outro (`lib/valorDoAtendimento.ts`).
+    const jaNoAgendamento = appt ? appt.items : [];
+    const itens = document.getElementById('cm-itens');
+    if (itens) {
+      itens.replaceChildren(...jaNoAgendamento.map((it) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between gap-2 text-sm mt-2';
+        const nome = texto('text-slate-700 truncate', it.name);
+        nome.append(texto('text-slate-400 text-xs', ' · já no agendamento'));
+        row.append(nome, texto('text-slate-800 tabular-nums shrink-0 ml-3', reais(it.priceCents)));
+        return row;
+      }));
+    }
     const list = document.getElementById('cm-extras');
     if (list) {
-      list.innerHTML = '';
-      comandaExtras.forEach((ex, i) => {
+      list.replaceChildren(...comandaExtras.map((ex, i) => {
         const row = document.createElement('div');
         row.className = 'flex items-center justify-between gap-2 text-sm bg-slate-100 rounded px-3 py-2';
-        row.innerHTML = `<span class="text-slate-700">${ex.name}</span><span class="flex items-center gap-3"><span class="text-slate-500 tabular-nums">${reais(ex.priceCents)}</span><button type="button" data-cm-remove="${i}" class="text-red-600/70 hover:text-red-600" aria-label="Remover">✕</button></span>`;
-        list.appendChild(row);
-      });
+        const direita = document.createElement('span');
+        direita.className = 'flex items-center gap-3';
+        const remover = document.createElement('button');
+        remover.type = 'button';
+        remover.dataset.cmRemove = String(i);
+        remover.className = 'text-red-600/70 hover:text-red-600';
+        remover.setAttribute('aria-label', 'Remover');
+        remover.textContent = '✕';
+        direita.append(texto('text-slate-500 tabular-nums', reais(ex.priceCents)), remover);
+        row.append(texto('text-slate-700', ex.name), direita);
+        return row;
+      }));
     }
-    const total = mainCents + comandaExtras.reduce((s, e) => s + e.priceCents, 0);
+    const total = mainCents + somaDosItens(jaNoAgendamento) + somaDosItens(comandaExtras);
     const totalEl = document.getElementById('cm-total');
     if (totalEl) totalEl.textContent = reais(total);
   }
@@ -2317,10 +2268,13 @@ const clientData = {
     const extras = comandaExtras.map(e => ({ serviceId: e.serviceId, priceCents: e.priceCents }));
     const { ok, data } = await callApi(`/api/admin/appointments/${id}/complete`, 'POST', { extras });
     if (ok) {
-      // Soma os extras recém-lançados ao itemsCents do agendamento, pra receita
-      // atualizar na hora (o produto do combo já vem somado do servidor).
+      // Os extras recém-lançados entram nos itens do agendamento — o produto do combo já
+      // estava lá —, para a linha, o detalhe e a receita mudarem na hora, sem recarregar.
       const appt = clientData.appts.find(a => String(a.id) === String(id));
-      if (appt) appt.itemsCents = (appt.itemsCents || 0) + comandaExtras.reduce((s, e) => s + e.priceCents, 0);
+      if (appt) {
+        appt.items = [...appt.items, ...comandaExtras.map(e => ({ name: e.name, priceCents: e.priceCents }))];
+        appt.itemsCents = somaDosItens(appt.items);
+      }
       updateApptCardStatus(id, 'completed');
       closeComanda();
       closeDetail();
@@ -2444,14 +2398,15 @@ const clientData = {
 
 
   // ─── Manual booking form ─────────────────────────────────────────────────────
-  let selectedSlot = null;
+  let selectedSlot: string | null = null;
 
   async function loadServices() {
-    const serviceEl = document.getElementById('m-service');
+    const serviceEl = document.getElementById('m-service') as HTMLSelectElement | null;
     if (!serviceEl || serviceEl.options.length > 1) return;
-    const res  = await fetch('/api/services');
+    // A do painel, pela sessão — ver `ensureServicesCatalog`.
+    const res  = await fetch('/api/admin/services');
     const data = await res.json();
-    data.forEach(svc => {
+    data.forEach((svc: { id: number; name: string }) => {
       const opt = document.createElement('option');
       opt.value       = String(svc.id);
       opt.textContent = svc.name;
@@ -2464,9 +2419,9 @@ const clientData = {
     if (!slotsWrap) return;
 
     const barberId  = role === 'admin'
-      ? document.getElementById('m-barber')?.value
+      ? (document.getElementById('m-barber') as HTMLSelectElement | null)?.value
       : String(sessionBarberId);
-    const serviceId = document.getElementById('m-service')?.value;
+    const serviceId = (document.getElementById('m-service') as HTMLSelectElement | null)?.value;
 
     if (!barberId || !serviceId) {
       slotsWrap.innerHTML = '<span class="text-slate-500">Selecione barbeiro e serviço primeiro.</span>';
@@ -2478,7 +2433,7 @@ const clientData = {
     selectedSlot = null;
 
     try {
-      const res  = await fetch(`/api/slots?barberId=${barberId}&serviceId=${serviceId}&date=${date}`);
+      const res  = await fetch(`/api/admin/slots?barberId=${barberId}&serviceId=${serviceId}&date=${date}`);
       const data = await res.json();
 
       if (!data.slots?.length) {
@@ -2489,14 +2444,8 @@ const clientData = {
       slotsWrap.innerHTML = '';
       const grid = document.createElement('div');
       grid.className = 'flex flex-wrap gap-2';
-      const preferred = window.__preferredSlotTime;
-      let preferredBtn = null;
-      // Casa com o slot mais próximo do horário clicado (até 30min de distância).
-      // Empate → prefere o slot que vem DEPOIS do clique, não antes.
-      const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-      let bestScore = Infinity;
 
-      data.slots.forEach(slot => {
+      data.slots.forEach((slot: string | { utc: string; time: string }) => {
         const isoStr = typeof slot === 'string' ? slot : slot.utc;
         const label  = typeof slot === 'string'
           ? (() => {
@@ -2517,25 +2466,8 @@ const clientData = {
           selectedSlot = isoStr;
         });
         grid.appendChild(btn);
-
-        if (preferred) {
-          const diff = toMin(label) - toMin(preferred);
-          if (Math.abs(diff) <= 30) {
-            const score = Math.abs(diff) * 2 + (diff >= 0 ? 0 : 1);
-            if (score < bestScore) { bestScore = score; preferredBtn = btn; }
-          }
-        }
       });
       slotsWrap.appendChild(grid);
-
-      // Auto-seleciona horário preferido (vindo de click em buraco)
-      if (preferredBtn) {
-        preferredBtn.click();
-        preferredBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        window.__preferredSlotTime = null;
-        // Próximo passo do encaixe: nome do cliente
-        document.getElementById('m-name')?.focus();
-      }
     } catch {
       slotsWrap.innerHTML = '<span class="text-red-600">Erro ao carregar horários.</span>';
     }
@@ -2545,17 +2477,17 @@ const clientData = {
   document.getElementById('m-service')?.addEventListener('change', loadSlots);
 
   document.getElementById('m-submit')?.addEventListener('click', async () => {
-    const errorEl = document.getElementById('m-error');
-    const submitBtn = document.getElementById('m-submit');
+    const errorEl = document.getElementById('m-error') as HTMLElement;
+    const submitBtn = document.getElementById('m-submit') as HTMLButtonElement;
 
     const barberId  = role === 'admin'
-      ? document.getElementById('m-barber')?.value
+      ? (document.getElementById('m-barber') as HTMLSelectElement | null)?.value
       : String(sessionBarberId);
-    const serviceId = document.getElementById('m-service')?.value;
-    const name      = document.getElementById('m-name')?.value.trim();
-    const phone     = document.getElementById('m-phone')?.value.trim();
+    const serviceId = (document.getElementById('m-service') as HTMLSelectElement | null)?.value;
+    const name      = (document.getElementById('m-name') as HTMLInputElement | null)?.value.trim();
+    const phone     = (document.getElementById('m-phone') as HTMLInputElement | null)?.value.trim();
 
-    const showErr = msg => {
+    const showErr = (msg: string) => {
       errorEl.textContent = msg;
       errorEl.classList.remove('hidden');
     };
@@ -2589,17 +2521,17 @@ const clientData = {
 
   // ─── Block time form ──────────────────────────────────────────────────────────
   document.getElementById('b-submit')?.addEventListener('click', async () => {
-    const errorEl  = document.getElementById('b-error');
-    const submitBtn = document.getElementById('b-submit');
+    const errorEl  = document.getElementById('b-error') as HTMLElement;
+    const submitBtn = document.getElementById('b-submit') as HTMLButtonElement;
 
     const barberId = role === 'admin'
-      ? (document.getElementById('b-barber')?.value || null)
+      ? ((document.getElementById('b-barber') as HTMLSelectElement | null)?.value || null)
       : sessionBarberId;
-    const startTime = document.getElementById('b-start')?.value;
-    const endTime   = document.getElementById('b-end')?.value;
-    const reason    = document.getElementById('b-reason')?.value.trim() || undefined;
+    const startTime = (document.getElementById('b-start') as HTMLInputElement | null)?.value;
+    const endTime   = (document.getElementById('b-end') as HTMLInputElement | null)?.value;
+    const reason    = (document.getElementById('b-reason') as HTMLInputElement | null)?.value.trim() || undefined;
 
-    const showErr = msg => {
+    const showErr = (msg: string) => {
       errorEl.textContent = msg;
       errorEl.classList.remove('hidden');
     };
@@ -2614,7 +2546,8 @@ const clientData = {
     submitBtn.textContent = 'Bloqueando...';
 
     const { ok, data } = await callApi('/api/admin/time-off', 'POST', {
-      barberId: barberId ? parseInt(barberId) : null,
+      // Do barbeiro, vem o número dele; do dono, o texto do seletor — o parseInt aceita os dois.
+      barberId: barberId ? parseInt(barberId as string) : null,
       startsAt,
       endsAt,
       reason,
@@ -2662,7 +2595,11 @@ const clientData = {
     // Snapshot inicial: conta direto do DOM
     const initialCount = document.querySelectorAll('.appt-card').length;
     let lastKnownCount = initialCount;
-    let lastKnownMod   = ''; // primeira chamada já vai popular
+    let lastKnownMod   = '';
+    // A primeira resposta só marca o ponto de partida. Um sinal próprio, e não "o último
+    // ainda vazio": no dia sem nenhum agendamento a assinatura É vazia, e o primeiro que
+    // chegava virava ponto de partida de novo — a agenda nunca recarregava (até 17/10/2026).
+    let temPontoDePartida = false;
 
     async function poll() {
       // Não checa em outras abas / janela escondida
@@ -2686,7 +2623,8 @@ const clientData = {
         const newMod   = data.maxModified ?? '';
 
         // 1ª chamada: só guarda o baseline
-        if (!lastKnownMod && lastKnownCount === initialCount) {
+        if (!temPontoDePartida) {
+          temPontoDePartida = true;
           lastKnownMod = newMod;
           lastKnownCount = newCount;
           return;

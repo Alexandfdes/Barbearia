@@ -1,5 +1,6 @@
-import { pgTable, serial, integer, text, boolean, unique, index, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, serial, integer, text, boolean, unique, index, timestamp, jsonb } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import { TZ_PADRAO } from '../lib/timezone.js';
 
 /**
  * Passo 3 de docs/ARQUITETURA-MULTI-TENANT-V1.md §9.
@@ -22,7 +23,71 @@ export const tenants = pgTable('tenants', {
   trialEndsAt: timestamp('trial_ends_at', { withTimezone: true }),
   /** Quando a cobrança falhou; a carência começa aqui. Obrigatório quando `past_due`. */
   pastDueSince: timestamp('past_due_since', { withTimezone: true }),
+  /**
+   * O fim da carência estendido pelo operador (migration 0016). Vale para o atraso
+   * de `pastDueSince`: um gatilho do banco o apaga quando ele muda — pagou, ou
+   * atrasou de novo. Lido por `situacaoDe`, em `lib/situacao.ts`.
+   */
+  carenciaAte: timestamp('carencia_ate', { withTimezone: true }),
+  /**
+   * A cobrança na Asaas (migration 0010, `lib/cobranca.ts`): o cliente, a assinatura
+   * em vigor e os últimos 20 Checkouts. São as chaves com que os eventos do webhook
+   * acham a barbearia — cada evento traz uma diferente. A assinatura é única; o
+   * cliente não: o mesmo dono pode ter duas barbearias. Os Checkouts são lista: o
+   * dono pode pagar num que não é o último que abriu.
+   */
+  asaasCustomerId: text('asaas_customer_id'),
+  asaasSubscriptionId: text('asaas_subscription_id').unique(),
+  asaasCheckoutIds: text('asaas_checkout_ids').array().notNull().default(sql`'{}'::text[]`),
+  /** Assinatura cancelada: no ar até aqui, fora do ar depois. Nulo é o normal. */
+  subscriptionEndsAt: timestamp('subscription_ends_at', { withTimezone: true }),
+  /**
+   * O fuso da barbearia (migration 0013): um dos 16 do Brasil, de
+   * `FUSOS_DO_BRASIL` em `lib/timezone.ts`, que o banco também confere. Nasce do
+   * estado no cadastro. Lido por `fusoDe(tenant)`, nunca direto.
+   */
+  timezone: text('timezone').notNull().default(TZ_PADRAO),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Os eventos do webhook da Asaas, crus, gravados antes de processar (migration
+ * 0010). A `UNIQUE` em `(gateway, gatewayEventId)` é a idempotência.
+ *
+ * ⚠️ `tenantId` aceita nulo — a única tabela assim: o evento que não acha
+ * barbearia fica guardado para alguém olhar. O papel do app não tem acesso; quem
+ * lê e grava é o webhook, como dono (`lib/cobranca.ts`).
+ */
+export const webhookEvents = pgTable('webhook_events', {
+  tenantId: integer('tenant_id').references(() => tenants.id),
+  id: serial('id').primaryKey(),
+  gateway: text('gateway').notNull().default('asaas'),
+  gatewayEventId: text('gateway_event_id').notNull(),
+  event: text('event').notNull(),
+  payload: jsonb('payload').notNull(),
+  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  outcome: text('outcome'),
+}, (t) => [
+  unique('webhook_events_uma_vez').on(t.gateway, t.gatewayEventId),
+]);
+
+/**
+ * O que o operador fez no painel `/operador` (migration 0012): entrou, estendeu o
+ * teste, tirou do ar, reativou. O reativar lê daqui o status de antes da
+ * suspensão — `tenants.status` já foi sobrescrito.
+ *
+ * ⚠️ `tenantId` aceita nulo, como em `webhookEvents`: a entrada no painel não é de
+ * barbearia nenhuma. O papel do app não tem acesso; quem lê e grava é o painel do
+ * operador, como dono (`lib/operadorBarbearias.ts`).
+ */
+export const acoesDoOperador = pgTable('acoes_do_operador', {
+  tenantId: integer('tenant_id').references(() => tenants.id),
+  id: serial('id').primaryKey(),
+  // 'anotou' desde a 0014 (12/10/2026): a anotação do operador na ficha da barbearia.
+  acao: text('acao', { enum: ['entrou', 'estendeu-teste', 'suspendeu', 'reativou', 'anotou'] }).notNull(),
+  detalhe: jsonb('detalhe').notNull().default(sql`'{}'::jsonb`),
+  ip: text('ip'),
+  criadaEm: timestamp('criada_em', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const barbers = pgTable('barbers', {
@@ -55,6 +120,12 @@ export const barbers = pgTable('barbers', {
    * trocar a senha tirar todo mundo de dentro (`lib/session.ts`, migration 0008).
    */
   senhaTrocadaEm: timestamp('senha_trocada_em', { withTimezone: true }),
+  /**
+   * Recebe e-mail quando um cliente agenda, desmarca ou remarca pelo site — o
+   * barbeiro, dos horários dele; o dono, de todos (`lib/avisoDeAgenda.ts`,
+   * migration 0011). Nasce ligado; o dono desliga por pessoa na tela da Equipe.
+   */
+  avisarAgendamentos: boolean('avisar_agendamentos').notNull().default(true),
 }, (t) => [
   unique('barbers_tenant_slug_uq').on(t.tenantId, t.slug),
 ]);
@@ -315,6 +386,12 @@ export const settings = pgTable('settings', {
   googleReviewCount: integer('google_review_count'),
   productsSectionTitle: text('products_section_title').notNull().default('Produtos'),
   updatedAt: text('updated_at').notNull().default(sql`to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')`),
+  /**
+   * A busca do mapa que o dono confirmou no painel (`lib/mapa.ts`, migration
+   * 0011). O texto, não um "sim": o endereço mudou, a busca mudou, e o painel
+   * pergunta de novo. Nulo é "nunca conferiu".
+   */
+  mapaConferido: text('mapa_conferido'),
 }, (t) => [
   unique('settings_tenant_uq').on(t.tenantId),
 ]);

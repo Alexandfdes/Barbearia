@@ -63,7 +63,7 @@ const agendar = (t: postgres.TransactionSql, tid: number, bid: number, sid: numb
   t`INSERT INTO appointments
     (tenant_id,barber_id,service_id,customer_name,customer_phone,starts_at,ends_at,
      duration_minutes,price_cents,status,manage_token,created_by)
-    VALUES (${tid},${bid},${sid},'F','84','2026-09-10 10:00','2026-09-10 10:30',
+    VALUES (${tid},${bid},${sid},'F','84','2026-09-10T10:00:00.000Z','2026-09-10T10:30:00.000Z',
             30,4000,'confirmed',${token},'customer') RETURNING id`;
 
 describe.skipIf(!TEM_BANCO)('o que a migration 0001 tem que garantir', () => {

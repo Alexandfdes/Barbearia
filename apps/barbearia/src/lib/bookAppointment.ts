@@ -7,13 +7,9 @@ import { barbers, barberServices, products, services, workingHours } from '../db
 import { tenantAtual, type Tenant } from './tenant.js';
 import { normalizePhone } from './phone.js';
 import { applyDiscountPct } from './combo.js';
-import { TZ } from './timezone.js';
-
-
-function weekdayOf(dateStr: string): number {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d, 12)).getDay();
-}
+import { fusoDe } from './timezone.js';
+import { TRAVA_DE_HORARIO_DUPLO, violouExclusao } from './api.js';
+import { diaDaSemana } from './calendario.js';
 
 /**
  * Erro interno usado para abortar a transação com um resultado de negócio.
@@ -27,6 +23,14 @@ class ConflitoDeHorario extends Error {
     super(motivo);
   }
 }
+
+
+/**
+ * O começo da nota do agendamento feito por combo. O agendamento não guarda o combo; é esta
+ * marca que diz, ao remarcar, que o desconto depende do dia (`api/appointments/by-token/
+ * [token]/reschedule.ts`).
+ */
+export const MARCA_DO_COMBO = '🎁 Combo do dia';
 
 export interface BookParams {
   barberId:          number;
@@ -56,7 +60,13 @@ export interface BookParams {
 export type BookResult =
   | { ok: true;  id: number | bigint; manageToken: string; status: string;
       startsAt: string; endsAt: string; durationMinutes: number; priceCents: number;
-      customerName: string; barberName: string; serviceName: string }
+      customerName: string; barberName: string; serviceName: string;
+      /**
+       * Gravado AGORA — `false` quando a mesma chave de idempotência devolve o que
+       * já existia. É o que impede o aviso ao barbeiro de sair duas vezes pelo
+       * duplo clique (`lib/avisoDeAgenda.ts`).
+       */
+      criado: boolean }
   | { ok: false; httpStatus: number; error: string };
 
 export async function bookAppointment(params: BookParams): Promise<BookResult> {
@@ -100,6 +110,7 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
         customerName: existing.customer_name,
         barberName: existing.barber_name,
         serviceName: existing.service_name,
+        criado: false,
       };
     }
   }
@@ -149,7 +160,7 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
     }
     finalPriceCents = applyDiscountPct(priceCents, pct);
     comboItem = { name: product.name, priceCents: applyDiscountPct(product.priceCents, pct) };
-    notes = `🎁 Combo do dia — produto para retirar na barbearia: ${product.name}. ${pct}% OFF aplicado (serviço + produto).`;
+    notes = `${MARCA_DO_COMBO} — produto para retirar na barbearia: ${product.name}. ${pct}% OFF aplicado (serviço + produto).`;
   }
 
   const endsAt  = addMinutes(startsAt, durationMinutes);
@@ -166,8 +177,9 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
   // `/api/slots` oferece o horário porque faz a conversão certa; só a criação
   // errava. Os dois caminhos de reagendamento recebem `dateStr` pronto e por isso
   // nunca tiveram o problema.
-  const dateStr = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
-  const dow     = weekdayOf(dateStr);
+  const fuso = fusoDe(tenant);
+  const dateStr = formatInTimeZone(startsAt, fuso, 'yyyy-MM-dd');
+  const dow     = diaDaSemana(dateStr);
 
   const whRows = await db
     .select()
@@ -182,8 +194,8 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
   // O slot precisa caber inteiro dentro de ALGUMA janela de expediente do dia.
   // (O schema permite mais de uma janela por dia — ex: turno manhã + tarde.)
   const fitsAnyWindow = whRows.some(wh => {
-    const open  = fromZonedTime(`${dateStr}T${wh.startTime}:00`, TZ);
-    const close = fromZonedTime(`${dateStr}T${wh.endTime}:00`,   TZ);
+    const open  = fromZonedTime(`${dateStr}T${wh.startTime}:00`, fuso);
+    const close = fromZonedTime(`${dateStr}T${wh.endTime}:00`,   fuso);
     return startsAt >= open && endsAt <= close;
   });
 
@@ -200,9 +212,10 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
       // Equivalente ao `BEGIN IMMEDIATE` do SQLite: serializa as reservas do
       // MESMO barbeiro, para que duas requisições simultâneas não passem as
       // duas pela checagem de conflito abaixo. O lock cai sozinho no fim da
-      // transação. A garantia definitiva vem da exclusion constraint
-      // (`ARQUITETURA-MULTI-TENANT-V1.md` §9, passo 7) — isto é o que segura
-      // até lá, e continua barato depois.
+      // transação. Desde 12/10/2026 o banco também recusa sozinho
+      // (`appointments_sem_horario_duplo`, migration 0015, o passo 7 de
+      // `ARQUITETURA-MULTI-TENANT-V1.md` §9): a fila e a checagem continuam — são
+      // elas que dão a mensagem certa —, e a trava segura se elas falharem.
       // `barbers.id` é serial global: dois tenants nunca compartilham o mesmo
       // id, então o lock por barbeiro continua correto sem entrar o tenant.
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${barberId})`);
@@ -262,10 +275,16 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
       customerName,
       barberName,
       serviceName,
+      criado: true,
     };
   } catch (err) {
     if (err instanceof ConflitoDeHorario) {
       return { ok: false, httpStatus: err.httpStatus, error: err.motivo };
+    }
+    // A trava do banco pegou o que a checagem acima deixou passar: a mesma
+    // resposta, e não um 500.
+    if (violouExclusao(err, TRAVA_DE_HORARIO_DUPLO)) {
+      return { ok: false, httpStatus: 409, error: 'Horário não está mais disponível' };
     }
     throw err;
   }

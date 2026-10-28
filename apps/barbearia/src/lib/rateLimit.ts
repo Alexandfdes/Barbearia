@@ -25,6 +25,39 @@ export function checkRateLimit(key: string, opts: RLOptions = {}): { ok: boolean
   return { ok: true };
 }
 
+/**
+ * Confere o limite SEM contar uma tentativa — para quando só o que deu certo conta,
+ * como o cadastro (`pages/api/cadastrar.ts`): a conta vem depois, com `checkRateLimit`.
+ */
+export function consultarRateLimit(key: string, opts: RLOptions = {}): { ok: boolean; retryAfterSecs?: number } {
+  const maxTries = opts.maxTries ?? DEFAULT_MAX_TRIES;
+  const now = Date.now();
+  const entry = store.get(key);
+  if (!entry || entry.resetAt < now || entry.count < maxTries) return { ok: true };
+  return { ok: false, retryAfterSecs: Math.ceil((entry.resetAt - now) / 1000) };
+}
+
+/**
+ * Devolve uma tentativa contada por `checkRateLimit` — para quando só o que deu ERRADO
+ * deve contar, mas a conta tem de ser feita ANTES (senão pedidos simultâneos passam
+ * todos pela consulta): o login reserva a tentativa e a devolve quando a senha confere.
+ */
+export function devolverTentativa(key: string): void {
+  const entry = store.get(key);
+  if (entry && entry.count > 0) entry.count--;
+}
+
 export function resetRateLimit(key: string): void {
   store.delete(key);
 }
+
+/**
+ * O limite do login do painel por CONTA, de qualquer IP (`pages/api/auth/login.ts`):
+ * 10 tentativas a cada 15 minutos e 50 por dia, por WhatsApp. A senha trocada pelo link
+ * de "esqueci" zera os dois — é a saída do dono que alguém trancou de propósito.
+ */
+export const LIMITE_DA_CONTA = {
+  curto: { maxTries: 10, windowMs: 15 * 60 * 1000 },
+  dia: { maxTries: 50, windowMs: 24 * 60 * 60 * 1000 },
+};
+export const chavesDaConta = (telefone: string): [string, string] => [`admin-login-conta:${telefone}`, `admin-login-conta-dia:${telefone}`];

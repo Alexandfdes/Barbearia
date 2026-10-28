@@ -25,8 +25,11 @@ complicada — **apresente o trade-off e a recomendação sem questionar a premi
 | Aplicação | Endereço | Tenant vem de |
 |---|---|---|
 | Site público | domínio ou subdomínio da barbearia | header `Host` |
-| Painel (o SaaS) | `painel.barbearianoar.com.br` | sessão |
-| Site de vendas | `barbearianoar.com.br` | não tem tenant |
+| Painel (o SaaS) | `PAINEL_URL`, ou `painel.<DOMINIO_BASE>` | sessão |
+| Site de vendas | o domínio do produto | não tem tenant |
+
+O domínio do produto ainda não foi registrado, e o nome (Fadeline) é provisório: endereço
+nunca vai cravado no código — sai de `DOMINIO_BASE` e `PAINEL_URL` (`apps/barbearia/src/lib/tenant.ts`).
 
 Um **PostgreSQL** único, com Row-Level Security por tenant.
 Desenho completo em `docs/ARQUITETURA-MULTI-TENANT-V1.md`.
@@ -72,22 +75,22 @@ mídia confere o tenant antes de servir o arquivo.
 - [ ] Toda consulta filtra por `tenant_id`
 - [ ] **Teste de escopo escrito junto com a rota, não depois**
 
-O último item não é formalidade: são **9 arquivos de teste para 49 rotas**. Não existe
-rede. Uma cláusula `WHERE` esquecida vaza nome, telefone e data de nascimento dos
+O último item não é formalidade: `tests/escopo-rotas.test.ts` varre as rotas por texto, e o
+`tests/rls.test.ts` prova a segunda parede — mas guarda por texto pode ficar cega sem ficar
+vermelha. Uma cláusula `WHERE` esquecida vaza nome, telefone e data de nascimento dos
 clientes de uma barbearia para outra — é incidente de LGPD, não bug.
 
 ## Armadilhas verificadas neste código
 
-**`barbers.slug` é a chave de login *e* uma constraint única global.** Com vários
-tenants, dois donos "bayron" colidem no login. Recomendação registrada: login por
-telefone (todo barbeiro tem, é único, e é consistente com o portal do cliente).
+*Resolvidas, e que não voltam:*
 
-**`bookAppointment.ts` usa `BEGIN IMMEDIATE` do SQLite.** No Postgres vira exclusion
-constraint com `tstzrange`: a garantia contra duplo agendamento sai da aplicação e vira
-invariante do banco. A chave de idempotência continua necessária.
-
-**`settings` era linha única (`id = 1`).** Passa a ser uma linha por tenant, e o cache de
-módulo do `getSettings()` vira um mapa por tenant.
+- **O login é por telefone**, não por `barbers.slug` — o slug era único global, e dois donos
+  "bayron" colidiam. Hoje é `UNIQUE (tenant_id, slug)` (migration `0001`).
+- **Duplo agendamento é recusado pelo banco** (migration `0015`, `exclusion constraint`), além do
+  `pg_advisory_xact_lock` por barbeiro em `bookAppointment.ts`. Caminho novo que grava horário
+  traduz a recusa com `violouExclusao` — senão o cliente recebe 500. A chave de idempotência
+  continua necessária.
+- **`settings` é uma linha por tenant**, e o cache do `getSettings()` é um mapa por tenant.
 
 **A ordem importa:** escopar as rotas **antes** de ligar o RLS. Com RLS ligado primeiro,
 uma consulta sem filtro devolve zero linhas em silêncio e o erro passa despercebido no

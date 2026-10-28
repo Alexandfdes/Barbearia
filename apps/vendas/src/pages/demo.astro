@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import Layout from '../layouts/Layout.astro';
-import { NOME_PRODUTO, EXEMPLO_URL, whatsappUrl } from '../config';
+import { NOME_PRODUTO, EXEMPLO_URL, whatsappUrl, CADASTRO_ABERTO, URL_CADASTRO } from '../config';
 
 const wa = whatsappUrl('Olá! Vi a demonstração e queria ver o sistema funcionando de verdade.');
 
@@ -72,12 +72,16 @@ const telas = [
 
     <div class="mt-20 border-t border-line/60 pt-12 text-center">
       <h2 class="font-serif text-2xl sm:text-3xl text-cream">Quer ver com as suas fotos?</h2>
+      {/* Rascunho de 12/10/2026 (`docs/PENDENCIAS-ABERTAS.md` §4.15): até então, esta
+          linha pedia as fotos no WhatsApp para alguém montar a página — o modelo antigo. */}
       <p class="mt-3 text-cream/55 max-w-lg mx-auto leading-relaxed">
-        Me manda três fotos dos seus cortes no WhatsApp e eu te mostro como a sua página ficaria.
+        {CADASTRO_ABERTO
+          ? 'Crie a sua em 7 dias grátis: o site nasce com os seus serviços e a sua cor, e as fotos você sobe pelo painel.'
+          : 'Chame no WhatsApp e veja o sistema funcionando com uma barbearia de demonstração.'}
       </p>
-      <a href={wa} target="_blank" rel="noopener"
+      <a href={CADASTRO_ABERTO ? URL_CADASTRO : wa} {...(CADASTRO_ABERTO ? {} : { target: '_blank', rel: 'noopener' })}
         class="mt-7 inline-flex items-center justify-center bg-brand hover:bg-brand-hover text-on-brand font-bold uppercase tracking-widest text-sm px-10 py-4 rounded-sm transition-colors">
-        Chamar no WhatsApp
+        {CADASTRO_ABERTO ? 'Testar 7 dias grátis' : 'Chamar no WhatsApp'}
       </a>
     </div>
   </main>

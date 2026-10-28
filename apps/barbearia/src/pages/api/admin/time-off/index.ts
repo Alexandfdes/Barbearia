@@ -9,7 +9,7 @@ import { appointments, barbers, timeOff } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
-import { TZ } from '../../../../lib/timezone.js';
+import { fusoDe } from '../../../../lib/timezone.js';
 
 
 const createSchema = z.object({
@@ -23,6 +23,7 @@ export const GET: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
   const tenant = tenantDaSessao(session);
+  const fuso = fusoDe(tenant);
 
   // Só os desta barbearia, sempre. Dentro dela, o dono vê os de todo mundo e o
   // barbeiro vê os dele e os da casa (barber_id NULL). O filtro da barbearia fica
@@ -52,9 +53,9 @@ export const GET: APIRoute = async ({ request }) => {
   return json(rows.map(r => ({
     ...r,
     barberName:    r.barberName ?? 'Todos',
-    dateLabel:     formatInTimeZone(new Date(r.startsAt), TZ, 'dd/MM'),
-    startsAtLocal: formatInTimeZone(new Date(r.startsAt), TZ, 'HH:mm'),
-    endsAtLocal:   formatInTimeZone(new Date(r.endsAt),   TZ, 'HH:mm'),
+    dateLabel:     formatInTimeZone(new Date(r.startsAt), fuso, 'dd/MM'),
+    startsAtLocal: formatInTimeZone(new Date(r.startsAt), fuso, 'HH:mm'),
+    endsAtLocal:   formatInTimeZone(new Date(r.endsAt),   fuso, 'HH:mm'),
     isPast:        new Date(r.endsAt) < now,
   })));
 };
@@ -63,6 +64,7 @@ export const POST: APIRoute = async ({ request }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
   const tenant = tenantDaSessao(session);
+  const fuso = fusoDe(tenant);
 
   let body: unknown;
   try { body = await request.json(); }
@@ -114,7 +116,7 @@ export const POST: APIRoute = async ({ request }) => {
       error: 'Há cliente agendado nesse intervalo',
       conflicts: conflictRows.map(c => ({
         customerName: c.customerName,
-        timeLocal:    formatInTimeZone(new Date(c.startsAt), TZ, 'HH:mm'),
+        timeLocal:    formatInTimeZone(new Date(c.startsAt), fuso, 'HH:mm'),
       })),
     }, 409);
   }

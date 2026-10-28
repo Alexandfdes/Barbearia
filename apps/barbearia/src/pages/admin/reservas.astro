@@ -10,12 +10,13 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { waPhone } from '../../lib/whatsapp.js';
 import { tenantDaSessao } from '../../lib/tenant.js';
 import { reais } from '../../lib/dinheiro.js';
-import { TZ } from '../../lib/timezone.js';
+import { fusoDe } from '../../lib/timezone.js';
 
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
 const tenant = tenantDaSessao(session);
+const fuso = fusoDe(tenant);
 
 const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
   .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
@@ -29,7 +30,7 @@ const pendingCount = rows.filter(r => r.status === 'pending').length;
 const brl = reais;
 function whenLabel(iso: string): string {
   const d = new Date(iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z');
-  return isNaN(d.getTime()) ? '' : formatInTimeZone(d, TZ, 'dd/MM/yy HH:mm');
+  return isNaN(d.getTime()) ? '' : formatInTimeZone(d, fuso, 'dd/MM/yy HH:mm');
 }
 const STATUS = {
   pending:   { label: 'Pendente',  cls: 'bg-amber-500/15 text-amber-700' },
@@ -39,7 +40,7 @@ const STATUS = {
 ---
 
 <AdminLayout title="Reservas" barberName={barberRow.name} role={session.role}>
-  <main class="max-w-3xl mx-auto px-4 py-6 space-y-5 pb-24">
+  <div class="max-w-3xl mx-auto px-4 py-6 space-y-5 pb-24">
 
     <div>
       <h1 class="text-lg font-medium text-slate-900">Reservas de produto</h1>
@@ -94,7 +95,7 @@ const STATUS = {
       })}
     </div>
 
-  </main>
+  </div>
 </AdminLayout>
 
 <script>

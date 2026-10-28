@@ -10,12 +10,16 @@ export const prerender = false;
  * só para consulta: quem tem horário marcado não pode ficar invisível para o
  * barbeiro porque a assinatura venceu.
  *
- * ⚠️ O cartão ainda não se cadastra: a cobrança entra com a Asaas, na etapa
- * seguinte (`PENDENCIAS-ABERTAS.md` §4.14). Até lá a tela diz isso com todas as
- * letras — e o cadastro continua fechado em produção, atrás de `CADASTRO_ABERTO`.
+ * O cartão se cadastra no Checkout da Asaas desde 10/10/2026 (`lib/cobranca.ts`):
+ * o botão leva à página de pagamento dela, e a volta traz `?cartao=ok`,
+ * `cancelado` ou `expirou`. ⚠️ Quem confirma é o webhook, nunca a volta — com
+ * `?cartao=ok` e a barbearia ainda sem confirmação, a tela confere de novo
+ * sozinha. Sem `ASAAS_API_KEY`, a tela continua dizendo que ainda não dá para
+ * pagar por aqui.
  */
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import MolduraForaDoAr from '../../layouts/MolduraForaDoAr.astro';
+import ExportarDados from '../../components/admin/ExportarDados.astro';
 import { and, asc, eq, gte } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
 import { ptBR } from 'date-fns/locale';
@@ -23,10 +27,12 @@ import { getSession, sessaoForaDoAr } from '../../lib/session.js';
 import { tenantDaSessao } from '../../lib/tenant.js';
 import { db } from '../../db/index.js';
 import { appointments, barbers, services } from '../../db/schema.js';
-import { situacaoDe } from '../../lib/situacao.js';
-import { explicacaoDaSituacao } from '../../lib/assinatura.js';
+import { situacaoDe, ultimoDia } from '../../lib/situacao.js';
+import { explicacaoDaSituacao, ROTA_DO_CANCELAMENTO, ROTA_DO_CARTAO } from '../../lib/assinatura.js';
+import { configDaAsaas } from '../../lib/asaas.js';
+import { dataDaPrimeiraCobranca, podeCadastrarCartao, temAssinaturaNaAsaas } from '../../lib/cobranca.js';
 import { PRECO_MENSAL } from '../../lib/produto.js';
-import { TZ } from '../../lib/timezone.js';
+import { fusoDe } from '../../lib/timezone.js';
 import { waPhone, waLink } from '../../lib/whatsapp.js';
 
 // No ar, a sessão de sempre; fora do ar, a única que abre esta tela.
@@ -36,6 +42,7 @@ if (!sessaoNoAr && !fora) return Astro.redirect('/admin/login');
 
 const session = sessaoNoAr ?? fora!.sessao;
 const tenant = sessaoNoAr ? tenantDaSessao(sessaoNoAr) : fora!.tenant;
+const fuso = fusoDe(tenant);
 const situacao = situacaoDe(tenant);
 const foraDoAr = situacao.fase === 'suspensa';
 
@@ -69,6 +76,47 @@ const proximos = foraDoAr
       .limit(100)
   : [];
 
+// ── A cobrança ──────────────────────────────────────────────────────────────
+const cobrancaLigada = configDaAsaas() !== null;
+const podeCartao = podeCadastrarCartao(situacao);
+const emDia = situacao.fase === 'ativa' && !situacao.encerraEm;
+// A cobrança que falhou não encerra a assinatura na Asaas: ela tenta de novo o
+// cartão. Quem quer sair cancela daqui também — na carência e fora do ar.
+const atrasada = (situacao.fase === 'carencia' || situacao.fase === 'suspensa') && situacao.motivo === 'cobranca';
+const podeCancelar = dono && cobrancaLigada && (emDia || atrasada) && await temAssinaturaNaAsaas(tenant.id);
+const textoDoCancelamento = !atrasada
+  ? 'Cancelar: a Asaas para de cobrar, e o site fica no ar até o fim do período já pago — ou do ' +
+    'teste grátis, se ainda não houve cobrança. Depois, ele sai do ar. Nada é apagado, e assinando ' +
+    'de novo o site volta.'
+  : 'Cancelar: a Asaas para de tentar cobrar o cartão, e a mensalidade que não passou deixa de ' +
+    'existir. O site não ganha dias a mais: ' +
+    (situacao.fase === 'carencia' ? `fica no ar até ${ultimoDia(situacao.ate, fuso)} e depois sai` : 'continua fora do ar') +
+    '. Nada é apagado, e assinando de novo o site volta.';
+
+const rotuloDoBotao =
+  situacao.fase === 'ativa' ? 'Reativar a assinatura'
+  : situacao.fase === 'suspensa' && situacao.motivo === 'cancelada' ? 'Assinar de novo'
+  : (situacao.fase === 'carencia' || situacao.fase === 'suspensa') && situacao.motivo === 'cobranca' ? 'Atualizar o cartão'
+  : 'Cadastrar o cartão';
+
+// Quando cobra, dito antes de ele ir para a página de pagamento.
+const primeira = podeCartao ? dataDaPrimeiraCobranca(situacao, fuso) : null;
+const hoje = formatInTimeZone(new Date(), fuso, 'yyyy-MM-dd');
+const quandoCobra = !primeira ? ''
+  : primeira <= hoje ? 'A mensalidade é cobrada hoje, ao cadastrar o cartão.'
+  : `A primeira mensalidade é cobrada em ${primeira.slice(8, 10)}/${primeira.slice(5, 7)}; até lá, nada é cobrado.`;
+
+// A volta do Checkout. Só informa: quem confirma é o webhook (`lib/cobranca.ts`).
+const retorno = Astro.url.searchParams.get('cartao');
+const confirmado = retorno === 'ok' && emDia;
+const esperandoConfirmacao = retorno === 'ok' && !emDia;
+const textoDoRetorno =
+  confirmado ? 'Cartão cadastrado. A assinatura está em dia.'
+  : esperandoConfirmacao ? 'Recebemos o seu cartão. A confirmação da Asaas chega em instantes — esta tela confere de novo sozinha.'
+  : retorno === 'cancelado' ? 'Você saiu da página de pagamento antes de terminar. Nada foi cobrado.'
+  : retorno === 'expirou' ? 'A página de pagamento expirou antes de terminar. É só tentar de novo.'
+  : null;
+
 const Moldura = foraDoAr ? MolduraForaDoAr : AdminLayout;
 const titulo = foraDoAr ? 'O site está fora do ar' : 'Assinatura';
 ---
@@ -78,7 +126,7 @@ const titulo = foraDoAr ? 'O site está fora do ar' : 'Assinatura';
 
     <div>
       <h1 class="text-lg font-medium text-slate-900">{titulo}</h1>
-      <p id="situacao" class="text-sm text-slate-600 mt-2 max-w-[65ch]">{explicacaoDaSituacao(situacao)}</p>
+      <p id="situacao" class="text-sm text-slate-600 mt-2 max-w-[65ch]">{explicacaoDaSituacao(situacao, fuso)}</p>
       {/* Para onde vão os avisos por e-mail (`lib/avisos.ts`) — o dono precisa saber, e
           o e-mail digitado errado no cadastro só aparece aqui ou no aviso que não chega. */}
       {dono && (
@@ -91,26 +139,67 @@ const titulo = foraDoAr ? 'O site está fora do ar' : 'Assinatura';
       )}
     </div>
 
-    {!manual && situacao.fase !== 'ativa' && (
+    {textoDoRetorno && (
+      <p id="retorno-do-cartao" role="status" data-esperando-confirmacao={esperandoConfirmacao ? '' : undefined}
+        class:list={['text-sm rounded-lg px-4 py-3 border',
+          confirmado ? 'border-teal/30 bg-teal/5 text-slate-800' : 'border-slate-200 bg-white text-slate-700']}>
+        {textoDoRetorno}
+      </p>
+    )}
+
+    {!manual && podeCartao && (
       <section class="rounded-lg border border-slate-200 bg-white px-5 py-4 space-y-3">
         <p class="text-sm text-slate-700">
           <span class="font-semibold text-slate-900">R$ {PRECO_MENSAL} por mês</span>, no cartão de crédito.
         </p>
         {dono ? (
-          <>
-            <button type="button" disabled
-              class="text-white font-bold uppercase tracking-widest text-xs px-4 py-2.5 rounded bg-slate-300 cursor-not-allowed">
-              Cadastrar o cartão
-            </button>
-            <p class="text-xs text-slate-500">
-              Ainda não dá para pagar por aqui: o cartão entra na próxima etapa do sistema, com a Asaas.
-            </p>
-          </>
+          cobrancaLigada ? (
+            <>
+              <button type="button" id="cadastrar-cartao" data-rota={ROTA_DO_CARTAO}
+                class="text-white font-bold uppercase tracking-widest text-xs px-4 py-2.5 rounded bg-teal hover:bg-teal-hover disabled:opacity-60">
+                {rotuloDoBotao}
+              </button>
+              <p class="text-xs text-slate-500 max-w-[65ch]">
+                {quandoCobra} Você vai para a página de pagamento da Asaas: o número do cartão fica com
+                ela e não passa por aqui.
+              </p>
+            </>
+          ) : (
+            <>
+              <button type="button" disabled
+                class="text-white font-bold uppercase tracking-widest text-xs px-4 py-2.5 rounded bg-slate-300 cursor-not-allowed">
+                {rotuloDoBotao}
+              </button>
+              <p class="text-xs text-slate-500">
+                Ainda não dá para pagar por aqui: a cobrança pelo cartão ainda não foi ligada.
+              </p>
+            </>
+          )
         ) : (
           <p class="text-xs text-slate-500">Só o dono da barbearia cadastra o cartão.</p>
         )}
+        <p id="erro-cobranca" class="text-xs text-red-700" role="alert" hidden></p>
       </section>
     )}
+
+    {podeCancelar && (
+      <section id="cancelamento" class="rounded-lg border border-slate-200 bg-white px-5 py-4 space-y-3">
+        <p id="texto-do-cancelamento" class="text-sm text-slate-700 max-w-[65ch]">{textoDoCancelamento}</p>
+        <button type="button" id="cancelar" class="text-xs font-semibold text-red-700 underline underline-offset-2">
+          Cancelar a assinatura
+        </button>
+        <div id="confirmar-cancelamento" hidden>
+          <button type="button" id="confirmar" data-rota={ROTA_DO_CANCELAMENTO}
+            class="text-white font-bold uppercase tracking-widest text-xs px-4 py-2.5 rounded bg-red-700 hover:bg-red-800 disabled:opacity-60">
+            Confirmar o cancelamento
+          </button>
+        </div>
+        <p id="erro-cancelamento" class="text-xs text-red-700" role="alert" hidden></p>
+      </section>
+    )}
+
+    {/* Os dados do dono, também fora do ar — decisão de 11/10/2026 (`lib/exportacao.ts`). */}
+    {dono && <ExportarDados />}
 
     {foraDoAr && (
       <section class="space-y-3" aria-labelledby="proximos-titulo">
@@ -130,7 +219,7 @@ const titulo = foraDoAr ? 'O site está fora do ar' : 'Assinatura';
             {proximos.map((p) => (
               <li class="px-4 py-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
                 <span class="tabular-nums font-medium text-slate-900 whitespace-nowrap">
-                  {formatInTimeZone(new Date(p.inicio), TZ, "EEE dd/MM 'às' HH:mm", { locale: ptBR })}
+                  {formatInTimeZone(new Date(p.inicio), fuso, "EEE dd/MM 'às' HH:mm", { locale: ptBR })}
                 </span>
                 <span class="text-slate-700">{p.cliente}</span>
                 <span class="text-slate-500">{p.servico}{dono ? ` · com ${p.barbeiro}` : ''}</span>
@@ -146,3 +235,67 @@ const titulo = foraDoAr ? 'O site está fora do ar' : 'Assinatura';
     )}
   </div>
 </Moldura>
+
+<script>
+  // O botão do cartão leva ao Checkout da Asaas; o de cancelar pede confirmação.
+  // A volta do Checkout com a confirmação ainda pendente confere de novo sozinha —
+  // até 15 vezes, contadas na própria URL, porque recarregar zera o script.
+  async function postar(rota: string): Promise<{ ok: boolean; dados: { url?: string; error?: string } }> {
+    const r = await fetch(rota, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    let dados = {};
+    try { dados = await r.json(); } catch { /* corpo vazio */ }
+    return { ok: r.ok, dados };
+  }
+
+  function mostrar(id: string, texto: string): void {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = texto; el.hidden = false; }
+  }
+
+  document.getElementById('cadastrar-cartao')?.addEventListener('click', async (ev) => {
+    const botao = ev.currentTarget as HTMLButtonElement;
+    const rotulo = botao.textContent;
+    botao.disabled = true;
+    botao.textContent = 'Abrindo a página de pagamento…';
+    try {
+      const { ok, dados } = await postar(botao.dataset.rota!);
+      if (ok && dados.url) { window.location.assign(dados.url); return; }
+      mostrar('erro-cobranca', dados.error || 'Não deu para abrir a página de pagamento.');
+    } catch {
+      mostrar('erro-cobranca', 'Sem conexão com o servidor. Tente de novo.');
+    }
+    botao.disabled = false;
+    botao.textContent = rotulo;
+  });
+
+  document.getElementById('cancelar')?.addEventListener('click', () => {
+    const caixa = document.getElementById('confirmar-cancelamento');
+    if (caixa) caixa.hidden = false;
+  });
+
+  document.getElementById('confirmar')?.addEventListener('click', async (ev) => {
+    const botao = ev.currentTarget as HTMLButtonElement;
+    botao.disabled = true;
+    try {
+      const { ok, dados } = await postar(botao.dataset.rota!);
+      if (ok) { window.location.reload(); return; }
+      mostrar('erro-cancelamento', dados.error || 'Não deu para cancelar agora.');
+    } catch {
+      mostrar('erro-cancelamento', 'Sem conexão com o servidor. Tente de novo.');
+    }
+    botao.disabled = false;
+  });
+
+  if (document.querySelector('[data-esperando-confirmacao]')) {
+    const url = new URL(window.location.href);
+    const feitas = Number(url.searchParams.get('espera') || 0);
+    if (feitas < 15) {
+      setTimeout(() => {
+        url.searchParams.set('espera', String(feitas + 1));
+        window.location.replace(url.toString());
+      }, 4000);
+    } else {
+      mostrar('retorno-do-cartao', 'A confirmação da Asaas está demorando. Recarregue esta página daqui a alguns minutos — o cartão já está com ela.');
+    }
+  }
+</script>

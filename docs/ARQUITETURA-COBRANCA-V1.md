@@ -1,7 +1,12 @@
 # Arquitetura — Cobrança recorrente e onboarding (V1)
 
 > Especificação técnica. Data: 2026-08-28. Números revisados em 06/09/2026.
-> Status: **especificado, não implementado.**
+> Status: ~~especificado, não implementado~~ — **implementado em 10/10/2026** (abaixo).
+>
+> ⚠️ **10/10/2026: implementado no app da barbearia — e não testado no sandbox da Asaas.** O
+> que o código faz está no §5.3, novo. As tabelas `subscriptions` e `payments` do §5 e as rotas
+> do §6 são do desenho de 28/08 e não existem; a prova que falta, e o roteiro dela, estão no
+> `PENDENCIAS-ABERTAS.md` §4.14.
 >
 > ⚠️ **Duas premissas deste documento mudaram depois de escrito.** As tarifas e a
 > escolha do gateway foram recalculadas em 06/09 e continuam valendo; o que ficou
@@ -135,6 +140,20 @@ RLS como segunda parede. Está na skill `barbearia-multi-tenant`, e não é opci
 > só grava o evento cru e responde 200, e o processamento vem depois (§5.1); e um teste vai
 > impedir que tela de barbearia importe o módulo de cobrança. O ganho: um deploy só, e o
 > status muda sem costurar dois bancos. O texto de 28/08 fica abaixo, como histórico.
+>
+> *12/10/2026, conferido no código: o webhook implementado em 10/10 grava o evento cru e o
+> processa **na mesma transação**, e o 200 só sai depois do commit (§5.3) — não "processa
+> depois". A garantia vem de onde o módulo é usado: só a tela de assinatura, as rotas dela e o
+> webhook, que não é rota de barbearia. O teste que impediria uma tela de barbearia de importar
+> o módulo não existe.*
+>
+> *Existe desde 12/10/2026:* `apps/barbearia/tests/cobranca-isolada.test.ts` segue os imports de
+> cada página, rota e do middleware — os diretos e os de quem é importado — e reprova quem chega a
+> `lib/cobranca.ts` ou ao cliente da Asaas, `lib/asaas.ts`, fora da lista: a tela de assinatura, as
+> duas rotas dela e o webhook. A lista fecha nos dois sentidos — a exceção que não chega mais à
+> cobrança também reprova. O painel do operador fica de fora: não é tela de barbearia. Conferido
+> reintroduzindo o defeito: o import da cobrança num arquivo do meio, no middleware e por import
+> dinâmico numa tela deixaram o teste vermelho.
 
 **A instância da barbearia nunca sabe que dinheiro existe.**
 
@@ -204,21 +223,40 @@ Isso resolve três problemas de uma vez:
 
 Verificado em 28/08/2026.
 
+> ⚠️ **Reconferido em 10/10/2026 — e a linha do cartão estava trocada.** Na tabela de taxas da
+> conta sandbox da Asaas, conferida por outra sessão nesta data; as do contrato da conta de
+> produção **não** foram conferidas:
+>
+> | | Tarifa | Promocional, até 09/01/2027 | Cai na conta em |
+> |---|---|---|---|
+> | Cartão à vista | **2,99% + R$ 0,49** | 1,99% + R$ 0,49 | **32 dias** |
+> | Pix | R$ 1,99 | R$ 0,99 | 1 dia útil |
+> | Boleto | R$ 1,99 | R$ 0,99 | 1 dia útil |
+>
+> **Numa mensalidade de R$ 100 no cartão, a taxa é R$ 3,48 — 3,48%, não 1,99%.** O 1,99% do
+> parágrafo *"Escolhido: Asaas"* é o do Pix, e o meio escolhido desde 24/09 é o cartão. Na
+> promoção, R$ 2,48. Na meta de 10 clientes, R$ 417,60 por ano no cartão contra R$ 238,80 no
+> Pix. Continua pouco — e a Stripe, a R$ 5,08 por mensalidade, continua mais cara.
+>
+> **O prazo é o que a tabela de 28/08 não tinha:** o dinheiro do cartão chega 32 dias depois da
+> cobrança. Atrasa o primeiro mês uma vez; não é custo de todo mês.
+
 | | Asaas | Stripe BR |
 |---|---|---|
-| Pix | **R$ 1,99 fixo** (R$ 0,99 nos 3 primeiros meses) | 1,19% — **só por convite** |
+| Pix | **R$ 1,99 fixo** (R$ 0,99 nos 3 primeiros meses; *em 10/10, R$ 0,99 até 09/01/2027*) | 1,19% — **só por convite** |
 | Boleto | R$ 1,99 fixo | R$ 3,45 |
-| Cartão à vista | R$ 0,49 + 1,99% (2,99% promocional) | 3,99% + R$ 0,39 |
+| Cartão à vista | ~~R$ 0,49 + 1,99% (2,99% promocional)~~ **R$ 0,49 + 2,99%** (1,99% promocional até 09/01/2027) — *trocado até 10/10* | 3,99% + R$ 0,39 |
 | Assinaturas | Incluso | +0,7% do volume (Billing) |
 | Mensalidade da conta | Nenhuma | Nenhuma |
-| **Custo numa mensalidade de R$ 100** | **R$ 1,99 no Pix (1,99%)** | **R$ 5,08 no cartão (5,08%)** |
+| **Custo numa mensalidade de R$ 100** | **R$ 1,99 no Pix (1,99%)** · **R$ 3,48 no cartão (3,48%)** | **R$ 5,08 no cartão (5,08%)** |
 
 > ⚠️ **24/09/2026: a cobrança recorrente passa a ser no cartão.** O dono cadastra o cartão
 > para entrar, e a primeira cobrança vem depois dos 7 dias grátis
 > (`PLANO-PRODUTIZACAO.md` §13). A comparação abaixo foi feita pensando em Pix; no cartão
 > vale a linha "cartão à vista" da tabela. As tarifas são de 28/08 — **reconferir na
 > página da Asaas antes de lançar**, e conferir também se ela aceita cartão hoje com
-> primeira cobrança daqui a 7 dias (`PENDENCIAS-ABERTAS.md` §4.14).
+> primeira cobrança daqui a 7 dias (`PENDENCIAS-ABERTAS.md` §4.14). *Reconferidas em 10/10 —
+> o quadro acima. A primeira cobrança futura, só na documentação: o sandbox não foi testado.*
 
 **Escolhido: Asaas.** Tarifa fixa em Pix e boleto é o que importa num ticket de R$ 100 — 1,99%
 contra 5,08%. (Recalculado em 06/09 com o preço novo; a R$ 180 era 1,1% contra 4,9%. A
@@ -238,6 +276,23 @@ o campo `subscription` ligando à assinatura pai. Eventos que este desenho usa:
 | `PAYMENT_RECEIVED` | Valor disponível na conta. Só registra. |
 | `PAYMENT_OVERDUE` | Marca `overdue_since`. Inicia a contagem dos 15 dias. |
 | `PAYMENT_REFUNDED` / `PAYMENT_CHARGEBACK_REQUESTED` | Alerta manual. Nunca automatizar reembolso. |
+| `CHECKOUT_PAID` | *Acrescentado em 10/10/2026.* O Checkout foi concluído — é por ele, e nunca pela URL de retorno, que o cartão cadastrado se confirma. Pela documentação; se chega quando nada é cobrado no dia é pergunta aberta (`PENDENCIAS-ABERTAS.md` §4.14) |
+| `SUBSCRIPTION_CREATED` | *Acrescentado em 10/10/2026.* A assinatura nasceu do Checkout: é o que liga a assinatura à barbearia |
+
+> ⚠️ **10/10/2026: a tabela acima é do desenho de 28/08** — `overdue_since`, 15 dias,
+> onboarding. O que cada evento faz no código, com os 3 dias de carência, está no §5.3.
+
+> **10/10/2026 — o que mais a reconferência trouxe:**
+>
+> - **As notificações da Asaas nascem ligadas em cada cliente** — oito, inclusive ligação
+>   telefônica na cobrança vencida —, e não há chave geral no painel: só por cliente, pela API.
+>   Se o app é quem avisa, o código que cria o cliente na Asaas as desliga
+>   (`PENDENCIAS-ABERTAS.md` §4.14).
+> - **Os IPs de onde a Asaas chama o webhook:** `52.67.12.206`, `18.230.8.159`,
+>   `54.94.136.112` e `54.94.183.101`. Hoje nada na frente do app filtra por IP — o DNS não
+>   passa pela Cloudflare —, então a lista é segunda camada. A primeira é conferir o token do
+>   webhook em toda chamada; a segunda, a idempotência (§5.1).
+> - **Chave de API morre sozinha:** desabilitada com 3 meses sem uso, expirada com 6.
 
 > ⚠️ **Não deixar o cliente pagar a mensalidade com cartão parcelado.** As tarifas do Asaas sobem
 > para 2,49%–3,29% em parcelamento, e assinatura parcelada não faz sentido. Fixar
@@ -337,17 +392,30 @@ stateDiagram-v2
     past_due --> active: pagou
     past_due --> carencia
     carencia --> active: pagou
-    carencia --> fora_do_ar: 3 dias inteiros
+    carencia --> fora_do_ar: 3 dias inteiros — ou o fim que o operador estendeu
     fora_do_ar --> active: pagou
-    active --> cancelled: cancelou
+    active --> cancelada: cancelou
+    carencia --> cancelada: cancelou, com a cobrança atrasada
+    cancelada --> fora_do_ar: fim do período pago — ou da carência
+    cancelada --> active: assinou de novo
 ```
+
+*Cancelada* (10/10/2026, §5.3) não é status: é `active` com `subscription_ends_at`, no ar até a
+data e fora do ar depois, pelo relógio. O status `cancelled` ficou para a barbearia encerrada à
+mão, que não volta pelo cartão.
 
 **Gravado** em `tenants.status`: `trial`, `active`, `past_due`, `suspended` — agora só a
 barbearia tirada do ar à mão — e `cancelled`, com as datas que começam os prazos,
 `trial_ends_at` e `past_due_since`. **Calculado** a cada requisição, sem tarefa agendada: a
 carência e o fora do ar (`situacaoDe`). Fora do ar, o site responde 503 com o aviso e o
-WhatsApp da barbearia, e o painel abre só a tela de assinatura. **O que ainda não existe:**
-quem grava `active` e `past_due` — o webhook da Asaas.
+WhatsApp da barbearia, e o painel abre só a tela de assinatura. ~~**O que ainda não existe:**
+quem grava `active` e `past_due` — o webhook da Asaas~~ — ✅ desde 10/10/2026, sem a prova no
+sandbox (§5.3).
+
+**A carência da cobrança se estende** desde 12/10/2026, pelo painel do operador: o FIM novo fica
+em `tenants.carencia_ate` (migration 0016) e vale só para aquele atraso — um gatilho do banco o
+apaga quando `past_due_since` muda, pagou ou atrasou de novo. A carência do teste não lê a
+extensão: o teste se estende pelo teste (`PENDENCIAS-ABERTAS.md` §3.9).
 
 **Os avisos por e-mail de cada passagem**, desde 09/10/2026 — 2 dias antes do fim do teste, no
 começo da carência e no fora do ar — saem de uma tarefa de hora em hora que só **lê** a fase:
@@ -374,6 +442,86 @@ stateDiagram-v2
 Os prazos (15 dias para suspender, 30 dias de aviso prévio para cancelar) **não são invenção
 deste documento**: estão escritos na proposta que você já assinou como modelo,
 `orcamentos/entrega-bayron-v5.docx`. O código deve seguir o contrato, não o contrário.
+
+### 5.3 O que o código faz — 10/10/2026
+
+> Implementado no app da barbearia, como módulo (decisão de 08/10, `PLANO-PRODUTIZACAO.md` §13),
+> e **não testado no sandbox**: os eventos são os dos exemplos da documentação da Asaas,
+> conferida em 10/10. O roteiro da prova e as perguntas que ela tem de responder:
+> `PENDENCIAS-ABERTAS.md` §4.14. Código: `apps/barbearia/src/lib/cobranca.ts`.
+
+**No banco** (migration 0010): `tenants` ganhou o cliente da Asaas (`asaas_customer_id`), a
+assinatura em vigor (`asaas_subscription_id`, única), os últimos 20 Checkouts
+(`asaas_checkout_ids`) e a data de saída de quem cancelou (`subscription_ends_at`). E
+`webhook_events`: o evento cru, gravado antes de processar e na mesma transação — a `UNIQUE` em
+`(gateway, gateway_event_id)` é a idempotência do §5.1, e o 200 só sai depois do commit. É a
+única tabela com `tenant_id` que aceita nulo: o evento que não acha barbearia fica guardado. O
+papel do app não tem acesso a ela; só o webhook, como dono das tabelas.
+
+⚠️ **Até 12/10/2026, o evento cru podia ficar gravado como texto, não como objeto** — com ele, o
+`payload->'payment'` não acha nada. Dependia de o Drizzle ter tocado a conexão antes, e o webhook
+não toca. Consertado, e a migration 0014 converte as linhas antigas (`PENDENCIAS-ABERTAS.md` §2.36).
+
+**As rotas:**
+
+| Rota | Quem | O que faz |
+|---|---|---|
+| `POST /api/admin/assinatura/cartao` | o dono, no ar ou fora do ar | Cria o Checkout e devolve o endereço da página de pagamento |
+| `POST /api/admin/assinatura/cancelar` | o dono, no ar ou fora do ar pela cobrança | Remove a assinatura na Asaas e grava até quando o site fica no ar |
+| `POST /api/asaas/webhook` | a Asaas, com o token no cabeçalho `asaas-access-token` | Grava o evento e muda a barbearia |
+
+**O Checkout:** cartão, recorrente, mensal, R$ 100, à vista. A primeira cobrança é no dia
+seguinte ao fim do teste; hoje, para quem está na carência ou fora do ar; e, para quem cancelou e
+reativa ainda no ar, no dia em que a antiga acabaria — o mesmo mês não é cobrado duas vezes. O
+número do cartão é digitado na página da Asaas e nunca passa pelo servidor. Cliente que já
+existe vai pelo id; novo, com o nome, o e-mail e o telefone do cadastro — o CPF, a página pede.
+
+**Como o evento acha a barbearia.** A Asaas não garante a ordem, e cada evento traz uma chave
+diferente. Na ordem: o Checkout (`checkout.id`, ou o `checkoutSession` da assinatura) entre os
+últimos 20 da barbearia; a referência `barbearia:N`, se a Asaas a repassar à assinatura; a
+assinatura; e, por último, o cliente — que pode ser de duas barbearias do mesmo dono, e aí o
+evento não escolhe nenhuma. Cada evento ensina as chaves que faltam.
+
+| Evento | Efeito |
+|---|---|
+| `CHECKOUT_PAID` | Em dia — inclusive quem estava fora do ar ou tinha cancelado. Guarda o cliente e desliga as notificações da Asaas para ele |
+| `SUBSCRIPTION_CREATED` | Liga a assinatura à barbearia. Se havia outra — o cartão trocado —, a antiga é removida na Asaas, com as cobranças em aberto dela, se ainda existir |
+| `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED` | Em dia. Atrasada, só quando é paga a cobrança que FALHOU — desde 17/10/2026: no cartão o `PAYMENT_RECEIVED` chega ~32 dias depois, e o do mês passado tirava do atraso quem não pagou este (`PENDENCIAS-ABERTAS.md` §2.53) |
+| `PAYMENT_OVERDUE`, `PAYMENT_CREDIT_CARD_CAPTURE_REFUSED` | Atrasada desde a PRIMEIRA falha: começam os 3 dias de carência (`apps/barbearia/src/lib/situacao.ts`) |
+| `SUBSCRIPTION_DELETED`, `SUBSCRIPTION_INACTIVATED` | A assinatura em vigor removida por fora do painel: no ar até o fim do período pago. Removida pelo cancelar do painel, a data já está gravada e não muda. Com a barbearia fora do `active`, pede olho ao operador — e, tirada do ar ou encerrada, a saída fica marcada para valer se ela for reativada (desde 17/10/2026) |
+| Estorno e contestação | Alerta no log e no "pede olho" do operador (desde 17/10/2026); nada muda sozinho (§4) |
+| Qualquer outro | Guardado, e mais nada |
+
+Nenhum mexe em barbearia suspensa à mão. E só conta a cobrança da assinatura **em vigor**: a de
+uma antiga, removida quando o cartão foi trocado, não atrasa ninguém.
+
+**O cancelar:** em dia, no ar até o fim do período pago; com a cobrança atrasada — na carência
+ou fora do ar —, só o que restava da carência (a estendida pelo operador, se foi), e a mensalidade
+que falhou some com a assinatura. *Desde 18/10/2026* o fim do período pago é o vencimento da
+cobrança pendente mais antiga, lida na Asaas antes de remover — o `nextDueDate` já está um mês à
+frente, porque a Asaas gera cada cobrança 40 dias antes —; e o cancelar só remove a assinatura
+comprovadamente da barbearia: cada uma é independente, mesmo com o mesmo dono
+(`PENDENCIAS-ABERTAS.md` §2.55).
+As duas regras foram decididas na implementação e confirmadas pelo dono em 10/10/2026
+(`PENDENCIAS-ABERTAS.md` §4.14). **E quem sai do ar pela cobrança sem cancelar** continua com a
+assinatura viva: a Asaas tenta o cartão nos vencimentos seguintes, e o pagamento que passar põe a
+barbearia em dia. Rejeitado no mesmo dia: remover a assinatura depois de 30 dias fora do ar.
+
+**Quando o processamento falha.** O erro que é do próprio evento — um dado em conflito, um dado
+que o banco recusa — se repetiria em toda reentrega: fica guardado com o motivo e responde 200,
+porque 15 falhas seguidas interrompem a fila do webhook inteiro. O resto — o banco fora do ar, um
+erro de programa — responde 500 e volta para a fila: o erro de programa quebraria todos os
+eventos iguais, e aí a fila parar é o certo; conserta-se o programa e religa-se a fila. Religa-se em Integrações → Webhooks, no painel
+da Asaas, ou por `PUT /v3/webhooks/{id}` com `interrupted: false`; os avisos parados há menos de
+14 dias chegam depois disso, e os mais velhos a Asaas apaga (documentação dela, conferida em
+17/10/2026). Desde 17/10 o Início e o Sistema do operador dizem quando a fila parou
+(`PENDENCIAS-ABERTAS.md` §3.13).
+
+**O que roda fora do banco** — desligar as notificações, remover a assinatura antiga — roda
+depois do commit. Falha vira aviso no log, com o que fazer à mão, e não desfaz o evento.
+
+*Rejeitado:* conferir os IPs da Asaas (§4). Atrás do proxy, o IP que chega é o do proxy; a
+parede é o token, comparado em tempo constante — e sem `ASAAS_WEBHOOK_TOKEN` a rota recusa tudo.
 
 ---
 
@@ -441,6 +589,17 @@ nova de falha. A 1 cliente por mês, o retorno chega depois do oitavo. Construir
 
 ### 7.3 Suspensão: manual na V1
 
+> **11/10/2026 — o "você clica" existe:** o painel do operador (`/operador`,
+> `PENDENCIAS-ABERTAS.md` §3.9) tira do ar, reativa e estende o teste, com cada ação
+> registrada. A suspensão por falta de pagamento não espera clique desde 08/10/2026 — sai do
+> relógio (`PENDENCIAS-ABERTAS.md` §3.5); o clique ficou para o caso à mão. E o painel não
+> avisa ninguém: mostra a fase de cada barbearia e os eventos da Asaas que pedem olho, quando
+> você abre — o alerta continua no `PENDENCIAS-ABERTAS.md` §3.4.
+>
+> **12/10/2026:** o painel ganhou uma tela de Cobrança — as assinaturas em vigor, as atrasadas, os
+> pagamentos e as falhas do mês e tudo o que o webhook recebeu (`PENDENCIAS-ABERTAS.md` §3.9).
+> Continua mostrando só quando você abre.
+
 O painel detecta os 15 dias e **avisa você**. Você clica. Não automatize ainda:
 
 - A 15 clientes, suspensão acontece talvez uma vez por mês.
@@ -451,6 +610,25 @@ O painel detecta os 15 dias e **avisa você**. Você clica. Não automatize aind
   inadimplência dele.
 
 ### 7.4 Subdomínio e SSL
+
+> **10/10/2026 — conferido em produção, e o que isso NÃO muda.** No EasyPanel, o certificado do
+> painel saiu sozinho, por HTTP-01, quando o endereço foi adicionado ao serviço. É o que esta
+> seção já dizia para endereço escrito à mão: o painel e o domínio próprio de cliente. Uma
+> sessão de 10/10 concluiu daí que *"não precisa de Cloudflare"*: cada barbearia nova custaria
+> um clique — adicionar o endereço no serviço. **É verdade, e é a saída que esta seção rejeitou
+> em 09/10** (abaixo): o cadastro das 3 da manhã fica sem site até alguém clicar, e a tela *"o
+> seu site está no ar"* mente até lá. Sem o clique, continua valendo o certificado curinga, só
+> por DNS-01 (`PENDENCIAS-ABERTAS.md` §2.31). Voltar ao clique é decisão do dono — ~~e, se for
+> tomada, a tela final do cadastro muda antes~~ — ✅ *mudou em 10/10: a tela confere o endereço,
+> do navegador do dono, antes de dizer que está no ar; até abrir, diz "quase no ar" e não oferece
+> divulgar (`JORNADA-DO-BARBEIRO.md` §2.8). O clique continua deixando o cadastro das 3 da manhã
+> sem site; só deixou de mentir sobre isso.*
+>
+> Duas coisas novas. O DNS do domínio em uso hoje está na **Hostinger**, não no registro.br — se o
+> lego tiver a Hostinger entre os provedores, o DNS-01 sai sem Cloudflare (**não conferido**). E
+> uma terceira saída, **rejeitada:** o cadastro chamar a API do EasyPanel para adicionar cada
+> endereço ao serviço. Funcionaria por HTTP-01, mas o app passaria a guardar uma credencial que
+> manda no servidor inteiro — um defeito no app entregaria o servidor a quem o achasse.
 
 > ⚠️ **Corrigido em 09/10/2026: o parágrafo abaixo não funciona como está escrito.**
 > Conferido na documentação do Traefik nesta data: ele pede certificado só para os endereços

@@ -1,7 +1,11 @@
 # Arquitetura — Multi-tenant com banco único (V1)
 
-> Especificação da migração. Data: 2026-09-01. Revisado em 06/09/2026.
-> Status: **passos 1 a 4 escritos e testados, NÃO aplicados.** Ver `ESTADO-ATUAL.md` §4.
+> Especificação da migração. Data: 2026-09-01. Revisado em 06/09/2026 e em 12/10/2026.
+> Status: **os sete passos do §9 aplicados** — o último, o banco recusando horário duplo (§7.1),
+> em 12/10/2026. ⚠️ O passo 6 foi feito como **separação por endereço**, não como dois apps: o
+> site responde no endereço da barbearia e o painel no do painel, mas continuam num app e num
+> processo só (`MONOREPO.md`). *(Esclarecido em 26/10/2026.)* O estado de cada um: `ESTADO-ATUAL.md` §4. *(Até 12/10, este cabeçalho dizia
+> "passos 1 a 4 escritos e testados, NÃO aplicados" — parado em 06/09.)*
 >
 > ⚠️ **Quatro coisas que este desenho não previa** apareceram ao implementar. Estão
 > marcadas no texto e resumidas no §12.
@@ -158,7 +162,7 @@ FOREIGN KEY (barber_id, tenant_id) REFERENCES barbers (id, tenant_id)
 ```
 
 Assim o banco recusa sozinho, sem depender de o código lembrar. Está na migration
-`0001_tenants.sql`, em `migracao-tenants/`.
+`apps/barbearia/drizzle/0001_tenants.sql`.
 
 ### 5.2.2 `settings.id` não tinha sequência — não previsto
 
@@ -218,6 +222,29 @@ Isso é estritamente melhor: a garantia sai da aplicação e vira invariante do 
 chave de idempotência continua necessária, para o clique duplo devolver o mesmo
 agendamento em vez de um erro.
 
+### 7.1 ✅ Feito em 12/10/2026 — e não como o rascunho acima
+
+O rascunho não roda neste banco. Três coisas que só apareceram ao escrever a migration 0015
+(`apps/barbearia/drizzle/0015_horario_duplo.sql`):
+
+1. **Os horários são texto, não `timestamptz`.** `starts_at` e `ends_at` herdaram do SQLite o
+   texto ISO em UTC, e o Postgres não aceita num índice a conversão de texto para instante —
+   ele a chama de "estável", porque um texto sem fuso depende do fuso da conexão. A migration
+   cria `instante_utc()`, a mesma conversão declarada imutável, o que só é verdade porque o
+   texto sempre traz o `Z`; uma segunda regra, `appointments_horario_utc`, garante o formato.
+   Rejeitado: trocar as colunas para `timestamptz` — mexeria em cada consulta que compara
+   horário como texto, para o mesmo resultado.
+2. **`barber_id WITH =` pede a extensão `btree_gist`.** Vai como
+   `int4range(barber_id, barber_id, '[]') WITH =`, que o índice GiST compara sem extensão.
+3. **O banco pode já ter pares sobrepostos** — o SQLite da máquina de desenvolvimento tem 7, de
+   maio e junho de 2026, feitos pelo gerador de dados de demonstração —, e a constraint não
+   nasceria: o boot pararia, com todas as barbearias fora do ar. A trava passa a valer a partir do fim do último par; o histórico fica como estava, e o
+   boot diz desde quando.
+
+A fila (`pg_advisory_xact_lock`) e a conferência continuam no código: são elas que dão a
+mensagem certa, e a recusa do banco, quando acontece, vira o mesmo 409. Os detalhes e as provas:
+`PENDENCIAS-ABERTAS.md` §2.37.
+
 ## 8. Consequências fora do banco
 
 **Um `SESSION_SECRET` só.** O risco 🔴 de secret repetido entre instâncias
@@ -255,8 +282,12 @@ Cada passo termina com o sistema funcionando.
    `tenant_id` — útil, mas é a ponta. Os `SELECT` sem filtro ele não vê, e são eles que
    vazam. Um deles, `admin/reservations/index.ts`, não tinha `.where()` nenhum.
 5. **Ligar RLS** — a rede que pega o que escapou do passo 4.
-6. **Separar os dois apps** — extrair o site público do painel.
-7. **Login por telefone** (§6) e a exclusion constraint (§7).
+6. **Separar os dois apps** — extrair o site público do painel. ✅ **Feito em 11/09/2026 como
+   separação por endereço** (`resolverHost`, `painelCentral.ts`): cada endereço só serve o que é
+   dele. A extração física em dois apps **não foi feita** — continua um app só
+   (`MONOREPO.md` §4).
+7. **Login por telefone** (§6) e a exclusion constraint (§7). ✅ O login em 09/09/2026; a
+   constraint em 12/10/2026 (§7.1).
 
 > ⚠️ Os passos 4 e 5 na ordem inversa dariam falsa segurança: com RLS ligado antes, uma
 > consulta sem filtro devolve zero linhas silenciosamente e passa despercebida no
@@ -291,6 +322,13 @@ dele para nada crítico. Passa a ser o ponto único de falha do produto inteiro.
 
 **Nenhum deles foi alterado ainda.** Alterar antes de implementar produz documento que
 descreve um sistema que não existe — o problema que este projeto já teve uma vez.
+
+*12/10/2026 — onde cada um está:* o `ARQUITETURA-PRODUTO-V1.md` traz a D1 marcada como
+revertida desde 01/09; o `ARQUITETURA-COBRANCA-V1.md` §1.1, vencido em 24/09; e o
+`ARQUITETURA-PRODUCAO.md` e o `PENDENCIAS-ABERTAS.md` §3.1, o `PENDENCIAS-ABERTAS.md` §3.2 e o
+`PENDENCIAS-ABERTAS.md` §3.3 — que continuavam
+descrevendo uma instância por barbearia, com o multi-tenant no ar desde 10/10 — foram
+reescritos em 12/10.
 
 ---
 

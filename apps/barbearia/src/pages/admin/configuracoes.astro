@@ -3,11 +3,15 @@ export const prerender = false;
 
 import { tenantDaSessao } from '../../lib/tenant.js';
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import ExportarDados from '../../components/admin/ExportarDados.astro';
+import SecaoDeCampos, { type Secao } from '../../components/admin/SecaoDeCampos.astro';
 import { getSession } from '../../lib/session.js';
 import { db, first } from '../../db/index.js';
 import { barbers, settings } from '../../db/schema.js';
 import { and, eq } from 'drizzle-orm';
 import { parseBusinessHours } from '../../lib/settings.js';
+import { embedDoMapa } from '../../lib/mapa.js';
+import { FUSOS_DO_BRASIL, deslocamento, fusoDe } from '../../lib/timezone.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
@@ -21,18 +25,33 @@ if (!barberRow) return Astro.redirect('/admin/login');
 
 const cfg = (await first(db.select().from(settings).where(eq(settings.tenantId, tenant.id))));
 const horarios = parseBusinessHours(cfg?.businessHours);
+// O mapa que o site mostra agora — a prévia abaixo do endereço (`lib/mapa.ts`).
+const mapaAgora = cfg ? embedDoMapa(cfg) : null;
+// O fuso dos horários (`tenants.timezone`, 12/10/2026): nasce do estado do
+// cadastro e se troca aqui. A distância do UTC é a de hoje — é ela que muda se o
+// horário de verão voltar num estado e não no outro.
+const fusoAtual = fusoDe(tenant);
+const opcoesDeFuso = FUSOS_DO_BRASIL.map((f) => ({ id: f.id, texto: `${f.rotulo} · ${deslocamento(f.id)}` }));
 
-type Campo = {
-  id: string;
-  label: string;
-  hint?: string;
-  tipo?: 'text' | 'textarea' | 'number';
-  placeholder?: string;
-};
+// ── As abas (15/10/2026) ───────────────────────────────────────────────────────
+// A tela era uma rolagem só, com nove blocos. Agora são quatro abas — as três primeiras
+// são o formulário, e o Salvar grava as três de uma vez: os campos das abas escondidas
+// continuam nele. O `id` de cada aba e de cada bloco é endereço: `#contato` abre a aba,
+// `#endereco` abre a aba onde o bloco está e rola até ele.
+// `curto`: o nome no celular, para as quatro caberem lado a lado numa tela de 390 px.
+const ABAS: { id: string; titulo: string; curto?: string }[] = [
+  { id: 'aparencia', titulo: 'Aparência' },
+  { id: 'contato', titulo: 'Contato e endereço', curto: 'Contato' },
+  { id: 'google', titulo: 'Google' },
+  { id: 'dados', titulo: 'Seus dados' },
+];
+type AbaDoFormulario = 'aparencia' | 'contato' | 'google';
 
-const secoes: { titulo: string; nota?: string; campos: Campo[] }[] = [
+const secoes: (Secao & { aba: AbaDoFormulario })[] = [
   {
-    titulo: 'Identidade',
+    titulo: 'Nomes e textos do site',
+    ancora: 'textos',
+    aba: 'aparencia',
     campos: [
       { id: 'businessName', label: 'Nome da barbearia', hint: 'Aparece no rodapé, no título da aba e nos dados que o Google lê.' },
       { id: 'shortName', label: 'Nome curto', hint: 'O que aparece no topo do site, ao lado do logo. Ex: "Cortes do Zé".' },
@@ -43,58 +62,76 @@ const secoes: { titulo: string; nota?: string; campos: Campo[] }[] = [
       { id: 'tagline', label: 'Frase do topo', hint: 'O título grande do topo do site — a primeira coisa que o cliente lê. Em branco, o topo mostra o nome da barbearia.' },
       { id: 'heroSubtitle', label: 'Texto abaixo da frase', tipo: 'textarea', hint: 'Aparece logo abaixo da frase do topo. Opcional.' },
       { id: 'aboutText', label: 'Sobre a barbearia', tipo: 'textarea', hint: 'O parágrafo do rodapé.' },
+      // Morava em "Busca e compartilhamento" até 15/10/2026, mas é texto do site, não do Google.
+      { id: 'productsSectionTitle', label: 'Título da seção de produtos', hint: 'O título grande acima dos produtos, no site. Ex: "Produtos".' },
     ],
   },
   {
     titulo: 'Contato',
+    ancora: 'contatos',
+    aba: 'contato',
     campos: [
-      { id: 'whatsappNumber', label: 'WhatsApp (só números)', hint: 'DDI + DDD + número, sem espaços nem sinais. Ex: 5584999051196. É para onde vão todos os botões de WhatsApp.', placeholder: '5584999051196' },
-      { id: 'whatsappDisplay', label: 'WhatsApp como aparece escrito', hint: 'Só o texto exibido no rodapé. Ex: +55 84 99905-1196.', placeholder: '+55 84 99905-1196' },
+      { id: 'whatsappNumber', label: 'WhatsApp (só números)', hint: 'DDI + DDD + número, sem espaços nem sinais. Ex: 5584999999999. É para onde vão todos os botões de WhatsApp.', placeholder: '5584999999999' },
+      { id: 'whatsappDisplay', label: 'WhatsApp como aparece escrito', hint: 'Só o texto exibido no rodapé. Ex: +55 84 99999-9999.', placeholder: '+55 84 99999-9999' },
       { id: 'instagramUrl', label: 'Link do Instagram', placeholder: 'https://www.instagram.com/sua_barbearia/' },
       { id: 'instagramHandle', label: 'Arroba do Instagram', placeholder: '@sua_barbearia' },
     ],
   },
   {
     titulo: 'Endereço',
+    // O "Não está — corrigir" do Início leva para cá (`admin/index.astro`).
+    ancora: 'endereco',
+    previaDoMapa: true,
+    aba: 'contato',
     campos: [
       { id: 'addressStreet', label: 'Rua e número', placeholder: 'R. Exemplo, 123' },
       { id: 'addressCity', label: 'Cidade/UF', hint: 'Escreva no formato Cidade/UF — o site divide os dois para o Google.', placeholder: 'Mossoró/RN' },
-      { id: 'mapsUrl', label: 'Link "traçar rota"', hint: 'O link que abre a rota no Google Maps ou Waze.' },
-      { id: 'mapsEmbedQuery', label: 'Busca do mapa embutido', hint: 'O texto que o mapa da página usa para se localizar. Ex: nome da barbearia + rua + cidade.' },
+      { id: 'fuso', label: 'Fuso horário', tipo: 'fuso', hint: 'Todo horário do site, da agenda e dos e-mails segue este fuso. Ele veio do estado no cadastro; troque se a sua cidade está numa ponta de estado com outro fuso.' },
+      // Desde 10/10/2026 os dois são opcionais: em branco, o mapa e a rota saem do endereço
+      // (`lib/mapa.ts`). Antes, sem o link, o "Traçar rota" abria o próprio site.
+      { id: 'mapsUrl', label: 'Link "traçar rota"', hint: 'Opcional. Em branco, o site monta a rota pelo endereço. Preenchido, é ele que todo botão de mapa do site abre — pode ser do Google Maps ou do Waze.' },
+      { id: 'mapsEmbedQuery', label: 'Busca do mapa embutido', hint: 'O texto que o mapa da página usa para achar a barbearia — e a rota também, se o link acima estiver em branco. Em branco, vale a rua e a cidade. Se o mapa mostrar outro lugar, escreva o nome da barbearia + rua + bairro + cidade.' },
     ],
   },
   {
     titulo: 'Avaliações do Google',
+    ancora: 'avaliacoes',
+    aba: 'google',
     campos: [
       { id: 'googleReviewsUrl', label: 'Link das avaliações' },
-      { id: 'googleRating', label: 'Nota', hint: 'De 0 a 5, com uma casa decimal. Ex: 4.8', placeholder: '5.0' },
+      { id: 'googleRating', label: 'Nota', hint: 'A do Google, com uma casa decimal. Ex: 4.8. Com a nota e a quantidade, o site mostra as duas; em branco, nada aparece.', placeholder: '5.0' },
       { id: 'googleReviewCount', label: 'Quantidade de avaliações', tipo: 'number' },
     ],
   },
   {
     titulo: 'Busca e compartilhamento',
     nota: 'É o que aparece no Google e na prévia quando alguém manda o link no WhatsApp.',
+    ancora: 'busca',
+    aba: 'google',
     campos: [
       { id: 'seoTitle', label: 'Título da página', hint: 'Até uns 60 caracteres aparecem no Google.' },
       { id: 'seoDescription', label: 'Descrição', tipo: 'textarea', hint: 'Até uns 155 caracteres aparecem no Google.' },
-      { id: 'productsSectionTitle', label: 'Título da seção de produtos' },
     ],
   },
 ];
+const secoesDa = (aba: AbaDoFormulario) => secoes.filter((s) => s.aba === aba);
 
 const valor = (id: string): string => {
   const v = (cfg as Record<string, unknown> | undefined)?.[id];
   return v === null || v === undefined ? '' : String(v);
 };
+// O que todo bloco de campos recebe (`components/admin/SecaoDeCampos.astro`).
+const comuns = { valor, opcoesDeFuso, fusoAtual, mapaAgora };
 ---
 
 <AdminLayout title="Configurações" barberName={barberRow.name} role="admin">
-  <main class="max-w-3xl mx-auto px-4 py-6 pb-24">
+  <div class="max-w-3xl mx-auto px-4 py-6 pb-24">
 
-    <div class="mb-6">
+    <div class="mb-4">
       <h1 class="text-lg font-medium text-slate-900">Configurações da barbearia</h1>
       <p class="text-sm text-slate-500 mt-1">
-        O que você muda aqui aparece no site na hora, sem precisar reiniciar nada.
+        Mude o que quiser em qualquer aba e clique em <strong class="font-medium text-slate-700">Salvar</strong>, lá
+        embaixo: ele grava todas de uma vez. As imagens são a exceção — sobem assim que você escolhe o arquivo.
       </p>
     </div>
 
@@ -104,159 +141,180 @@ const valor = (id: string): string => {
       </div>
     )}
 
+    {/* As abas, presas logo abaixo do topo do painel (64 px) enquanto a página rola. O
+        ponto ao lado do nome aparece quando a aba tem mudança que ainda não foi salva. */}
+    <div class="sticky top-16 z-10 -mx-4 px-4 mb-6 bg-slate-50/95 backdrop-blur border-b border-slate-200">
+      <div role="tablist" aria-label="Partes das configurações" class="flex overflow-x-auto">
+        {ABAS.map((aba, i) => (
+          <button
+            type="button"
+            role="tab"
+            id={`aba-${aba.id}`}
+            aria-controls={aba.id}
+            aria-selected={i === 0 ? 'true' : 'false'}
+            tabindex={i === 0 ? 0 : -1}
+            data-aba={aba.id}
+            class="shrink-0 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-colors aria-selected:border-teal aria-selected:text-teal focus-visible:outline-none focus-visible:bg-teal/10"
+          >
+            {aba.curto
+              ? <><span class="sm:hidden">{aba.curto}</span><span class="hidden sm:inline">{aba.titulo}</span></>
+              : aba.titulo}<span data-aba-mudou hidden class="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle"><span class="sr-only"> (alterações não salvas)</span></span>
+          </button>
+        ))}
+      </div>
+    </div>
+
     <form id="form-cfg" class="space-y-8">
 
-      {secoes.map((secao) => (
-        <section class="border border-slate-200 rounded-lg p-4 sm:p-5 bg-slate-50">
-          <h2 class="text-sm font-bold uppercase tracking-[0.15em] text-slate-700 mb-1">{secao.titulo}</h2>
-          {secao.nota && <p class="text-xs text-slate-500 mb-4">{secao.nota}</p>}
-          <div class:list={['space-y-4', !secao.nota && 'mt-4']}>
-            {secao.campos.map((campo) => (
-              <div>
-                <label for={campo.id} class="block text-xs font-medium text-slate-500 mb-1.5">{campo.label}</label>
-                {campo.tipo === 'textarea' ? (
-                  <textarea
-                    id={campo.id}
-                    data-campo={campo.id}
-                    rows="3"
-                    placeholder={campo.placeholder}
-                    class="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-sm text-slate-900 placeholder:text-slate-300 focus:border-teal/50 focus:outline-none transition-colors resize-y"
-                  >{valor(campo.id)}</textarea>
-                ) : (
-                  <input
-                    id={campo.id}
-                    data-campo={campo.id}
-                    data-tipo={campo.tipo ?? 'text'}
-                    type={campo.tipo === 'number' ? 'number' : 'text'}
-                    value={valor(campo.id)}
-                    placeholder={campo.placeholder}
-                    class="w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text-sm text-slate-900 placeholder:text-slate-300 focus:border-teal/50 focus:outline-none transition-colors"
-                  />
-                )}
-                {campo.hint && <p class="text-[11px] text-slate-400 mt-1.5 leading-relaxed">{campo.hint}</p>}
+      <div role="tabpanel" id="aparencia" aria-labelledby="aba-aparencia" class="space-y-8">
+        {secoesDa('aparencia').map((secao) => <SecaoDeCampos secao={secao} {...comuns} />)}
+
+        <!-- Imagens da marca -->
+        <section id="imagens" class="border border-slate-200 rounded-lg p-4 sm:p-5 bg-slate-50 scroll-mt-32">
+          <h2 class="text-sm font-bold uppercase tracking-[0.15em] text-slate-700 mb-1">Imagens</h2>
+          <p class="text-xs text-slate-500 mb-5">
+            Trocar aqui muda o site na hora. Cada envio gera um arquivo novo, então o
+            navegador de quem já visitou também vê a imagem nova.
+          </p>
+
+          <div class="grid sm:grid-cols-2 gap-4">
+            {[
+              { tipo: 'logo',    titulo: 'Logo',           dica: 'Aparece no topo e no rodapé. PNG com fundo transparente fica melhor.', valor: cfg?.logoPath },
+              { tipo: 'hero',    titulo: 'Foto de capa',   dica: 'A foto grande do topo. Horizontal, no mínimo 1600px de largura.',      valor: cfg?.heroPath },
+              { tipo: 'og',      titulo: 'Prévia de link', dica: 'A imagem que aparece quando alguém manda o link no WhatsApp. 1200×630.', valor: cfg?.ogPath },
+              { tipo: 'favicon', titulo: 'Ícone da aba',   dica: 'O quadradinho na aba do navegador. Quadrado, a partir de 64px.',       valor: cfg?.faviconPath },
+            ].map((img) => (
+              <div class="border border-slate-200 rounded p-3 bg-slate-50">
+                <div class="flex items-start justify-between gap-2 mb-2">
+                  <p class="text-xs font-medium text-slate-700">{img.titulo}</p>
+                  {img.valor && (
+                    <button type="button" data-remover={img.tipo}
+                      class="text-[11px] text-slate-400 hover:text-red-600 transition-colors">remover</button>
+                  )}
+                </div>
+
+                <div class="h-24 rounded border border-slate-200 bg-black/40 flex items-center justify-center overflow-hidden mb-2">
+                  {img.valor
+                    ? <img src={img.valor} alt={img.titulo} class="max-h-full max-w-full object-contain" />
+                    : <span class="text-[11px] text-slate-300">usando a imagem padrão</span>}
+                </div>
+
+                <label class="block text-center text-[11px] text-teal hover:text-teal border border-slate-200 hover:border-teal/40 rounded py-1.5 cursor-pointer transition-colors">
+                  {img.valor ? 'Trocar' : 'Escolher arquivo'}
+                  <input type="file" accept="image/*" data-upload={img.tipo} class="hidden" />
+                </label>
+                <p class="text-[10px] text-slate-400 mt-1.5 leading-relaxed">{img.dica}</p>
               </div>
             ))}
           </div>
         </section>
-      ))}
 
-      <!-- Imagens da marca -->
-      <section class="border border-slate-200 rounded-lg p-4 sm:p-5 bg-slate-50">
-        <h2 class="text-sm font-bold uppercase tracking-[0.15em] text-slate-700 mb-1">Imagens</h2>
-        <p class="text-xs text-slate-500 mb-5">
-          Trocar aqui muda o site na hora. Cada envio gera um arquivo novo, então o
-          navegador de quem já visitou também vê a imagem nova.
-        </p>
+        <!-- Cor do site -->
+        <section id="cor" class="border border-slate-200 rounded-lg p-4 sm:p-5 bg-slate-50 scroll-mt-32">
+          <h2 class="text-sm font-bold uppercase tracking-[0.15em] text-slate-700 mb-1">Cor do site</h2>
+          <p class="text-xs text-slate-500 mb-4">
+            A cor da sua marca, usada nos botões e destaques do site. O painel continua
+            neutro de propósito — a cor é a sua, a ferramenta é a mesma para todo mundo.
+          </p>
 
-        <div class="grid sm:grid-cols-2 gap-4">
-          {[
-            { tipo: 'logo',    titulo: 'Logo',           dica: 'Aparece no topo e no rodapé. PNG com fundo transparente fica melhor.', valor: cfg?.logoPath },
-            { tipo: 'hero',    titulo: 'Foto de capa',   dica: 'A foto grande do topo. Horizontal, no mínimo 1600px de largura.',      valor: cfg?.heroPath },
-            { tipo: 'og',      titulo: 'Prévia de link', dica: 'A imagem que aparece quando alguém manda o link no WhatsApp. 1200×630.', valor: cfg?.ogPath },
-            { tipo: 'favicon', titulo: 'Ícone da aba',   dica: 'O quadradinho na aba do navegador. Quadrado, a partir de 64px.',       valor: cfg?.faviconPath },
-          ].map((img) => (
-            <div class="border border-slate-200 rounded p-3 bg-slate-50">
-              <div class="flex items-start justify-between gap-2 mb-2">
-                <p class="text-xs font-medium text-slate-700">{img.titulo}</p>
-                {img.valor && (
-                  <button type="button" data-remover={img.tipo}
-                    class="text-[11px] text-slate-400 hover:text-red-600 transition-colors">remover</button>
-                )}
-              </div>
-
-              <div class="h-24 rounded border border-slate-200 bg-black/40 flex items-center justify-center overflow-hidden mb-2">
-                {img.valor
-                  ? <img src={img.valor} alt={img.titulo} class="max-h-full max-w-full object-contain" />
-                  : <span class="text-[11px] text-slate-300">usando a imagem padrão</span>}
-              </div>
-
-              <label class="block text-center text-[11px] text-teal hover:text-teal border border-slate-200 hover:border-teal/40 rounded py-1.5 cursor-pointer transition-colors">
-                {img.valor ? 'Trocar' : 'Escolher arquivo'}
-                <input type="file" accept="image/*" data-upload={img.tipo} class="hidden" />
-              </label>
-              <p class="text-[10px] text-slate-400 mt-1.5 leading-relaxed">{img.dica}</p>
+          <div class="flex flex-wrap items-end gap-4">
+            <div>
+              <label for="accentColor" class="block text-xs font-medium text-slate-500 mb-1.5">Escolher</label>
+              <input
+                type="color"
+                id="accentColor"
+                data-campo="accentColor"
+                value={cfg?.accentColor ?? '#0f766e'}
+                class="h-10 w-16 rounded border border-slate-200 bg-white p-1 cursor-pointer" />
             </div>
-          ))}
-        </div>
-      </section>
-
-      <!-- Cor do site -->
-      <section class="border border-slate-200 rounded-lg p-4 sm:p-5 bg-slate-50">
-        <h2 class="text-sm font-bold uppercase tracking-[0.15em] text-slate-700 mb-1">Cor do site</h2>
-        <p class="text-xs text-slate-500 mb-4">
-          A cor da sua marca, usada nos botões e destaques do site. O painel continua
-          neutro de propósito — a cor é a sua, a ferramenta é a mesma para todo mundo.
-        </p>
-
-        <div class="flex flex-wrap items-end gap-4">
-          <div>
-            <label for="accentColor" class="block text-xs font-medium text-slate-500 mb-1.5">Escolher</label>
-            <input
-              type="color"
-              id="accentColor"
-              data-campo="accentColor"
-              value={cfg?.accentColor ?? '#0f766e'}
-              class="h-10 w-16 rounded border border-slate-200 bg-white p-1 cursor-pointer" />
+            <div>
+              <label for="accentHex" class="block text-xs font-medium text-slate-500 mb-1.5">Código</label>
+              <input
+                type="text"
+                id="accentHex"
+                spellcheck="false"
+                value={cfg?.accentColor ?? '#0f766e'}
+                class="w-28 bg-white border border-slate-200 rounded px-3 py-2 text-sm font-mono text-slate-900 focus:border-teal focus:outline-none" />
+            </div>
+            <button type="button" id="accentPadrao"
+              class="text-xs text-slate-500 hover:text-teal underline underline-offset-2 pb-2.5">
+              voltar ao padrão
+            </button>
           </div>
-          <div>
-            <label for="accentHex" class="block text-xs font-medium text-slate-500 mb-1.5">Código</label>
-            <input
-              type="text"
-              id="accentHex"
-              spellcheck="false"
-              value={cfg?.accentColor ?? '#0f766e'}
-              class="w-28 bg-white border border-slate-200 rounded px-3 py-2 text-sm font-mono text-slate-900 focus:border-teal focus:outline-none" />
+
+          <!-- As cores da logo: sugeridas no navegador, a partir da imagem — nunca aplicadas sozinhas. -->
+          {cfg?.logoPath && (
+            <div id="cores-da-logo" data-logo={cfg.logoPath} class="hidden mt-4">
+              <p class="text-xs font-medium text-slate-500 mb-1.5">Cores da sua logo</p>
+              <div id="cores-da-logo-lista" class="flex flex-wrap gap-2"></div>
+              <p class="text-[11px] text-slate-400 mt-1.5">Toque numa para ver como fica no site. Só vale depois de salvar.</p>
+            </div>
+          )}
+
+          <!-- Prévia: mostra a cor que o site VAI usar, não a que foi escolhida. -->
+          <div class="mt-5 rounded-lg border border-slate-200 bg-slate-900 p-4">
+            <p class="text-[11px] uppercase tracking-wider text-slate-500 mb-3">Como fica no site</p>
+            <div class="flex flex-wrap items-center gap-4">
+              <span id="accentBotao" class="inline-flex items-center justify-center rounded px-5 py-2.5 text-sm font-bold text-white">
+                Reservar horário
+              </span>
+              <span id="accentTexto" class="text-sm font-medium">texto em destaque</span>
+            </div>
           </div>
-          <button type="button" id="accentPadrao"
-            class="text-xs text-slate-500 hover:text-teal underline underline-offset-2 pb-2.5">
-            voltar ao padrão
+
+          <p id="accentAviso" class="hidden mt-3 text-[11px] leading-relaxed text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2"></p>
+        </section>
+
+        <!--
+          Até 11/10/2026 este bloco dizia que a galeria, o catálogo de serviços e a cor de
+          destaque "ainda não" se editavam — e as três já se editavam havia semanas (a
+          Galeria e os Serviços têm tela própria; a cor está nesta mesma página, logo
+          acima). Sobram de verdade só os depoimentos e as perguntas frequentes, que vêm
+          do código e por isso só aparecem no site do Bayron (`lib/bayron.ts`).
+        -->
+        <section id="ainda-nao-editavel" class="border border-slate-200 rounded-lg p-4 text-xs text-slate-500 leading-relaxed scroll-mt-32">
+          <p class="font-medium text-slate-600 mb-1.5">Ainda não existe no painel:</p>
+          <p>Depoimentos de clientes e perguntas frequentes. Por isso o seu site ainda não tem
+          essas duas seções. As fotos ficam em <a href="/admin/galeria" class="underline underline-offset-2">Galeria</a>,
+          e os serviços, em <a href="/admin/servicos" class="underline underline-offset-2">Serviços</a>.</p>
+        </section>
+      </div>
+
+      <div role="tabpanel" id="contato" aria-labelledby="aba-contato" hidden class="space-y-8">
+        {secoesDa('contato').map((secao) => <SecaoDeCampos secao={secao} {...comuns} />)}
+
+        <!-- Horário de vitrine -->
+        <section id="horario-do-site" class="border border-slate-200 rounded-lg p-4 sm:p-5 bg-slate-50 scroll-mt-32">
+          <h2 class="text-sm font-bold uppercase tracking-[0.15em] text-slate-700 mb-1">Horário exibido no site</h2>
+          <p class="text-xs text-slate-500 mb-1">
+            É só o texto que aparece no rodapé e na seção de localização.
+          </p>
+          <p class="text-[11px] text-amber-600/80 mb-4 leading-relaxed">
+            Isto <strong>não</strong> muda a agenda. Os horários que o cliente consegue reservar
+            continuam sendo os de <a href="/admin/horarios" class="underline hover:text-amber-700">Expediente</a>, no menu.
+          </p>
+
+          <div id="horarios" class="space-y-2"></div>
+
+          <button type="button" id="add-horario"
+            class="mt-3 text-xs text-teal hover:text-teal border border-teal/30 hover:border-teal/50 px-3 py-1.5 rounded transition-colors">
+            + Adicionar linha
           </button>
-        </div>
+        </section>
+      </div>
 
-        <!-- Prévia: mostra a cor que o site VAI usar, não a que foi escolhida. -->
-        <div class="mt-5 rounded-lg border border-slate-200 bg-slate-900 p-4">
-          <p class="text-[11px] uppercase tracking-wider text-slate-500 mb-3">Como fica no site</p>
-          <div class="flex flex-wrap items-center gap-4">
-            <span id="accentBotao" class="inline-flex items-center justify-center rounded px-5 py-2.5 text-sm font-bold text-white">
-              Reservar horário
-            </span>
-            <span id="accentTexto" class="text-sm font-medium">texto em destaque</span>
-          </div>
-        </div>
-
-        <p id="accentAviso" class="hidden mt-3 text-[11px] leading-relaxed text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2"></p>
-      </section>
-
-      <!-- Horário de vitrine -->
-      <section class="border border-slate-200 rounded-lg p-4 sm:p-5 bg-slate-50">
-        <h2 class="text-sm font-bold uppercase tracking-[0.15em] text-slate-700 mb-1">Horário exibido no site</h2>
-        <p class="text-xs text-slate-500 mb-1">
-          É só o texto que aparece no rodapé e na seção de localização.
-        </p>
-        <p class="text-[11px] text-amber-600/80 mb-4 leading-relaxed">
-          Isto <strong>não</strong> muda a agenda. Os horários que o cliente consegue reservar
-          continuam sendo os da aba <a href="/admin/horarios" class="underline hover:text-amber-700">Horários</a>.
-        </p>
-
-        <div id="horarios" class="space-y-2"></div>
-
-        <button type="button" id="add-horario"
-          class="mt-3 text-xs text-teal hover:text-teal border border-teal/30 hover:border-teal/50 px-3 py-1.5 rounded transition-colors">
-          + Adicionar linha
-        </button>
-      </section>
-
-      <section class="border border-slate-200 rounded-lg p-4 text-xs text-slate-400 leading-relaxed">
-        <p class="font-medium text-slate-500 mb-1.5">Ainda não dá para editar por aqui:</p>
-        <p>A galeria de fotos da página inicial continua vindo do código, junto com os
-        depoimentos, as perguntas frequentes e o catálogo de serviços — é a próxima fase.
-        A cor de destaque já existe no banco, mas o site ainda não a lê, então não a coloquei
-        aqui para não dar um botão que não faz nada.</p>
-      </section>
+      <div role="tabpanel" id="google" aria-labelledby="aba-google" hidden class="space-y-8">
+        {secoesDa('google').map((secao) => <SecaoDeCampos secao={secao} {...comuns} />)}
+      </div>
 
       <div id="cfg-msg" class="hidden text-sm rounded px-3 py-2"></div>
     </form>
-  </main>
+
+    <!-- Fora do formulário: baixar não é salvar. -->
+    <div role="tabpanel" id="dados" aria-labelledby="aba-dados" hidden>
+      <ExportarDados />
+    </div>
+  </div>
 
   <!-- Barra de salvar fixa: o formulário é longo e o botão não pode sumir no fim da rolagem -->
   <div class="fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-slate-50/95 backdrop-blur px-4 py-3 z-30">
@@ -274,6 +332,46 @@ const valor = (id: string): string => {
   // Prévia da cor. Usa a MESMA função que o servidor usa ao gravar, para o que
   // aparece aqui ser exatamente o que vai para o site — sem lógica duplicada.
   import { derivarAccent, ACCENT_PADRAO } from '../../lib/accent.js';
+  import { sugestoesDaLogo } from '../../lib/coresDaLogo.js';
+  import { embedDoMapa } from '../../lib/mapa.js';
+
+  // O fuso dos horários: a hora de agora no fuso escolhido, para o dono conferir
+  // antes de salvar — "lá são 22:41?" responde melhor que "UTC−4".
+  const seletorDeFuso = document.getElementById('fuso') as HTMLSelectElement | null;
+  const fusoAgora = document.getElementById('fuso-agora');
+  if (seletorDeFuso && fusoAgora) {
+    const dizerAgora = () => {
+      const hora = new Intl.DateTimeFormat('pt-BR', {
+        timeZone: seletorDeFuso.value, hour: '2-digit', minute: '2-digit',
+      }).format(new Date());
+      fusoAgora.textContent = `Nesse fuso, agora são ${hora}.`;
+    };
+    seletorDeFuso.addEventListener('change', dizerAgora);
+    dizerAgora();
+  }
+
+  // Prévia do mapa — a MESMA função do site (`lib/mapa.ts`), como a da cor abaixo:
+  // o ponto que aparece aqui é o que o site vai mostrar. Espera o dono parar de
+  // digitar para não pedir um mapa ao Google a cada letra.
+  const previa = document.getElementById('mapa-previa') as HTMLIFrameElement | null;
+  const previaVazia = document.getElementById('mapa-previa-vazia');
+  const camposDoMapa = ['addressStreet', 'addressCity', 'mapsEmbedQuery']
+    .map((id) => document.getElementById(id) as HTMLInputElement | null);
+  let esperaDoMapa: ReturnType<typeof setTimeout> | undefined;
+  const atualizarPrevia = () => {
+    if (!previa || !previaVazia) return;
+    const [rua, cidade, busca] = camposDoMapa.map((c) => c?.value ?? '');
+    const src = embedDoMapa({ addressStreet: rua, addressCity: cidade, mapsEmbedQuery: busca });
+    previa.hidden = !src;
+    previaVazia.hidden = Boolean(src);
+    if (src && previa.getAttribute('src') !== src) previa.setAttribute('src', src);
+  };
+  for (const campo of camposDoMapa) {
+    campo?.addEventListener('input', () => {
+      clearTimeout(esperaDoMapa);
+      esperaDoMapa = setTimeout(atualizarPrevia, 800);
+    });
+  }
 
   const entrada = document.getElementById('accentColor') as HTMLInputElement | null;
   const hex     = document.getElementById('accentHex') as HTMLInputElement | null;
@@ -319,7 +417,176 @@ const valor = (id: string): string => {
     });
 
     pintar(entrada.value);
+
+    // ── As cores da logo (`lib/coresDaLogo.ts`, §4.2): sugere, nunca aplica sozinho.
+    // Tocar numa preenche o campo pelo mesmo caminho do seletor — a prévia e o aviso de
+    // "clara demais" vêm junto —, e o site só muda depois de Salvar.
+    const blocoDaLogo = document.getElementById('cores-da-logo');
+    const listaDaLogo = document.getElementById('cores-da-logo-lista');
+    if (blocoDaLogo && listaDaLogo && blocoDaLogo.dataset.logo) {
+      const logo = new Image();
+      logo.addEventListener('load', () => {
+        try {
+          // 96 px no lado maior bastam para achar as cores, e a conta é instantânea.
+          const escala = Math.min(1, 96 / Math.max(logo.naturalWidth, logo.naturalHeight, 1));
+          const tela = document.createElement('canvas');
+          tela.width = Math.max(1, Math.round(logo.naturalWidth * escala));
+          tela.height = Math.max(1, Math.round(logo.naturalHeight * escala));
+          const ctx = tela.getContext('2d', { willReadFrequently: true });
+          if (!ctx) return;
+          ctx.drawImage(logo, 0, 0, tela.width, tela.height);
+          const cores = sugestoesDaLogo(ctx.getImageData(0, 0, tela.width, tela.height).data);
+          for (const cor of cores) {
+            const amostra = document.createElement('button');
+            amostra.type = 'button';
+            amostra.className = 'h-9 w-9 rounded-full border-2 border-white shadow ring-1 ring-slate-300 hover:ring-teal focus:outline-none focus:ring-2 focus:ring-teal';
+            amostra.style.backgroundColor = cor;
+            amostra.title = cor;
+            amostra.dataset.cor = cor;
+            amostra.setAttribute('aria-label', `Usar ${cor}, da sua logo`);
+            amostra.addEventListener('click', () => {
+              entrada.value = cor;
+              sincronizar(cor, false);
+            });
+            listaDaLogo.appendChild(amostra);
+          }
+          if (cores.length) blocoDaLogo.classList.remove('hidden');
+        } catch {
+          // Imagem que o navegador não deixa ler: fica sem sugestão, como antes.
+        }
+      });
+      logo.src = blocoDaLogo.dataset.logo;
+    }
+    // ── fim das cores da logo
   }
+
+  // ── As abas (15/10/2026) ────────────────────────────────────────────────────
+  // Uma aba aberta por vez; as setas, Home e End andam entre elas, como o leitor de tela
+  // espera de uma lista de abas. O endereço decide qual abre: `#contato` abre a aba, e
+  // `#endereco`, a aba onde o bloco está — e rola até ele. É assim que o Início e o
+  // medidor de completude levam ao campo certo.
+  const abas = [...document.querySelectorAll<HTMLButtonElement>('[role="tab"][data-aba]')];
+  const painelDa = (aba: HTMLElement) => document.getElementById(aba.getAttribute('aria-controls') ?? '');
+  const abaDo = (painel: Element) => abas.find((a) => a.getAttribute('aria-controls') === painel.id) ?? null;
+
+  function abrirAba(aba: HTMLButtonElement, foco = false) {
+    for (const a of abas) {
+      const esta = a === aba;
+      a.setAttribute('aria-selected', String(esta));
+      a.tabIndex = esta ? 0 : -1;
+      const painel = painelDa(a);
+      if (painel) painel.hidden = !esta;
+    }
+    if (foco) aba.focus();
+  }
+
+  // Abre a aba onde o elemento está. Devolve se achou uma. (Comentário de linha de
+  // propósito: o `accept` das imagens abre um "comentário de bloco" para o leitor dos
+  // testes, e um fim de comentário de bloco aqui o fecharia, engolindo a página no meio.)
+  function abrirAbaDe(el: Element | null): boolean {
+    const painel = el?.closest('[role="tabpanel"]');
+    const aba = painel ? abaDo(painel) : null;
+    if (aba) abrirAba(aba);
+    return aba !== null;
+  }
+
+  function irParaOEndereco() {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const alvo = id ? document.getElementById(id) : null;
+    if (!alvo || !abrirAbaDe(alvo)) return;
+    if (alvo.getAttribute('role') !== 'tabpanel') alvo.scrollIntoView({ block: 'start' });
+  }
+
+  abas.forEach((aba, i) => {
+    aba.addEventListener('click', () => {
+      abrirAba(aba);
+      history.replaceState(null, '', `#${aba.dataset.aba}`);
+    });
+    aba.addEventListener('keydown', (e) => {
+      const ultima = abas.length - 1;
+      const destino = e.key === 'ArrowRight' ? (i === ultima ? 0 : i + 1)
+        : e.key === 'ArrowLeft' ? (i === 0 ? ultima : i - 1)
+        : e.key === 'Home' ? 0
+        : e.key === 'End' ? ultima
+        : -1;
+      if (destino < 0) return;
+      e.preventDefault();
+      abrirAba(abas[destino], true);
+      history.replaceState(null, '', `#${abas[destino].dataset.aba}`);
+    });
+  });
+  irParaOEndereco();
+  window.addEventListener('hashchange', irParaOEndereco);
+
+  // O ponto na aba com mudança não salva. A conta compara com o que a página trouxe —
+  // desfazer a mudança apaga o ponto —, e o Salvar recomeça a conta.
+  const formulario = document.getElementById('form-cfg');
+  const statusDoSalvar = document.getElementById('cfg-status');
+  const paineisDoFormulario = [...(formulario?.querySelectorAll<HTMLElement>('[role="tabpanel"]') ?? [])];
+  const NAO_SALVO = 'Alterações não salvas';
+  const retratoDe = (painel: HTMLElement) => JSON.stringify(
+    [...painel.querySelectorAll<HTMLInputElement>('[data-campo], [data-h-label], [data-h-hours], [data-h-closed]')]
+      .map((el) => (el.type === 'checkbox' ? el.checked : el.value)));
+  let retratos = new Map(paineisDoFormulario.map((p) => [p.id, retratoDe(p)]));
+
+  // A linha ao lado do Salvar, que fica sempre à vista: em vermelho, quando é a recusa.
+  function dizerNoSalvar(texto: string, erro = false) {
+    if (!statusDoSalvar) return;
+    statusDoSalvar.textContent = texto;
+    statusDoSalvar.classList.toggle('text-red-700', erro);
+    statusDoSalvar.classList.toggle('text-slate-400', !erro);
+  }
+
+  function conferirMudancas() {
+    let alguma = false;
+    for (const painel of paineisDoFormulario) {
+      const mudou = retratoDe(painel) !== retratos.get(painel.id);
+      alguma ||= mudou;
+      const ponto = abaDo(painel)?.querySelector<HTMLElement>('[data-aba-mudou]');
+      if (ponto) ponto.hidden = !mudou;
+    }
+    const agora = statusDoSalvar?.textContent ?? '';
+    if (agora === 'Salvando…' || statusDoSalvar?.classList.contains('text-red-700')) return;
+    if (alguma) dizerNoSalvar(NAO_SALVO);
+    else if (agora === NAO_SALVO) dizerNoSalvar('');
+  }
+  formulario?.addEventListener('input', conferirMudancas);
+  formulario?.addEventListener('change', conferirMudancas);
+  // O que muda o formulário sem digitar: a cor da logo, "voltar ao padrão", as linhas do horário.
+  formulario?.addEventListener('click', () => setTimeout(conferirMudancas));
+
+  // Clicou em Salvar: a linha volta à cor de sempre — o "Salvando…" não é recusa.
+  document.getElementById('btn-salvar')?.addEventListener('click', () => dizerNoSalvar(statusDoSalvar?.textContent ?? ''));
+
+  document.addEventListener('configuracoes:salvo', () => {
+    retratos = new Map(paineisDoFormulario.map((p) => [p.id, retratoDe(p)]));
+    dizerNoSalvar(statusDoSalvar?.textContent ?? '');
+    conferirMudancas();
+  });
+
+  // O Salvar recusou um campo: a aba dele abre, e o cursor vai para ele, com a borda
+  // vermelha até ele ser corrigido; e o porquê fica ao lado do Salvar, à vista. Com a
+  // tela em abas, o campo podia estar escondido.
+  document.addEventListener('configuracoes:erro', (e) => {
+    const { campo, erro } = (e as CustomEvent<{ campo: string | null; erro: string }>).detail ?? { campo: null, erro: '' };
+    conferirMudancas();
+    dizerNoSalvar(`Não salvou: ${erro}`, true);
+    const nome = campo ?? '';
+    const el = nome.startsWith('businessHours')
+      ? document.getElementById('horarios')
+      : nome ? document.querySelector<HTMLElement>(`[data-campo="${CSS.escape(nome)}"]`) : null;
+    if (!el || !abrirAbaDe(el)) return;
+    el.scrollIntoView({ block: 'center' });
+    if (el.matches('input, select, textarea')) {
+      el.setAttribute('aria-invalid', 'true');
+      el.focus({ preventScroll: true });
+      el.addEventListener('input', () => {
+        el.removeAttribute('aria-invalid');
+        dizerNoSalvar('');
+        conferirMudancas();
+      }, { once: true });
+    }
+  });
 </script>
 
 <script is:inline define:vars={{ horariosIniciais: horarios }}>
@@ -350,6 +617,62 @@ const valor = (id: string): string => {
   (horariosIniciais.length ? horariosIniciais : [null]).forEach((h) => wrap.appendChild(linhaHorario(h)));
   document.getElementById('add-horario').addEventListener('click', () => wrap.appendChild(linhaHorario(null)));
 
+  // ── O que foi digitado e não salvo sobrevive ao envio da logo e da capa ─────
+  // A imagem sobe na hora e a página recarrega para mostrá-la — e o recarregar apagava o
+  // que estava digitado e não salvo (varredura de 26/10, nº 6; achado de novo na revisão de
+  // 27/10, porque não tinha sido consertado). Antes de recarregar, o rascunho vai para a
+  // sessão desta aba; depois, volta aos campos, e a tela diz que falta salvar.
+  const CHAVE_RASCUNHO = 'fadeline:configuracoes:rascunho';
+  function linhasDeHorario() {
+    return [...wrap.children].map((linha) => ({
+      label: linha.querySelector('[data-h-label]').value,
+      hours: linha.querySelector('[data-h-hours]').value,
+      closed: linha.querySelector('[data-h-closed]').checked,
+    }));
+  }
+  const horariosAoAbrir = JSON.stringify(linhasDeHorario());
+  function guardarRascunho() {
+    const campos = {};
+    document.querySelectorAll('[data-campo]').forEach((el) => {
+      const mudou = el.tagName === 'SELECT'
+        ? [...el.options].some((o) => o.selected !== o.defaultSelected)
+        : el.value !== el.defaultValue;
+      if (mudou) campos[el.dataset.campo] = el.value;
+    });
+    const horarios = linhasDeHorario();
+    const mudouHorario = JSON.stringify(horarios) !== horariosAoAbrir;
+    if (!Object.keys(campos).length && !mudouHorario) return;
+    try {
+      sessionStorage.setItem(CHAVE_RASCUNHO, JSON.stringify({ campos, horarios: mudouHorario ? horarios : null, em: Date.now() }));
+    } catch {
+      // Sem armazenamento: o recarregar perde, como antes. (Sem comentário de bloco aqui: o
+      // "image/*" do campo de arquivo, mais acima, casaria com ele nas guardas dos testes.)
+    }
+  }
+  function devolverRascunho() {
+    let rascunho = null;
+    try {
+      rascunho = JSON.parse(sessionStorage.getItem(CHAVE_RASCUNHO) ?? 'null');
+      sessionStorage.removeItem(CHAVE_RASCUNHO);
+    } catch { return; }
+    if (!rascunho || Date.now() - rascunho.em > 10 * 60 * 1000) return;
+    for (const [campo, valor] of Object.entries(rascunho.campos ?? {})) {
+      const el = document.querySelector(`[data-campo="${CSS.escape(campo)}"]`);
+      if (!el) continue;
+      el.value = valor;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (Array.isArray(rascunho.horarios)) {
+      wrap.replaceChildren(...rascunho.horarios.map((h) => linhaHorario(h)));
+      wrap.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const aviso = document.getElementById('cfg-msg');
+    aviso.textContent = 'Imagem salva. O que você tinha digitado continua aqui — falta clicar em Salvar.';
+    aviso.className = 'text-sm rounded px-3 py-2 bg-amber-50 border border-amber-200 text-amber-950';
+  }
+  devolverRascunho();
+
   const msg = document.getElementById('cfg-msg');
   const status = document.getElementById('cfg-status');
   const btn = document.getElementById('btn-salvar');
@@ -377,7 +700,7 @@ const valor = (id: string): string => {
       try {
         const res = await fetch('/api/admin/settings/media', { method: 'POST', body: fd });
         const data = await res.json();
-        if (res.ok) { location.reload(); return; }
+        if (res.ok) { guardarRascunho(); location.reload(); return; }
         mostrar(data.error ?? 'Não consegui enviar a imagem', true);
       } catch { mostrar('Erro de conexão ao enviar a imagem', true); }
       status.textContent = '';
@@ -394,7 +717,7 @@ const valor = (id: string): string => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ tipo: b.dataset.remover }),
         });
-        if (res.ok) { location.reload(); return; }
+        if (res.ok) { guardarRascunho(); location.reload(); return; }
         const d = await res.json();
         mostrar(d.error ?? 'Não consegui remover', true);
       } catch { mostrar('Erro de conexão', true); }
@@ -431,11 +754,14 @@ const valor = (id: string): string => {
       });
       const data = await res.json();
       if (res.ok) {
-        mostrar('Salvo. Abra o site numa outra aba para conferir.', false);
+        mostrar('Salvo. Abra o site numa outra aba do navegador para conferir.', false);
         status.textContent = 'Salvo às ' + new Date().toLocaleTimeString('pt-BR');
+        document.dispatchEvent(new CustomEvent('configuracoes:salvo'));
       } else {
         mostrar(data.error ?? 'Erro ao salvar', true);
         status.textContent = '';
+        // O campo recusado pode estar noutra aba: o script das abas a abre e põe o cursor nele.
+        document.dispatchEvent(new CustomEvent('configuracoes:erro', { detail: { campo: data.campo ?? null, erro: data.error ?? 'Erro ao salvar' } }));
       }
     } catch {
       mostrar('Erro de conexão', true);

@@ -18,7 +18,8 @@ const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: b
 if (!barberRow) return Astro.redirect('/admin/login');
 
 const list = (await db
-  .select({ id: barbers.id, name: barbers.name, slug: barbers.slug, role: barbers.role, active: barbers.active, email: barbers.email })
+  .select({ id: barbers.id, name: barbers.name, slug: barbers.slug, role: barbers.role, active: barbers.active, email: barbers.email, phone: barbers.phone,
+            avisarAgendamentos: barbers.avisarAgendamentos })
   .from(barbers)
   .where(eq(barbers.tenantId, tenant.id))
   .orderBy(barbers.name)
@@ -33,7 +34,7 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
 ---
 
 <AdminLayout title="Barbeiros" barberName={barberRow.name} role="admin">
-  <main class="max-w-3xl mx-auto px-4 py-6">
+  <div class="max-w-3xl mx-auto px-4 py-6">
 
     <div class="flex items-center justify-between mb-6 gap-3">
       <div>
@@ -84,7 +85,7 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
         </div>
         <div>
           <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Senha inicial</label>
-          <input id="new-password" type="text" placeholder="mín. 6 caracteres"
+          <input id="new-password" type="text" placeholder="mín. 8 caracteres"
             class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
         </div>
         <div>
@@ -130,8 +131,19 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
                 slug: {b.slug} ·{' '}
                 {b.email
                   ? <span data-email={String(b.id)}>{b.email}</span>
-                  : <span data-sem-email={String(b.id)} class="text-amber-700">sem e-mail — não recebe a senha nova</span>}
+                  : <span data-sem-email={String(b.id)} class="text-amber-700">sem e-mail — não recebe a senha nova nem os avisos de agendamento</span>}
               </p>
+              {/* Os avisos de agendamento por e-mail (11/10/2026, `lib/avisoDeAgenda.ts`):
+                  o dono recebe os de todos; o barbeiro, os dele. Sem e-mail, não há o que dizer. */}
+              {b.email && (
+                <p data-avisos={String(b.id)} class="text-xs text-slate-400 mt-0.5">
+                  {b.avisarAgendamentos
+                    ? (b.role === 'admin'
+                        ? 'Recebe e-mail de todo agendamento, desmarcação e remarcação feitos pelo cliente.'
+                        : 'Recebe e-mail dos agendamentos, desmarcações e remarcações feitos pelo cliente nos próprios horários.')
+                    : 'Avisos de agendamento por e-mail desligados.'}
+                </p>
+              )}
             </div>
             <button data-edit={String(b.id)}
               class="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 border border-slate-200 hover:border-slate-300 rounded transition-colors">
@@ -170,11 +182,34 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
             </div>
 
             <div>
+              <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">WhatsApp de login</label>
+              <input data-edit-phone={String(b.id)} type="tel" inputmode="tel" value={b.phone ?? ''}
+                placeholder="(84) 99999-0000"
+                class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
+              <p class="text-xs text-slate-400 mt-1">É com ele que a pessoa entra no painel.</p>
+            </div>
+
+            <div>
               <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">E-mail</label>
               <input data-edit-email={String(b.id)} type="email" inputmode="email" value={b.email ?? ''}
                 placeholder="para a senha nova e os avisos"
                 class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
+              {b.email && (
+                <p class="text-xs text-slate-400 mt-1">Se trocar, o e-mail de agora recebe um aviso da troca.</p>
+              )}
             </div>
+
+            <label class="flex items-start gap-2 text-sm text-slate-700">
+              <input data-edit-avisos={String(b.id)} type="checkbox" checked={b.avisarAgendamentos}
+                class="mt-0.5 accent-teal" />
+              <span>
+                Mandar e-mail quando um cliente agenda, desmarca ou remarca pelo site
+                <span class="block text-xs text-slate-400">
+                  {b.role === 'admin' ? 'Como admin, recebe os de todos os horários da barbearia.' : 'Só os dos próprios horários.'}
+                  {' '}Precisa do e-mail acima.
+                </span>
+              </span>
+            </label>
 
             <div>
               <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Nova senha (opcional)</label>
@@ -202,7 +237,7 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
       ))}
     </div>
 
-  </main>
+  </div>
 </AdminLayout>
 
 <script>
@@ -245,7 +280,7 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
     if (name.length < 2)     { errorEl.textContent = 'Informe o nome (mín. 2 caracteres)'; errorEl.classList.remove('hidden'); return; }
     if (!slug)               { errorEl.textContent = 'Slug inválido'; errorEl.classList.remove('hidden'); return; }
     if (phone.replace(/\D/g, '').length < 10) { errorEl.textContent = 'Informe o telefone com DDD — é por ele que o barbeiro entra no painel'; errorEl.classList.remove('hidden'); return; }
-    if (password.length < 6) { errorEl.textContent = 'A senha precisa ter ao menos 6 caracteres'; errorEl.classList.remove('hidden'); return; }
+    if (password.length < 8) { errorEl.textContent = 'A senha precisa ter ao menos 8 caracteres'; errorEl.classList.remove('hidden'); return; }
 
     btn.disabled = true; btn.textContent = 'Criando...';
     try {
@@ -293,6 +328,8 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
       const activeEl= document.querySelector<HTMLSelectElement>(`[data-edit-active="${id}"]`)!;
       const passEl  = document.querySelector<HTMLInputElement>(`[data-edit-password="${id}"]`)!;
       const emailEl = document.querySelector<HTMLInputElement>(`[data-edit-email="${id}"]`)!;
+      const phoneEl = document.querySelector<HTMLInputElement>(`[data-edit-phone="${id}"]`)!;
+      const avisosEl= document.querySelector<HTMLInputElement>(`[data-edit-avisos="${id}"]`)!;
       const errorEl = document.querySelector<HTMLElement>(`[data-edit-error="${id}"]`)!;
 
       const name     = nameEl.value.trim();
@@ -300,19 +337,32 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
       const active   = activeEl.value === 'true';
       const password = passEl.value;
       const email    = emailEl.value.trim();
+      const phone    = phoneEl.value.trim();
 
       errorEl.classList.add('hidden');
+      if (phone.replace(/\D/g, '').length < 10) { errorEl.textContent = 'Informe o WhatsApp com DDD — é por ele que a pessoa entra no painel'; errorEl.classList.remove('hidden'); return; }
       if (name.length < 2) { errorEl.textContent = 'Nome inválido'; errorEl.classList.remove('hidden'); return; }
-      if (password && password.length < 6) { errorEl.textContent = 'A nova senha precisa ter ao menos 6 caracteres'; errorEl.classList.remove('hidden'); return; }
+      if (password && password.length < 8) { errorEl.textContent = 'A nova senha precisa ter ao menos 8 caracteres'; errorEl.classList.remove('hidden'); return; }
 
       saveBtn.disabled = true; saveBtn.textContent = '...';
       try {
-        const res  = await fetch(`/api/admin/barbers/${id}`, {
+        const salvar = (mesmoComAgendados = false) => fetch(`/api/admin/barbers/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, role, active, email }),
+          body: JSON.stringify({ name, role, active, email, phone, avisarAgendamentos: avisosEl.checked, mesmoComAgendados }),
         });
-        const data = await res.json();
+        let res  = await salvar();
+        let data = await res.json();
+        // Desligar quem tem cliente marcado: a tela diz quantos e o próximo, e só desliga
+        // se o dono confirmar (revisão de 27/10/2026).
+        if (res.status === 409 && data.pedeConfirmacao) {
+          if (!confirm(`${data.error}\n\nDesligar mesmo assim?`)) {
+            saveBtn.disabled = false; saveBtn.textContent = 'Salvar';
+            return;
+          }
+          res  = await salvar(true);
+          data = await res.json();
+        }
         if (!res.ok) {
           errorEl.textContent = data.error ?? 'Erro ao salvar'; errorEl.classList.remove('hidden');
           saveBtn.disabled = false; saveBtn.textContent = 'Salvar';
