@@ -37,7 +37,11 @@ ENV UPLOAD_ROOT=/data/uploads
 # rodando, o log reclama uma vez a cada 24h e ninguém percebe até precisar
 # restaurar. A versão acompanha a do servidor: pg_dump mais VELHO que o
 # servidor se recusa a rodar.
-RUN apk add --no-cache postgresql16-client
+# O `tini` é o processo 1 (ENTRYPOINT, abaixo). Desde 27/10/2026: sem ele, o `sh` do
+# Alpine passava o servidor a processo 1, e o Linux não entrega SIGTERM a processo 1
+# que não o trata — todo redeploy esperava o prazo do orquestrador (~10 s) e acabava em
+# SIGKILL. O `-g` manda o sinal ao grupo inteiro: o servidor e os dois daemons.
+RUN apk add --no-cache postgresql16-client tini
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/drizzle ./drizzle
@@ -74,4 +78,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15m --retries=3 \
 
 # Roda as migrations, sobe os daemons — o de backup (diário às 03:00) e o dos avisos
 # por e-mail (de hora em hora, `scripts/avisos-daemon.mjs`) — e inicia o servidor
+ENTRYPOINT ["/sbin/tini", "-g", "--"]
 CMD ["sh", "-c", "node scripts/startup.mjs && (node scripts/backup-daemon.mjs &) && (node scripts/avisos-daemon.mjs &) && node dist/server/entry.mjs"]

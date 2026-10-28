@@ -241,6 +241,13 @@ describe('a suíte roda na máquina de quem não tem banco', () => {
     expect(cmd).toMatch(/startup\.mjs/);
     expect(cmd).toMatch(/startup\.mjs\s*&&/);
   });
+
+  it('o processo 1 é o tini, com -g: o pedido de parar chega ao servidor e aos daemons', () => {
+    // Sem ele, o `sh` do Alpine passava o servidor a processo 1, que ignora o SIGTERM sem
+    // tratá-lo: todo redeploy esperava ~10 s e acabava em SIGKILL (revisão de 27/10/2026).
+    expect(dockerfile).toMatch(/apk add[^\n]*\btini\b/);
+    expect(dockerfile).toMatch(/ENTRYPOINT \["\/sbin\/tini", "-g", "--"\]/);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
