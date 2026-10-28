@@ -5,31 +5,35 @@ import AdminLayout from '../../layouts/AdminLayout.astro';
 import { and, sql, eq, gte, lt, desc } from 'drizzle-orm';
 import { getSession } from '../../lib/session.js';
 import { db, first } from '../../db/index.js';
-import { barbers, appointments, services, settings, workingHours } from '../../db/schema.js';
+import { barbers, appointments, services, settings, workingHours, barberServices } from '../../db/schema.js';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
+import { ptBR } from 'date-fns/locale';
 import { tenantDaSessao } from '../../lib/tenant.js';
 import { calcularCompletude } from '../../lib/completude.js';
 import { quantasFotos } from '../../lib/galeria.js';
 import { parseBusinessHours } from '../../lib/settings.js';
 import { reais } from '../../lib/dinheiro.js';
 import { segundaFeiraDaSemana } from '../../lib/calendario.js';
-import { TZ } from '../../lib/timezone.js';
+import { fusoDe } from '../../lib/timezone.js';
+import { buscaDoMapa, embedDoMapa, mapaPrecisaConferir } from '../../lib/mapa.js';
+import { receitaDoPeriodo } from '../../lib/receita.js';
 
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
 const tenant = tenantDaSessao(session);
+const fuso = fusoDe(tenant);
 
 const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
   .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
 const nowUtc = new Date();
-const todayStr = formatInTimeZone(nowUtc, TZ, 'yyyy-MM-dd');
+const todayStr = formatInTimeZone(nowUtc, fuso, 'yyyy-MM-dd');
 
 // ─── Janelas de tempo ──────────────────────────────────────────────────────
-const todayStartUtc = fromZonedTime(`${todayStr}T00:00:00`, TZ).toISOString();
-const todayEndUtc   = fromZonedTime(`${todayStr}T23:59:59`, TZ).toISOString();
+const todayStartUtc = fromZonedTime(`${todayStr}T00:00:00`, fuso).toISOString();
+const todayEndUtc   = fromZonedTime(`${todayStr}T23:59:59`, fuso).toISOString();
 
 function addDaysStr(s: string, n: number): string {
   const [y, m, d] = s.split('-').map(Number);
@@ -45,15 +49,15 @@ function addDaysStr(s: string, n: number): string {
 // semana" e o gráfico erravam de semana: visto ao vivo em 25/09/2026, o gráfico
 // mostrou "SEG 20", e 20/09 foi domingo (`PENDENCIAS-ABERTAS.md` §2.22).
 const mondayStr      = segundaFeiraDaSemana(todayStr);
-const weekStartUtc   = fromZonedTime(`${mondayStr}T00:00:00`, TZ).toISOString();
+const weekStartUtc   = fromZonedTime(`${mondayStr}T00:00:00`, fuso).toISOString();
 const weekEndStr     = addDaysStr(mondayStr, 7);
-const weekEndUtc     = fromZonedTime(`${weekEndStr}T00:00:00`, TZ).toISOString();
+const weekEndUtc     = fromZonedTime(`${weekEndStr}T00:00:00`, fuso).toISOString();
 
 const monthStr       = todayStr.slice(0, 7); // YYYY-MM
-const monthStartUtc  = fromZonedTime(`${monthStr}-01T00:00:00`, TZ).toISOString();
+const monthStartUtc  = fromZonedTime(`${monthStr}-01T00:00:00`, fuso).toISOString();
 const [my, mm] = monthStr.split('-').map(Number);
 const nextMonthStr   = mm === 12 ? `${my + 1}-01` : `${my}-${String(mm + 1).padStart(2, '0')}`;
-const monthEndUtc    = fromZonedTime(`${nextMonthStr}-01T00:00:00`, TZ).toISOString();
+const monthEndUtc    = fromZonedTime(`${nextMonthStr}-01T00:00:00`, fuso).toISOString();
 
 const sevenDaysAgo   = new Date(nowUtc.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -61,9 +65,18 @@ const sevenDaysAgo   = new Date(nowUtc.getTime() - 7 * 24 * 60 * 60 * 1000).toIS
 // Pra barbeiro comum, sempre filtra pelos próprios. Admin vê todos.
 const barberFilter = session.role === 'admin' ? null : session.barberId;
 
-// SUM e COUNT voltam do Postgres como bigint, que o driver entrega em string
-// pra não perder precisão. Sem o Number() o painel somaria texto: "1500" + "800"
-// viraria "1500800" na tela, sem erro nenhum no caminho.
+// Receita num intervalo: a conta da agenda do dia — o valor de cada confirmado e
+// concluído, com os itens da comanda dos concluídos, mais a venda avulsa
+// (`lib/receita.ts`). Até 15/10/2026 o banco somava aqui só o preço do serviço: sem os
+// extras e sem a venda avulsa, o "Receita prevista" deste topo dizia R$ 100 no dia em que
+// o da agenda dizia R$ 130 (`PENDENCIAS-ABERTAS.md` §2.43).
+async function sumRevenue(startIso: string, endIso: string): Promise<number> {
+  return (await receitaDoPeriodo(tenant.id, startIso, endIso, barberFilter)).centavos;
+}
+
+// COUNT volta do Postgres como bigint, que o driver entrega em string pra não
+// perder precisão. Sem o Number() o painel somaria texto: "1500" + "800" viraria
+// "1500800" na tela, sem erro nenhum no caminho.
 const num = (v: unknown): number => Number(v ?? 0);
 
 // `${barberFilter}::int IS NULL OR ...` no lugar de montar duas consultas
@@ -76,19 +89,6 @@ const num = (v: unknown): number => Number(v ?? 0);
 // JS como TUPLA — vira `($1, $2)` — e `= ANY` exige um array de verdade do lado
 // direito. O erro só aparece em tempo de execução (42809), com o painel em
 // branco; nem o tsc nem o `astro check` pegam.
-
-// Receita num intervalo (confirmed + completed)
-async function sumRevenue(startIso: string, endIso: string): Promise<number> {
-  const r = await first(db.execute<{ s: string }>(sql`
-    SELECT COALESCE(SUM(price_cents),0) AS s FROM appointments
-     WHERE tenant_id = ${tenant.id}
-       AND status IN ('confirmed','completed')
-       AND starts_at >= ${startIso} AND starts_at < ${endIso}
-       AND (${barberFilter}::int IS NULL OR barber_id = ${barberFilter}::int)
-  `));
-  return num(r?.s);
-}
-
 async function countAppts(startIso: string, endIso: string, statuses: string[]): Promise<number> {
   const r = await first(db.execute<{ c: string }>(sql`
     SELECT COUNT(*) AS c FROM appointments
@@ -218,8 +218,8 @@ const weekDays: DayBar[] = [];
 const semana = await Promise.all(
   Array.from({ length: 7 }, async (_, i) => {
     const dayStr = addDaysStr(mondayStr, i);
-    const dayStartUtc = fromZonedTime(`${dayStr}T00:00:00`, TZ).toISOString();
-    const dayEndUtc   = fromZonedTime(`${addDaysStr(dayStr, 1)}T00:00:00`, TZ).toISOString();
+    const dayStartUtc = fromZonedTime(`${dayStr}T00:00:00`, fuso).toISOString();
+    const dayEndUtc   = fromZonedTime(`${addDaysStr(dayStr, 1)}T00:00:00`, fuso).toISOString();
     return {
       day:     dayStr,
       label:   String(parseInt(dayStr.slice(-2), 10)),
@@ -234,8 +234,9 @@ const maxRevenue = Math.max(...weekDays.map(d => d.revenue), 1);
 
 // ─── Helpers de display ───────────────────────────────────────────────────
 const fmtMoney = reais;
-const fmtTime  = (iso: string) => formatInTimeZone(new Date(iso), TZ, 'HH:mm');
-const fmtDate  = (iso: string) => formatInTimeZone(new Date(iso), TZ, "dd 'de' MMM");
+const fmtTime  = (iso: string) => formatInTimeZone(new Date(iso), fuso, 'HH:mm');
+// O mês por extenso pede o português: sem o `locale`, saía "15 de Oct" (`tests/datas-em-portugues.test.ts`).
+const fmtDate  = (iso: string) => formatInTimeZone(new Date(iso), fuso, "dd 'de' MMM", { locale: ptBR });
 
 const upcomingFmt = upcomingRows.map(a => ({
   ...a,
@@ -269,7 +270,8 @@ const completude = cfg ? calcularCompletude({
   tagline: cfg.tagline, aboutText: cfg.aboutText,
   whatsappNumber: cfg.whatsappNumber,
   addressStreet: cfg.addressStreet, addressCity: cfg.addressCity,
-  instagramUrl: cfg.instagramUrl, googleReviewsUrl: cfg.googleReviewsUrl,
+  instagramUrl: cfg.instagramUrl,
+  googleRating: cfg.googleRating, googleReviewCount: cfg.googleReviewCount,
   seoTitle: cfg.seoTitle, seoDescription: cfg.seoDescription,
   accentColor: cfg.accentColor,
   horariosPublicados: parseBusinessHours(cfg.businessHours).length,
@@ -280,14 +282,30 @@ const completude = cfg ? calcularCompletude({
     .from(barbers)
     .innerJoin(workingHours, eq(workingHours.barberId, barbers.id))
     .where(and(eq(barbers.tenantId, tenant.id), eq(barbers.active, true)))))?.n ?? 0),
+  // Serviço que alguém, ativo e com expediente, faz: sem nenhum, o site não agenda nada.
+  servicosAgendaveis: Number((await first(db.select({ n: sql<number>`count(DISTINCT ${services.id})::int` })
+    .from(services)
+    .innerJoin(barberServices, and(eq(barberServices.serviceId, services.id), eq(barberServices.active, true)))
+    .innerJoin(barbers, and(eq(barbers.id, barberServices.barberId), eq(barbers.active, true)))
+    .where(and(eq(services.tenantId, tenant.id), eq(services.active, true),
+      sql`EXISTS (SELECT 1 FROM ${workingHours} w WHERE w.barber_id = ${barbers.id})`))))?.n ?? 0),
   fotosNaGaleria: await quantasFotos(tenant),
 }) : null;
+
+// ── O ponto do mapa (decisão de 11/10/2026, `PENDENCIAS-ABERTAS.md` §2.33) ────
+// O Google acha a barbearia pela busca, e endereço ambíguo cai em outro lugar —
+// no roteiro de 10/10, em outra cidade, sem ninguém ver. Aqui o dono vê o mapa
+// que o site mostra e confirma. Só o admin: é ele quem corrige o endereço. Some
+// quando a busca de agora é a que ele conferiu, e volta se o endereço mudar.
+const mapaParaConferir = cfg && mapaPrecisaConferir(cfg, cfg.mapaConferido)
+  ? { busca: buscaDoMapa(cfg), embed: embedDoMapa(cfg) ?? '', rotaPeloEndereco: !cfg.mapsUrl?.trim() }
+  : null;
 
 ---
 
 <AdminLayout title="Início" barberName={barberRow.name} role={session.role}>
 
-  <main class="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-20">
+  <div class="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-20">
 
     {/* Medidor de completude — some sozinho quando não há nada a fazer, para
         não virar ruído permanente para quem já preencheu tudo. */}
@@ -380,6 +398,31 @@ const completude = cfg ? calcularCompletude({
             )}
           </Fragment>
         )}
+      </section>
+    )}
+
+    {mapaParaConferir && (
+      <section id="conferir-mapa" data-busca={mapaParaConferir.busca}
+        class="rounded-lg border border-slate-200 bg-white p-5 sm:p-6">
+        <h2 class="text-sm font-semibold text-slate-900">Confira o ponto do seu site no mapa</h2>
+        <p class="text-sm text-slate-600 mt-1 max-w-[65ch]">
+          É este o lugar que aparece no mapa do seu site{mapaParaConferir.rotaPeloEndereco ? ', e para onde o "Traçar rota" leva o cliente' : ''}.
+          O Google achou pela busca <strong class="font-medium text-slate-800">{mapaParaConferir.busca}</strong>.
+        </p>
+        <iframe title="O mapa do seu site" src={mapaParaConferir.embed} loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+          class="mt-4 w-full h-64 rounded-md border border-slate-200"></iframe>
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+          <button id="mapa-certo" type="button"
+            class="bg-teal hover:bg-teal-hover text-white text-xs font-bold uppercase tracking-widest px-4 py-2.5 rounded transition-colors disabled:opacity-60">
+            Está certo
+          </button>
+          <a href="/admin/configuracoes#endereco"
+            class="text-xs text-slate-600 hover:text-slate-900 px-4 py-2.5 border border-slate-200 hover:border-slate-300 rounded transition-colors">
+            Não está — corrigir o endereço
+          </a>
+        </div>
+        <p id="mapa-msg" class="hidden text-sm text-red-700 mt-3" role="status"></p>
       </section>
     )}
 
@@ -534,7 +577,7 @@ const completude = cfg ? calcularCompletude({
       ) : (
         <div class="space-y-2">
           {upcomingFmt.map(a => {
-            const path = formatInTimeZone(new Date(a.startsAt), TZ, 'yyyy-MM-dd');
+            const path = formatInTimeZone(new Date(a.startsAt), fuso, 'yyyy-MM-dd');
             return (
               <a href={`/admin/dia/${path}#appt-${a.id}`}
                  class="block bg-white border border-slate-200 hover:border-teal/30 rounded-md p-3 transition-colors">
@@ -558,5 +601,40 @@ const completude = cfg ? calcularCompletude({
       )}
     </section>
 
-  </main>
+  </div>
 </AdminLayout>
+
+<script>
+  // O "Está certo" do mapa (`api/admin/mapa-conferido.ts`). Manda a busca que o
+  // dono VIU: se o endereço mudou noutra aba, a rota recusa e a tela diz por quê.
+  const cartao = document.getElementById('conferir-mapa');
+  const botao = document.getElementById('mapa-certo') as HTMLButtonElement | null;
+  const msg = document.getElementById('mapa-msg');
+
+  botao?.addEventListener('click', async () => {
+    if (!cartao || !msg) return;
+    botao.disabled = true;
+    msg.classList.add('hidden');
+    try {
+      const r = await fetch('/api/admin/mapa-conferido', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ busca: cartao.dataset.busca ?? '' }),
+      });
+      if (r.ok) {
+        const pronto = document.createElement('p');
+        pronto.className = 'text-sm text-slate-700';
+        pronto.setAttribute('role', 'status');
+        pronto.textContent = 'Pronto: o ponto do mapa está conferido. Se você mudar o endereço, esta pergunta volta.';
+        cartao.replaceChildren(pronto);
+        return;
+      }
+      const d = await r.json().catch(() => ({}));
+      msg.textContent = (d as { error?: string }).error ?? 'Não consegui salvar. Tente de novo.';
+    } catch {
+      msg.textContent = 'Erro de conexão. Tente de novo.';
+    }
+    msg.classList.remove('hidden');
+    botao.disabled = false;
+  });
+</script>

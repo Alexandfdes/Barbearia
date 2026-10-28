@@ -8,10 +8,15 @@
 > conferido arquivo por arquivo nesta data, referências `arquivo:linha` literais —, **o que
 > falta** e **o que pode dar errado**.
 >
-> Status: **desenho, implementado em parte.** Dos dez passos, quatro funcionam, cinco existem
-> pela metade e um não existe — o cartão. Contados em 08/10/2026, depois do cadastro novo e
-> do teste de 7 dias; em 27/09 eram três, três e quatro. O que funciona está fechado atrás
-> de `CADASTRO_ABERTO=1`; nada disto está aberto em produção.
+> Status: **desenho, implementado em parte.** Dos dez passos, quatro funcionam e seis existem
+> pela metade; nenhum falta de todo. Contados em 10/10/2026, com o cartão no código — mas sem a
+> prova no sandbox da Asaas, por isso pela metade. Em 08/10 eram quatro, cinco e um; em 27/09,
+> três, três e quatro. O que funciona está fechado atrás de `CADASTRO_ABERTO=1`; nada disto
+> está aberto em produção.
+>
+> *12/10/2026: o cadastro passou a pedir o estado, que decide o fuso (§2.2). As referências
+> `arquivo:linha` que isso deslocou — do cadastro, da rota e do provisionador — acompanharam a
+> mudança; as outras ficaram como estavam.*
 >
 > Companheiros: `PENDENCIAS-ABERTAS.md` §6 (a ordem de trabalho, que o §5 abaixo detalha),
 > `PENDENCIAS-ABERTAS.md` §4.14 (o teste e a cobrança), `ARQUITETURA-COBRANCA-V1.md` (a
@@ -22,8 +27,17 @@
 > layout com a cor do dono; o cartão no fim do teste, não no cadastro; a cobrança como módulo
 > do app; e-mail para a senha e os avisos; 3 dias de carência; só plano mensal. **O cadastro
 > novo e o teste de 7 dias foram feitos no mesmo dia**, e com eles reescritos os passos 2, 4,
-> 6, 7, 8, 9 e 10. O passo 5 — o cartão —, o §3 e o §5 ainda descrevem o desenho anterior:
-> são reescritos junto com o código da cobrança.
+> 6, 7, 8, 9 e 10. ~~O passo 5 — o cartão —, o §3 e o §5 ainda descrevem o desenho anterior:
+> são reescritos junto com o código da cobrança~~ — o passo 5 foi reescrito em 10/10, com o
+> código; o §3 fica como registro, e o §5 ganhou o que foi feito.
+>
+> **10/10/2026, o roteiro do dono na máquina dele** (`PENDENCIAS-ABERTAS.md` §2.32 e
+> `PENDENCIAS-ABERTAS.md` §2.33): consertados os links de mapa vazios, o rodapé, o menu do
+> painel e o aviso do teste no cadastro — os passos 2, 7 e 8 dizem onde. As referências a
+> `cadastrar.astro`, que tinham andado, foram conferidas de novo nesta data.
+>
+> **11/10/2026:** as decisões do roteiro — o aviso de agenda por e-mail e o mapa que o dono
+> confere no Início, feitos (`PENDENCIAS-ABERTAS.md` §2.33). Os passos 7 e 8 dizem onde.
 
 **Legenda:** ✅ existe e foi visto funcionando · ⚠️ existe pela metade · ❌ não existe
 
@@ -36,12 +50,12 @@ flowchart TD
     P1["1 · Chega na landing<br/>⚠️ conta a história antiga"] --> P2["2 · Cria a conta<br/>⚠️ falta o termo"]
     P2 --> P3["3 · Horário, serviços e preços<br/>✅"]
     P3 --> P4["4 · A cara do site: a cor e a frase<br/>✅ desde 08/10"]
-    P4 --> P5["5 · O cartão — 7 dias grátis<br/>❌"]
+    P4 --> P5["5 · O cartão — no fim do teste<br/>⚠️ no código, sem o sandbox"]
     P5 --> P6["6 · A barbearia nasce<br/>✅ no teste de 7 dias"]
     P6 --> P7["7 · O painel na hora<br/>✅"]
-    P7 --> P8["8 · O site no ar<br/>⚠️ sem domínio"]
+    P7 --> P8["8 · O site no ar<br/>⚠️ sem o certificado curinga"]
     P8 --> P9["9 · Os 7 dias<br/>⚠️ falta o provedor de e-mail"]
-    P9 --> P10["10 · Depois do teste<br/>⚠️ falta a cobrança"]
+    P9 --> P10["10 · Depois do teste<br/>⚠️ a cobrança sem o sandbox"]
 ```
 
 | Passo | O que é | Hoje |
@@ -50,12 +64,12 @@ flowchart TD
 | 2 | Cria a conta: nome, endereço do site, WhatsApp, e-mail, senha | ⚠️ existe; falta o termo aceito |
 | 3 | Horário, serviços e preços | ✅ |
 | 4 | Escolhe a cor e a frase do topo, vendo a prévia | ✅ desde 08/10 — um layout só, por decisão |
-| 5 | Cadastra o cartão | ❌ nenhuma linha de código |
+| 5 | Cadastra o cartão | ⚠️ desde 10/10, no fim do teste, pela tela de assinatura — no código, sem a prova no sandbox (`PENDENCIAS-ABERTAS.md` §4.14) |
 | 6 | A barbearia é criada | ✅ no teste, com a data de fim gravada, desde 08/10 |
 | 7 | Entra no painel | ✅ já logado, desde 25/09 |
-| 8 | O site vai ao ar | ⚠️ a tela de fim mostra o link desde 08/10; não há domínio |
+| 8 | O site vai ao ar | ⚠️ a tela de fim confere o endereço antes de dizer "no ar", desde 10/10; falta o certificado curinga |
 | 9 | Os 7 dias grátis | ⚠️ a contagem no painel existe desde 08/10, e o aviso por e-mail desde 09/10 — falta o provedor de envio |
-| 10 | A primeira cobrança, e o que vem depois | ⚠️ a carência e o site fora do ar existem desde 08/10; a cobrança, não |
+| 10 | A primeira cobrança, e o que vem depois | ⚠️ a carência e o site fora do ar desde 08/10; a cobrança e o cancelar desde 10/10, sem a prova no sandbox |
 
 **O que já dá para mostrar hoje, de ponta a ponta,** na sua máquina, com
 `CADASTRO_ABERTO=1` nos dois aplicativos e `DOMINIO_BASE=localhost:4321` no da barbearia:
@@ -94,6 +108,12 @@ prazo.
   tudo e descobrir no fim que precisa de um cartão que ele não tem.
 - A reescrita da tese (`PENDENCIAS-ABERTAS.md` §4.15), por último, quando o resto existir.
 
+*12/10/2026 — o rascunho, no código, ainda não publicado* (`PENDENCIAS-ABERTAS.md` §4.15): o botão
+principal leva ao `/cadastrar` (com `CADASTRO_ABERTO`; sem ela, ao WhatsApp), e embaixo do botão do
+topo está *"Sem cartão para começar: ele só é pedido no fim do teste"* — o cartão passou para o fim
+do teste em 08/10, e o aviso acompanhou. Saíram o *"avisando 30 dias"*, o *"Endereço próprio"* e o
+plano anual. O texto é rascunho: a voz é a do dono.
+
 **O que pode dar errado:**
 
 - **"Avisando 30 dias" e "7 dias grátis" não se combinam sozinhos.** Se ele cancelar no 6º
@@ -109,31 +129,40 @@ prazo.
 ### 2.2 Passo 2 — Ele cria a conta
 
 **O que ele vê.** O `/cadastrar`, com a marca do produto e não a da barbearia, que ainda não
-existe (`apps/barbearia/src/pages/cadastrar.astro:40-47`). Embaixo do título, *"No fim, o seu
-site já está no ar — com os seus serviços e a sua cor."* (`cadastrar.astro:179`). Até 08/10
-era *"Leva dois minutos"*, que deixou de ser verdade com o bloco da marca maior. Uma página
-só, em cinco blocos (`cadastrar.astro:184-289`):
+existe (`apps/barbearia/src/pages/cadastrar.astro:55-61`). Embaixo do título, *"No fim, o seu
+site nasce — com os seus serviços e a sua cor."* (`cadastrar.astro:198`), e logo abaixo *"7
+dias grátis, sem cartão: ele só é pedido no fim do teste."* (`cadastrar.astro:201`). A
+primeira era *"Leva dois minutos"* até 08/10, quando deixou de ser verdade com o bloco da
+marca maior, e *"o seu site já está no ar"* até 10/10, sem ninguém conferir (§2.8). A segunda
+entrou em 10/10: até então o teste e o cartão só apareciam na tela do fim, e quem tem medo de
+cobrança pode desistir antes de enviar (`PENDENCIAS-ABERTAS.md` §2.32). Uma página só, em cinco
+blocos (`cadastrar.astro:205-327`):
 
-- **A barbearia:** nome, **endereço do site** com a prévia de como vai ficar, rua, cidade.
+- **A barbearia:** nome, **endereço do site** com a prévia de como vai ficar, rua, cidade e
+  **o estado**, obrigatório desde 12/10 — é dele que sai o fuso dos horários do site, e o dono
+  troca em Configurações (`cadastrar.astro:219-232`, `PENDENCIAS-ABERTAS.md` §2.1).
 - **Você:** o nome dele, **o WhatsApp** — que é o login e o contato do site ao mesmo tempo
-  (`cadastrar.astro:206`) —, **o e-mail**, obrigatório desde 08/10 (`cadastrar.astro:210`),
+  (`cadastrar.astro:240-241`) —, **o e-mail**, obrigatório desde 08/10 (`cadastrar.astro:244-245`),
   e a senha.
 - **Sua marca:** a frase do topo e a cor, com a prévia do topo do site — o passo 4 —, o
   Instagram e *"Como você descreveria a sua barbearia?"*. Tudo opcional.
 - **Horário** e **serviços com preço** — o passo 3.
 
-**O que o sistema faz, hoje:**
+**O que o sistema faz, hoje** *(26/10/2026: a coluna "Onde" citava `arquivo:linha`, e as linhas
+tinham andado — agora cita a função, como a skill de documentos manda para seção viva)*:
 
 | Conferência | Onde |
 |---|---|
-| A tela responde 404 sem a chave | `apps/barbearia/src/pages/cadastrar.astro:28` |
-| No máximo 5 cadastros por hora por endereço de rede | `apps/barbearia/src/pages/api/cadastrar.ts:91` |
-| Só aceita JSON — página de outro site não cria conta nem loga ninguém | `apps/barbearia/src/pages/api/cadastrar.ts:102` |
-| O endereço tem que servir de subdomínio | `apps/barbearia/src/lib/provisionarBarbearia.ts:236` |
-| **O endereço não pode ser reservado** — `painel`, `admin`, `www`, `api`, o nome do produto e outros, 39 ao todo; desde 08/10 | `apps/barbearia/src/lib/provisionarBarbearia.ts:245`, com a lista e o porquê de cada grupo em `apps/barbearia/src/lib/enderecosReservados.ts` |
-| O endereço não pode estar tomado | `apps/barbearia/src/lib/provisionarBarbearia.ts:282` |
-| O WhatsApp não pode ser o login de outro barbeiro, em barbearia nenhuma | `apps/barbearia/src/lib/provisionarBarbearia.ts:287` |
-| **O e-mail é obrigatório pela web** e tem que ter forma de e-mail; grava em minúsculas; desde 08/10 | `apps/barbearia/src/pages/api/cadastrar.ts:81` e `apps/barbearia/src/lib/provisionarBarbearia.ts:252-255` |
+| A tela responde 404 sem a chave | `apps/barbearia/src/pages/cadastrar.astro`, no topo (`CADASTRO_ABERTO`) |
+| No máximo 5 barbearias **criadas** por hora por endereço de rede — tentativa que falha não conta —, e 30 tentativas por hora no total; desde 26/10 | `apps/barbearia/src/pages/api/cadastrar.ts`, `POST` |
+| O cadastro só funciona no endereço do painel: no de uma barbearia, a tela vai para o painel e a rota responde 404; desde 26/10 | `apps/barbearia/src/lib/painelCentral.ts` |
+| Só aceita JSON — página de outro site não cria conta nem loga ninguém | `apps/barbearia/src/pages/api/cadastrar.ts`, `POST` |
+| O endereço tem que servir de subdomínio | `provisionarBarbearia` (`apps/barbearia/src/lib/provisionarBarbearia.ts`) |
+| **O endereço não pode ser reservado** — `painel`, `admin`, `www`, `api`, o nome do produto e outros, 40 ao todo; desde 08/10 | `provisionarBarbearia`, com a lista e o porquê de cada grupo em `apps/barbearia/src/lib/enderecosReservados.ts` |
+| O endereço não pode estar tomado | `provisionarBarbearia` |
+| O WhatsApp não pode ser o login de outro barbeiro **ativo**, em barbearia nenhuma — o de quem foi desligado fica livre desde 18/10 (migration 0017); o da equipe de barbearia fora do ar, o operador libera na ficha desde 26/10 (`PENDENCIAS-ABERTAS.md` §2.59) | `provisionarBarbearia` |
+| **O e-mail é obrigatório pela web** e tem que ter forma de e-mail; grava em minúsculas; desde 08/10 | `apps/barbearia/src/pages/api/cadastrar.ts` e `provisionarBarbearia` |
+| **O estado é obrigatório pela web** e decide o fuso; sigla desconhecida, recusa; a cidade é gravada como "Cidade/UF"; desde 12/10 | `apps/barbearia/src/pages/api/cadastrar.ts` e `provisionarBarbearia` |
 
 **O que falta:**
 
@@ -156,8 +185,8 @@ só, em cinco blocos (`cadastrar.astro:184-289`):
   até existir o provedor de envio.
 - **Um WhatsApp para duas coisas.** Quem entra com o número pessoal e quer o da loja no
   site não tem como separar. O provisionador aceita um segundo número (`telefoneDono`,
-  `apps/barbearia/src/lib/provisionarBarbearia.ts:53`), mas nem a tela nem a rota do
-  cadastro o recebem (`apps/barbearia/src/pages/api/cadastrar.ts:62-82`).
+  `apps/barbearia/src/lib/provisionarBarbearia.ts:65`), mas nem a tela nem a rota do
+  cadastro o recebem (`apps/barbearia/src/pages/api/cadastrar.ts:62-88`).
 - ~~**Não pedimos e-mail**~~ — ✅ pedimos desde 08/10/2026, e desde 09/10 ele é usado: a
   senha nova, os avisos e o e-mail de boas-vindas (`PENDENCIAS-ABERTAS.md` §4.17).
 - **E-mail digitado errado continua difícil de perceber.** A forma é conferida, a existência
@@ -198,24 +227,24 @@ saem as vagas do site.
 > `PENDENCIAS-ABERTAS.md` §4.13). As três miniaturas de layout que este passo descrevia
 > saíram do lançamento. E o cartão não vem mais logo depois: foi para o fim do teste.
 
-**O que ele vê.** No bloco "Sua marca" (`apps/barbearia/src/pages/cadastrar.astro:219-253`):
+**O que ele vê.** No bloco "Sua marca" (`apps/barbearia/src/pages/cadastrar.astro:254-288`):
 a frase do topo; oito cores prontas e uma "outra", livre
 (`apps/barbearia/src/lib/coresDoCadastro.ts:18-27`); e embaixo, **a prévia do topo do site
 dele** — o nome, a frase e o botão "Agendar horário" na cor escolhida, sobre o fundo do site
-(`cadastrar.astro:235-243`). Sem frase, a prévia mostra o nome, que é o que o site mostra.
+(`cadastrar.astro:270-277`). Sem frase, a prévia mostra o nome, que é o que o site mostra.
 
 **Hoje: ✅, desde 08/10/2026.**
 
 - A cor passa pela mesma derivação do painel (`lib/accent.ts`), no navegador e no servidor.
   Clara demais para o texto branco do botão, o site usa o mesmo tom mais escuro; cinza,
   preto ou branco — sem tom para preservar —, fica a cor padrão. Nos dois casos a prévia
-  mostra o resultado e diz por quê, antes de gravar (`cadastrar.astro:313-336`).
+  mostra o resultado e diz por quê, antes de gravar (`cadastrar.astro:349-372`).
 - As oito prontas passam no contraste sem ajuste, e nenhuma é a cor padrão — que o medidor
   do painel não conta. As duas regras têm teste (`tests/cores-do-cadastro.test.ts`): a
   primeira versão da lista tinha o "Petróleo" igual à padrão, e quem o escolhesse ouviria do
   painel que faltava escolher a cor.
 - A frase vai para a `tagline` da configuração, até 200 caracteres
-  (`apps/barbearia/src/lib/provisionarBarbearia.ts:257-260`). Foi a recomendação de 27/09
+  (`apps/barbearia/src/lib/provisionarBarbearia.ts:293-296`). Foi a recomendação de 27/09
   para este passo: é a primeira coisa que o visitante lê, e o medidor a cobra com 15 pontos
   (`apps/barbearia/src/lib/completude.ts:127`).
 - Sem escolher cor, o site nasce com a padrão, e o medidor cobra depois.
@@ -249,7 +278,21 @@ layout~~ — decidido em 08/10/2026: **uma** cor, e o fundo é o do layout.
 
 ### 2.5 Passo 5 — O cartão
 
-**O que ele vê.** Antes de sair da tela, em letra de tamanho normal:
+**O que ele vê, desde 10/10/2026 — no código, sem a prova no sandbox.** O cartão não é pedido
+no cadastro: a decisão de 08/10 o levou para o fim do teste. A faixa do painel conta os dias e
+leva à tela de assinatura, onde o botão *"Cadastrar o cartão"* vem com a data dita antes —
+*"A primeira mensalidade é cobrada em DD/MM; até lá, nada é cobrado."* —, e dali à página de
+pagamento da Asaas, onde ele digita o cartão. A volta é para a mesma tela: *"Cartão
+cadastrado. A assinatura está em dia."* Se a confirmação da Asaas ainda não chegou, *"Recebemos
+o seu cartão…"*, e a tela confere de novo sozinha; saiu sem pagar, *"Nada foi cobrado."*
+(`apps/barbearia/src/pages/admin/assinatura.astro`; as regras, em `src/lib/cobranca.ts`).
+
+**Hoje: ⚠️** — o código existe e foi provado contra uma Asaas de mentira que segue a
+documentação; a de verdade, não (`PENDENCIAS-ABERTAS.md` §4.14). A chave do sandbox existe
+desde 10/10; a conta de produção depende do CNPJ (`ARQUITETURA-COBRANCA-V1.md` §11).
+
+*O desenho de 27/09, com o cartão no cadastro — superado em 08/10:* antes de sair da tela, em
+letra de tamanho normal:
 
 > Hoje você não paga nada. Em **<data do 8º dia>** cobramos **R$ 100** no cartão.
 > Cancele antes, pelo painel, e não paga nada.
@@ -274,10 +317,12 @@ testado em sandbox**):
   navegador. A página dela não oferece componente de navegador nem trata do assunto. Sobra
   o Checkout.
 
-**Hoje: ❌** — nenhuma linha de código, e **nenhuma conta na Asaas**. A conta PJ exige CNPJ;
-se você não tem, verificar se a conta PF atende (`ARQUITETURA-COBRANCA-V1.md` §11).
+~~**Hoje: ❌** — nenhuma linha de código, e **nenhuma conta na Asaas**~~ — em 27/09. A conta
+PJ exige CNPJ; se você não tem, verificar se a conta PF atende (`ARQUITETURA-COBRANCA-V1.md` §11).
 
-**O que o sandbox tem que responder antes de qualquer tela** — a documentação não diz:
+**O que o sandbox tem que responder antes de qualquer tela** — a documentação não diz. *As
+telas vieram antes, em 10/10, por escolha sua; as perguntas continuam, com as que o código
+assumiu, no `PENDENCIAS-ABERTAS.md` §4.14:*
 
 1. **Que evento chega no dia do cadastro, se nada é cobrado nele.** O `CHECKOUT_PAID` pode
    vir só no 8º dia, junto com a cobrança — e aí o passo 6 fica sem gatilho. O desenho do
@@ -288,9 +333,10 @@ se você não tem, verificar se a conta PF atende (`ARQUITETURA-COBRANCA-V1.md` 
    ou CNPJ (`PENDENCIAS-ABERTAS.md` §4.14): se a página não pedir, o cadastro pede. A
    documentação diz que dá para preencher previamente os dados do cliente.
 
-**O que falta, além disso:** o webhook com idempotência desde o primeiro cliente
+~~**O que falta, além disso:** o webhook com idempotência desde o primeiro cliente
 (`ARQUITETURA-COBRANCA-V1.md` §5.1); a cobrança fixada à vista, sem parcelamento
-(`ARQUITETURA-COBRANCA-V1.md` §4); e as duas decisões de desenho do §3, abaixo.
+(`ARQUITETURA-COBRANCA-V1.md` §4); e as duas decisões de desenho do §3, abaixo~~ — os dois
+primeiros no código em 10/10 (`ARQUITETURA-COBRANCA-V1.md` §5.3); as decisões, tomadas em 08/10.
 
 **O que pode dar errado:**
 
@@ -298,10 +344,14 @@ se você não tem, verificar se a conta PF atende (`ARQUITETURA-COBRANCA-V1.md` 
   controlada no caderno — não tem cartão no nome do negócio (`PLANO-PRODUTIZACAO.md` §13,
   custo 7). O aviso do passo 1 diminui a frustração; não aumenta o número de cartões.
 - **Ele volta do Checkout antes de o webhook chegar.** A volta, sozinha, não prova nada —
-  qualquer um digita o endereço de retorno. A tela tem que esperar a confirmação da Asaas
-  ("Confirmando o seu cartão…") e só então abrir o painel.
-- **Ele fecha a aba no meio.** Fica uma barbearia sem cartão ocupando o endereço (§3.1,
-  abaixo).
+  qualquer um digita o endereço de retorno. ✅ *Desde 10/10, a volta só informa: quem põe a
+  barbearia em dia é o webhook, e a tela confere de novo sozinha, até 15 vezes.*
+- ~~**Ele fecha a aba no meio.** Fica uma barbearia sem cartão ocupando o endereço (§3.1,
+  abaixo)~~ — sem objeto desde 08/10: a barbearia já existe, no teste; fechar a aba só deixa o
+  cartão para depois.
+- **Ele abre dois Checkouts e paga no primeiro** — clicou duas vezes, ou voltou e clicou de
+  novo. ✅ *Achado no ensaio de 10/10 e tratado: a barbearia guarda os últimos 20, e o
+  pagamento de qualquer um deles a acha.*
 - **A Asaas foi escolhida pelo Pix** (`PENDENCIAS-ABERTAS.md` §0, 30/08), e o cadastro não
   usa Pix. No cartão a diferença para a Stripe encolhe, mas a Asaas continua mais barata
   (`ARQUITETURA-COBRANCA-V1.md` §4 — tarifas de 28/08, a reconferir antes de lançar).
@@ -309,12 +359,12 @@ se você não tem, verificar se a conta PF atende (`ARQUITETURA-COBRANCA-V1.md` 
 ### 2.6 Passo 6 — A barbearia nasce
 
 **O que o sistema faz, hoje: ✅**, numa transação só
-(`apps/barbearia/src/lib/provisionarBarbearia.ts:358-429`): a barbearia, a configuração com
+(`apps/barbearia/src/lib/provisionarBarbearia.ts:394-465`): a barbearia, a configuração com
 a marca — a cor e a frase do topo inclusive —, o dono como administrador, com o e-mail, o
 expediente, os serviços e o vínculo de cada serviço com o dono. Depois, o endereço entra no
 ar na hora — o cache de endereços é recarregado
-(`apps/barbearia/src/pages/api/cadastrar.ts:125`) em vez de esperar até 30 segundos
-(`apps/barbearia/src/lib/tenant.ts:72`).
+(`apps/barbearia/src/pages/api/cadastrar.ts:131`) em vez de esperar até 30 segundos
+(`apps/barbearia/src/lib/tenant.ts:79`).
 
 **Nasce no teste, desde 08/10/2026:** status `trial`, com o fim do teste gravado — a
 meia-noite que começa o 8º dia depois do cadastro, no fuso da barbearia
@@ -332,22 +382,26 @@ cadastro.
 ### 2.7 Passo 7 — O painel na hora
 
 **O que ele vê.** O fim da tela de fim do cadastro — a do passo 8, abaixo: o botão "Abrir o
-meu painel" (`cadastrar.astro:496`) e o aviso de que já está dentro do painel e de que da
+meu painel" (`cadastrar.astro:546`) e o aviso de que já está dentro do painel e de que da
 próxima vez entra com o WhatsApp, escrito do jeito que ele vai digitar, e a senha. Até 08/10
 era só isso, sob o título *"Pronto. A sua barbearia existe."*
 
 **Hoje: ✅**, desde 25/09/2026: o cadastro abre a sessão do dono novo e substitui qualquer
-outra que houvesse no aparelho (`apps/barbearia/src/pages/api/cadastrar.ts:163`).
+outra que houvesse no aparelho (`apps/barbearia/src/pages/api/cadastrar.ts:169`).
 
 No painel, **o medidor de completude** diz o que falta, do mais pesado para o mais leve:
 logo, texto sobre, frase do topo, capa, **fotos dos cortes**, cor, Instagram, avaliações do
 Google, busca (`apps/barbearia/src/lib/completude.ts:111-162`). A galeria, a logo, a capa e
 as fotos de produto se sobem ali mesmo (`PLANO-PRODUTIZACAO.md` §13, *Fotos*).
 
+E, desde 11/10/2026, **o mapa do site**, com a pergunta *"o ponto está certo?"* — até ele
+confirmar, e de novo se o endereço mudar (`PENDENCIAS-ABERTAS.md` §2.33).
+
 **O que falta:**
 
-- **A contagem do teste** no topo do painel: *"Faltam 6 dias. Primeira cobrança em DD/MM."*
-- **Um lugar para cancelar** (passo 10).
+- ~~**A contagem do teste** no topo do painel~~ — ✅ desde 08/10, a faixa (passo 9).
+- ~~**Um lugar para cancelar** (passo 10)~~ — ✅ desde 10/10, na tela de assinatura, sem a
+  prova no sandbox.
 - **Por onde ele volta amanhã.** O "Entrar" da landing (`index.astro:63`) leva ao
   `/acessar`, que pede o endereço do site e diz que o painel mora nele
   (`apps/vendas/src/pages/acessar.astro:31`) — o modelo de um painel por barbearia. Com o
@@ -363,17 +417,34 @@ as fotos de produto se sobem ali mesmo (`PLANO-PRODUTIZACAO.md` §13, *Fotos*).
 - No teste de 27/09/2026, na máquina do dono, abriu em **32%** — ele preencheu também o texto
   sobre e o Instagram. E a tela de Configurações dizia que a frase do topo era ignorada, quando
   é ela o título do site; consertado no mesmo dia (`PENDENCIAS-ABERTAS.md` §2.28).
+- ~~**"Agenda do dia" levava ao resumo**, e as reservas de produto se chamavam só "Reservas"
+  — no roteiro de 10/10, o dono procurou os agendamentos ali~~. ✅ Consertado no mesmo dia:
+  "Início" é o resumo, "Agenda do dia" abre a de hoje e o menu diz "Reservas de produto"
+  (`PENDENCIAS-ABERTAS.md` §2.32).
+- ~~**Ele não fica sabendo de agendamento novo** sem abrir o painel~~ — ✅ desde 11/10/2026, um
+  e-mail para ele e para o barbeiro do horário a cada agendamento, desmarcação e remarcação
+  feitos pelo cliente (`PENDENCIAS-ABERTAS.md` §2.33). ⚠️ Em produção, só depois do provedor de
+  e-mail (`PENDENCIAS-ABERTAS.md` §4.17).
 
 ### 2.8 Passo 8 — O site no ar
 
-**O que ele vê.** Desde 08/10/2026, ao terminar o cadastro: *"O seu site está no ar."*, o
+**O que ele vê.** ✅ *Desde 10/10/2026, só depois de conferir:* a tela pede ao endereço novo,
+do navegador do dono, uma imagem que só o app serve — se ela carrega, o caminho inteiro
+funciona: o DNS, o certificado, o proxy, o app e a barbearia achada pelo endereço. Aí, *"O seu
+site está no ar."*, com os três botões. Enquanto não abre: *"O seu site está quase no ar."*, o
+endereço em texto, **sem botão de divulgar**, o aviso para não divulgar ainda e um *"Conferir
+agora"*; ela mesma confere a cada 20 segundos, por até 30 minutos
+(`apps/barbearia/src/lib/noAr.ts`, `src/pages/api/no-ar.svg.ts`). O começo do cadastro também
+deixou de prometer *"no ar"*, e o e-mail de boas-vindas também: o servidor não sabe.
+
+*Até 10/10:* ao terminar o cadastro, *"O seu site está no ar."*, o
 endereço, e três botões — abrir o site, mandar no WhatsApp com o texto pronto e copiar o
 texto para a bio do Instagram. Embaixo, os próximos passos, cada um com o link que leva lá:
 pôr preço num serviço (só quando nenhum tem), subir as fotos dos cortes, subir a logo e a
-capa (`apps/barbearia/src/pages/cadastrar.astro:439-501`).
+capa (o código da tela do fim, hoje: `apps/barbearia/src/pages/cadastrar.astro:461-576`).
 
 O endereço vem do resolvedor, não de uma conta feita à parte
-(`apps/barbearia/src/pages/api/cadastrar.ts:132-133`): se ele não achar a barbearia pelo
+(`apps/barbearia/src/pages/api/cadastrar.ts:138-139`): se ele não achar a barbearia pelo
 endereço, o link daria 404, e a tela não mostra link nenhum. Sem `DOMINIO_BASE`, também não
 — o título vira *"A sua barbearia existe."*, e a tela diz que o endereço aparece quando o
 domínio estiver configurado.
@@ -386,14 +457,20 @@ domínio estiver configurado.
   (`PENDENCIAS-ABERTAS.md` §2.19).
 - **Mas não existe endereço de verdade.** O domínio do produto não foi registrado, e o nome
   ainda é provisório: Fadeline, desde 08/10 (`PENDENCIAS-ABERTAS.md` §0.1). Sem `DOMINIO_BASE`, o
-  sistema não inventa um endereço (`apps/barbearia/src/lib/tenant.ts:275`), e o painel
-  esconde o "Ver meu site" (`apps/barbearia/src/layouts/AdminLayout.astro:132-136`).
+  sistema não inventa um endereço (`urlDoSite`, em `apps/barbearia/src/lib/tenant.ts`), e o
+  painel esconde o "Ver meu site" (o link do topo de `apps/barbearia/src/layouts/AdminLayout.astro`).
 - Para cada barbearia nova funcionar sem trabalho seu, falta o registro DNS curinga e o
   certificado emitido por endereço (`ARQUITETURA-COBRANCA-V1.md` §7.4).
 - ✅ **Consertado em 27/09/2026, no primeiro teste na máquina do dono:** o botão de WhatsApp de
   toda barbearia nova chamava um número do Vietnã, porque o cadastro gravava o número sem o 55
   (`PENDENCIAS-ABERTAS.md` §2.25); e o link do site, mandado no WhatsApp, abria com a foto e o
   endereço do Bayron (`PENDENCIAS-ABERTAS.md` §2.26).
+- ✅ **Consertado em 10/10/2026, no roteiro do dono:** o "Traçar rota", o endereço do rodapé
+  e o "Abrir no Maps" da confirmação eram link vazio em toda barbearia do cadastro — clicar
+  reabria o site —, e o rodapé mostrava "Siga no Instagram" sem Instagram e um buraco sem o
+  texto sobre (`PENDENCIAS-ABERTAS.md` §2.32). ⚠️ O ponto do mapa sai do endereço digitado:
+  ambíguo, cai em outro lugar — no roteiro, em outra cidade. ✅ Desde 11/10 o Início mostra o
+  mapa ao dono e pergunta se está certo (`PENDENCIAS-ABERTAS.md` §2.33).
 
 ~~**O que falta:** a tela de fim do cadastro não mostra o site~~ — ✅ feita em 08/10/2026, a
 descrita acima. Era o que este passo pedia desde 27/09: o momento em que ele mostra o produto
@@ -413,12 +490,16 @@ sem a cor e a frase, que passaram a ser pedidas no próprio cadastro (passo 4).
   (`PLANO-PRODUTIZACAO.md` §13, custo 5).
 - ~~**O endereço `painel` na mão de um estranho**~~ — ✅ consertado em 08/10/2026: o cadastro
   recusa os endereços reservados (`PENDENCIAS-ABERTAS.md` §4.16).
-- **"No ar" é o que o app sabe, não o que a internet vê.** A tela afirma *"O seu site está no
-  ar"* quando o app acha a barbearia pelo endereço — sem saber se o registro DNS curinga e o
-  certificado existem (`ARQUITETURA-COBRANCA-V1.md` §7.4). Em produção, sem os dois, ele manda
-  no WhatsApp um link que não abre, no minuto em que está mais animado com o produto. Abrir
-  um endereço recém-criado de fora, num celular, tem que fazer parte do teste antes de abrir
-  o cadastro.
+- ~~**"No ar" é o que o app sabe, não o que a internet vê.**~~ A tela afirmava *"O seu site
+  está no ar"* quando o app achava a barbearia pelo endereço — sem saber se o registro DNS
+  curinga e o certificado existiam (`ARQUITETURA-COBRANCA-V1.md` §7.4). ✅ *Consertado em
+  10/10: confere antes, do navegador do dono.* **O que sobra:** ela confere a rede DELE — o
+  cliente num celular, com o DNS ainda propagando na operadora, pode não abrir o que abriu no
+  Wi-Fi da barbearia. E sem o certificado curinga, ela diz a verdade — *"quase no ar"* — para
+  todo cadastro: abrir um endereço recém-criado de fora, num celular, continua no teste antes
+  de abrir o cadastro. ⚠️ E no `npm run dev` ela diz sempre *"quase no ar"*: o servidor de
+  desenvolvimento do Astro recusa a imagem que ela pede. No build, confere
+  (`PENDENCIAS-ABERTAS.md` §2.32, item 8).
 - **"Mandar no WhatsApp" abre a escolha do contato**, não um contato: é o `wa.me/?text=`, sem
   número. No computador sem o WhatsApp instalado, abre o WhatsApp Web.
 - ~~**A aba do navegador mostrava o ícone do Astro**~~ — o framework do site — em toda
@@ -433,7 +514,8 @@ sem a cor e a frase, que passaram a ser pedidas no próprio cadastro (passo 4).
 - **A contagem existe.** Toda tela do painel tem a faixa do teste — *"Teste grátis: faltam
   7 dias, até 15/10."* —, que vira alerta na véspera e no último dia, com o botão para a tela
   de assinatura (o texto em `apps/barbearia/src/lib/assinatura.ts`; a faixa no
-  `AdminLayout.astro`). O fim do cadastro já diz a data — *"7 dias grátis, até 15/10."* —, e
+  `AdminLayout.astro`). O começo do cadastro avisa do teste e do cartão desde 10/10, o fim
+  dele já diz a data — *"7 dias grátis, até 15/10."* —, e
   a tela `/admin/assinatura` diz o prazo, o preço e o que acontece depois.
 - **O aviso fora do painel existe desde 09/10/2026**, por e-mail: 2 dias antes do fim do
   teste, quando ele acaba e quando o site sai do ar — um de cada, e só o da fase de agora
@@ -452,17 +534,18 @@ não abrir.
 
 **Desde 08/10/2026**, o cartão é cadastrado antes do fim do teste, na tela de assinatura, e a
 cobrança mensal começa no fim do teste; o webhook da Asaas confirma e a barbearia sai de
-`trial` e fica `active`. ⚠️ **Nada disso existe ainda:** a tela de assinatura existe, mas o
-botão do cartão está desligado até a Asaas entrar (`PENDENCIAS-ABERTAS.md` §4.14).
+`trial` e fica `active`. ~~⚠️ **Nada disso existe ainda**~~ — **no código desde 10/10/2026,
+sem a prova no sandbox** (`PENDENCIAS-ABERTAS.md` §4.14). Sem as variáveis `ASAAS_*`, o botão
+continua desligado, com *"Ainda não dá para pagar por aqui"*.
 
 **Hoje: ⚠️.** O que não depende da Asaas está feito; o resto é decisão ou código:
 
 | Situação | Hoje |
 |---|---|
 | **O teste acaba sem cartão** | ✅ desde 08/10: 3 dias inteiros de carência, com o site no ar e a faixa do painel em alerta; depois, fora do ar (`apps/barbearia/src/lib/situacao.ts`). Teste até 15/10: carência até 18/10, fora do ar no dia 19 |
-| **O cartão recusa** | ✅ a mesma regra (`PENDENCIAS-ABERTAS.md` §1.3) — falta quem marque a falha: o webhook da Asaas gravando `past_due` |
+| **O cartão recusa** | ✅ a mesma regra (`PENDENCIAS-ABERTAS.md` §1.3) — e, desde 10/10, o webhook grava `past_due` na primeira falha, sem a prova no sandbox. O botão vira *"Atualizar o cartão"* |
 | **Fora do ar** | ✅ desde 08/10: o site responde 503 com *"O agendamento online está temporariamente indisponível"*, o nome e o WhatsApp da barbearia, sem falar em dívida (`apps/barbearia/src/lib/siteForaDoAr.ts`). O painel abre só a tela de assinatura, sem a navegação e com os próximos horários para consulta; o login leva até ela. Pagou, volta — em até 30 segundos, o tempo do cache de barbearias. Dar 404 continua descartado (`PENDENCIAS-ABERTAS.md` §3.5) |
-| **Ele quer cancelar** | Um botão no painel. Sem ele, cancelar é mandar WhatsApp para você — e o "avisando 30 dias" começa quando você lê. No autoatendimento, o comum é cancelar na hora e o site ficar no ar até o fim do mês pago; é decisão para o termo (`PENDENCIAS-ABERTAS.md` §1.2) |
+| **Ele quer cancelar** | ⚠️ desde 10/10, *"Cancelar a assinatura"* na tela de assinatura, com confirmação: a Asaas para de cobrar e o site fica no ar até o fim do mês pago — com a cobrança atrasada, só o que restava da carência. Assinando de novo, volta. As regras, decididas na implementação, foram confirmadas em 10/10 — e sair do ar pela cobrança não cancela: o pagamento que passar traz o site de volta. Falta o termo dizer (`PENDENCIAS-ABERTAS.md` §4.14 e `PENDENCIAS-ABERTAS.md` §1.2) |
 | **Esqueceu a senha** | ✅ desde 09/10: "Esqueci minha senha" no login, com o link no e-mail do cadastro; quem não tem e-mail depende do dono ou de você (`PENDENCIAS-ABERTAS.md` §4.17) |
 | **Quer a nota fiscal** | Não tratado em desenho nenhum (`ARQUITETURA-COBRANCA-V1.md` §11) |
 | **Quer levar os clientes embora** | A exportação (`PENDENCIAS-ABERTAS.md` §3.6) — é resposta de contrato também |
@@ -515,11 +598,11 @@ O que A exige — é a costura que o `PENDENCIAS-ABERTAS.md` §4.14 diz que ning
 
 ~~⚠️ **Hoje o resolvedor só serve barbearia `active`**~~ — ✅ desde 08/10/2026 ele serve pela
 fase, não pelo status: no teste e na carência, o site está no ar
-(`apps/barbearia/src/lib/tenant.ts:196`, nas linhas 201 e 205), e `tests/teste-gratis.test.ts`
+(`apps/barbearia/src/lib/tenant.ts:205`, nas linhas 201 e 205), e `tests/teste-gratis.test.ts`
 confere as oito combinações de status e prazo.
 
-⚠️ **A pendente prende o próprio dono.** O WhatsApp de login é único no mundo
-(`provisionarBarbearia.ts:287-295`): quem fecha a aba do Checkout e tenta se cadastrar de novo
+⚠️ **A pendente prende o próprio dono.** O WhatsApp de login é único entre os barbeiros ativos
+(`provisionarBarbearia`; a migration 0017): quem fecha a aba do Checkout e tenta se cadastrar de novo
 uma hora depois ouve *"Este WhatsApp já é o login de outro barbeiro"* — sobre o cadastro
 dele mesmo. O `/cadastrar` precisa reconhecer esse caso e mandá-lo entrar e terminar, em
 vez de recusar.
@@ -599,9 +682,10 @@ caminho do barbeiro. Muda uma coisa lá e encaixa o que a jornada achou sem luga
    `trial`, o Checkout, o webhook idempotente, a limpeza das pendentes, a página do motivo —
    e, no painel, a contagem e o cancelar. ✅ **Feitos em 08/10/2026:** o `trial` com a data
    de fim, o resolvedor servindo pela fase, a carência, o site fora do ar e, no painel, a
-   contagem e a tela de assinatura. **Faltam** o Checkout, o webhook idempotente e o
-   cancelar. `pending` e a limpeza das pendentes saíram: com o cartão no fim do teste, elas
-   não existem.
+   contagem e a tela de assinatura. ~~**Faltam** o Checkout, o webhook idempotente e o
+   cancelar~~ — no código em 10/10/2026, sem a prova no sandbox, que era o item 0
+   (`PENDENCIAS-ABERTAS.md` §4.14). `pending` e a limpeza das pendentes saíram: com o cartão
+   no fim do teste, elas não existem.
    - ~~**5b. A recuperação de senha e o aviso antes de cobrar**, que usam o mesmo canal~~ —
      ✅ 09/10, pelo e-mail; falta o provedor de envio (`PENDENCIAS-ABERTAS.md` §4.17 e
      `PENDENCIAS-ABERTAS.md` §1.3).
@@ -651,6 +735,13 @@ decisões do e-mail no §4 e o item 5b do §5, acima; e, fora daqui, `PENDENCIAS
 `PENDENCIAS-ABERTAS.md` §2.13, `PENDENCIAS-ABERTAS.md` §4.17 e a onda 2 do
 `PENDENCIAS-ABERTAS.md` §6, o `PLANO-PRODUTIZACAO.md` §13, o `ARQUITETURA-COBRANCA-V1.md` §5.2, o
 `ROTEIRO-MIGRACAO-PRODUCAO.md` §3.1 e o `ESTADO-ATUAL.md` §7 e o `ESTADO-ATUAL.md` §8.
+
+**Mudou em 10/10/2026, com a cobrança e a tela final que confere:** o status do cabeçalho, o
+§1, os passos 5, 7, 8 e 10 e o item 5 do §5, acima; e, fora daqui, `PENDENCIAS-ABERTAS.md` §0,
+`PENDENCIAS-ABERTAS.md` §2.31, `PENDENCIAS-ABERTAS.md` §3.8, `PENDENCIAS-ABERTAS.md` §4.14 e a
+onda 2 do `PENDENCIAS-ABERTAS.md` §6, o `ARQUITETURA-COBRANCA-V1.md` §5.2, o
+`ARQUITETURA-COBRANCA-V1.md` §5.3 e o `ARQUITETURA-COBRANCA-V1.md` §7.4, e o `ESTADO-ATUAL.md`
+§7 e o `ESTADO-ATUAL.md` §8.
 
 **Muda quando for decidido ou implementado — não antes:**
 

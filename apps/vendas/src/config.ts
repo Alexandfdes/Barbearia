@@ -12,8 +12,13 @@ export const NOME_PRODUTO = 'Fadeline';
 /** Frase de uma linha que acompanha o nome. */
 export const SUBTITULO = 'Site e agendamento para barbearias';
 
-/** WhatsApp que recebe os contatos da página — formato wa.me: DDI + DDD + número. */
-export const WHATSAPP = '5584999051196';
+/**
+ * WhatsApp que recebe os contatos da página — formato wa.me: DDI + DDD + número.
+ * É o do dono do produto. ⚠️ Até 26/10/2026 era um número de teste: todo botão "falar no
+ * WhatsApp" da landing, da demonstração e do formulário ia para ele, e o interessado não
+ * chegava a ninguém.
+ */
+export const WHATSAPP = '5584996658951';
 
 /**
  * Domínio onde este site vai rodar. Alimenta o link canônico e a prévia de compartilhamento.
@@ -22,7 +27,7 @@ export const WHATSAPP = '5584999051196';
 export const SITE_URL = 'https://fadeline.com.br';
 
 export const PRECO = {
-  /** Mensalidade. Não há taxa de instalação: a montagem do site está inclusa. */
+  /** Mensalidade, depois dos 7 dias grátis. Não há taxa de instalação. */
   mensal: 100,
   /** Meses de bônus para quem paga o ano à vista. */
   mesesBonus: 2,
@@ -66,6 +71,16 @@ export const CADASTRO_ABERTO = process.env.CADASTRO_ABERTO === '1';
 /** O endereço da tela de cadastro. Em desenvolvimento aponta para o outro servidor. */
 export const URL_CADASTRO =
   process.env.URL_CADASTRO ?? 'http://localhost:4321/cadastrar';
+
+/**
+ * A tela de entrar do painel central — `painel.<domínio>`, onde todo dono entra. O
+ * `/acessar` leva direto para ela. Até 12/10/2026 aquela tela pedia o endereço do
+ * site e levava ao `/admin` dele: o modelo de um painel por barbearia, que acabou com
+ * o painel central (docs/ARQUITETURA-MULTI-TENANT-V1.md §8). Em desenvolvimento,
+ * aponta para o outro servidor — como `URL_CADASTRO`, em produção vem do ambiente.
+ */
+export const URL_PAINEL =
+  process.env.URL_PAINEL ?? 'http://localhost:4321/admin/login';
 
 export function whatsappUrl(mensagem: string): string {
   return `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(mensagem)}`;

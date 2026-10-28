@@ -24,17 +24,22 @@ Registro, não recomendação.
 | 30/08/2026 | R$ 180/mês, sem taxa de entrada | O plano anual substituiu o setup como instrumento de caixa |
 | **01/09/2026** | **R$ 100/mês, sem taxa de entrada** | **Vigente.** Ver §2 |
 
-O v5 também traz cláusulas que continuam valendo e que o `PENDENCIAS-ABERTAS.md`
-ainda lista como abertas: garantia de 60 dias, aviso prévio de 30 dias para cancelar,
-e suspensão após 15 dias de atraso com um aviso por escrito. **Antes de "decidir"
-inadimplência ou suporte, ler o v5** — já tem texto redigido.
+O v5 também traz cláusulas — garantia de 60 dias, aviso prévio de 30 dias para cancelar,
+e suspensão após 15 dias de atraso com um aviso por escrito. ✏️ *26/10/2026: duas delas foram
+decididas de outro jeito em 08/10 — **cancela quando quiser, sem aviso prévio**, e **3 dias de
+carência** antes de sair do ar (`PLANO-PRODUTIZACAO.md` §13; `PENDENCIAS-ABERTAS.md` §1.3). A
+garantia continua em aberto.*
 
 ## 2. Decisão vigente
 
 | Plano | Valor | Observação |
 |---|---|---|
-| **Mensal** | **R$ 100/mês** | Cancelamento com aviso de 30 dias |
-| **Anual, à vista** | **R$ 1.000/ano** | Paga 10 meses, usa 12. Sai por R$ 83/mês |
+| **Mensal** | **R$ 100/mês** | 7 dias grátis; cancela pelo painel quando quiser e fica até o fim do mês pago; 3 dias de carência no atraso |
+
+✏️ *26/10/2026: até aqui esta tabela trazia também o **plano anual de R$ 1.000** e o
+"cancelamento com aviso de 30 dias". Os dois caíram em 08/10/2026 — **só mensal** e cancelamento
+sem aviso (`PLANO-PRODUTIZACAO.md` §13). O anual fica como histórico: as contas abaixo que o citam
+são da versão de 01/09.*
 
 Sem taxa de instalação: a montagem do site está inclusa. ⚠️ *Desde 24/09 não há
 montagem: o dono monta sozinho (ver o topo).*

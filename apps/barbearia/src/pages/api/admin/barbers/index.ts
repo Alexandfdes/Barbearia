@@ -11,6 +11,7 @@ import { normalizePhone } from '../../../../lib/phone.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { emailValido, normalizarEmail } from '../../../../lib/email.js';
+import { SENHA_MINIMA } from '../../../../lib/redefinicaoDeSenha.js';
 
 const BCRYPT_COST = 12;
 
@@ -28,7 +29,7 @@ const createSchema = z.object({
   // só aparece no dia em que ele tenta.
   phone:    z.string().min(10).max(25),
   role:     z.enum(['admin', 'barber']),
-  password: z.string().min(6).max(200),
+  password: z.string().min(SENHA_MINIMA).max(200),  // 8, como a senha nova pelo link
   // Opcional: sem ele o barbeiro não recebe a senha nova por e-mail, e quem a
   // troca é o dono, nesta mesma tela.
   email:    z.string().max(254).optional(),
@@ -87,8 +88,8 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   // ⚠️ O telefone é único NO MUNDO, não nesta barbearia: é o que faz o login do
-  // painel central saber de quem é quem está entrando (índice `barbers_phone_uq`,
-  // migration 0002). Quem confere é o índice, no `catch` do INSERT lá embaixo.
+  // painel central saber de quem é quem está entrando (índice `barbers_phone_ativo_uq`,
+  // migration 0017 — só entre os ativos). Quem confere é o índice, no `catch` do INSERT lá embaixo.
   //
   // Até 25/09/2026 havia aqui uma consulta que dizia conferir isso "sem filtrar
   // por tenant, de propósito". Só que ela roda dentro da requisição, sob o RLS, e
@@ -141,7 +142,7 @@ export const POST: APIRoute = async ({ request }) => {
       return id;
     });
   } catch (err) {
-    if (violouUnico(err, 'barbers_phone_uq')) {
+    if (violouUnico(err, 'barbers_phone_ativo_uq')) {
       return json({ error: 'Este telefone já está cadastrado para outro barbeiro.' }, 409);
     }
     console.error('[api/admin/barbers]', err);

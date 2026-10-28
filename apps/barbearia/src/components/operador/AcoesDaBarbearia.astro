@@ -1,0 +1,115 @@
+---
+/**
+ * As ações sobre UMA barbearia, na ficha dela: estender o teste ou a carência,
+ * tirar do ar, reativar (`lib/operadorBarbearias.ts`). Os botões que aparecem dependem do
+ * status — o mesmo critério das funções, que recusam o resto de qualquer jeito.
+ *
+ * O envio é do script da ficha (`pages/operador/barbearias/[id].astro`): ele lê
+ * `data-acao` e `data-barbearia` de cada formulário.
+ */
+import { DIAS_MAXIMOS_DE_EXTENSAO, statusPorExtenso, type BarbeariaNoPainel } from '../../lib/operadorBarbearias.js';
+
+interface Props { b: BarbeariaNoPainel }
+const { b } = Astro.props;
+const nenhuma = !(b.status === 'trial' || b.status === 'active' || b.status === 'past_due' || b.status === 'suspended');
+---
+<div class="space-y-2">
+  {b.status === 'trial' && (
+    <details class="group" data-painel-acao>
+      <summary class="cursor-pointer select-none text-sm font-medium border border-slate-300 rounded-md px-3 py-2 hover:border-slate-400 flex items-center justify-between">
+        Estender o teste <span class="text-slate-400 group-open:rotate-90 transition-transform" aria-hidden="true">›</span>
+      </summary>
+      <form data-acao="estender-teste" data-barbearia={b.id} class="mt-2 bg-slate-50 border border-slate-200 rounded-md p-3 space-y-2">
+        <label for={`dias-${b.id}`} class="block text-xs text-slate-600">Quantos dias a mais</label>
+        <input id={`dias-${b.id}`} name="dias" type="number" min="1" max={DIAS_MAXIMOS_DE_EXTENSAO} value="7" required
+          class="w-24 bg-white border border-slate-300 rounded px-2 py-1.5 text-sm tabular-nums focus:outline-none focus:border-teal" />
+        <p class="text-xs text-slate-500">Contados do último dia do teste — ou de hoje, se ele já venceu. Se ela estava fora do ar pelo teste, volta na hora.</p>
+        <button type="submit" class="text-xs px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded transition-colors">Estender</button>
+        <p data-erro role="alert" class="hidden text-sm text-red-700"></p>
+      </form>
+    </details>
+  )}
+
+  {b.status === 'past_due' && (
+    <details class="group" data-painel-acao>
+      <summary class="cursor-pointer select-none text-sm font-medium border border-slate-300 rounded-md px-3 py-2 hover:border-slate-400 flex items-center justify-between">
+        Estender a carência <span class="text-slate-400 group-open:rotate-90 transition-transform" aria-hidden="true">›</span>
+      </summary>
+      <form data-acao="estender-carencia" data-barbearia={b.id} class="mt-2 bg-slate-50 border border-slate-200 rounded-md p-3 space-y-2">
+        <label for={`dias-carencia-${b.id}`} class="block text-xs text-slate-600">Quantos dias a mais para pagar</label>
+        <input id={`dias-carencia-${b.id}`} name="dias" type="number" min="1" max={DIAS_MAXIMOS_DE_EXTENSAO} value="3" required
+          class="w-24 bg-white border border-slate-300 rounded px-2 py-1.5 text-sm tabular-nums focus:outline-none focus:border-teal" />
+        <p class="text-xs text-slate-600">Contados do último dia da carência — ou de hoje, se ela já venceu. Se ela estava fora do ar pela cobrança, volta na hora.</p>
+        <p class="text-xs text-slate-500">A Asaas continua tentando o cartão nos dias dela; o pagamento que passar põe a barbearia em dia, e a extensão deixa de importar.</p>
+        <button type="submit" class="text-xs px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded transition-colors">Estender</button>
+        <p data-erro role="alert" class="hidden text-sm text-red-700"></p>
+      </form>
+    </details>
+  )}
+
+  {(b.status === 'trial' || b.status === 'active' || b.status === 'past_due') && (
+    <details class="group" data-painel-acao>
+      <summary class="cursor-pointer select-none text-sm font-medium border border-slate-300 rounded-md px-3 py-2 hover:border-red-400 text-red-800 flex items-center justify-between">
+        Tirar do ar <span class="text-slate-400 group-open:rotate-90 transition-transform" aria-hidden="true">›</span>
+      </summary>
+      <form data-acao="suspender" data-barbearia={b.id} class="mt-2 bg-slate-50 border border-slate-200 rounded-md p-3 space-y-2">
+        <p class="text-xs text-slate-600">O site passa a dizer "temporariamente indisponível", com o WhatsApp dela, e o painel do dono abre só a tela de assinatura. Nada é apagado — e só o Reativar daqui a traz de volta: nem o pagamento.</p>
+        <p class:list={['text-xs rounded px-2 py-1.5', b.temAssinatura ? 'bg-amber-50 text-amber-950 border border-amber-200' : 'text-slate-600']}>
+          {b.temAssinatura
+            ? 'Ela tem assinatura na Asaas: tirar do ar não cancela a cobrança. Se ela não deve mais pagar, cancele lá.'
+            : 'Não há assinatura registrada na Asaas para ela: nada está sendo cobrado.'}
+        </p>
+        <label for={`motivo-${b.id}`} class="block text-xs text-slate-600">Motivo — fica no registro</label>
+        <input id={`motivo-${b.id}`} name="motivo" maxlength="300" autocomplete="off"
+          class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-teal" />
+        <label for={`confirmacao-${b.id}`} class="block text-xs text-slate-600">Para confirmar, digite <code class="font-mono text-slate-900">{b.slug}</code></label>
+        <input id={`confirmacao-${b.id}`} name="confirmacao" required autocomplete="off" spellcheck="false" autocapitalize="off"
+          class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-sm font-mono focus:outline-none focus:border-teal" />
+        <button type="submit" class="text-xs px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-bold uppercase tracking-widest rounded transition-colors">Tirar do ar</button>
+        <p data-erro role="alert" class="hidden text-sm text-red-700"></p>
+      </form>
+    </details>
+  )}
+
+  {b.status === 'suspended' && (
+    <details class="group" data-painel-acao open>
+      <summary class="cursor-pointer select-none text-sm font-medium border border-slate-300 rounded-md px-3 py-2 hover:border-slate-400 flex items-center justify-between">
+        Reativar <span class="text-slate-400 group-open:rotate-90 transition-transform" aria-hidden="true">›</span>
+      </summary>
+      <form data-acao="reativar" data-barbearia={b.id} class="mt-2 bg-slate-50 border border-slate-200 rounded-md p-3 space-y-2">
+        {b.antesDaSuspensao ? (
+          <p class="text-xs text-slate-600">
+            Volta como estava quando saiu do ar — <strong class="text-slate-900">{statusPorExtenso(b.antesDaSuspensao)}</strong> —,
+            com os prazos de antes: o relógio não parou. Se o teste ou a carência venceram nesse meio-tempo, ela continua fora do ar.
+          </p>
+        ) : (
+          <fieldset class="space-y-1.5">
+            <legend class="text-xs text-slate-600 mb-1">Ela saiu do ar fora deste painel, e não há registro de como estava. Volta como:</legend>
+            <label class="flex gap-2 text-sm"><input type="radio" name="comoEra" value="trial" checked /> em teste — com o prazo que tinha, ou 7 dias a partir de hoje se não tinha nenhum</label>
+            <label class="flex gap-2 text-sm"><input type="radio" name="comoEra" value="active" /> em dia — {b.temAssinatura ? 'a assinatura na Asaas segue valendo' : 'sem assinatura na Asaas, isto é de graça e sem prazo'}</label>
+          </fieldset>
+        )}
+        <button type="submit" class="text-xs px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded transition-colors">Reativar</button>
+        <p data-erro role="alert" class="hidden text-sm text-red-700"></p>
+      </form>
+    </details>
+  )}
+
+  {(b.tela.tom === 'fora' || b.tela.tom === 'encerrada') && (
+    <details class="group" data-painel-acao>
+      <summary class="cursor-pointer select-none text-sm font-medium border border-slate-300 rounded-md px-3 py-2 hover:border-slate-400 flex items-center justify-between">
+        Liberar os telefones da equipe <span class="text-slate-400 group-open:rotate-90 transition-transform" aria-hidden="true">›</span>
+      </summary>
+      <form data-acao="liberar-telefones" data-barbearia={b.id} class="mt-2 bg-slate-50 border border-slate-200 rounded-md p-3 space-y-2">
+        <p class="text-xs text-slate-600">Desliga os barbeiros desta barbearia — <strong class="text-slate-900">menos o dono</strong> —, e o WhatsApp de cada um volta a servir para entrar noutra barbearia ou cadastrar a sua. Use quando alguém da equipe de uma barbearia fora do ar precisar do número.</p>
+        <p class="text-xs text-slate-500">Se ela voltar ao ar, o dono religa quem quiser na Equipe.</p>
+        <button type="submit" class="text-xs px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded transition-colors">Liberar os telefones</button>
+        <p data-erro role="alert" class="hidden text-sm text-red-700"></p>
+      </form>
+    </details>
+  )}
+
+  {nenhuma && (
+    <p class="text-sm text-slate-500">Encerrada: ela saiu do produto — daqui, só liberar os telefones da equipe.</p>
+  )}
+</div>

@@ -30,10 +30,10 @@ Cada app também funciona sozinho: `cd apps/barbearia && npm run dev`.
 | Orientação para trabalhar no projeto | `CLAUDE.md` |
 | Decisões de produto e arquitetura | `docs/` |
 | Por que o monorepo é assim | `docs/MONOREPO.md` |
-| Migração para Postgres (pronta, não aplicada) | `migracao-postgres/` |
 
 ## Deploy
 
-O `Dockerfile` vive em `apps/barbearia/` e continua igual ao de antes — mas o
-build precisa ter **`apps/barbearia` como contexto**, não a raiz do repositório.
+O `Dockerfile` vive em `apps/barbearia/` — e o build precisa ter **`apps/barbearia` como
+contexto**, não a raiz do repositório. Ele mudou desde o monorepo (as dependências de produção à
+parte, o backup antes das migrations, a saúde); o CI o constrói a cada push, no job `imagem`.
 Ver `docs/MONOREPO.md` §3.

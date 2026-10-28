@@ -1,16 +1,16 @@
 ---
 import { getSettings, waUrl } from '../lib/settings';
+import { embedDoMapa, linkDaRota } from '../lib/mapa';
 
 const s = await getSettings();
 const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário.', s);
 
-// O Google aceita espaço como "+" na query do embed. Reproduzimos essa forma em
-// vez do %20 do encodeURIComponent para o HTML sair idêntico ao que já estava.
-// Sem query configurada o embed cairia num mapa em branco. Caímos no endereço
-// e, se nem isso houver, a caixa do mapa não aparece.
-const queryMapa = s.mapsEmbedQuery || [s.addressStreet, s.addressCity].filter(Boolean).join(', ');
-const temMapa = queryMapa.length > 0;
-const mapsEmbedSrc = `https://www.google.com/maps?q=${encodeURIComponent(queryMapa).replace(/%20/g, '+')}&output=embed`;
+// Sem busca configurada, o mapa cai no endereço; sem nem isso, a caixa do mapa não
+// aparece. A mesma busca da rota e do mapa que o painel mostra ao dono para
+// conferir (`lib/mapa.ts`): os três não podem discordar.
+const mapsEmbedSrc = embedDoMapa(s);
+const rota = linkDaRota(s);
+const temMapa = mapsEmbedSrc !== null;
 const temHorario = s.businessHours.length > 0;
 ---
 
@@ -68,8 +68,9 @@ const temHorario = s.businessHours.length > 0;
 
         <!-- Ações -->
         <div class="flex flex-col sm:flex-row gap-3 mt-2">
+          {rota && (
           <a
-            href={s.mapsUrl}
+            href={rota}
             target="_blank"
             rel="noopener"
             class="flex-1 w-full inline-flex items-center justify-center gap-2 bg-teal hover:bg-teal-hover text-white font-bold tracking-widest uppercase text-sm px-6 py-3.5 rounded-md transition-colors duration-300"
@@ -79,6 +80,7 @@ const temHorario = s.businessHours.length > 0;
             </svg>
             Traçar rota
           </a>
+          )}
           <a
             href={whatsappUrl}
             target="_blank"

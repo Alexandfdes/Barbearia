@@ -8,9 +8,12 @@ import { and, eq } from 'drizzle-orm';
 import { formatInTimeZone } from 'date-fns-tz';
 import { ptBR } from 'date-fns/locale';
 import { getSettings, waUrl } from '../../lib/settings';
+import { linkDoMapa } from '../../lib/mapa';
 import { tenantDoHost } from '../../lib/tenant.js';
 import { reais } from '../../lib/dinheiro.js';
-import { TZ } from '../../lib/timezone.js';
+import { fusoDe } from '../../lib/timezone.js';
+import { somaDosItens, totalParaOCliente } from '../../lib/valorDoAtendimento.js';
+import { horarioJaComecou } from '../../lib/linkDoCliente.js';
 
 const tenant = tenantDoHost(Astro.request);
 
@@ -19,8 +22,10 @@ const tenant = tenantDoHost(Astro.request);
 // barbearia de quem ler — renderizar mostraria a marca de OUTRO cliente numa
 // página que não é dele (`lib/tenant.ts`, passo 6).
 if (!tenant) return new Response('Barbearia não encontrada', { status: 404 });
+const fuso = fusoDe(tenant);
 
 const s = await getSettings();
+const mapa = linkDoMapa(s);
 
 const { token } = Astro.params;
 if (!token) return Astro.redirect('/agendar');
@@ -52,20 +57,26 @@ if (rows.length === 0) return Astro.redirect('/agendar');
 
 const appt = rows[0];
 const startsAt  = new Date(appt.startsAt);
-const dateLocal = formatInTimeZone(startsAt, TZ, 'dd/MM/yyyy');
-const timeLocal = formatInTimeZone(startsAt, TZ, 'HH:mm');
+const dateLocal = formatInTimeZone(startsAt, fuso, 'dd/MM/yyyy');
+const timeLocal = formatInTimeZone(startsAt, fuso, 'HH:mm');
 
-const weekdayRaw = formatInTimeZone(startsAt, TZ, 'EEEE', { locale: ptBR });
+const weekdayRaw = formatInTimeZone(startsAt, fuso, 'EEEE', { locale: ptBR });
 const weekday    = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
 
-// Itens da comanda criados no agendamento (ex.: produto do Combo Boris a retirar).
+// Os itens da comanda, na ordem em que entraram: o produto do combo, que nasce com o
+// agendamento, e — depois de concluído — os extras do fechamento.
 const items = (await db
   .select({ name: appointmentItems.name, priceCents: appointmentItems.priceCents })
   .from(appointmentItems)
   .where(and(eq(appointmentItems.appointmentId, appt.id), eq(appointmentItems.tenantId, tenant.id)))
+  .orderBy(appointmentItems.id)
   );
-const itemsTotalCents = items.reduce((sum, it) => sum + it.priceCents, 0);
-const totalCents = appt.priceCents + itemsTotalCents;
+// O que o cliente paga, ou pagou — o mesmo número da área do cliente (`lib/valorDoAtendimento.ts`).
+const totalCents = totalParaOCliente({ priceCents: appt.priceCents, itemsCents: somaDosItens(items) });
+// "Para retirar na barbearia" é o produto do combo, o único item de um agendamento ainda não
+// concluído. Depois de fechado entram os extras — serviços, como uma barba —, e até 15/10/2026
+// a barba aparecia como coisa "para retirar" (`docs/PENDENCIAS-ABERTAS.md` §2.43).
+const tituloDosItens = appt.status === 'confirmed' ? 'Para retirar na barbearia' : 'Além do serviço';
 
 const price       = reais(appt.priceCents);
 const totalDisplay = reais(totalCents);
@@ -74,19 +85,22 @@ const isConfirmed = appt.status === 'confirmed';
 const isCancelled = appt.status === 'cancelled';
 const isCompleted = appt.status === 'completed';
 const isNoShow    = appt.status === 'no_show';
+// Depois que o horário começa, o link só mostra: desmarcar ou remarcar é com a barbearia
+// (decisão de 18/10/2026; as rotas recusam do mesmo jeito — `lib/linkDoCliente.ts`).
+const jaComecou   = horarioJaComecou(appt.startsAt);
 
 const whatsappUrl = isConfirmed
   ? waUrl(`Olá! Agendei *${appt.serviceName}* com *${appt.barberName}* no dia *${dateLocal}* às *${timeLocal}*.`, s)
   : '';
 
 const cancelledLabel = isCancelled && appt.cancelledAt
-  ? formatInTimeZone(new Date(appt.cancelledAt), TZ, "dd/MM/yyyy 'às' HH:mm")
+  ? formatInTimeZone(new Date(appt.cancelledAt), fuso, "dd/MM/yyyy 'às' HH:mm")
   : '';
 
 // Datas para o wizard de reagendamento
-const todayStr      = formatInTimeZone(new Date(), TZ, 'yyyy-MM-dd');
-const maxDateStr    = formatInTimeZone(new Date(Date.now() + 30 * 86400 * 1000), TZ, 'yyyy-MM-dd');
-const apptDateStr   = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
+const todayStr      = formatInTimeZone(new Date(), fuso, 'yyyy-MM-dd');
+const maxDateStr    = formatInTimeZone(new Date(Date.now() + 30 * 86400 * 1000), fuso, 'yyyy-MM-dd');
+const apptDateStr   = formatInTimeZone(startsAt, fuso, 'yyyy-MM-dd');
 ---
 
 <Layout
@@ -96,7 +110,7 @@ const apptDateStr   = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
   <div class="min-h-screen bg-dark">
 
     <!-- Header mínimo -->
-    <div class="border-b border-white/5 px-4 py-4">
+    <header class="border-b border-white/5 px-4 py-4">
       <div class="max-w-lg mx-auto flex items-center justify-between">
         <a href="/" class="text-neutral-400 hover:text-neutral-200 text-sm flex items-center gap-1.5 transition-colors">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -106,7 +120,7 @@ const apptDateStr   = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
         </a>
         <span class="text-neutral-400 text-sm font-medium">{s.businessName}</span>
       </div>
-    </div>
+    </header>
 
     <main class="max-w-lg mx-auto px-4 py-10">
 
@@ -177,7 +191,7 @@ const apptDateStr   = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
         </div>
         {items.length > 0 && (
           <div class="px-5 py-4 border-b border-white/5">
-            <p class="text-xs text-neutral-500 uppercase tracking-widest mb-2">Para retirar na barbearia</p>
+            <p class="text-xs text-neutral-500 uppercase tracking-widest mb-2">{tituloDosItens}</p>
             {items.map((it) => (
               <div class="flex items-center justify-between text-sm py-0.5">
                 <span class="text-neutral-200">{it.name}</span>
@@ -203,14 +217,16 @@ const apptDateStr   = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
             <p class="text-sm text-neutral-200">{s.addressStreet}</p>
             <p class="text-xs text-neutral-500 mt-0.5">{s.addressCity}</p>
           </div>
+          {mapa && (
           <a
-            href={s.mapsUrl}
+            href={mapa}
             target="_blank"
             rel="noopener"
             class="text-xs text-neutral-500 hover:text-teal-light border border-white/10 hover:border-teal/30 px-3 py-1.5 rounded transition-colors shrink-0 whitespace-nowrap"
           >
             Abrir no Maps
           </a>
+          )}
         </div>
       </div>
 
@@ -246,6 +262,11 @@ const apptDateStr   = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
             Adicionar ao calendário
           </a>
 
+          {jaComecou ? (
+            <p class="text-center text-sm text-neutral-400 border border-white/10 rounded-md px-4 py-3.5">
+              Este horário já começou. Para desmarcar ou remarcar, fale com a barbearia pelo WhatsApp.
+            </p>
+          ) : (<>
           <button
             id="reschedule-btn"
             class="flex items-center justify-center gap-2.5 w-full border border-white/10 hover:border-teal/30 text-neutral-400 hover:text-teal-light font-medium px-6 py-3.5 rounded-md transition-colors duration-300 text-sm"
@@ -308,6 +329,7 @@ const apptDateStr   = formatInTimeZone(startsAt, TZ, 'yyyy-MM-dd');
           >
             Cancelar agendamento
           </button>
+          </>)}
         </div>
       )}
 

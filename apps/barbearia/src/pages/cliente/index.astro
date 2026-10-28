@@ -2,17 +2,17 @@
 export const prerender = false;
 
 import Layout from '../../layouts/Layout.astro';
-import { getCustomerSession } from '../../lib/customerSession.js';
-import { sql } from 'drizzle-orm';
-import { db } from '../../db/index.js';
-import { tenantDoHost, type Tenant } from '../../lib/tenant.js';
+import { getCustomerSession, clearCustomerSessionCookie } from '../../lib/customerSession.js';
+import { tenantDoHost } from '../../lib/tenant.js';
 import { getSettings } from '../../lib/settings.js';
 import { formatInTimeZone } from 'date-fns-tz';
-import { TZ } from '../../lib/timezone.js';
+import { ptBR } from 'date-fns/locale';
+import { fusoDe } from '../../lib/timezone.js';
 import { reais } from '../../lib/dinheiro.js';
+import { agendamentosDoCliente } from '../../lib/agendamentosDoCliente.js';
+import { totalParaOCliente } from '../../lib/valorDoAtendimento.js';
 
 
-const session = await getCustomerSession(Astro.request);
 const tenant = tenantDoHost(Astro.request);
 
 // Endereço que não é de barbearia nenhuma. 404 seco, sem passar pelo layout:
@@ -20,58 +20,29 @@ const tenant = tenantDoHost(Astro.request);
 // barbearia de quem ler — renderizar mostraria a marca de OUTRO cliente numa
 // página que não é dele (`lib/tenant.ts`, passo 6).
 if (!tenant) return new Response('Barbearia não encontrada', { status: 404 });
+// A sessão vale só na barbearia em que o cliente entrou (`lib/customerSession.ts`).
+const session = await getCustomerSession(Astro.request, tenant.id);
+const fuso = fusoDe(tenant);
 
 // ⚠️ O nome é o da barbearia do endereço. Até 27/09/2026 esta página dizia
 // "Barbearia Bayron" no título e no topo para o cliente de qualquer barbearia.
 const { businessName } = await getSettings(tenant);
 if (!session) return Astro.redirect('/cliente/entrar');
 
-function listarAgendamentos(phone: string, birthdate: string, tenant: Tenant) {
-  return db.execute<ApptRow>(sql`
-    SELECT
-      a.id              AS id,
-      a.status          AS status,
-      a.starts_at       AS starts_at,
-      a.ends_at         AS ends_at,
-      a.duration_minutes AS duration_minutes,
-      a.price_cents     AS price_cents,
-      a.customer_name   AS customer_name,
-      a.customer_phone  AS customer_phone,
-      a.manage_token    AS manage_token,
-      a.cancelled_at    AS cancelled_at,
-      a.cancelled_by    AS cancelled_by,
-      b.name            AS barber_name,
-      s.name            AS service_name
-    FROM appointments a
-    INNER JOIN barbers  b ON b.id = a.barber_id
-    INNER JOIN services s ON s.id = a.service_id
-    WHERE a.tenant_id = ${tenant.id} AND a.customer_phone = ${phone}
-      AND a.customer_birthdate = ${birthdate}
-    ORDER BY a.starts_at DESC
-  `);
+// Os deste telefone e desta data de nascimento, nesta barbearia — cada um com a soma dos
+// itens dele (`lib/agendamentosDoCliente.ts`).
+const rows = await agendamentosDoCliente(tenant.id, session.phone, session.birthdate);
+
+// Se a sessão é válida mas não acha mais agendamento nenhum, devolve para entrar —
+// APAGANDO o cookie (26/10/2026). Sem isso, o `/cliente/entrar` via a sessão ainda
+// valendo e mandava de volta para cá, sem fim: bastava o dono corrigir a data de
+// nascimento do cliente, e o botão Sair, que mora nesta página, nunca aparecia.
+if (rows.length === 0) {
+  return new Response(null, {
+    status: 302,
+    headers: { Location: '/cliente/entrar', 'Set-Cookie': clearCustomerSessionCookie() },
+  });
 }
-
-type ApptRow = {
-  id: number;
-  status: string;
-  starts_at: string;
-  ends_at: string;
-  duration_minutes: number;
-  price_cents: number;
-  customer_name: string;
-  customer_phone: string;
-  manage_token: string;
-  cancelled_at: string | null;
-  cancelled_by: string | null;
-  barber_name: string;
-  service_name: string;
-};
-
-const rows = await listarAgendamentos(session.phone, session.birthdate, tenant);
-
-// Se a sessão é válida mas não tem mais agendamentos (todos deletados manualmente, por ex),
-// devolve pra entrar.
-if (rows.length === 0) return Astro.redirect('/cliente/entrar');
 
 const nowIso = new Date().toISOString();
 
@@ -97,10 +68,13 @@ const cards: Card[] = rows.map(r => ({
   customerName:    r.customer_name,
   serviceName:     r.service_name,
   barberName:      r.barber_name,
-  dateLabel:       formatInTimeZone(new Date(r.starts_at), TZ, "dd 'de' MMM '·' EEE"),
-  timeLabel:       formatInTimeZone(new Date(r.starts_at), TZ, 'HH:mm'),
+  // Mês e dia da semana em português: sem o `locale`, saía "20 de Oct · Tue" (`tests/datas-em-portugues.test.ts`).
+  dateLabel:       formatInTimeZone(new Date(r.starts_at), fuso, "dd 'de' MMM '·' EEE", { locale: ptBR }),
+  timeLabel:       formatInTimeZone(new Date(r.starts_at), fuso, 'HH:mm'),
   durationMinutes: r.duration_minutes,
-  priceLabel:      reais(r.price_cents),
+  // O que o cliente paga, ou pagou: o serviço e os itens — o produto do combo e os extras
+  // do fechamento —, o mesmo "Total" da página do agendamento (`lib/valorDoAtendimento.ts`).
+  priceLabel:      reais(totalParaOCliente({ priceCents: r.price_cents, itemsCents: r.itens_cents })),
 }));
 
 const upcoming = cards.filter(c => c.isUpcoming);
@@ -133,14 +107,14 @@ const STATUS_BADGE: Record<string, { text: string; cls: string; borderCls: strin
   <div class="min-h-screen bg-dark">
 
     <!-- Header -->
-    <div class="border-b border-white/5 px-4 py-4">
+    <header class="border-b border-white/5 px-4 py-4">
       <div class="max-w-lg mx-auto flex items-center justify-between">
         <span class="text-neutral-400 text-sm font-medium">{businessName}</span>
         <button id="logout-btn" class="text-xs text-neutral-500 hover:text-red-400 transition-colors border border-white/10 hover:border-red-500/30 px-3 py-1 rounded">
           Sair
         </button>
       </div>
-    </div>
+    </header>
 
     <main class="max-w-lg mx-auto px-4 py-8">
 

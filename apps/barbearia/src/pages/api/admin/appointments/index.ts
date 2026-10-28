@@ -11,7 +11,8 @@ import { getSession } from '../../../../lib/session.js';
 import { bookAppointment } from '../../../../lib/bookAppointment.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { reais } from '../../../../lib/dinheiro.js';
-import { TZ } from '../../../../lib/timezone.js';
+import { fusoDe } from '../../../../lib/timezone.js';
+import { dataExiste } from '../../../../lib/dataExiste.js';
 
 
 const createSchema = z.object({
@@ -20,7 +21,8 @@ const createSchema = z.object({
   customerName:      z.string().min(2).max(100),
   customerPhone:     z.string().min(8).max(20),
   // Barbeiro pode criar sem birthdate (cliente pode não querer informar no balcão)
-  customerBirthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  // A data tem de existir: `2000-02-31` passava no formato e travava o login do cliente.
+  customerBirthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(dataExiste, 'Data de nascimento inválida').optional().nullable(),
   startsAt:          z.string().refine(s => !isNaN(new Date(s).getTime()), 'Data/hora inválida'),
 });
 
@@ -28,6 +30,7 @@ export const GET: APIRoute = async ({ request, url }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
   const tenant = tenantDaSessao(session);
+  const fuso = fusoDe(tenant);
 
   const date         = url.searchParams.get('date');
   const barberIdParam = url.searchParams.get('barberId');
@@ -46,8 +49,8 @@ export const GET: APIRoute = async ({ request, url }) => {
     filterBarberId = session.barberId;
   }
 
-  const dayStart = fromZonedTime(`${date}T00:00:00`, TZ).toISOString();
-  const dayEnd   = fromZonedTime(`${date}T23:59:59`, TZ).toISOString();
+  const dayStart = fromZonedTime(`${date}T00:00:00`, fuso).toISOString();
+  const dayEnd   = fromZonedTime(`${date}T23:59:59`, fuso).toISOString();
 
   const rows = await db
     .select({
@@ -77,7 +80,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
   return json(rows.map(r => ({
     ...r,
-    timeLocal: formatInTimeZone(new Date(r.startsAt), TZ, 'HH:mm'),
+    timeLocal: formatInTimeZone(new Date(r.startsAt), fuso, 'HH:mm'),
     price:     reais(r.priceCents),
   })));
 };

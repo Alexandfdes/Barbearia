@@ -1,12 +1,13 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, lte } from 'drizzle-orm';
 import { db } from '../../../../../db/index.js';
 import { appointments } from '../../../../../db/schema.js';
 import { json } from '../../../../../lib/api.js';
 import { getSession } from '../../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../../lib/tenant.js';
+import { limiteParaFalta, RECUSA_FALTA_ANTES } from '../../../../../lib/fecharAtendimento.js';
 
 export const POST: APIRoute = async ({ request, params }) => {
   const session = await getSession(request);
@@ -17,7 +18,7 @@ export const POST: APIRoute = async ({ request, params }) => {
   if (isNaN(id)) return json({ error: 'ID inválido' }, 400);
 
   const rows = await db
-    .select({ id: appointments.id, status: appointments.status, barberId: appointments.barberId })
+    .select({ id: appointments.id, status: appointments.status, barberId: appointments.barberId, startsAt: appointments.startsAt })
     .from(appointments)
     .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id)));
 
@@ -30,14 +31,21 @@ export const POST: APIRoute = async ({ request, params }) => {
   if (appt.status !== 'confirmed') {
     return json({ error: `Não pode marcar no-show (status: ${appt.status})` }, 409);
   }
+  const limite = limiteParaFalta();
+  if (appt.startsAt > limite) return json({ error: RECUSA_FALTA_ANTES }, 409);
 
-  await db.update(appointments)
+  // A condição vai no UPDATE, não só na leitura acima: dois pedidos ao mesmo tempo,
+  // ou um cancelamento do cliente no meio, não podem passar os dois.
+  const feitos = await db.update(appointments)
     .set({
       status:           'no_show',
       lastModifiedById: session.barberId,
       lastModifiedAt:   new Date().toISOString(),
     })
-    .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id)));
+    .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenant.id),
+      eq(appointments.status, 'confirmed'), lte(appointments.startsAt, limite)))
+    .returning({ id: appointments.id });
+  if (feitos.length === 0) return json({ error: 'Este horário mudou enquanto você marcava. Atualize a agenda.' }, 409);
 
   return json({ ok: true });
 };

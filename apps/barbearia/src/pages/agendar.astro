@@ -5,16 +5,19 @@ import Layout from '../layouts/Layout.astro';
 import { getSettings, waUrl } from '../lib/settings';
 
 import { tenantDoHost } from '../lib/tenant.js';
-import { TZ } from '../lib/timezone.js';
+import { fusoDe } from '../lib/timezone.js';
 
 // Endereço que não é de barbearia nenhuma: 404 seco, sem renderizar.
 //
 // ⚠️ Sem esta guarda a página renderizaria com `tenantAtual()` caindo na
 // barbearia única — ou seja, um host desconhecido mostraria o site do PRIMEIRO
 // cliente. É o defeito que o passo 6 existe para não criar.
-if (!tenantDoHost(Astro.request)) {
+const tenant = tenantDoHost(Astro.request);
+if (!tenant) {
   return new Response('Barbearia não encontrada', { status: 404 });
 }
+// O calendário do cliente abre no "hoje" DA BARBEARIA, e desce para o navegador.
+const fuso = fusoDe(tenant);
 
 
 const s = await getSettings();
@@ -34,7 +37,7 @@ const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário
     <div class="absolute bottom-[-25%] right-[-25%] w-[80%] h-[80%] rounded-full bg-teal/5 blur-[140px] pointer-events-none"></div>
 
     <!-- Header mínimo -->
-    <div class="border-b border-white/5 px-4 py-4">
+    <header class="border-b border-white/5 px-4 py-4">
       <div class="max-w-2xl mx-auto flex items-center justify-between">
         <button id="header-back-btn" class="text-neutral-400 hover:text-neutral-200 text-sm flex items-center gap-1.5 transition-colors cursor-pointer bg-transparent border-0 p-0 outline-none">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -44,7 +47,7 @@ const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário
         </button>
         <span class="text-neutral-400 text-sm font-medium">{s.businessName}</span>
       </div>
-    </div>
+    </header>
 
     <main class="max-w-2xl mx-auto px-4 py-8">
 
@@ -55,7 +58,7 @@ const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário
       <div id="progress" class="flex items-center justify-center gap-0 mb-10 opacity-0 transition-opacity duration-300"></div>
 
       <!-- Área do wizard -->
-      <div id="wizard" data-tz={TZ} data-whatsapp={whatsappUrl}>
+      <div id="wizard" data-tz={fuso} data-whatsapp={whatsappUrl}>
         <div class="flex items-center justify-center py-20 gap-3 text-neutral-500">
           <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>

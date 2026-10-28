@@ -10,6 +10,9 @@ import { getSession } from '../../../lib/session.js';
 import { invalidateSettings } from '../../../lib/settings.js';
 import { derivarAccent, isHex } from '../../../lib/accent.js';
 import { tenantDaSessao } from '../../../lib/tenant.js';
+import { ehFusoDoBrasil, fusoDe } from '../../../lib/timezone.js';
+import { definirFusoDaBarbearia } from '../../../lib/fusoDaBarbearia.js';
+import { FORMA_DA_NOTA } from '../../../lib/avaliacao.js';
 
 /** URL opcional: ou vazia, ou começando com http(s). Evita salvar "instagram.com/x"
  *  sem protocolo, que vira link relativo e quebra dentro do próprio site. */
@@ -32,7 +35,7 @@ const updateSchema = z.object({
   heroSubtitle:    z.string().max(400),
   aboutText:       z.string().max(600),
   // Só dígitos, no formato do wa.me: DDI + DDD + número.
-  whatsappNumber:  z.string().regex(/^\d{10,15}$/, 'O WhatsApp deve ter só dígitos, com DDI e DDD (ex: 5584999051196)'),
+  whatsappNumber:  z.string().regex(/^\d{10,15}$/, 'O WhatsApp deve ter só dígitos, com DDI e DDD (ex: 5584999999999)'),
   whatsappDisplay: z.string().max(40),
   instagramUrl:    urlOuVazio(300),
   instagramHandle: z.string().max(60),
@@ -44,13 +47,16 @@ const updateSchema = z.object({
   seoTitle:        z.string().max(200),
   seoDescription:  z.string().max(300),
   googleReviewsUrl: urlOuVazio(600),
-  googleRating:    z.string().regex(/^$|^[0-5](\.\d)?$/, 'A nota deve ser um número de 0 a 5 (ex: 4.8)'),
+  googleRating:    z.string().regex(FORMA_DA_NOTA, 'A nota deve ser um número de 0 a 5 (ex: 4.8)'),
   googleReviewCount: z.number().int().min(0).max(1_000_000),
   productsSectionTitle: z.string().min(1, 'O título da seção de produtos não pode ficar vazio').max(60),
   // Cor de marca escolhida no painel. Só ela é aceita: `accentHover` e
   // `accentLight` NÃO vêm do cliente — são derivadas aqui (ver D5.2). Assim o
   // banco nunca guarda um trio inconsistente ou que reprove em contraste.
   accentColor:     z.string().refine(isHex, { message: 'Escolha uma cor no formato #rrggbb' }),
+  // O fuso dos horários (12/10/2026). Não é coluna de `settings`: mora em
+  // `tenants.timezone` e se grava à parte (`lib/fusoDaBarbearia.ts`).
+  fuso:            z.string().refine(ehFusoDoBrasil, { message: 'Escolha um dos fusos da lista' }),
 }).partial();
 
 // GET — devolve a linha 1 crua, para o formulário preencher.
@@ -79,9 +85,12 @@ export const PATCH: APIRoute = async ({ request }) => {
 
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) {
+    // A mensagem é para o dono ler; o campo, para a tela abrir a aba dele e pôr o cursor
+    // nele (`pages/admin/configuracoes.astro`). Até 15/10/2026 o campo ia grudado na
+    // mensagem — "googleRating: A nota deve ser…" —, e com as abas o campo errado podia
+    // estar escondido noutra.
     const issue = parsed.error.issues[0];
-    const campo = issue.path.join('.') || 'campo';
-    return json({ error: `${campo}: ${issue.message}` }, 400);
+    return json({ error: issue.message, campo: issue.path.join('.') || null }, 400);
   }
 
   const d = parsed.data;
@@ -89,7 +98,8 @@ export const PATCH: APIRoute = async ({ request }) => {
   for (const chave of Object.keys(d) as (keyof typeof d)[]) {
     if (d[chave] === undefined) continue;
     // accentColor é tratado à parte logo abaixo: ele gera três colunas, não uma.
-    if (chave === 'accentColor') continue;
+    // E o fuso não é de `settings` — vai para `tenants`, mais abaixo.
+    if (chave === 'accentColor' || chave === 'fuso') continue;
     // businessHours é array na API e TEXT (JSON) no banco.
     updates[chave] = chave === 'businessHours' ? JSON.stringify(d[chave]) : d[chave];
   }
@@ -105,18 +115,33 @@ export const PATCH: APIRoute = async ({ request }) => {
     updates.accentLight = a.light;
   }
 
-  if (Object.keys(updates).length === 0) return json({ error: 'Nenhum campo para atualizar' }, 400);
+  const trocaFuso = d.fuso !== undefined && d.fuso !== fusoDe(tenant);
+  if (Object.keys(updates).length === 0 && d.fuso === undefined) {
+    return json({ error: 'Nenhum campo para atualizar' }, 400);
+  }
 
-  const existe = await first( db.select({ id: settings.id }).from(settings).where(eq(settings.tenantId, tenant.id)));
-  if (!existe) return json({ error: 'Configuração não encontrada (migration 0009 aplicada?)' }, 404);
+  if (Object.keys(updates).length > 0) {
+    const existe = await first( db.select({ id: settings.id }).from(settings).where(eq(settings.tenantId, tenant.id)));
+    if (!existe) return json({ error: 'Configuração não encontrada (migration 0009 aplicada?)' }, 404);
 
-  updates.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    updates.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-  try {
-    await db.update(settings).set(updates).where(eq(settings.tenantId, tenant.id));
-  } catch (err) {
-    console.error('[api/admin/settings PATCH]', err);
-    return json({ error: 'Falha ao salvar a configuração' }, 500);
+    try {
+      await db.update(settings).set(updates).where(eq(settings.tenantId, tenant.id));
+    } catch (err) {
+      console.error('[api/admin/settings PATCH]', err);
+      return json({ error: 'Falha ao salvar a configuração' }, 500);
+    }
+  }
+
+  // O fuso, só quando mudou: a barbearia da SESSÃO, nunca a do corpo.
+  if (trocaFuso) {
+    try {
+      await definirFusoDaBarbearia(tenant.id, d.fuso!);
+    } catch (err) {
+      console.error('[api/admin/settings PATCH] fuso', err);
+      return json({ error: 'Falha ao salvar o fuso horário' }, 500);
+    }
   }
 
   // ⚠️ Sem isto o painel salva e o site continua mostrando o valor velho até o

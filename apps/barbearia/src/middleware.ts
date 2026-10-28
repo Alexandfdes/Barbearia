@@ -30,6 +30,7 @@
  * barbearia, e o painel leva o dono à tela de assinatura (decisões de 08/10/2026,
  * `docs/PLANO-PRODUTIZACAO.md` §13).
  */
+import type { APIContext, MiddlewareNext } from 'astro';
 import { defineMiddleware } from 'astro:middleware';
 import { comTenant } from './db/index.js';
 import { getSession, sessaoForaDoAr } from './lib/session.js';
@@ -38,10 +39,17 @@ import {
 } from './lib/tenant.js';
 import { getSettings } from './lib/settings.js';
 import { respostaForaDoAr } from './lib/siteForaDoAr.js';
-import { TELA_DE_ASSINATURA } from './lib/assinatura.js';
+import { ROTA_DO_CANCELAMENTO, ROTA_DO_CARTAO, TELA_DE_ASSINATURA } from './lib/assinatura.js';
 import { motivoDaRecusa, respostaDaRecusa } from './lib/origem.js';
+import { ehRotaDoOperador } from './lib/operador.js';
+import { ROTAS_DA_EXPORTACAO } from './lib/exportacao.js';
+import { faltamNoBanco, respostaDoBancoAtrasado } from './lib/bancoAtrasado.js';
+import { desvioParaOPainel, semMoldura } from './lib/painelCentral.js';
 
-export const onRequest = defineMiddleware(async (contexto, next) => {
+// Toda resposta sai sem poder ser emoldurada (`lib/painelCentral.ts`).
+export const onRequest = defineMiddleware(async (contexto, next) => semMoldura(await atender(contexto, next)));
+
+async function atender(contexto: APIContext, next: MiddlewareNext): Promise<Response> {
   const caminho = new URL(contexto.request.url).pathname;
 
   // ⚠️ ANTES DE TUDO: requisição que muda dado só passa vinda do próprio endereço.
@@ -55,6 +63,15 @@ export const onRequest = defineMiddleware(async (contexto, next) => {
     return respostaDaRecusa(caminho);
   }
 
+  // No desenvolvimento, o banco atrás do código — migration nova que chegou com o servidor
+  // ligado — vira uma tela que diz o que fazer, em vez da primeira consulta que falha
+  // (`lib/bancoAtrasado.ts`). Antes de qualquer rota que consulte o banco. Em produção, o
+  // boot aplica as migrations antes de o servidor subir.
+  if (import.meta.env.DEV) {
+    const faltam = await faltamNoBanco();
+    if (faltam.length > 0) return respostaDoBancoAtrasado(faltam, caminho);
+  }
+
   // As tarefas agendadas (`pages/api/tarefas/`) não são de barbearia nenhuma, e
   // quem as chama é o daemon, pela porta local — `Host: 127.0.0.1`. Sem este
   // desvio, o endereço decidiria: uma barbearia cadastrada com o endereço `127`
@@ -62,6 +79,31 @@ export const onRequest = defineMiddleware(async (contexto, next) => {
   // a página de "temporariamente indisponível" no lugar da resposta. Os avisos
   // parariam para todas as barbearias por causa de uma.
   if (caminho.startsWith('/api/tarefas/')) return next();
+
+  // O webhook da Asaas também não é de barbearia nenhuma: quem diz de quem é o
+  // evento é o próprio evento (`lib/cobranca.ts`), e o token dele é conferido na
+  // rota. Chega sem `Origin` — servidor para servidor —, e a conferência acima passa.
+  if (caminho.startsWith('/api/asaas/')) return next();
+
+  // O painel do operador (`/operador`) também não é de barbearia nenhuma: ele
+  // olha TODAS, como dono do banco (`lib/operadorBarbearias.ts`), e quem decide se
+  // a requisição passa é a senha do operador, conferida em cada rota dele
+  // (`lib/operador.ts`). Resolver barbearia aqui só serviria para reservar uma
+  // conexão no contexto da barbearia de quem, por acaso, também está logado como
+  // dono no mesmo navegador. Fica DEPOIS da conferência de origem: as ações dele
+  // são POST e só valem vindas do próprio endereço, como todas.
+  if (ehRotaDoOperador(caminho)) return next();
+
+  // A pergunta do monitor externo (`lib/saude.ts`): também não é de barbearia
+  // nenhuma, e resolver endereço ou sessão aqui já consultaria o banco — com ele
+  // fora, o monitor receberia um 500 genérico daqui em vez do 503 da rota.
+  if (caminho === '/api/saude') return next();
+
+  // O painel só no endereço do painel: no endereço do site de uma barbearia, a tela vai
+  // para o painel e a API responde 404 (`lib/painelCentral.ts`). Antes de resolver
+  // barbearia: fora do ar, o endereço dela mostraria o aviso no lugar do login.
+  const foraDoPainel = desvioParaOPainel(contexto.request);
+  if (foraDoPainel) return foraDoPainel;
 
   const { tenant, daSessao } = await tenantDaRequisicao(contexto.request);
 
@@ -94,7 +136,7 @@ export const onRequest = defineMiddleware(async (contexto, next) => {
   }
 
   return servirComTenant(tenant, next);
-});
+}
 
 /**
  * As telas de `/admin` que abrem sem sessão: o login e as duas da senha nova
@@ -135,7 +177,15 @@ async function painelDeBarbeariaForaDoAr(
   const fora = await sessaoForaDoAr(request);
   if (!fora) return null;
 
-  if (caminho === TELA_DE_ASSINATURA) return servirComTenant(fora.tenant, next);
+  // A tela e o botão do cartão: é por eles que quem saiu do ar volta. E o
+  // cancelar: fora do ar pela cobrança, a assinatura segue viva na Asaas, e quem
+  // quer sair tem de poder parar a cobrança sozinho (`lib/cobranca.ts`). E os dados
+  // dele em planilha (`lib/exportacao.ts`, decisão de 11/10/2026): quem saiu leva a
+  // lista de clientes — não fica refém dela até pagar.
+  if (caminho === TELA_DE_ASSINATURA || caminho === ROTA_DO_CARTAO || caminho === ROTA_DO_CANCELAMENTO
+      || ROTAS_DA_EXPORTACAO.has(caminho)) {
+    return servirComTenant(fora.tenant, next);
+  }
   if (caminho.startsWith('/api/')) {
     return new Response(JSON.stringify({ error: 'A barbearia está fora do ar.', assinatura: TELA_DE_ASSINATURA }), {
       status: 402, headers: { 'content-type': 'application/json; charset=utf-8' },

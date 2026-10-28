@@ -36,8 +36,12 @@
  *
  * Três consequências práticas:
  *
- *  1. O arquivo agora é `.sql.gz`, não `.db`. Restaura com
- *     `gunzip -c arquivo.sql.gz | psql "$DATABASE_URL"`.
+ *  1. O arquivo agora é `.sql.gz`, não `.db`. Restaura num banco VAZIO com
+ *     `gunzip -c arquivo.sql.gz | psql "$DATABASE_URL"` — e depois
+ *     `node scripts/permissoes-do-app.mjs`, que devolve ao papel do app o que a
+ *     restauração não trouxer (backup de antes de 11/10/2026, ou um servidor
+ *     novo, onde o papel `barbearia_app` ainda não existia). O boot confere e
+ *     recusa subir sem isso (`conferirPapelDoApp`, em `scripts/startup.mjs`).
  *  2. **`pg_dump` precisa estar instalado na imagem do app.** Sem ele o backup
  *     falha. Este script confere na primeira execução e diz isso na cara, em
  *     vez de morrer com "command not found".
@@ -49,14 +53,21 @@
  * Dockerfile. Se ele quebrar, o backup diário para **em silêncio**. É o que
  * `PENDENCIAS-ABERTAS.md` §3.3 chama de "backup que não existe".
  */
-import { createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createGzip } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
 
 const BACKUP_DIR     = process.env.BACKUP_DIR ?? '/data/backups';
-const RETENTION_DAYS = parseInt(process.env.BACKUP_RETENTION_DAYS ?? '30', 10);
+// Inteiro de 1 para cima (26/10/2026): com 0 ou negativo, a retenção apagava o backup
+// recém-feito na mesma rodada; com um valor que não é número, o corte virava NaN e
+// nada nunca era apagado, até o disco encher.
+// A mesma leitura de `backupNoPainel` (src/lib/operadorSistema.ts), para a tela de Sistema
+// mostrar o prazo que de fato vale.
+const RETENCAO_LIDA = Number.parseInt(process.env.BACKUP_RETENTION_DAYS ?? '30', 10);
+const RETENTION_DAYS = Number.isFinite(RETENCAO_LIDA) && RETENCAO_LIDA > 0 ? RETENCAO_LIDA : 30;
 const SUFIXO         = '.sql.gz';
 const SUFIXO_FOTOS   = '-fotos.tar.gz';
 
@@ -74,6 +85,18 @@ const SUFIXO_FOTOS   = '-fotos.tar.gz';
 const UPLOAD_ROOT =
   process.env.UPLOAD_ROOT ??
   (process.env.NODE_ENV === 'production' ? '/data/uploads' : './data/uploads');
+
+/**
+ * O arquivo em gravação ganha este fim, e só vira o nome final depois de terminar
+ * bem (26/10/2026). Antes, o `pg_dump` e o `tar` gravavam direto no nome final: o
+ * backup interrompido no meio — um redeploy, um `docker stop` — ficava no disco
+ * truncado e com o nome de bom, e contava como o mais recente: o backup do boot era
+ * pulado por 12 horas e a tela de Sistema o mostrava como o último. Com o fim
+ * `.parcial`, nada que procura `.sql.gz` ou `-fotos.tar.gz` o vê; a retenção o apaga.
+ */
+const PARCIAL = '.parcial';
+/** Um `.parcial` mais velho que isto é de um backup que morreu no meio. */
+const PARCIAL_ABANDONADO_MS = 6 * 60 * 60 * 1000;
 
 /** Idade (ms) do backup mais recente, ou Infinity se não houver nenhum. */
 export function newestBackupAgeMs() {
@@ -97,7 +120,12 @@ export function newestBackupAgeMs() {
  */
 function pgDumpPara(dest, url) {
   return new Promise((resolve, reject) => {
-    const proc = spawn('pg_dump', ['--no-owner', '--no-privileges', url], {
+    // `--no-owner`: quem restaura vira dono das tabelas. Os PRIVILÉGIOS vão no
+    // arquivo — e até 11/10/2026 não iam (`--no-privileges`): o banco restaurado
+    // voltava com os dados e sem nenhum GRANT ao papel `barbearia_app`, e toda tela
+    // respondia 500 com o boot verde. Achado restaurando de verdade, no ensaio da
+    // troca do usuário do banco. Backup antigo, sem eles: `scripts/permissoes-do-app.mjs`.
+    const proc = spawn('pg_dump', ['--no-owner', url], {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
@@ -126,10 +154,18 @@ function pgDumpPara(dest, url) {
       });
     });
 
-    const gravou = pipeline(proc.stdout, createGzip(), createWriteStream(dest));
+    const gravou = pipeline(proc.stdout, createGzip(), createWriteStream(dest + PARCIAL));
 
-    // Espera as DUAS: escrever o arquivo inteiro e o processo sair com 0.
-    Promise.all([gravou, saida]).then(() => resolve(), reject);
+    // Espera as DUAS: escrever o arquivo inteiro e o processo sair com 0 — e só
+    // então o nome final. Falhou: o parcial sai.
+    // O `rename` dentro do mesmo encadeamento: se ele falhar, cai no mesmo `catch`
+    // em vez de deixar a promessa pendurada para sempre.
+    Promise.all([gravou, saida])
+      .then(() => renameSync(dest + PARCIAL, dest))
+      .then(resolve, (e) => {
+        try { unlinkSync(dest + PARCIAL); } catch { /* nunca chegou a existir */ }
+        reject(e);
+      });
   });
 }
 
@@ -156,7 +192,7 @@ function temFotos() {
  */
 function tarDasFotos(dest) {
   return new Promise((resolve, reject) => {
-    const proc = spawn('tar', ['-czf', dest, '-C', UPLOAD_ROOT, '.'], {
+    const proc = spawn('tar', ['-czf', dest + PARCIAL, '-C', UPLOAD_ROOT, '.'], {
       stdio: ['ignore', 'ignore', 'pipe'],
     });
 
@@ -172,8 +208,12 @@ function tarDasFotos(dest) {
     });
 
     proc.on('close', (codigo) => {
-      if (codigo === 0) resolve();
-      else reject(new Error(`tar saiu com código ${codigo}: ${erro.trim() || '(sem mensagem)'}`));
+      let falha = codigo === 0 ? null : new Error(`tar saiu com código ${codigo}: ${erro.trim() || '(sem mensagem)'}`);
+      if (!falha) {
+        try { renameSync(dest + PARCIAL, dest); resolve(); return; } catch (e) { falha = e; }
+      }
+      try { unlinkSync(dest + PARCIAL); } catch { /* nunca chegou a existir */ }
+      reject(falha);
     });
   });
 }
@@ -229,9 +269,17 @@ export async function runBackup(opts = {}) {
   // são a única cópia daquele período e apagá-los seria destruir histórico.
   const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
   let removed = 0;
+  const abandonado = Date.now() - PARCIAL_ABANDONADO_MS;
   for (const f of readdirSync(BACKUP_DIR)) {
-    if (!f.endsWith(SUFIXO) && !f.endsWith(SUFIXO_FOTOS)) continue;
     const p = join(BACKUP_DIR, f);
+    if (f.endsWith(PARCIAL)) {
+      // O resto de um backup que morreu no meio — nunca é o desta rodada, que já
+      // ganhou o nome final.
+      if (statSync(p).mtimeMs < abandonado) { unlinkSync(p); removed++; }
+      continue;
+    }
+    if (!f.endsWith(SUFIXO) && !f.endsWith(SUFIXO_FOTOS)) continue;
+    if (p === dest || p === fotos) continue; // o desta rodada nunca sai, qualquer que seja a retenção
     if (statSync(p).mtimeMs < cutoff) { unlinkSync(p); removed++; }
   }
 
@@ -242,36 +290,193 @@ export async function runBackup(opts = {}) {
 }
 
 /**
+ * Um dump só do banco — sem as fotos, sem a retenção e sem o envio para fora.
+ *
+ * É o backup de ANTES das migrations (`backupAntesDasMigrations`, em
+ * `scripts/startup.mjs`, desde 17/10/2026). O boot roda as migrations e só depois
+ * lança o daemon, cujo backup de boot vem portanto DEPOIS delas — e é pulado se
+ * houver um com menos de 12 horas. Uma migration que estragasse dado tinha como
+ * último ponto de volta o backup das 03:00. As fotos ficam de fora porque migration
+ * não mexe nelas; o envio para fora, porque ele atrasaria o boot, que é o site fora
+ * do ar — o diário manda.
+ *
+ * O arquivo é um backup como os outros: mesma pasta, mesmo formato, restaura igual,
+ * e a retenção do diário o apaga no mesmo prazo. Por isso, ⚠️ o daemon vê um backup
+ * recente e pula o do boot: o estado depois das migrations entra no das 03:00.
+ *
+ * `rotulo` vai no nome — `barbearia_<stamp>-antes-da-0017.sql.gz` —, só com letra
+ * minúscula, número e hífen.
+ */
+export async function backupDoBanco(rotulo) {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL não definido.');
+  const limpo = String(rotulo).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+
+  mkdirSync(BACKUP_DIR, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+  const dest = join(BACKUP_DIR, `barbearia_${stamp}${limpo ? `-${limpo}` : ''}${SUFIXO}`);
+
+  try {
+    await pgDumpPara(dest, url);
+  } catch (erro) {
+    try { unlinkSync(dest); } catch { /* nunca chegou a existir */ }
+    throw erro;
+  }
+  return { dest, bytes: statSync(dest).size };
+}
+
+/**
+ * Um backup `-<rotulo>.sql.gz` feito há menos de `maxIdadeMs` — ou `null`.
+ *
+ * Para o backup de antes das migrations (27/10/2026): migration que falha derruba o
+ * boot, o orquestrador reinicia o container sem parar, e cada volta tirava mais um
+ * dump do banco inteiro — a retenção só roda no daemon, que nesse ciclo nunca sobe.
+ * Com dado de verdade, enchia o disco da VPS, o mesmo do Postgres. Entre uma volta e
+ * outra o banco não mudou (o servidor nem chegou a subir), então o dump de minutos
+ * atrás vale. Só o `.sql.gz` final conta: o `.parcial` é de um que morreu no meio.
+ */
+export function backupRecente(rotulo, maxIdadeMs) {
+  const limpo = String(rotulo).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  const fim = `-${limpo}${SUFIXO}`;
+  try {
+    const achados = readdirSync(BACKUP_DIR)
+      .filter((f) => f.startsWith('barbearia_') && f.endsWith(fim))
+      .map((f) => ({ f, s: statSync(join(BACKUP_DIR, f)) }))
+      .filter(({ s }) => s.isFile() && s.size > 0 && Date.now() - s.mtimeMs < maxIdadeMs)
+      .sort((a, b) => b.s.mtimeMs - a.s.mtimeMs);
+    return achados.length ? { dest: join(BACKUP_DIR, achados[0].f), bytes: achados[0].s.size } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * O tamanho de cada parte no envio para fora da VPS. O mínimo do S3 — e do
+ * Backblaze — é 5 MiB por parte (menos a última); 16 MiB faz um arquivo de 1 GB
+ * subir em 64 partes, com no máximo 16 MiB na memória por vez.
+ */
+export const PARTE_DO_ENVIO = 16 * 1024 * 1024;
+
+/**
  * Upload off-site opcional (S3-compatível, ex: Backblaze B2).
  * Ativa somente se S3_ENDPOINT/S3_BUCKET/S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY existirem.
  * Falha de upload NÃO derruba o backup local — loga e segue.
  */
 async function maybeUploadToS3(filePath) {
-  const { S3_ENDPOINT, S3_REGION, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } = process.env;
+  const { S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } = process.env;
   if (!S3_ENDPOINT || !S3_BUCKET || !S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) return false;
 
   try {
-    const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
-    // Backblaze mostra o endpoint sem esquema; o SDK exige URL completa.
-    const endpoint = /^https?:\/\//.test(S3_ENDPOINT) ? S3_ENDPOINT : `https://${S3_ENDPOINT}`;
-    const client = new S3Client({
-      endpoint,
-      region: S3_REGION ?? 'us-east-1',
-      credentials: { accessKeyId: S3_ACCESS_KEY_ID, secretAccessKey: S3_SECRET_ACCESS_KEY },
-      forcePathStyle: true,
-    });
-    await client.send(new PutObjectCommand({
-      Bucket: S3_BUCKET,
-      Key: `backups/${basename(filePath)}`,
-      Body: readFileSync(filePath),
-      ContentType: 'application/gzip',
-    }));
+    await enviarParaS3(filePath);
     console.log(`✓ Upload off-site: s3://${S3_BUCKET}/backups/${basename(filePath)}`);
     return true;
   } catch (err) {
     console.error('✕ Upload off-site falhou (backup local preservado):', err.message);
     return false;
   }
+}
+
+/**
+ * Manda `caminho` para `backups/<nome>` no bucket — EM PARTES, lidas do disco uma
+ * de cada vez.
+ *
+ * ── POR QUE EM PARTES (12/10/2026) ───────────────────────────────────────────
+ *
+ * Até aqui o arquivo inteiro ia para a memória (`Body: readFileSync(...)`) antes
+ * de sair. O das fotos junta a galeria de todas as barbearias e cresce com cada
+ * uma, e o daemon do backup roda no mesmo container que atende os sites, numa
+ * VPS que divide a memória com o banco (`PENDENCIAS-ABERTAS.md` §3.3). Agora:
+ * arquivo de até uma parte vai num pedido só; maior, no envio em partes do S3
+ * (`CreateMultipartUpload` → `UploadPart` → `CompleteMultipartUpload`), com uma
+ * parte na memória por vez. Parte que falha, depois das novas tentativas do
+ * próprio SDK, cancela o envio inteiro (`AbortMultipartUpload`): parte órfã fica
+ * no bucket ocupando espaço — e sendo cobrada — sem virar arquivo nenhum.
+ *
+ * ⚠️ `requestChecksumCalculation: 'WHEN_REQUIRED'`: desde o começo de 2025 o SDK
+ * manda, por padrão, um checksum novo (CRC32) em todo envio — e serviços
+ * compatíveis com S3 que não o conhecem recusam o pedido. Com `WHEN_REQUIRED`, só
+ * vai quando a operação exige, como antes. A integridade continua garantida: o
+ * pedido é assinado com o SHA-256 do corpo. *Não conferido contra o Backblaze de
+ * verdade — conferido contra um S3 local (`tests/backup-envio.test.ts`).*
+ *
+ * `opcoes.parte` existe para o teste; em produção é sempre `PARTE_DO_ENVIO`.
+ */
+export async function enviarParaS3(caminho, opcoes = {}) {
+  const env = opcoes.env ?? process.env;
+  const parte = opcoes.parte ?? PARTE_DO_ENVIO;
+  const {
+    S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand,
+    CompleteMultipartUploadCommand, AbortMultipartUploadCommand,
+  } = await import('@aws-sdk/client-s3');
+  // Backblaze mostra o endpoint sem esquema; o SDK exige URL completa.
+  const endpoint = /^https?:\/\//.test(env.S3_ENDPOINT) ? env.S3_ENDPOINT : `https://${env.S3_ENDPOINT}`;
+  const client = new S3Client({
+    endpoint,
+    region: env.S3_REGION ?? 'us-east-1',
+    credentials: { accessKeyId: env.S3_ACCESS_KEY_ID, secretAccessKey: env.S3_SECRET_ACCESS_KEY },
+    forcePathStyle: true,
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
+  });
+  const Bucket = env.S3_BUCKET;
+  const Key = `backups/${basename(caminho)}`;
+  const ContentType = 'application/gzip';
+
+  try {
+    const arquivo = await open(caminho, 'r');
+    try {
+      const { size: tamanho } = await arquivo.stat();
+
+      // Até uma parte: um pedido só, como antes — o arquivo cabe na parte.
+      if (tamanho <= parte) {
+        const corpo = Buffer.alloc(tamanho);
+        await lerTudo(arquivo, corpo, 0);
+        await client.send(new PutObjectCommand({ Bucket, Key, Body: corpo, ContentLength: tamanho, ContentType }));
+        return { partes: 1, bytes: tamanho };
+      }
+
+      const { UploadId } = await client.send(new CreateMultipartUploadCommand({ Bucket, Key, ContentType }));
+      if (!UploadId) throw new Error('o armazenamento não devolveu o identificador do envio em partes');
+      try {
+        const buffer = Buffer.alloc(parte);
+        const Parts = [];
+        for (let posicao = 0, PartNumber = 1; posicao < tamanho; PartNumber++) {
+          const lidos = await lerTudo(arquivo, buffer, posicao);
+          if (lidos === 0) throw new Error(`o arquivo encolheu durante o envio (${posicao} de ${tamanho} bytes)`);
+          // O mesmo buffer serve todas as partes: o `await` termina o envio desta
+          // — com as novas tentativas do SDK — antes de a próxima leitura escrever nele.
+          const { ETag } = await client.send(new UploadPartCommand({
+            Bucket, Key, UploadId, PartNumber, Body: buffer.subarray(0, lidos), ContentLength: lidos,
+          }));
+          if (!ETag) throw new Error(`a parte ${PartNumber} voltou sem ETag`);
+          Parts.push({ ETag, PartNumber });
+          posicao += lidos;
+        }
+        await client.send(new CompleteMultipartUploadCommand({ Bucket, Key, UploadId, MultipartUpload: { Parts } }));
+        return { partes: Parts.length, bytes: tamanho };
+      } catch (erro) {
+        await client.send(new AbortMultipartUploadCommand({ Bucket, Key, UploadId })).catch((e) => {
+          console.error(`✕ Não deu para cancelar o envio em partes ${UploadId} — apague as partes no painel do armazenamento:`, e.message);
+        });
+        throw erro;
+      }
+    } finally {
+      await arquivo.close();
+    }
+  } finally {
+    client.destroy();
+  }
+}
+
+/** Lê do arquivo até encher `buffer` ou o arquivo acabar; devolve quantos bytes leu. */
+async function lerTudo(arquivo, buffer, posicao) {
+  let total = 0;
+  while (total < buffer.length) {
+    const { bytesRead } = await arquivo.read(buffer, total, buffer.length - total, posicao + total);
+    if (bytesRead === 0) break;
+    total += bytesRead;
+  }
+  return total;
 }
 
 // Execução direta via CLI

@@ -25,10 +25,9 @@ três aplicações. Separar o deploy não obriga a separar o código — e antes
 
 ```
 barbearia-no-ar/
-  apps/barbearia/     site público + painel (ainda juntos; separam no passo 6)
-  apps/vendas/        landing, /onboarding, /envios, cobrança
+  apps/barbearia/     site público + painel + cadastro + cobrança (um app só)
+  apps/vendas/        landing, e o /onboarding e /envios da montagem assistida
   docs/               decisões de produto e arquitetura
-  migracao-postgres/  o porte para Postgres, pronto e não aplicado
   CLAUDE.md           orientação de trabalho
 ```
 
@@ -39,6 +38,11 @@ barbearia-no-ar/
 As três aplicações falam com o **mesmo** Postgres — inclusive o site de vendas,
 que é quem cria a barbearia no onboarding e quem a marca como suspensa quando
 não paga. A definição das tabelas precisa ser idêntica nas três.
+
+> ✏️ *26/10/2026: o desenho mudou desde então. O cadastro (`/cadastrar`) e a cobrança
+> (`lib/cobranca.ts`) moram em `apps/barbearia`, e o site de vendas **não tem banco**
+> (`apps/vendas/src/config.ts`) — só leva ao cadastro. O motivo do repositório único continua de
+> pé pelo segundo parágrafo abaixo, não por este.*
 
 Em repositórios separados ela vira três cópias sincronizadas na mão. O dia em que
 desencontrarem, o defeito é o pior tipo: o site de vendas marca a barbearia como
@@ -78,8 +82,9 @@ do GitHub tinham **1 commit cada** — nada de histórico a preservar do lado de
 
 ## 3. ⚠️ O que o deploy precisa saber
 
-O `Dockerfile` está em `apps/barbearia/` e **não mudou**. Ele faz `COPY . .` a
-partir do contexto de build.
+O `Dockerfile` está em `apps/barbearia/` e ele faz `COPY . .` a partir do contexto de build.
+*(Escrito em 06/09 como "não mudou"; mudou depois — as dependências de produção à parte, o backup
+antes das migrations, a saúde —, e o CI o constrói a cada push, no job `imagem`.)*
 
 **Antes de subir isto para a `main`, o build precisa apontar para
 `apps/barbearia` como contexto, não para a raiz do repositório.** No EasyPanel é
@@ -88,7 +93,8 @@ achar `package.json` na raiz.
 
 O site do Bayron está no ar. Este trabalho foi feito numa branch (`monorepo`),
 sem push e sem tocar na `main`, exatamente para que nada disso o alcance antes do
-ajuste.
+ajuste. *(Registro de 06/09: a `main` recebeu a `monorepo` em 09/10/2026, e o EasyPanel já
+constrói com `apps/barbearia` como contexto. O site do Bayron roda de outro repositório.)*
 
 ## 4. Por que ainda não tem npm workspaces
 

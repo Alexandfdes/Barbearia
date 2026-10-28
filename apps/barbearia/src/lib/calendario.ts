@@ -1,12 +1,13 @@
 /**
  * Contas de calendário sobre datas 'YYYY-MM-DD' que JÁ SÃO LOCAIS — o dia na
- * barbearia, convertido com o `TZ` de `lib/timezone.ts` no servidor, ou pelo
+ * barbearia, convertido com o fuso dela (`fusoDe`, `lib/timezone.ts`) no servidor, ou pelo
  * `Intl` com o fuso que desce pela página no navegador.
  *
  * Nenhuma função daqui recebe instante, e é isso que as deixa livres de fuso: a
- * conta é feita ao meio-dia UTC, que cai no mesmo dia do calendário em qualquer
- * fuso entre −11 e +12, e o relógio de quem roda o processo nunca entra —
- * `getUTCDay`, nunca `getDay`.
+ * conta é feita ao meio-dia UTC e lida com os métodos UTC, então o relógio de quem
+ * roda o processo nunca entra — `getUTCDay`, nunca `getDay`. (Lido com `getDay`, o
+ * meio-dia UTC só cai no mesmo dia nos fusos de −12 a +11: num servidor em
+ * Fiji ou na Nova Zelândia, segunda vira terça — `tests/timezone-unico.test.ts`.)
  *
  * ⚠️ Ler o dia de um INSTANTE com `getDay()` ou `setDate()` usa o fuso do
  * processo. Com o servidor em UTC, das 21h à meia-noite de Fortaleza o painel

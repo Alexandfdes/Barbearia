@@ -32,6 +32,7 @@ const BASE = {
   telefone: '84 99999-0000',
   endereco: 'R. das Flores, 42',
   cidade: 'Mossoró/RN',
+  estado: 'RN',
   senha: 'segredo123',
   email: 'ze@exemplo.com.br',
 };
@@ -176,6 +177,29 @@ describe('os serviços que o dono digita no cadastro', () => {
       SELECT duration_minutes, barber_id FROM barber_services WHERE tenant_id = ${r.tenantId}`;
     expect(bs.duration_minutes).toBe(60);
     expect(Number(bs.barber_id)).toBe(r.barbeiroId);
+  });
+
+  it.skipIf(!TEM_BANCO)('o telefone em uso só é dito ao formulário que, sem ele, criaria a barbearia (18/10/2026)', async () => {
+    // Até aqui a conferência do telefone vinha antes das outras: dois serviços de mesmo nome
+    // perguntavam "este telefone tem conta?" sem criar nada — 409 com conta, 400 sem.
+    expect((await provisionarBarbearia(conn, BASE)).ok).toBe(true);
+    const r = await provisionarBarbearia(conn, {
+      ...BASE, slug: 'sonda',
+      servicos: [
+        { nome: 'Corte', precoCentavos: 4000, minutos: 30 },
+        { nome: 'corte', precoCentavos: 4000, minutos: 30 },
+      ],
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.campo).toBe('servicos');
+    expect(r.conflito).toBeFalsy();
+  });
+
+  it.skipIf(!TEM_BANCO)('o telefone de um barbeiro DESLIGADO serve para cadastrar outra barbearia (migration 0017)', async () => {
+    expect((await provisionarBarbearia(conn, BASE)).ok).toBe(true);
+    await conn`UPDATE barbers SET active = false`;
+    expect((await provisionarBarbearia(conn, { ...BASE, slug: 'outra' })).ok).toBe(true);
   });
 
   it.skipIf(!TEM_BANCO)('RECUSA o mesmo serviço duas vezes e preço fora da faixa', async () => {
@@ -422,8 +446,13 @@ describe('a rota, de ponta a ponta', () => {
       await vi.waitFor(() => expect(caixaDeSaida).toHaveLength(1));
       const [boasVindas] = caixaDeSaida;
       expect(boasVindas.para).toBe('ze@exemplo.com.br');
-      expect(boasVindas.assunto).toMatch(/^Barbearia Cortes do Zé está no ar — /);
-      expect(boasVindas.texto).toContain('Olá, José da Silva.');
+      // Nada digitado no formulário vai no e-mail (26/10/2026): o endereço não é
+      // confirmado, e o nome da barbearia ou do dono viraria texto de golpe.
+      expect(boasVindas.assunto).toMatch(/^O seu cadastro no /);
+      expect(`${boasVindas.assunto}\n${boasVindas.texto}`).not.toMatch(/Cortes do Zé|José da Silva/);
+      // Nem o assunto nem o corpo afirmam "no ar": o servidor não sabe (`src/lib/noAr.ts`).
+      expect(`${boasVindas.assunto}\n${boasVindas.texto}`).not.toMatch(/no ar/i);
+      expect(boasVindas.texto).toMatch(/^Olá!/);
       expect(boasVindas.texto).toContain('https://salao-jovem.fadeline.com.br');
       expect(boasVindas.texto).toContain('https://painel.fadeline.com.br/admin');
       expect(boasVindas.texto).toMatch(/\(84\) 96658-9511/);
@@ -435,6 +464,53 @@ describe('a rota, de ponta a ponta', () => {
       else process.env.DOMINIO_BASE = baseAntes;
     }
   });
+});
+
+describe('o limite de cadastros: conta o que deu certo, e as tentativas têm teto próprio (26/10/2026)', () => {
+  let POST: typeof import('../src/pages/api/cadastrar.js').POST;
+  let anterior: string | undefined;
+  beforeAll(async () => {
+    anterior = process.env.CADASTRO_ABERTO;
+    process.env.CADASTRO_ABERTO = '1';
+    ({ POST } = await import('../src/pages/api/cadastrar.js'));
+  }, 30_000);
+  afterAll(() => {
+    if (anterior === undefined) delete process.env.CADASTRO_ABERTO;
+    else process.env.CADASTRO_ABERTO = anterior;
+  });
+  let n = 0;
+  const cadastrar = (ip: string, mudar: Record<string, unknown> = {}) => {
+    n++;
+    return POST({
+      request: new Request('http://x/api/cadastrar', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ...BASE, slug: `limite-${n}`, telefone: `8497${String(n).padStart(7, '0')}`, ...mudar }),
+      }),
+      clientAddress: ip,
+    } as never);
+  };
+
+  it.skipIf(!TEM_BANCO)('cinco endereços já tomados não gastam a vez: o sexto pedido, válido, passa', async () => {
+    expect((await cadastrar('10.0.0.1', { slug: 'tomado-1' })).status).toBe(201);
+    for (let i = 0; i < 5; i++) expect((await cadastrar('10.0.0.2', { slug: 'tomado-1' })).status).toBe(409);
+    expect((await cadastrar('10.0.0.2')).status).toBe(201);
+  }, 60_000);
+
+  it.skipIf(!TEM_BANCO)('cinco barbearias criadas na hora: a sexta espera', async () => {
+    for (let i = 0; i < 5; i++) expect((await cadastrar('10.0.0.3')).status).toBe(201);
+    const r = await cadastrar('10.0.0.3');
+    expect(r.status).toBe(429);
+    expect((await r.json()).error).toMatch(/Tente de novo em \d+ min/);
+  }, 60_000);
+
+  it('trinta tentativas na hora, mesmo erradas: a próxima espera — o teto do laço', async () => {
+    for (let i = 0; i < 30; i++) {
+      const r = await cadastrar('10.0.0.4', { email: 'nao-e-email' });
+      expect(r.status).toBe(400);
+    }
+    expect((await cadastrar('10.0.0.4', { email: 'nao-e-email' })).status).toBe(429);
+  }, 60_000);
 });
 
 describe('a rota só aceita JSON — ela abre sessão', () => {

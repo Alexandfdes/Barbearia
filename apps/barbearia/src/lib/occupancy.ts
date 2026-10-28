@@ -10,7 +10,6 @@
  */
 
 import { fromZonedTime } from 'date-fns-tz';
-import { TZ } from './timezone.js';
 
 export interface OccBand {
   key: string;
@@ -49,14 +48,15 @@ interface Params {
   appointments: { barberId: number; startsAt: string; endsAt: string }[];
   bands?: OccBand[];
   /**
-   * A zona da barbearia (IANA). Padrão: o `TZ` de `lib/timezone.ts`.
+   * A zona da barbearia (IANA): `fusoDe(tenant)`, de `lib/timezone.ts`. Obrigatória
+   * desde 12/10/2026 — o padrão era o fuso do processo, um só para todas.
    *
    * ⚠️ Até 27/09/2026 era `utcOffsetMin`, com `-180` quando ninguém informava — e
    * nenhum chamador informava. Offset não é fuso: valia até o primeiro cliente fora
    * do UTC−3. Em Manaus, a janela das 09:00 às 13:00 era medida uma hora antes, e a
    * ocupação e a "faixa mais vazia" saíam de outro horário (`PENDENCIAS-ABERTAS.md` §2.11).
    */
-  tz?: string;
+  tz: string;
 }
 
 function hmToMin(hm: string): number {
@@ -70,7 +70,7 @@ function overlapMs(aS: number, aE: number, bS: number, bE: number): number {
 
 export function computeOccupancy(params: Params): DayBandOccupancy[] {
   const bands = params.bands ?? DEFAULT_BANDS;
-  const tz = params.tz ?? TZ;
+  const tz = params.tz;
 
   // O instante (epoch em ms) de um horário local — minutos desde 00:00 — numa data
   // local, pela zona. `24:00` (1440) é a meia-noite do dia seguinte.

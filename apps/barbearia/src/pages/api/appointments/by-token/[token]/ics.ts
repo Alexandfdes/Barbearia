@@ -7,7 +7,7 @@ import { db } from '../../../../../db/index.js';
 import { appointments, barbers, services } from '../../../../../db/schema.js';
 import { getSettings } from '../../../../../lib/settings.js';
 import { enderecoPublicoDe, tenantDoHost } from '../../../../../lib/tenant.js';
-import { TZ } from '../../../../../lib/timezone.js';
+import { fusoDe } from '../../../../../lib/timezone.js';
 
 function toIcsDate(isoStr: string): string {
   return new Date(isoStr).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
@@ -37,6 +37,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   // Endereço que não é de barbearia nenhuma. 404 de propósito: servir o site da
   // barbearia errada é pior que não servir nada (`lib/tenant.ts`, passo 6).
   if (!tenant) return new Response('Not found', { status: 404 });
+  const fuso = fusoDe(tenant);
   const { token } = params;
   if (!token) return new Response(null, { status: 400 });
 
@@ -73,7 +74,7 @@ export const GET: APIRoute = async ({ params, request }) => {
   const summary  = icsEscape(`${appt.serviceName} com ${appt.barberName} — ${s.businessName}`);
   const location = icsEscape(`${s.addressStreet} — ${s.addressCity}`);
   const description = icsEscape(`Cliente: ${appt.customerName}\nLink: ${url}`);
-  const filename = `agendamento-${formatInTimeZone(new Date(appt.startsAt), TZ, 'yyyyMMdd-HHmm')}.ics`;
+  const filename = `agendamento-${formatInTimeZone(new Date(appt.startsAt), fuso, 'yyyyMMdd-HHmm')}.ics`;
 
   const CRLF = '\r\n';
   const lines = [

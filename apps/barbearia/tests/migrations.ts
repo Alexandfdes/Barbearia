@@ -22,9 +22,8 @@ const PASTA = 'drizzle';
 export function listarMigrations(): string[] {
   if (!existsSync(PASTA)) {
     throw new Error(
-      `Pasta ${PASTA}/ não encontrada. Aplique o passo 2 primeiro:\n` +
-      `  cp migracao-postgres/0000_init_postgres.sql apps/barbearia/drizzle/\n` +
-      `Ver migracao-postgres/LEIA-ME.md §2.`
+      `Pasta ${PASTA}/ não encontrada. Rode o vitest de dentro de apps/barbearia ` +
+      `(npm test, ou npm run test:db).`
     );
   }
   const arquivos = readdirSync(PASTA).filter((f) => f.endsWith('.sql')).sort();

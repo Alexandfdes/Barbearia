@@ -38,7 +38,7 @@ import { sqlConn } from '../../db/index.js';
 import { provisionarBarbearia } from '../../lib/provisionarBarbearia.js';
 import { CATALOGO_SUGERIDO } from '../../lib/catalogoSugerido.js';
 import { json } from '../../lib/api.js';
-import { checkRateLimit } from '../../lib/rateLimit.js';
+import { checkRateLimit, consultarRateLimit } from '../../lib/rateLimit.js';
 import { getClientIp } from '../../lib/clientIp.js';
 import { carregarTenants, invalidarTenants, resolverHost, urlDoSite } from '../../lib/tenant.js';
 import { makeSessionCookie } from '../../lib/session.js';
@@ -70,6 +70,12 @@ const bodySchema = z.object({
   telefone: z.string().min(8).max(30),
   endereco: z.string().min(3).max(200),
   cidade:   z.string().min(2).max(120),
+  /**
+   * A sigla do estado: é dela que sai o fuso dos horários da barbearia
+   * (`fusoDoEstado`, `lib/timezone.ts`). Qual sigla vale é conferido em
+   * `provisionarBarbearia` — aqui só a presença, como o e-mail.
+   */
+  estado:   z.string().trim().min(2).max(2),
   senha:    z.string().min(8).max(200),
   cor:      z.string().max(9).optional(),
   servicos: z.array(servicoSchema).max(30).optional(),
@@ -85,16 +91,29 @@ const bodySchema = z.object({
   email:     z.string().trim().min(3).max(254),
 });
 
+const UMA_HORA = 60 * 60 * 1000;
+const LIMITE_DE_CRIADOS = { maxTries: 5, windowMs: UMA_HORA };
+const LIMITE_DE_TENTATIVAS = { maxTries: 30, windowMs: UMA_HORA };
+
 export const POST: APIRoute = async ({ request, clientAddress }) => {
   if (!CADASTRO_ABERTO()) return new Response('Not found', { status: 404 });
 
   // Cria linha no banco e gasta bcrypt a cost 12 — sem limite, um laço simples
   // enche o banco de barbearias e ocupa a CPU do processo que atende os sites
   // que já estão no ar.
+  //
+  // ⚠️ DOIS limites (26/10/2026). Até aqui era um só, de 5 por hora, e contava toda
+  // tentativa — inclusive as que falharam: o dono que tentava 4 endereços já tomados
+  // levava 429 por uma hora no quinto, válido. E atrás de 4G o IP é de muita gente.
+  // Agora: CRIADOS, 5 por hora (conta só depois de dar certo); TENTATIVAS, 30 por
+  // hora — o teto do laço, que barra quem testa endereços ou WhatsApps em massa.
   const ip = getClientIp(request, clientAddress);
-  const rl = checkRateLimit(`cadastro:${ip}`, { maxTries: 5, windowMs: 60 * 60 * 1000 });
-  if (!rl.ok) {
-    return json({ error: `Muitas tentativas. Tente em ${rl.retryAfterSecs}s` }, 429);
+  const tentativas = checkRateLimit(`cadastro-tentativa:${ip}`, LIMITE_DE_TENTATIVAS);
+  const criados = consultarRateLimit(`cadastro:${ip}`, LIMITE_DE_CRIADOS);
+  const travado = !tentativas.ok ? tentativas : !criados.ok ? criados : null;
+  if (travado) {
+    const minutos = Math.max(1, Math.ceil((travado.retryAfterSecs ?? 60) / 60));
+    return json({ error: `Muitos cadastros feitos desta conexão. Tente de novo em ${minutos} min.` }, 429);
   }
 
   // ⚠️ Só JSON. Esta rota ABRE SESSÃO (ver o fim do arquivo), e o
@@ -122,6 +141,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   if (!r.ok) {
     return json({ error: r.erro, campo: r.campo }, r.conflito ? 409 : 400);
   }
+  checkRateLimit(`cadastro:${ip}`, LIMITE_DE_CRIADOS); // deu certo: este conta
 
   // O cache de tenants tem até 30s de atraso. Sem isto, o dono termina o
   // cadastro, é levado ao painel e leva 404 no próprio endereço — a primeira
@@ -143,7 +163,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     telefoneLogin: r.telefoneLogin,
     servicosAtivos: r.servicosAtivos,
     /** "15/10", no fuso da barbearia — o navegador de quem cadastra pode estar em outro. */
-    ultimoDiaDoTeste: r.testeAte ? ultimoDia(r.testeAte) : null,
+    ultimoDiaDoTeste: r.testeAte ? ultimoDia(r.testeAte, r.fuso) : null,
     /** O que ainda falta para o site ficar de pé, dito na hora. */
     avisos: r.servicosAtivos === 0
       ? ['Nenhum serviço com preço: ninguém consegue agendar até você preencher um em /admin/servicos.']
@@ -169,14 +189,12 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   // O primeiro e-mail — e o único jeito de saber cedo que o endereço existe: se
   // ele não chegar, o dono descobre hoje, com o cadastro fresco, e não no dia em
   // que pedir a senha nova. Sem `await`: o cadastro já deu certo, e um provedor
-  // de e-mail lento não pode segurar a tela de "O seu site está no ar".
+  // de e-mail lento não pode segurar a tela de fim do cadastro.
   const email = normalizarEmail(parsed.data.email);
   if (email) {
     enviarEmail({
       para: email,
       ...emailDeBoasVindas({
-        dono: parsed.data.dono.trim(),
-        barbearia: r.nome,
         site,
         painel: urlDoPainel(),
         whatsapp: formatarTelefone(r.telefoneLogin),
@@ -194,21 +212,36 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   });
 };
 
-/** O e-mail de boas-vindas. Exportado para o teste ler o que o dono vai ler. */
+/**
+ * O e-mail de boas-vindas. Exportado para o teste ler o que o dono vai ler.
+ *
+ * ⚠️ NADA que a pessoa digitou no formulário entra no assunto nem no texto
+ * (26/10/2026). O e-mail não é confirmado: quem cadastra escolhe para quem ele
+ * vai. Com o nome da barbearia no assunto e o do dono na saudação, dava para
+ * mandar, do remetente do produto, "URGENTE: regularize em http://golpe…" para
+ * qualquer endereço. O que entra agora é só o que o sistema monta: os endereços
+ * (do slug, que só tem letra, número e hífen), o WhatsApp formatado e a data.
+ *
+ * ⚠️ Não diz que o site "está no ar" — até 10/10/2026 dizia, no assunto e no
+ * corpo. O e-mail sai no segundo do cadastro, e o servidor não sabe se a internet
+ * já chega no endereço novo: o certificado do subdomínio pode ainda não existir
+ * (`docs/ARQUITETURA-COBRANCA-V1.md` §7.4). Quem confere é a tela de fim, do
+ * navegador do dono (`src/lib/noAr.ts`).
+ */
 export function emailDeBoasVindas(d: {
-  dono: string;
-  barbearia: string;
   site: string | null;
   painel: string;
   whatsapp: string;
   ultimoDiaDoTeste: string | null;
 }): { assunto: string; texto: string } {
   return {
-    assunto: `${d.barbearia} está no ar — ${NOME_PRODUTO}`,
+    assunto: `O seu cadastro no ${NOME_PRODUTO}`,
     texto: [
-      `Olá, ${d.dono}.`,
+      'Olá!',
       '',
-      ...(d.site ? [`O site da barbearia está no ar: ${d.site}`, ''] : []),
+      `O cadastro da sua barbearia no ${NOME_PRODUTO} foi feito.`,
+      '',
+      ...(d.site ? [`O endereço do site da barbearia: ${d.site}`, ''] : []),
       ...(d.painel ? [`O seu painel: ${d.painel}/admin`] : []),
       `Você entra com o seu WhatsApp, ${d.whatsapp}, e a senha que criou no cadastro.`,
       '',

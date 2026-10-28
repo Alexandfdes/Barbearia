@@ -34,6 +34,7 @@ import { derivarAccent, ACCENT_PADRAO, isHex, type Accent } from './accent.js';
 import { formatarTelefone } from './phone.js';
 import { enderecoReservado } from './enderecosReservados.js';
 import { fimDoTeste } from './situacao.js';
+import { ehFusoDoBrasil, fusoDoEstado } from './timezone.js';
 import { emailValido, normalizarEmail } from './email.js';
 
 const BCRYPT_COST = 12;
@@ -45,6 +46,17 @@ export interface DadosDaBarbearia {
   telefone: string;
   endereco: string;
   cidade: string;
+  /**
+   * A sigla do estado ("RN"): é dela que sai o fuso dos horários da barbearia
+   * (`fusoDoEstado`). O cadastro pela web pede sempre. O script aceita também a
+   * sigla no fim da cidade ("Mossoró/RN"), como os exemplos antigos.
+   */
+  estado?: string;
+  /**
+   * O fuso direto, por cima do estado — para quem está numa ponta de estado com
+   * dois fusos (o oeste do Amazonas, Noronha). Um dos 16 de `FUSOS_DO_BRASIL`.
+   */
+  fuso?: string;
   senha: string;
   /** O do topo e do rodapé. Sem ele, o nome sem o prefixo genérico. */
   curto?: string;
@@ -127,12 +139,14 @@ export interface BarbeariaCriada {
   servicosAtivos: number;
   /** Fim do teste grátis; `null` quando nasceu pagando (`semTeste`). */
   testeAte: Date | null;
+  /** O fuso da barbearia, gravado em `tenants.timezone`. */
+  fuso: string;
 }
 
 export interface RecusaDeProvisionamento {
   ok: false;
   /** Qual campo recusou, para a tela poder apontar o erro no lugar certo. */
-  campo: 'slug' | 'nome' | 'dono' | 'telefone' | 'telefone-dono' | 'endereco' | 'cidade' | 'senha' | 'cor' | 'servicos' | 'horarios' | 'email' | 'frase';
+  campo: 'slug' | 'nome' | 'dono' | 'telefone' | 'telefone-dono' | 'endereco' | 'cidade' | 'estado' | 'senha' | 'cor' | 'servicos' | 'horarios' | 'email' | 'frase';
   erro: string;
   /** `true` quando o problema é colisão com algo que já existe (HTTP 409). */
   conflito?: boolean;
@@ -239,6 +253,28 @@ export async function provisionarBarbearia(
     };
   }
 
+  // O fuso dos horários. Sem ele nada nasce: um padrão calado poria a barbearia de
+  // Manaus uma hora adiantada em tudo — o agendamento, a agenda, os e-mails —,
+  // sem nenhum aviso na tela (`lib/timezone.ts`).
+  if (dados.fuso !== undefined && !ehFusoDoBrasil(dados.fuso)) {
+    return { ok: false, campo: 'estado', erro: `"${dados.fuso}" não é um dos fusos do Brasil.` };
+  }
+  const siglaNaCidade = /(?:\s*\/\s*|\s+-\s+|,\s*)([A-Za-z]{2})\s*$/.exec(cidade)?.[1];
+  const fuso = dados.fuso ?? fusoDoEstado(dados.estado) ?? (dados.estado ? null : fusoDoEstado(siglaNaCidade));
+  if (!fuso) {
+    return {
+      ok: false, campo: 'estado',
+      erro: dados.estado
+        ? `"${dados.estado}" não é a sigla de um estado.`
+        : 'Falta informar o estado — é dele que sai o fuso dos horários.',
+    };
+  }
+  // A cidade fica guardada como "Cidade/UF": é o formato que Configurações pede e
+  // que o site divide para o Google (`layouts/Layout.astro`). Pela web o estado
+  // vem à parte; quem escreveu a sigla na cidade já está no formato.
+  const ufDoEstado = fusoDoEstado(dados.estado) ? dados.estado!.trim().toUpperCase() : null;
+  const cidadeDoSite = ufDoEstado && !siglaNaCidade ? `${cidade}/${ufDoEstado}` : cidade;
+
   // `painel`, `www`, o nome do produto… — `lib/enderecosReservados.ts` diz por quê.
   if (enderecoReservado(slug)) {
     return {
@@ -283,16 +319,6 @@ export async function provisionarBarbearia(
     return { ok: false, campo: 'slug', conflito: true, erro: `Já existe uma barbearia no endereço "${slug}".` };
   }
 
-  // O telefone de login é único NO MUNDO (migration 0002). Conferimos antes para
-  // dar uma mensagem útil, em vez de estourar a constraint no meio da transação.
-  const telefoneEmUso = await sql`SELECT 1 FROM barbers WHERE phone = ${telefoneLogin}`;
-  if (telefoneEmUso.length) {
-    return {
-      ok: false, campo: 'telefone-dono', conflito: true,
-      erro: 'Este WhatsApp já é o login de outro barbeiro.',
-    };
-  }
-
   const servicos = (dados.servicos ?? []).filter((x) => x && String(x.nome ?? '').trim());
   for (const sv of servicos) {
     if (!Number.isInteger(sv.precoCentavos) || sv.precoCentavos < 0 || sv.precoCentavos > 10_000_00) {
@@ -326,6 +352,20 @@ export async function provisionarBarbearia(
     return { ok: false, campo: 'horarios', erro: 'Marque pelo menos um dia aberto — sem nenhum, ninguém consegue agendar.' };
   }
 
+  // O telefone de login é único NO MUNDO entre os barbeiros ATIVOS (migration 0017).
+  // Conferimos antes para dar uma mensagem útil, em vez de estourar a constraint no meio
+  // da transação — e DEPOIS de todas as outras conferências, de propósito: até 18/10/2026
+  // vinha antes, e um formulário com dois serviços de mesmo nome perguntava "este telefone
+  // tem conta?" sem criar nada (409 com conta, 400 sem). Agora só chega aqui o formulário
+  // que, sem conta, cria a barbearia (`tests/cadastro.test.ts`).
+  const telefoneEmUso = await sql`SELECT 1 FROM barbers WHERE phone = ${telefoneLogin} AND active`;
+  if (telefoneEmUso.length) {
+    return {
+      ok: false, campo: 'telefone-dono', conflito: true,
+      erro: 'Este WhatsApp já é o login de outro barbeiro.',
+    };
+  }
+
   // `@fulano`, `instagram.com/fulano` e a URL inteira chegam aqui. Guardamos as
   // duas formas porque o site usa o arroba no texto e a URL no link.
   const arroba = (dados.instagram ?? '').trim()
@@ -352,7 +392,7 @@ export async function provisionarBarbearia(
       .normalize('NFD').replace(/[̀-ͯ]/g, '')
       .toLowerCase().replace(/[^a-z0-9]/g, '') || 'admin';
 
-  const testeAte = dados.semTeste ? null : fimDoTeste(agora);
+  const testeAte = dados.semTeste ? null : fimDoTeste(agora, fuso);
 
   // Tudo numa transação: barbearia meio criada — com tenant e sem dono, por
   // exemplo — é pior que criação nenhuma, porque o slug fica ocupado e o
@@ -367,8 +407,8 @@ export async function provisionarBarbearia(
     // cru — "The string argument must be of type string". O teste só pega isso
     // pela rota, que usa o pool; pelo script, com conexão própria, passava.
     const [tenant] = await tx`
-      INSERT INTO tenants (slug, domain, business_name, status, trial_ends_at)
-      VALUES (${slug}, ${dominio}, ${nome}, ${testeAte ? 'trial' : 'active'}, ${testeAte ? testeAte.toISOString() : null})
+      INSERT INTO tenants (slug, domain, business_name, status, trial_ends_at, timezone)
+      VALUES (${slug}, ${dominio}, ${nome}, ${testeAte ? 'trial' : 'active'}, ${testeAte ? testeAte.toISOString() : null}, ${fuso})
       RETURNING id
     `;
 
@@ -381,7 +421,7 @@ export async function provisionarBarbearia(
         seo_title, products_section_title
       ) VALUES (
         ${tenant.id}, ${nome}, ${curto}, ${whatsappDaLoja}, ${formatarTelefone(telefoneDigitos)},
-        ${endereco}, ${cidade}, ${horarioDeVitrine(semana)},
+        ${endereco}, ${cidadeDoSite}, ${horarioDeVitrine(semana)},
         ${instagramHandle}, ${instagramUrl}, ${sobre}, ${frase},
         ${accent.color}, ${accent.hover}, ${accent.light},
         ${nome}, 'Produtos'
@@ -401,9 +441,10 @@ export async function provisionarBarbearia(
     // horário vazio geraria vaga em dia de folga.
     for (const h of semana) {
       if (h.fechado) continue;
+      // `as string`: dia aberto tem as duas horas — conferido antes da transação.
       await tx`
         INSERT INTO working_hours (tenant_id, barber_id, weekday, start_time, end_time)
-        VALUES (${tenant.id}, ${barbeiro.id}, ${h.weekday}, ${h.abre}, ${h.fecha})
+        VALUES (${tenant.id}, ${barbeiro.id}, ${h.weekday}, ${h.abre as string}, ${h.fecha as string})
       `;
     }
 
@@ -436,5 +477,6 @@ export async function provisionarBarbearia(
     servicosCriados: servicos.length,
     servicosAtivos: resultado.ativos,
     testeAte,
+    fuso,
   };
 }

@@ -1,0 +1,133 @@
+---
+export const prerender = false;
+
+/**
+ * Todas as barbearias do produto, com a fase de cada uma, o dono e o uso — e a
+ * busca e os filtros (`lib/operadorBarbearias.ts`). Cada linha leva à ficha dela,
+ * onde ficam as ações. Nenhum dado de cliente de barbearia.
+ */
+import OperadorLayout from '../../../layouts/OperadorLayout.astro';
+import Pilula from '../../../components/operador/Pilula.astro';
+import { exigirOperador } from '../../../lib/operador.js';
+import { listarBarbearias, resumoDasFases, type BarbeariaNoPainel } from '../../../lib/operadorBarbearias.js';
+import { diaDe } from '../../../lib/situacao.js';
+import { deslocamento } from '../../../lib/timezone.js';
+import { formatarTelefone } from '../../../lib/phone.js';
+
+const fechada = await exigirOperador(Astro.request, Astro.response.headers);
+if (fechada) return fechada;
+
+const lista = await listarBarbearias();
+const resumo = resumoDasFases(lista);
+
+const FILTROS: { id: string; rotulo: string; n: number }[] = [
+  { id: 'todas', rotulo: 'Todas', n: resumo.total },
+  { id: 'no-ar', rotulo: 'No ar', n: resumo.noAr },
+  { id: 'ativa', rotulo: 'Em dia', n: resumo.ativa },
+  { id: 'teste', rotulo: 'Teste', n: resumo.teste },
+  { id: 'carencia', rotulo: 'Carência', n: resumo.carencia },
+  { id: 'suspensa', rotulo: 'Fora do ar', n: resumo.suspensa },
+  { id: 'cancelada', rotulo: 'Encerradas', n: resumo.cancelada },
+];
+
+const hostDe = (url: string) => url.replace(/^https?:\/\//, '');
+const noAr = (b: BarbeariaNoPainel) => b.situacao.fase === 'ativa' || b.situacao.fase === 'teste' || b.situacao.fase === 'carencia';
+const buscaDe = (b: BarbeariaNoPainel) =>
+  [b.nome, b.slug, b.dono?.nome, b.dono?.email, b.dono?.telefone].filter(Boolean).join(' ').toLowerCase();
+const colunas = 'lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.7fr)_minmax(0,1.8fr)_minmax(0,1.2fr)_5.5rem]';
+---
+<OperadorLayout titulo="Barbearias" ativo="barbearias">
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h2 class="text-lg font-semibold text-slate-900">Barbearias</h2>
+      <p id="contagem" class="text-sm text-slate-500 mt-0.5">
+        {resumo.total} {resumo.total === 1 ? 'cadastrada' : 'cadastradas'} · {resumo.noAr} no ar
+      </p>
+    </div>
+    <label class="w-full sm:w-72">
+      <span class="sr-only">Buscar barbearia, dono, e-mail ou telefone</span>
+      <input id="busca" type="search" placeholder="Buscar nome, dono, e-mail…"
+        class="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-sm placeholder-slate-400 focus:outline-none focus:border-teal" />
+    </label>
+  </div>
+
+  <div id="filtros" class="flex flex-wrap gap-2" role="group" aria-label="Filtrar por fase">
+    {FILTROS.map((f) => (
+      <button type="button" data-filtro={f.id} aria-pressed={f.id === 'todas' ? 'true' : 'false'}
+        class="text-xs rounded-full border px-3 py-1.5 transition-colors border-slate-300 bg-white text-slate-700 hover:border-slate-400 aria-pressed:bg-slate-900 aria-pressed:text-white aria-pressed:border-slate-900">
+        {f.rotulo} <span class="tabular-nums">{f.n}</span>
+      </button>
+    ))}
+  </div>
+
+  {lista.length === 0 ? (
+    <p class="text-sm text-slate-500 bg-white border border-slate-200 rounded-lg px-4 py-10 text-center">Nenhuma barbearia cadastrada ainda.</p>
+  ) : (
+    <div class="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <div class:list={['hidden lg:grid gap-4 px-5 py-2.5 text-xs font-medium text-slate-500 bg-slate-50 border-b border-slate-200', colunas]}>
+        <span>Barbearia</span><span>Situação</span><span>Dono</span><span>Uso em 30 dias</span><span>Desde</span>
+      </div>
+      <ul id="lista" class="divide-y divide-slate-200">
+        {lista.map((b) => (
+          <li id={`barbearia-${b.id}`} data-fase={b.situacao.fase} data-no-ar={noAr(b) ? '1' : '0'} data-busca={buscaDe(b)}>
+            <a href={`/operador/barbearias/${b.id}`}
+              class:list={['grid gap-x-4 gap-y-2 px-5 py-4 hover:bg-slate-50 transition-colors', colunas]}>
+              <div class="min-w-0">
+                <p class="font-semibold text-slate-900 truncate">{b.nome}</p>
+                <p class="text-xs text-slate-500 truncate">
+                  {b.site ? hostDe(b.site) : b.slug} · <span class="tabular-nums">{deslocamento(b.fuso)}</span>
+                </p>
+              </div>
+              <div class="min-w-0">
+                <Pilula tom={b.tela.tom} rotulo={b.tela.rotulo} />
+                <p class="text-xs text-slate-600 mt-1">{b.tela.detalhe}</p>
+              </div>
+              <div class="min-w-0 text-sm">
+                {b.dono ? (
+                  <>
+                    <p class="text-slate-800 truncate">{b.dono.nome}</p>
+                    {b.dono.telefone && <p class="text-xs text-slate-500 tabular-nums">{formatarTelefone(b.dono.telefone)}</p>}
+                  </>
+                ) : <p class="text-slate-500">sem dono cadastrado</p>}
+              </div>
+              <div class="text-sm text-slate-700">
+                <span class="tabular-nums">{b.agendamentos30Dias}</span> {b.agendamentos30Dias === 1 ? 'agendamento' : 'agendamentos'}
+                <p class="text-xs text-slate-500"><span class="tabular-nums">{b.barbeirosAtivos}</span> {b.barbeirosAtivos === 1 ? 'barbeiro ativo' : 'barbeiros ativos'}</p>
+              </div>
+              <div class="text-sm text-slate-500 tabular-nums">{b.criadaEm ? diaDe(b.criadaEm, b.fuso, 'dd/MM/yy') : '—'}</div>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )}
+  <p id="nada-no-filtro" class="hidden text-sm text-slate-500">Nenhuma barbearia neste filtro.</p>
+</OperadorLayout>
+
+<script>
+  const itens = [...document.querySelectorAll<HTMLLIElement>('#lista > li')];
+  const botoes = [...document.querySelectorAll<HTMLButtonElement>('[data-filtro]')];
+  const busca = document.getElementById('busca') as HTMLInputElement | null;
+  const vazio = document.getElementById('nada-no-filtro');
+  let filtro = 'todas';
+
+  function aplicar() {
+    const termo = (busca?.value ?? '').trim().toLowerCase();
+    let visiveis = 0;
+    for (const li of itens) {
+      const naFase = filtro === 'todas' || (filtro === 'no-ar' ? li.dataset.noAr === '1' : li.dataset.fase === filtro);
+      const naBusca = !termo || (li.dataset.busca ?? '').includes(termo);
+      li.hidden = !(naFase && naBusca);
+      if (!li.hidden) visiveis++;
+    }
+    vazio?.classList.toggle('hidden', visiveis > 0 || itens.length === 0);
+  }
+  for (const b of botoes) {
+    b.addEventListener('click', () => {
+      filtro = b.dataset.filtro ?? 'todas';
+      for (const outro of botoes) outro.setAttribute('aria-pressed', String(outro === b));
+      aplicar();
+    });
+  }
+  busca?.addEventListener('input', aplicar);
+</script>

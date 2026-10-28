@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { computeOccupancy, pickEmptiestBand } from '../src/lib/occupancy';
 
+// O fuso é obrigatório desde 12/10/2026: cada barbearia tem o dela.
+const FORTALEZA = 'America/Fortaleza';
+
 // Terça 2026-06-16 (weekday 2). Fortaleza = UTC-3: 09:00 local = 12:00Z.
 const DAY = { dateStr: '2026-06-16', weekday: 2 };
 const WH_FULL = [{ barberId: 1, weekday: 2, startTime: '09:00', endTime: '20:00' }];
@@ -11,14 +14,14 @@ function bandOf(occ: ReturnType<typeof computeOccupancy>, key: string) {
 
 describe('computeOccupancy', () => {
   it('semana vazia → 100% livre, disponibilidade = expediente ∩ faixa', () => {
-    const occ = computeOccupancy({ days: [DAY], workingHours: WH_FULL, timeOff: [], appointments: [] });
+    const occ = computeOccupancy({ tz: FORTALEZA, days: [DAY], workingHours: WH_FULL, timeOff: [], appointments: [] });
     expect(bandOf(occ, 'manha')).toMatchObject({ availableMin: 240, bookedMin: 0, freePct: 100 });
     expect(bandOf(occ, 'tarde')).toMatchObject({ availableMin: 240, freePct: 100 });
     expect(bandOf(occ, 'fim')).toMatchObject({ availableMin: 180, freePct: 100 });
   });
 
   it('agendamento de 60min na manhã → 75% livre (60/240 ocupado)', () => {
-    const occ = computeOccupancy({
+    const occ = computeOccupancy({ tz: FORTALEZA,
       days: [DAY], workingHours: WH_FULL, timeOff: [],
       // 10:00–11:00 local = 13:00–14:00Z
       appointments: [{ barberId: 1, startsAt: '2026-06-16T13:00:00.000Z', endsAt: '2026-06-16T14:00:00.000Z' }],
@@ -28,7 +31,7 @@ describe('computeOccupancy', () => {
   });
 
   it('agendamento cruzando faixas é repartido entre elas', () => {
-    const occ = computeOccupancy({
+    const occ = computeOccupancy({ tz: FORTALEZA,
       days: [DAY], workingHours: WH_FULL, timeOff: [],
       // 12:30–13:30 local = 15:30–16:30Z → 30min na manhã, 30min na tarde
       appointments: [{ barberId: 1, startsAt: '2026-06-16T15:30:00.000Z', endsAt: '2026-06-16T16:30:00.000Z' }],
@@ -38,7 +41,7 @@ describe('computeOccupancy', () => {
   });
 
   it('time_off reduz o disponível', () => {
-    const occ = computeOccupancy({
+    const occ = computeOccupancy({ tz: FORTALEZA,
       days: [DAY], workingHours: WH_FULL,
       // almoço 12:00–13:00 local = 15:00–16:00Z, dentro da manhã (9–13)
       timeOff: [{ barberId: 1, startsAt: '2026-06-16T15:00:00.000Z', endsAt: '2026-06-16T16:00:00.000Z' }],
@@ -49,7 +52,7 @@ describe('computeOccupancy', () => {
 
   it('time_off com barberId null (feriado) vale para todos os barbeiros', () => {
     const wh2 = [...WH_FULL, { barberId: 2, weekday: 2, startTime: '09:00', endTime: '20:00' }];
-    const occ = computeOccupancy({
+    const occ = computeOccupancy({ tz: FORTALEZA,
       days: [DAY], workingHours: wh2,
       // dia inteiro bloqueado: 09:00–20:00 local = 12:00–23:00Z
       timeOff: [{ barberId: null, startsAt: '2026-06-16T12:00:00.000Z', endsAt: '2026-06-16T23:00:00.000Z' }],
@@ -60,7 +63,7 @@ describe('computeOccupancy', () => {
   });
 
   it('sábado com expediente até 18:00 → faixa "fim do dia" só tem 60min', () => {
-    const occ = computeOccupancy({
+    const occ = computeOccupancy({ tz: FORTALEZA,
       days: [{ dateStr: '2026-06-13', weekday: 6 }],
       workingHours: [{ barberId: 1, weekday: 6, startTime: '09:00', endTime: '18:00' }],
       timeOff: [], appointments: [],
@@ -70,12 +73,12 @@ describe('computeOccupancy', () => {
 
   it('dois barbeiros somam disponibilidade', () => {
     const wh2 = [...WH_FULL, { barberId: 2, weekday: 2, startTime: '09:00', endTime: '20:00' }];
-    const occ = computeOccupancy({ days: [DAY], workingHours: wh2, timeOff: [], appointments: [] });
+    const occ = computeOccupancy({ tz: FORTALEZA, days: [DAY], workingHours: wh2, timeOff: [], appointments: [] });
     expect(bandOf(occ, 'manha').availableMin).toBe(480);
   });
 
   it('clampa em 0% quando superlotado', () => {
-    const occ = computeOccupancy({
+    const occ = computeOccupancy({ tz: FORTALEZA,
       days: [DAY],
       workingHours: [{ barberId: 1, weekday: 2, startTime: '09:00', endTime: '10:00' }],
       timeOff: [{ barberId: 1, startsAt: '2026-06-16T12:00:00.000Z', endsAt: '2026-06-16T12:30:00.000Z' }],
@@ -112,12 +115,12 @@ describe('a ocupação no fuso da barbearia, não em UTC−3', () => {
 
   it('sem zona, vale a de lib/timezone — a mesma conta de antes em Fortaleza', () => {
     // 16:00Z é 13:00 em Fortaleza: tarde.
-    const occ = computeOccupancy({ days: [DAY], workingHours: WH_FULL, timeOff: [], appointments: [ATENDIMENTO_DAS_12_EM_MANAUS] });
+    const occ = computeOccupancy({ tz: FORTALEZA, days: [DAY], workingHours: WH_FULL, timeOff: [], appointments: [ATENDIMENTO_DAS_12_EM_MANAUS] });
     expect(bandOf(occ, 'tarde').bookedMin).toBe(60);
   });
 
   it('expediente até 24:00 fecha à meia-noite do dia seguinte', () => {
-    const occ = computeOccupancy({
+    const occ = computeOccupancy({ tz: FORTALEZA,
       days: [DAY],
       workingHours: [{ barberId: 1, weekday: 2, startTime: '20:00', endTime: '24:00' }],
       bands: [{ key: 'noite', label: 'à noite', startMin: 20 * 60, endMin: 24 * 60 }],

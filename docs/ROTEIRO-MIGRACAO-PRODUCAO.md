@@ -1,6 +1,10 @@
 # Roteiro — pôr o Postgres no ar para o Bayron
 
 > Escrito em 13/09/2026. **Ainda não executado.**
+> ⚠️ **Atualizado em 10/10/2026: o app novo subiu ANTES da migração, com o banco vazio, e o
+> §4.2 não roda mais como está escrito. Leia o §0.2 antes de qualquer passo.**
+> Atualizado em 12/10/2026: o `TZ_BARBEARIA` não entra mais no `.env` (§3.1) — o fuso é de
+> cada barbearia, e o do Bayron sai certo sozinho.
 > Atualizado em 25/09/2026: as migrations 0004 e 0005, o passo 4.8 (a galeria do Bayron),
 > e dois defeitos que derrubariam o dia, já consertados (§0.1).
 > Companheiro de `ESTADO-ATUAL.md` §9 (a fila) e `PENDENCIAS-ABERTAS.md` §2.5 (o ensaio
@@ -9,10 +13,10 @@
 
 ## 0. Por que existe
 
-A branch `monorepo` está **50 commits à frente da `main`**. Porte para Postgres,
-multi-tenant, RLS, resolução por endereço, carregador da migração, backup das fotos e
-catálogo sugerido — nada disso está no ar. A produção do Bayron roda a `main`, em
-SQLite.
+Porte para Postgres, multi-tenant, RLS, resolução por endereço, carregador da migração,
+backup das fotos e catálogo sugerido — nada disso chega ao Bayron antes deste roteiro. O site
+dele roda de **outro repositório**, o `Barbearia-Bayron`, em SQLite (`CLAUDE.md`). *(Até 26/10 esta
+seção dizia "50 commits à frente da `main`; o Bayron roda a `main`" — o estado de 06/09.)*
 
 Este é o roteiro que transforma isso em realidade. É também **a operação mais arriscada
 do projeto**: troca o motor do banco embaixo de uma barbearia que está atendendo.
@@ -35,6 +39,101 @@ mudam o que conferir no §5.
   barbeiro a tentar fechar uma comanda.
 
 ---
+
+### 0.2 ⚠️ O app novo subiu antes da migração — 10/10/2026
+
+Em 10/10/2026 o app novo foi para o ar no EasyPanel, construído da `main` — que recebeu a
+`monorepo` em 09/10 —, com um Postgres só dele e **o banco vazio**. No boot, o
+`scripts/startup.mjs` aplicou as dez migrations. Isso quebra a ordem do §4: a `0001` já rodou
+sem dados, e a carga **recusa** — *"a coluna tenant_id já existe, ou seja, a 0001 já rodou"*.
+
+**Ensaiado em 10/10/2026 contra PostgreSQL 16, pelos scripts de verdade** — não pelo atalho do
+teste de carga —, conectado como superusuário, como em produção:
+
+| Passo | Resultado |
+|---|---|
+| Banco vazio e boot completo — a produção de hoje | 10 migrations, nenhuma barbearia |
+| A carga nesse banco | **recusa**, com a explicação |
+| Apagar e recriar o banco, com o papel `barbearia_app` já existente no servidor | — |
+| `--ate=0000`, a carga, o boot completo | a barbearia 1 é o `bayron`, as linhas com `tenant_id`; pelo papel do app, a barbearia 1 vê os agendamentos e a 2 não vê nenhum |
+| A galeria, rodada duas vezes | 20 fotos na primeira; *"nada a fazer"* na segunda |
+
+A pergunta que a sessão de 10/10 deixou — se a `0003` aguenta o papel já existindo, já que
+papel é do servidor e sobrevive ao banco apagado — está respondida: aguenta (`IF NOT EXISTS`),
+e a `0004` também. O SQLite do ensaio é o mesmo de mentira do teste de carga: **dado torto do
+banco real só aparece com o banco real** — ensaie com uma cópia dele antes do dia (§2).
+
+⚠️ *26/10/2026: hoje são **19** migrations — a `0017` (o telefone único só entre os ativos, 18/10) e
+a `0018` (a ação "liberou os telefones" no registro do operador, 26/10) **não foram ensaiadas sobre a
+carga do Bayron**. Uma só troca um índice e a outra, a regra de uma coluna da tabela do operador; o
+risco é baixo, mas o próximo ensaio deve incluí-las.*
+
+**Ensaiado de novo em 13/10/2026, com as 17 migrations** — escolhido por você, com dado de
+mentira —, pela cópia da imagem do app, como no console do container, e na ordem do dia, com a
+troca do superusuário no fim. Desde 10/10 tinham entrado sete migrations (a `0010` à `0016`: a
+cobrança, o aviso de agenda e o mapa, o painel do operador, o fuso por barbearia, as anotações,
+a trava do horário duplo e a carência estendida). O SQLite de mentira foi montado do schema da
+`0000`, com 3 barbeiros, 3 serviços, 272 agendamentos em dois meses e meio — e um par sobreposto
+no passado, de propósito, como os da máquina de desenvolvimento —, o par de cor padrão antigo e
+as outras oito tabelas:
+
+| Passo | Resultado |
+|---|---|
+| O banco vazio e o boot completo — a produção de hoje | 17 migrations, nenhuma barbearia |
+| A carga nesse banco | **recusa**, com a explicação |
+| Apagar e recriar o banco, com o papel `barbearia_app` já no servidor | — |
+| `--ate=0000` e a carga (§4.2 e §4.3) | 361 linhas, a contagem confere nas 12 tabelas |
+| O boot completo (§4.4) | da `0001` à `0016`; o papel do app e o `pg_dump` conferidos; a `0009` trocou o hover do par padrão; a `0015` disse *"ⓘ horário duplo: o banco recusa a partir de"* uma data passada — o par de propósito |
+| Rodar de novo | *"Banco já estava em dia"* |
+| As conferências do §4.6 | nenhum órfão, 272 agendamentos dos dois lados, a sequence em 273, nenhum fictício |
+| A galeria, duas vezes (§4.8) | 20 fotos — 19 com a variante de 640 px —; na segunda, *"nada a fazer"* |
+| A troca do superusuário (`PENDENCIAS-ABERTAS.md` §3.10) e o boot com o usuário novo | as oito conferências do `scripts/usuario-do-app.mjs`, e o boot em dia, sem superusuário |
+| Pelo papel do app | a barbearia 1 vê os 272; a 2, nenhum; sem barbearia, nenhum |
+| O app no ar sobre esse banco, pelo usuário novo | o site do Bayron responde, com a galeria e as vagas de segunda-feira; o painel abre |
+
+Nada quebrou, e nada mudou no roteiro. Continua valendo o aviso de cima: o banco real pode ter o
+que o de mentira não tem.
+
+⚠️ **11/10/2026 — se o app já tiver trocado o superusuário por um usuário só dele**
+(`PENDENCIAS-ABERTAS.md` §3.10): os passos 4 e 5 abaixo rodam com o `DATABASE_URL` do
+**superusuário** — o banco recriado é dele, e a `0004` só concede o papel do app com ele (conferido:
+o usuário do app, mesmo já membro, não pode concedê-lo a si de novo). No fim, o
+`scripts/usuario-do-app.mjs` roda de novo, com o mesmo usuário e a mesma senha, e o `DATABASE_URL`
+volta a ser o dele.
+
+**A ordem do dia, revista** — o resto do §4 continua valendo:
+
+1. **Antes do dia:** o backup do app novo saindo da VPS (`PENDENCIAS-ABERTAS.md` §3.3), e o
+   banco de produção conferido vazio — nenhuma barbearia de teste. A barbearia 1 tem de ser o
+   Bayron: é ela que guarda o caminho antigo das fotos (`src/lib/uploads.ts`).
+2. **Montar o volume do site antigo no app novo**, o que redeploya o app. Fica antes de tudo de
+   propósito: o boot reaplica o que faltar, e aqui nada falta.
+3. **Parar o site antigo** (§4.0). Daqui em diante o Bayron está fora do ar.
+4. **Apagar e recriar o banco do app**, conectado ao banco `postgres` do mesmo servidor
+   (`DROP DATABASE … WITH (FORCE)`, depois `CREATE DATABASE … OWNER …`).
+5. **No console do app:** §4.2, §4.3 — com o caminho do SQLite no volume montado — e §4.4.
+   ⚠️ **Sem reiniciar o app no meio:** o boot aplicaria todas as migrations, a carga recusaria
+   de novo, e volta-se ao passo 4.
+6. O §4.5 muda: o endereço sem `www` já resolve pelo slug, mas o com `www` não — o app tira o
+   slug do primeiro pedaço do endereço (`src/lib/tenant.ts`). O `UPDATE` do §4.5 passa a
+   apontar para o endereço com `www`.
+7. **Mover o endereço:** tirá-lo do serviço antigo e adicioná-lo ao app novo — o certificado
+   sai na hora (`ARQUITETURA-COBRANCA-V1.md` §7.4). Depois, do §4.6 ao §4.8. As fotos do volume
+   antigo vão para o novo com o mesmo caminho: a barbearia 1 mantém o caminho legado.
+
+*Ensaiada e não recomendada:* um banco novo ao lado, e o app trocando de banco no fim. Funciona
+igual — mas o banco está vazio, então apagá-lo não perde nada, e um banco com outro nome deixaria
+para trás o que estiver configurado com o nome antigo.
+
+**O serviço antigo do Bayron constrói de outro repositório** — o `Alexandfdes/Barbearia-Bayron`,
+com a `main` em `e50926a`, de 10/07 (visto no EasyPanel em 10/10/2026). Por isso o merge do
+monorepo na `main` daqui não o tocou (`ESTADO-ATUAL.md` §9.3), e reconstruí-lo continua
+possível: o caminho de volta tem código, não só imagem. Até a migração, nada novo naquele
+repositório.
+
+⚠️ **O caminho de volta encurta** (§6): até o primeiro agendamento feito no app novo, voltar é
+devolver o endereço e religar o site antigo. Depois dele, o que entrou no app novo não existe no
+SQLite.
 
 ## 1. O que muda, e o que NÃO muda
 
@@ -105,9 +204,11 @@ docker exec pg-teste pg_isready -U barbearia
 docker run --rm --network rede-teste `
   -e DATABASE_URL="postgres://barbearia:barbearia@pg-teste:5432/barbearia" `
   -e SESSION_SECRET=$(python -c "import secrets;print(secrets.token_hex(32))") `
-  -e TZ_BARBEARIA=America/Fortaleza `
   -p 4321:4321 barbearia-teste
 ```
+
+*12/10/2026: saiu o `-e TZ_BARBEARIA=America/Fortaleza` — a variável não é mais lida; o fuso é
+de cada barbearia (`PENDENCIAS-ABERTAS.md` §2.1). Se ela estiver lá, o boot só avisa.*
 
 **O que tem que aparecer na saída, nesta ordem:**
 
@@ -178,6 +279,8 @@ Confirme, **antes do dia**:
 - [ ] a `DATABASE_URL` montada com esses dados conecta;
 - [ ] **esse usuário pode criar papel** (`CREATEROLE` ou superusuário) — ver abaixo.
 
+*10/10/2026: ✅ existe — um Postgres só do app, e o usuário dele cria papel (§0.2).*
+
 #### O item do `CREATEROLE`, e por que ele entrou aqui em 13/09/2026
 
 ⚠️ **Este é o item que teria parado a migração no meio, com o site já fora do ar.**
@@ -243,11 +346,16 @@ O que sai, o que entra:
 ```diff
 - DATABASE_PATH=/data/appointments.db
 + DATABASE_URL=postgres://usuario:senha@servico-postgres:5432/barbearia_bayron
-+ TZ_BARBEARIA=America/Fortaleza
   TZ=America/Fortaleza
   SESSION_SECRET=<o MESMO de hoje — trocar desloga todo mundo>
   S3_* (mantém)
 ```
+
+⚠️ **`TZ_BARBEARIA` não entra — desde 12/10/2026.** O fuso é de cada barbearia, na coluna
+`tenants.timezone`, e o do Bayron fica `America/Fortaleza`: é o padrão que a migration 0013 dá
+às barbearias que já existem quando ela roda — e a do Bayron nasce antes, na 0001
+(`PENDENCIAS-ABERTAS.md` §2.1). Se o serviço já tiver a variável, pode tirar; deixada, o boot
+avisa. O `TZ` continua: é só a hora do backup.
 
 ⚠️ **`UPLOAD_ROOT` não precisa entrar:** o `Dockerfile` já define `/data/uploads`. Se o
 EasyPanel tiver uma variável antiga com outro valor, **remova** — ela ganharia do
@@ -332,9 +440,38 @@ fazer. **Recusa não é problema — é o roteiro funcionando.**
 DATABASE_URL='postgres://...' node scripts/startup.mjs
 ```
 
-Confira: da `0001` à última aplicadas, a linha do papel do app e a do `pg_dump`. A `0009`
+Confira: da `0001` à última aplicadas, a linha do papel do app e a do `pg_dump`. Rodado dentro
+do container (`NODE_ENV=production`), o `startup.mjs` tira antes um dump do banco — com a carga
+do §4.3 dentro — e diz *"✓ backup antes das migrations: …"*; se o dump falhar, nenhuma migration
+roda e ele explica por quê (`PENDENCIAS-ABERTAS.md` §3.2). Fora do container, sem
+`NODE_ENV=production`, não há esse backup: o original continua sendo o `appointments.db` do §4.1. A `0009`
 troca o hover do par padrão de cores na linha do Bayron, que chega da carga com o antigo — o
 botão passa a escurecer quando o mouse passa, em vez de clarear (`PENDENCIAS-ABERTAS.md` §4.12).
+
+**E a linha do horário duplo** (a `0015`, `PENDENCIAS-ABERTAS.md` §2.37). Duas respostas são
+normais: *"✓ horário duplo: o banco recusa…"*, sem nenhum par sobreposto; ou *"ⓘ horário duplo: o
+banco recusa a partir de …"*, com uma data passada — agendamentos do mesmo barbeiro que já se
+cruzavam, que ficam como estavam, e a trava vale daí em diante. O SQLite da máquina de
+desenvolvimento dá a segunda, por causa dos agendamentos fictícios do gerador de demonstração, que
+gravava sem conferir conflito; se o de produção dá, não se sabe daqui.
+
+**O que não é normal:** *"⚠️ horário duplo: o banco só recusa a partir de …"*, com uma data no
+futuro — dois agendamentos já marcados no mesmo horário, ainda por vir, e a trava sem valer até lá.
+Ache os pares, resolva com o dono — desmarcar um dos dois — e rode a `0015` de novo, à mão, no
+console do app (`psql "$DATABASE_URL" -f drizzle/0015_horario_duplo.sql`); ela pode rodar quantas
+vezes precisar. Os pares, do mais recente para trás:
+
+```sql
+SELECT a.id, b.id, a.starts_at, a.ends_at, b.starts_at, b.ends_at
+  FROM appointments a JOIN appointments b ON b.barber_id = a.barber_id AND b.id > a.id
+ WHERE a.status IN ('confirmed', 'completed') AND b.status IN ('confirmed', 'completed')
+   AND a.starts_at < b.ends_at AND b.starts_at < a.ends_at
+ ORDER BY greatest(a.ends_at, b.ends_at) DESC LIMIT 10;
+```
+
+O aviso *"⚠️ N agendamento(s) com o horário fora do formato do app"* também não é esperado — o
+SQLite da máquina de desenvolvimento não tem nenhum: esses agendamentos não aceitam cancelar nem
+concluir até o horário ser corrigido.
 
 ### 4.5 O endereço
 
@@ -355,7 +492,21 @@ SELECT COUNT(*) FROM appointments;   -- compare com o que o script imprimiu
 
 -- a sequence continua de onde parou
 SELECT last_value, is_called FROM appointments_id_seq;
+
+-- nenhum agendamento fictício do gerador de demonstração — tem de dar 0
+SELECT COUNT(*) FROM appointments WHERE notes = '[FICTICIO]';
 ```
+
+**Se o último der mais que zero,** o gerador de dados de demonstração (o `seed-relatorio-demo.mjs`,
+apagado em 12/10/2026) rodou em produção — ele tinha um modo para isso —, e o relatório do Bayron
+conta agendamentos que não existiram. Saem assim, o que o `--undo` dele fazia:
+
+```sql
+DELETE FROM appointment_items WHERE appointment_id IN (SELECT id FROM appointments WHERE notes = '[FICTICIO]');
+DELETE FROM appointments WHERE notes = '[FICTICIO]';
+```
+
+Depois, rode a `0015` de novo, como no §4.4: o corte do horário duplo pode ter vindo deles.
 
 ### 4.7 Subir
 
@@ -390,7 +541,9 @@ Na ordem, porque cada um depende do anterior:
 - [ ] **As fotos aparecem** — logo e capa. Se sumiram, é `UPLOAD_ROOT`. **A galeria**
       aparece depois do 4.8; se não aparecer, é ele que faltou.
 - [ ] **Um barbeiro consegue entrar no painel.** Pelo slug ainda funciona enquanto
-      houver uma barbearia só.
+      houver uma barbearia só. ⚠️ Desde 17/10/2026 o painel abre só no endereço do painel
+      (`PENDENCIAS-ABERTAS.md` §2.49): o `/admin` do site do Bayron leva a
+      `painel.<domínio>/admin`. Avise os barbeiros dele que o endereço de entrar mudou.
 - [ ] **A agenda do dia mostra os agendamentos de sempre.**
 - [ ] **Um agendamento novo, feito pelo site**, aparece no painel. É o teste da
       sequence: se der erro de chave duplicada, foi o `setval` (não deve acontecer, está
@@ -427,12 +580,14 @@ estado anterior, e um problema de migração pode demorar dias para aparecer.
 - **O `.env` local de desenvolvimento** ainda tem `DATABASE_PATH` e nenhum
   `DATABASE_URL`. Depois do merge, `npm run dev` na sua máquina para de funcionar até
   você trocar. Não afeta produção.
-- **`ARQUITETURA-PRODUCAO.md` descreve o desenho antigo** — uma instância por cliente,
+- ~~**`ARQUITETURA-PRODUCAO.md` descreve o desenho antigo** — uma instância por cliente,
   SQLite, `DATABASE_PATH`. Depois desta migração ele passa a mentir sobre produção, e
-  precisa ser reescrito. (`PENDENCIAS-ABERTAS.md` §2.4 aconteceu por causa de documento
+  precisa ser reescrito.~~ ✅ Reescrito em 12/10/2026 — com o app novo já no ar, ele mentia
+  antes mesmo desta migração. (`PENDENCIAS-ABERTAS.md` §2.4 aconteceu por causa de documento
   desatualizado; §4.2 quase custou reimplementar o que já existia.)
 - **Deploy em canário** (`ARQUITETURA-PRODUCAO.md` D-P2) é uma decisão 🔴 do próprio
-  documento e **este roteiro não a cumpre**: com um cliente só, "canário" seria subir um
+  documento e **este roteiro não a cumpre** *(12/10/2026: o D-P2 foi reescrito para um
+  container só — o canário possível é exatamente o segundo app com a cópia dos dados)*: com um cliente só, "canário" seria subir um
   segundo container com uma cópia dos dados e testar nele antes. Vale o esforço se você
   puder gastar mais uma hora — com dois clientes, passa a não ser opcional.
 - **O telefone dos três barbeiros** continua vazio (`PENDENCIAS-ABERTAS.md` §1.5). Sem

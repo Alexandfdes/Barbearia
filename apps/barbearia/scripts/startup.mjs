@@ -23,6 +23,7 @@ import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
+import { backupDoBanco, backupRecente } from './backup.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PASTA = resolve(__dirname, '..', 'drizzle');
@@ -110,6 +111,10 @@ async function main() {
     process.exit(1);
   }
 
+  // Antes de mudar qualquer coisa: o backup do banco como ele está (17/10/2026).
+  const pendentes = arquivos.filter((nome) => !jaAplicadas.has(nome));
+  if (pendentes.length > 0) await backupAntesDasMigrations(pendentes, jaAplicadas.size);
+
   let aplicadas = 0;
 
   for (const nome of arquivos) {
@@ -145,6 +150,78 @@ async function main() {
 }
 
 /**
+ * O backup do banco ANTES de aplicar migration nova — e, se ele falha, nada se aplica.
+ *
+ * ── POR QUE (17/10/2026) ─────────────────────────────────────────────────────
+ *
+ * O CMD do Dockerfile roda este script e só DEPOIS lança o daemon do backup, cujo
+ * backup de boot vem portanto depois das migrations — e é pulado se houver um com
+ * menos de 12 horas. Com um app e um banco para todas as barbearias, uma migration
+ * que estragasse dado estragava o de todas, e a volta era o backup das 03:00: o dia
+ * de agendamentos de todo mundo perdido. Achado na revisão de 16/10/2026
+ * (`docs/PENDENCIAS-ABERTAS.md` §3.2).
+ *
+ * ⚠️ Derruba o boot de propósito se o backup falhar — ao contrário do aviso do
+ * `pg_dump` mais abaixo, que deixa o app subir sem backup diário. Lá, subir não
+ * muda o banco; aqui, subir É mudar o banco. Saída para uma vez só, sabendo o que
+ * faz: `MIGRAR_SEM_BACKUP=1` — e tirar a variável depois.
+ *
+ * Só no boot de produção (`NODE_ENV=production`, o do Dockerfile) e na rodada
+ * completa. Fica de fora:
+ *  - o `--so-migrations` do `npm run dev`: na máquina de desenvolvimento o `pg_dump`
+ *    quase nunca está no PATH, e o `BACKUP_DIR` padrão (`/data/backups`) nem existe;
+ *  - o `--ate=`, da carga do Bayron: ele roda num banco recém-criado — e a rodada
+ *    completa depois da carga faz o backup, com os dados carregados;
+ *  - o banco novo, sem migration nenhuma aplicada: não há o que guardar.
+ */
+/** Quanto tempo o backup de antes de uma volta anterior do boot ainda vale: 6 horas. */
+const BACKUP_ANTES_VALE_MS = 6 * 60 * 60 * 1000;
+
+async function backupAntesDasMigrations(pendentes, quantasJaAplicadas) {
+  if (ate || soMigrations || process.env.NODE_ENV !== 'production') return;
+  if (quantasJaAplicadas === 0) {
+    console.log('ⓘ banco novo: sem backup antes das migrations — não há o que guardar');
+    return;
+  }
+  if (process.env.MIGRAR_SEM_BACKUP === '1') {
+    console.warn(
+      `⚠️  MIGRAR_SEM_BACKUP=1: ${pendentes.length} migration(s) vão rodar SEM o backup de antes.\n` +
+      '   Tire a variável depois deste deploy — o próximo também migraria sem.',
+    );
+    return;
+  }
+  const primeira = pendentes[0].slice(0, 4);
+  // Reiniciando depois de uma migration que falhou: o dump de minutos atrás, do mesmo
+  // banco, vale — senão cada volta do orquestrador gravava mais um (`backupRecente`).
+  const jaFeito = backupRecente(`antes-da-${primeira}`, BACKUP_ANTES_VALE_MS);
+  if (jaFeito) {
+    console.log(`✓ backup antes das migrations: ${jaFeito.dest} (já feito há pouco, numa volta anterior do boot — reaproveitado)`);
+    return;
+  }
+  try {
+    const { dest, bytes } = await backupDoBanco(`antes-da-${primeira}`);
+    const tamanho = bytes < 1024 * 1024
+      ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+      : `${(bytes / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB`;
+    console.log(`✓ backup antes das migrations: ${dest} (${tamanho})`);
+  } catch (erro) {
+    console.error(
+      '\n' +
+      '  ┌──────────────────────────────────────────────────────────────┐\n' +
+      '  │  ✗  SEM O BACKUP DE ANTES — NENHUMA MIGRATION FOI APLICADA    │\n' +
+      '  └──────────────────────────────────────────────────────────────┘\n' +
+      `  Pendentes: ${pendentes.join(', ')}\n` +
+      `  O backup falhou: ${erro instanceof Error ? erro.message : String(erro)}\n\n` +
+      '  Migration muda o banco de todas as barbearias, e a volta de uma que dê errado\n' +
+      '  é este backup — por isso o boot para aqui, antes de mudar qualquer coisa.\n' +
+      '  Conserte o motivo (espaço em disco, o pg_dump, a pasta do BACKUP_DIR) e suba\n' +
+      '  de novo. Para subir assim mesmo, uma vez: MIGRAR_SEM_BACKUP=1 — e tire depois.\n'
+    );
+    throw new ErroDeBoot('sem o backup de antes das migrations');
+  }
+}
+
+/**
  * Avisa, no boot, se o backup não tem como funcionar.
  *
  * `scripts/backup.mjs` é um wrapper de `pg_dump`, que **não vem** na imagem
@@ -170,6 +247,89 @@ function conferirPgDump() {
     return;
   }
   console.log(`✓ backup: ${r.stdout.trim()}`);
+}
+
+/**
+ * `TZ_BARBEARIA` deixou de ser lida em 12/10/2026: o fuso é de cada barbearia,
+ * a coluna `tenants.timezone` (migration 0013, `src/lib/timezone.ts`). Quem a
+ * deixou nas variáveis do servidor pode achar que ela ainda manda — e trocá-la
+ * não mudaria hora nenhuma. Avisa no boot, sem derrubar nada.
+ *
+ * Mais alto se ela tinha OUTRO fuso: a 0013 pôs as barbearias que já existiam no
+ * padrão, Fortaleza — e um servidor que rodava em Manaus mudaria a hora de todas.
+ */
+function avisarFusoAntigo() {
+  const antigo = process.env.TZ_BARBEARIA?.trim();
+  if (!antigo) return;
+  if (antigo !== 'America/Fortaleza') {
+    console.warn(
+      `⚠️  TZ_BARBEARIA=${antigo} não é mais lida: cada barbearia tem o fuso dela, e as que já\n` +
+      '   existiam ficaram em America/Fortaleza (migration 0013). Se estavam no outro fuso,\n' +
+      '   troque em Configurações → Fuso horário. Depois, tire a variável do servidor.',
+    );
+    return;
+  }
+  console.log(
+    'ⓘ TZ_BARBEARIA não é mais lida: o fuso é de cada barbearia (Configurações, ou a\n' +
+    '  coluna tenants.timezone). Pode tirar a variável do servidor.',
+  );
+}
+
+/**
+ * A trava de horário duplo (migration 0015): o banco recusa dois agendamentos do
+ * mesmo barbeiro no mesmo horário. Num banco que já tinha pares sobrepostos, ela
+ * vale a partir do fim do último — o histórico fica como estava —, e num com
+ * horário fora do formato, esses ficam fora dela. Diz qual é o caso, uma linha.
+ * Nunca derruba o boot: é aviso, e a conferência do código continua de pé.
+ */
+async function avisarTravaDeHorario() {
+  if (ate) return;
+  try {
+    const regras = await sql`
+      SELECT conname, convalidated, pg_get_constraintdef(oid) AS def
+        FROM pg_constraint
+       WHERE conrelid = to_regclass('public.appointments')
+         AND conname IN ('appointments_sem_horario_duplo', 'appointments_horario_utc')`;
+    const trava = regras.find((r) => r.conname === 'appointments_sem_horario_duplo');
+    const formato = regras.find((r) => r.conname === 'appointments_horario_utc');
+    if (!trava) {
+      console.warn('⚠️  A trava de horário duplo não existe neste banco (migration 0015): só a conferência do código segura.');
+      return;
+    }
+    const corte = /starts_at >= '([^']+)'/.exec(trava.def)?.[1];
+    const quando = corte && `${corte.slice(8, 10)}/${corte.slice(5, 7)}/${corte.slice(0, 4)} ${corte.slice(11, 16)} UTC`;
+    if (corte && corte > new Date().toISOString()) {
+      // O par mais recente ainda está por vir: dois clientes marcados na mesma cadeira,
+      // e a trava sem valer até lá.
+      console.warn(
+        `⚠️  horário duplo: o banco só recusa a partir de ${quando} — há agendamentos do mesmo\n` +
+        '   barbeiro no mesmo horário marcados para depois de agora. Desmarque um de cada par e rode\n' +
+        '   a 0015 de novo (docs/ROTEIRO-MIGRACAO-PRODUCAO.md §4.4).',
+      );
+    } else if (corte) {
+      console.log(
+        `ⓘ horário duplo: o banco recusa a partir de ${quando} — antes disso, este banco já tinha agendamentos\n` +
+        '  sobrepostos, que ficaram como estavam (migration 0015).',
+      );
+    } else {
+      console.log('✓ horário duplo: o banco recusa dois agendamentos do mesmo barbeiro no mesmo horário');
+    }
+    if (formato && !formato.convalidated) {
+      const [{ n }] = await sql`
+        SELECT count(*)::int AS n FROM appointments
+         WHERE NOT (starts_at ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[.][0-9]{3}Z$'
+                AND ends_at ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[.][0-9]{3}Z$'
+                AND ends_at > starts_at)`;
+      if (n > 0) {
+        console.warn(
+          `⚠️  ${n} agendamento(s) com o horário fora do formato do app: ficam fora da trava, e não\n` +
+          '   aceitam cancelar nem concluir até o horário ser corrigido (migration 0015).',
+        );
+      }
+    }
+  } catch (erro) {
+    console.warn(`⚠️  Não deu para conferir a trava de horário duplo: ${erro instanceof Error ? erro.message : String(erro)}`);
+  }
 }
 
 /**
@@ -254,6 +414,46 @@ async function conferirPapelDoApp() {
     throw new ErroDeBoot('barbearia_app não pode ser assumido por ' + usuario);
   }
   console.log(`✓ papel do app: ${usuario} pode assumir barbearia_app`);
+
+  // ⚠️ ASSUMIR O PAPEL NÃO BASTA — e até 11/10/2026 esta conferência parava acima.
+  //
+  // Banco restaurado de um backup sem os privilégios — todo backup feito até essa
+  // data rodava `pg_dump --no-privileges` — passa no SET ROLE e não lê tabela
+  // nenhuma: o site responderia 500 em tudo, com o boot verde. E num servidor novo,
+  // sem o papel na hora de restaurar, as políticas de RLS nem chegam a ser criadas.
+  // Achado restaurando de verdade, no ensaio da troca do usuário do banco. As duas
+  // coisas se conferem aqui: o papel lê as tabelas que toda tela usa, e toda tabela
+  // de barbearia tem a rede (a mesma conferência de `tests/rls.test.ts`).
+  const ESSENCIAIS = ['tenants', 'settings', 'barbers', 'services', 'appointments'];
+  const semLeitura = (await sql`
+    SELECT t FROM unnest(${ESSENCIAIS}::text[]) AS t
+     WHERE NOT COALESCE(has_table_privilege('barbearia_app', to_regclass('public.' || t), 'SELECT'), false)
+     ORDER BY 1`).map((r) => r.t);
+  const semRede = (await sql`
+    SELECT c.relname FROM pg_class c
+     WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p')
+       AND EXISTS (SELECT 1 FROM pg_attribute a
+                    WHERE a.attrelid = c.oid AND a.attname = 'tenant_id' AND NOT a.attisdropped)
+       AND (NOT c.relrowsecurity OR NOT EXISTS (
+             SELECT 1 FROM pg_policies p
+              WHERE p.schemaname = 'public' AND p.tablename = c.relname AND p.policyname = 'tenant_isolado'))
+     ORDER BY 1`).map((r) => r.relname);
+  if (semLeitura.length || semRede.length) {
+    console.error(
+      '\n' +
+      '  ┌──────────────────────────────────────────────────────────────┐\n' +
+      '  │  ✗  O PAPEL DO APP NÃO LÊ AS TABELAS, OU FALTA A REDE DE RLS  │\n' +
+      '  └──────────────────────────────────────────────────────────────┘\n' +
+      (semLeitura.length ? `  barbearia_app sem leitura em: ${semLeitura.join(', ')}\n` : '') +
+      (semRede.length ? `  Sem RLS ou sem a política tenant_isolado: ${semRede.join(', ')}\n` : '') +
+      '\n  É o banco restaurado de um backup sem as permissões (todo backup feito até\n' +
+      '  11/10/2026), ou restaurado num servidor novo. Toda tela responderia 500 —\n' +
+      '  por isso o boot para aqui. Resolve com:\n\n' +
+      '      node scripts/permissoes-do-app.mjs\n'
+    );
+    throw new ErroDeBoot('barbearia_app sem acesso às tabelas, ou tabela sem a rede de RLS');
+  }
+  console.log('✓ papel do app: lê as tabelas, e toda tabela de barbearia tem a rede de RLS');
 }
 
 try {
@@ -262,6 +462,8 @@ try {
   if (!soMigrations) {
     conferirPgDump();
     conferirEmail();
+    avisarFusoAntigo();
+    await avisarTravaDeHorario();
   }
 } catch (erro) {
   // Erro de boot já imprimiu o próprio diagnóstico. Dizer "migration falhou"

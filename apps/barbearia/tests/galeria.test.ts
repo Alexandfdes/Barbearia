@@ -12,14 +12,15 @@ import postgres from 'postgres';
 import sharp from 'sharp';
 import { exigirBancoDeTeste } from './guardaBanco.js';
 import { recriarSchema } from './migrations.js';
+import type { Tenant } from '../src/lib/tenant.js';
 
 process.env.SESSION_SECRET ??= 'segredo-de-teste-com-mais-de-32-caracteres-ok';
 
 const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
 
-const BAYRON = { id: 1, slug: 'bayron', status: 'active', domain: null };
-const VINTAGE = { id: 2, slug: 'vintage', status: 'active', domain: null };
+const BAYRON: Tenant = { id: 1, slug: 'bayron', status: 'active', domain: null, fuso: 'America/Fortaleza' };
+const VINTAGE: Tenant = { id: 2, slug: 'vintage', status: 'active', domain: null, fuso: 'America/Fortaleza' };
 
 const RAIZ_ANTES = process.env.UPLOAD_ROOT;
 const raiz = mkdtempSync(join(tmpdir(), 'galeria-'));
@@ -51,17 +52,17 @@ const comoVintage = <T>(fn: () => Promise<T>) => comTenant(VINTAGE, fn);
 const comoBayron = <T>(fn: () => Promise<T>) => comTenant(BAYRON, fn);
 
 async function enviar(c: string, arquivo: File | null, quem = comoVintage): Promise<Response> {
-  return quem(() => rotaLista.POST({ request: envio(c, arquivo) } as never));
+  return quem(async () => rotaLista.POST({ request: envio(c, arquivo) } as never));
 }
 
 async function listar(c: string, quem = comoVintage): Promise<Foto[]> {
-  const r = await quem(() => rotaLista.GET({ request: new Request('http://painel.test/api/admin/galeria', { headers: { cookie: c } }) } as never));
+  const r = await quem(async () => rotaLista.GET({ request: new Request('http://painel.test/api/admin/galeria', { headers: { cookie: c } }) } as never));
   expect(r.status).toBe(200);
   return (await r.json()) as Foto[];
 }
 
 async function ordenar(c: string, ordem: unknown, quem = comoVintage): Promise<Response> {
-  return quem(() => rotaOrdem.PUT({
+  return quem(async () => rotaOrdem.PUT({
     request: new Request('http://painel.test/api/admin/galeria/ordem', {
       method: 'PUT', headers: { cookie: c, 'content-type': 'application/json' }, body: JSON.stringify({ ordem }),
     }),
@@ -69,7 +70,7 @@ async function ordenar(c: string, ordem: unknown, quem = comoVintage): Promise<R
 }
 
 async function remover(c: string, id: number, quem = comoVintage): Promise<Response> {
-  return quem(() => rotaFoto.DELETE({
+  return quem(async () => rotaFoto.DELETE({
     request: new Request(`http://painel.test/api/admin/galeria/${id}`, { method: 'DELETE', headers: { cookie: c } }),
     params: { id: String(id) },
   } as never));
@@ -78,7 +79,7 @@ async function remover(c: string, id: number, quem = comoVintage): Promise<Respo
 /** A mídia pública, como o site pede — `quem` é a barbearia do endereço. */
 async function servir(path: string, quem = comoVintage): Promise<number> {
   const caminho = path.replace(/^\/api\/media\//, '');
-  const r = await quem(() => rotaMidia.GET({ params: { path: caminho }, request: new Request(`http://site.test${path}`) } as never));
+  const r = await quem(async () => rotaMidia.GET({ params: { path: caminho }, request: new Request(`http://site.test${path}`) } as never));
   return r.status;
 }
 

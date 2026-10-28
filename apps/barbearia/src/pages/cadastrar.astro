@@ -17,6 +17,8 @@ export const prerender = false;
  */
 import { CATALOGO_SUGERIDO } from '../lib/catalogoSugerido.js';
 import { NOME_PRODUTO } from '../lib/produto.js';
+import { DIAS_DE_TESTE } from '../lib/situacao.js';
+import { ESTADOS } from '../lib/timezone.js';
 /**
  * As cores prontas — e as regras que elas cumprem — moram em
  * `lib/coresDoCadastro.ts`. Qualquer cor, pronta ou a "outra", passa pela mesma
@@ -24,6 +26,10 @@ import { NOME_PRODUTO } from '../lib/produto.js';
  * gravar.
  */
 import { CORES_DO_CADASTRO as CORES } from '../lib/coresDoCadastro.js';
+
+// O estado decide o fuso dos horários da barbearia (`fusoDoEstado`, em
+// `lib/timezone.ts`). Em ordem de nome, que é como se procura numa lista.
+const estadosPorNome = [...ESTADOS].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 
 if (process.env.CADASTRO_ABERTO !== '1') {
   return new Response('Not found', { status: 404 });
@@ -86,14 +92,15 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     legend { font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
              color: var(--ink-fraco); padding: 0 6px; }
     label { display: block; font-size: 12px; color: var(--ink-suave); margin: 12px 0 4px; }
-    input, textarea {
+    input, textarea, select {
       width: 100%; padding: 10px 12px; border: 1px solid var(--line-forte); border-radius: 6px;
       font-size: 15px; background: var(--ground); color: var(--ink); font-family: inherit;
     }
     textarea { resize: vertical; }
     input::placeholder, textarea::placeholder { color: #7b8798; }
-    input:focus, textarea:focus { outline: 2px solid var(--brand-claro); outline-offset: 1px;
+    input:focus, textarea:focus, select:focus { outline: 2px solid var(--brand-claro); outline-offset: 1px;
                                   border-color: var(--brand-claro); }
+    .local { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     input:disabled { opacity: .45; }
     .dica { font-size: 11px; color: var(--ink-fraco); margin-top: 4px; }
     .linha { display: grid; grid-template-columns: 1fr 108px 92px; gap: 8px; align-items: end; }
@@ -172,6 +179,9 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     .fim ol { margin: 6px 0 18px; padding-left: 20px; }
     .fim li { margin: 6px 0; color: var(--ink-suave); }
     .fim li a { color: var(--brand-claro); }
+    .fim .aviso { margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--ink-suave); }
+    /* O endereço que ainda não abre vai em texto: na cor do link, pareceria clicável. */
+    .fim p.endereco { color: var(--ink); }
     .fim .teste { margin: 0 0 14px; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--line);
                   font-size: 13px; color: var(--ink-suave); }
     .fim .teste strong { color: var(--ink); }
@@ -184,7 +194,11 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
 <body>
   <main class="env">
     <h1>Criar a sua barbearia</h1>
-    <p class="sub">No fim, o seu site já está no ar — com os seus serviços e a sua cor.</p>
+    {/* Não promete "no ar": quem confere é a tela do fim, do navegador do dono (`lib/noAr.ts`). */}
+    <p class="sub">No fim, o seu site nasce — com os seus serviços e a sua cor.</p>
+    {/* Antes de ele gastar cinco minutos no formulário: quem tem medo de cobrança
+        desiste antes de enviar, e só a tela do fim falava do teste (roteiro de 10/10/2026). */}
+    <p class="sub" id="teste-gratis">{DIAS_DE_TESTE} dias grátis, sem cartão: ele só é pedido no fim do teste.</p>
 
     <div id="erro" class="erro" hidden></div>
 
@@ -202,8 +216,20 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
         <label for="endereco">Rua e número</label>
         <input id="endereco" required maxlength="200" placeholder="R. das Flores, 42" />
 
-        <label for="cidade">Cidade</label>
-        <input id="cidade" required maxlength="120" placeholder="Mossoró/RN" />
+        <div class="local">
+          <div>
+            <label for="cidade">Cidade</label>
+            <input id="cidade" required maxlength="120" placeholder="Mossoró" />
+          </div>
+          <div>
+            <label for="estado">Estado</label>
+            <select id="estado" required>
+              <option value="">Escolha</option>
+              {estadosPorNome.map((e) => <option value={e.uf}>{e.nome}</option>)}
+            </select>
+          </div>
+        </div>
+        <p class="dica">Os horários do seu site seguem o fuso do estado. Dá para ajustar depois, em Configurações.</p>
       </fieldset>
 
       <fieldset>
@@ -308,9 +334,12 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     // derivação que o servidor usa ao gravar — o que aparece aqui é o que vai
     // para o site, sem lógica duplicada.
     import { derivarAccent, ACCENT_PADRAO } from '../lib/accent.js';
+    import { esperarNoAr } from '../lib/noAr.js';
 
-    const $ = (id) => document.getElementById(id);
-    const form = $('form'), erro = $('erro'), botao = $('enviar');
+    // O tipo de `$` só serve ao conferidor (some no build): quase todo campo daqui é
+    // um <input>, e os outros dizem o que são — `$<HTMLSelectElement>('estado')`.
+    const $ = <T extends HTMLElement = HTMLInputElement>(id: string) => document.getElementById(id) as T;
+    const form = $<HTMLFormElement>('form'), erro = $<HTMLElement>('erro'), botao = $<HTMLButtonElement>('enviar');
 
     /* ── A cor e a prévia do topo ───────────────────────────────────────────
        Nenhuma cor vem marcada: sem escolha, o site nasce na cor padrão do
@@ -365,11 +394,12 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
       senha: 'A senha precisa de pelo menos 8 caracteres.',
       telefone: 'Confira o WhatsApp, com DDD.',
       frase: 'A frase do topo passa de 200 caracteres.',
+      estado: 'Escolha o estado — é por ele que os horários do site seguem o fuso certo.',
     };
 
     /** Sugere o endereço a partir do nome, até a pessoa mexer no campo. */
     let slugTocado = false;
-    const aSlug = (v) => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    const aSlug = (v: string) => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 63);
     $('slug').addEventListener('input', () => { slugTocado = true; $('previa').textContent = $('slug').value; });
     $('nome').addEventListener('input', () => {
@@ -383,7 +413,7 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
        barbearias — mas é uma marca, não uma regra: basta clicar. */
     const DIAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
     const ORDEM = [1, 2, 3, 4, 5, 6, 0];
-    const PADRAO = { 1:['09:00','19:00'], 2:['09:00','19:00'], 3:['09:00','19:00'],
+    const PADRAO: Record<number, [string, string]> = { 1:['09:00','19:00'], 2:['09:00','19:00'], 3:['09:00','19:00'],
                      4:['09:00','19:00'], 5:['09:00','19:00'], 6:['09:00','18:00'] };
 
     $('horarios').innerHTML = ORDEM.map((d) => {
@@ -398,11 +428,11 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     }).join('');
 
     $('horarios').addEventListener('change', (ev) => {
-      const alvo = ev.target;
+      const alvo = ev.target as HTMLInputElement;
       if (alvo.type !== 'checkbox') return;
-      const d = alvo.closest('.dia').dataset.dia;
+      const d = alvo.closest<HTMLElement>('.dia')!.dataset.dia;
       const aberto = alvo.checked;
-      alvo.closest('.dia').classList.toggle('fechado', !aberto);
+      alvo.closest('.dia')!.classList.toggle('fechado', !aberto);
       $(`hr-de-${d}`).disabled = !aberto;
       $(`hr-ate-${d}`).disabled = !aberto;
     });
@@ -423,7 +453,7 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     });
 
     /** "45", "45,50" e "R$ 45,50" viram centavos. Vazio vira 0 (= desligado). */
-    function centavos(bruto) {
+    function centavos(bruto: string) {
       const limpo = String(bruto || '').replace(/[^\d,.]/g, '').replace(',', '.');
       if (!limpo) return 0;
       const n = Number(limpo);
@@ -452,26 +482,39 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
       pronto.replaceChildren();
       const site = dados.site || null;
 
-      pronto.append(el('h2', {}, site ? 'O seu site está no ar.' : 'A sua barbearia existe.'));
+      const titulo = el('h2', {}, site ? 'Conferindo o seu endereço…' : 'A sua barbearia existe.');
+      pronto.append(titulo);
       if (site) {
-        pronto.append(el('a', { href: site, target: '_blank', rel: 'noopener', className: 'endereco' },
-          site.replace(/^https?:\/\//, '')));
-        const copiar = el('button', { type: 'button' }, 'Copiar para a bio do Instagram');
-        copiar.addEventListener('click', async () => {
-          try {
-            await navigator.clipboard.writeText(`Agende pelo site: ${site}`);
-            copiar.textContent = 'Copiado';
-          } catch {
-            copiar.textContent = 'Não consegui copiar';
-          }
+        // "No ar" só depois de conferido, do navegador do dono (`lib/noAr.ts`). Até
+        // abrir, o endereço vai em texto e sem botão de divulgar: link que não abre,
+        // mandado no WhatsApp no minuto mais animado, é o pior primeiro contato.
+        const bloco = el('div');
+        bloco.setAttribute('aria-live', 'polite');
+        bloco.append(el('p', { className: 'aviso' }, 'Um instante: abrindo o seu endereço para ver se ele já responde.'));
+        pronto.append(bloco);
+        let aviso: HTMLElement | null = null;
+        const espera = esperarNoAr(site, {
+          aoAbrir: () => {
+            titulo.textContent = 'O seu site está no ar.';
+            bloco.replaceChildren(...blocoNoAr(site));
+          },
+          aoFalhar: () => {
+            titulo.textContent = 'O seu site está quase no ar.';
+            const conferir = el('button', { type: 'button' }, 'Conferir agora');
+            conferir.addEventListener('click', () => espera.conferirAgora());
+            aviso = el('p', { className: 'aviso' },
+              'O endereço ainda não abre — na primeira vez, pode levar um tempo. Esta tela confere ' +
+              'sozinha e muda quando abrir. Até lá, não divulgue o link: quem clicar agora vê uma página de erro.');
+            bloco.replaceChildren(el('p', { className: 'endereco' }, semProtocolo(site)), aviso,
+              el('div', { className: 'acoes' }, conferir));
+          },
+          aoDesistir: () => {
+            if (aviso) {
+              aviso.textContent = 'O endereço ainda não abriu. Pode fechar esta tela: o endereço é o mesmo, e o ' +
+                '"Ver meu site" do painel leva até ele. O botão abaixo confere de novo.';
+            }
+          },
         });
-        const mensagem = `Agora dá para marcar horário pelo site: ${site}`;
-        pronto.append(el('div', { className: 'acoes' },
-          el('a', { href: site, target: '_blank', rel: 'noopener' }, 'Abrir o meu site'),
-          el('a', { href: `https://wa.me/?text=${encodeURIComponent(mensagem)}`, target: '_blank', rel: 'noopener' },
-            'Mandar no WhatsApp'),
-          copiar,
-        ));
       } else {
         pronto.append(el('p', { className: 'dica' },
           'O endereço do site aparece aqui quando o domínio do produto estiver configurado.'));
@@ -487,7 +530,7 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
       passos.append(
         el('li', {}, el('a', { href: '/admin/galeria' }, 'Suba fotos dos seus cortes'),
           ' — a galeria aparece no site a partir de 3.'),
-        el('li', {}, el('a', { href: '/admin/configuracoes' }, 'Suba a logo e uma foto de capa'), '.'),
+        el('li', {}, el('a', { href: '/admin/configuracoes#imagens' }, 'Suba a logo e uma foto de capa'), '.'),
       );
       pronto.append(passos);
 
@@ -507,6 +550,31 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
         `Você já está dentro do painel. Da próxima vez, entre com o WhatsApp ${telefone} e a senha que escolheu.`));
       pronto.hidden = false;
       pronto.scrollIntoView({ block: 'start' });
+    }
+
+    const semProtocolo = (site: string) => site.replace(/^https?:\/\//, '');
+
+    /** O endereço que abre: o link e os botões de divulgar. Só depois de conferido. */
+    function blocoNoAr(site: string): Node[] {
+      const copiar = el('button', { type: 'button' }, 'Copiar para a bio do Instagram');
+      copiar.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(`Agende pelo site: ${site}`);
+          copiar.textContent = 'Copiado';
+        } catch {
+          copiar.textContent = 'Não consegui copiar';
+        }
+      });
+      const mensagem = `Agora dá para marcar horário pelo site: ${site}`;
+      return [
+        el('a', { href: site, target: '_blank', rel: 'noopener', className: 'endereco' }, semProtocolo(site)),
+        el('div', { className: 'acoes' },
+          el('a', { href: site, target: '_blank', rel: 'noopener' }, 'Abrir o meu site'),
+          el('a', { href: `https://wa.me/?text=${encodeURIComponent(mensagem)}`, target: '_blank', rel: 'noopener' },
+            'Mandar no WhatsApp'),
+          copiar,
+        ),
+      ];
     }
 
     form.addEventListener('submit', async (e) => {
@@ -538,12 +606,13 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
             slug: $('slug').value.trim(), nome: $('nome').value.trim(),
             dono: $('dono').value.trim(), telefone: $('telefone').value.trim(),
             endereco: $('endereco').value.trim(), cidade: $('cidade').value.trim(),
+            estado: $<HTMLSelectElement>('estado').value,
             senha: $('senha').value, servicos,
             email: ($('email') as HTMLInputElement).value.trim(),
             frase: ($('frase') as HTMLInputElement).value.trim() || undefined,
             cor: corEscolhida || undefined,
             instagram: $('instagram').value.trim() || undefined,
-            sobre: $('sobre').value.trim() || undefined,
+            sobre: $<HTMLTextAreaElement>('sobre').value.trim() || undefined,
             horarios: ORDEM.map((d) => $(`hr-on-${d}`).checked
               ? { weekday: d, abre: $(`hr-de-${d}`).value, fecha: $(`hr-ate-${d}`).value }
               : { weekday: d, fechado: true }),

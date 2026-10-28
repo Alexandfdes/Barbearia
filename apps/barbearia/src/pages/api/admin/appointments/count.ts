@@ -7,7 +7,7 @@ import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { fromZonedTime } from 'date-fns-tz';
 import { tenantDaSessao, type Tenant } from '../../../../lib/tenant.js';
-import { TZ } from '../../../../lib/timezone.js';
+import { fusoDe } from '../../../../lib/timezone.js';
 
 /**
  * GET /api/admin/appointments/count?date=YYYY-MM-DD[&barber=N]
@@ -16,8 +16,13 @@ import { TZ } from '../../../../lib/timezone.js';
  * { ok: true, count: N, maxModified: "<iso>" }
  *
  * count: total de appointments no dia (todos os status) com o filtro de barbeiro.
- * maxModified: maior valor de COALESCE(last_modified_at, created_at) — pra
- *              detectar mudanças mesmo se a contagem não mudou (ex: notes editadas).
+ * maxModified: a ASSINATURA do dia — um hash de cada agendamento (id, status,
+ *              horário, barbeiro, notas, quem mexeu e quando). O nome ficou da versão
+ *              antiga, que era o maior `last_modified_at`: o cliente que desmarca ou
+ *              remarca pelo link não grava esse campo, e a agenda aberta continuava
+ *              mostrando o horário como confirmado (até 17/10/2026; sem e-mail em
+ *              produção, era a única forma de o dono ficar sabendo). Qualquer mudança
+ *              numa linha do dia muda a assinatura (`tests/agenda-atualiza.test.ts`).
  */
 
 
@@ -33,7 +38,10 @@ import { TZ } from '../../../../lib/timezone.js';
 function contar(barberId: number | null, startIso: string, endIso: string, tenant: Tenant) {
   return first(db.execute<{ c: string; maxModified: string }>(sql`
     SELECT COUNT(*) AS c,
-           COALESCE(MAX(COALESCE(last_modified_at, created_at)), '') AS "maxModified"
+           COALESCE(md5(string_agg(
+             concat_ws('|', id, status, starts_at, ends_at, barber_id, service_id, notes,
+                       cancelled_at, last_modified_at, created_at),
+             ',' ORDER BY id)), '') AS "maxModified"
       FROM appointments
      WHERE tenant_id = ${tenant.id}
        AND starts_at >= ${startIso} AND starts_at < ${endIso}
@@ -45,6 +53,7 @@ export const GET: APIRoute = async ({ request, url }) => {
   const session = await getSession(request);
   if (!session) return json({ error: 'Não autenticado' }, 401);
   const tenant = tenantDaSessao(session);
+  const fuso = fusoDe(tenant);
 
   const date = url.searchParams.get('date');
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -62,8 +71,8 @@ export const GET: APIRoute = async ({ request, url }) => {
     barberFilter = session.barberId;
   }
 
-  const startIso = fromZonedTime(`${date}T00:00:00`, TZ).toISOString();
-  const endIso   = fromZonedTime(`${date}T23:59:59`, TZ).toISOString();
+  const startIso = fromZonedTime(`${date}T00:00:00`, fuso).toISOString();
+  const endIso   = fromZonedTime(`${date}T23:59:59`, fuso).toISOString();
 
   const r = await contar(barberFilter, startIso, endIso, tenant);
   return json({ ok: true, count: Number(r?.c ?? 0), maxModified: r?.maxModified ?? '' });

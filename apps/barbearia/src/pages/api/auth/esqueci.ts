@@ -64,7 +64,11 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   if (telefone) {
     const porNumero = checkRateLimit(`senha-nova-tel:${telefone}`, { maxTries: 3, windowMs: UMA_HORA_MS });
     if (!porNumero.ok) {
-      return json({ error: `Muitos pedidos para este número. Tente de novo em ${minutos(porNumero.retryAfterSecs)}.` }, 429);
+      // A MESMA resposta do pedido aceito, sem mandar nada (27/10/2026). Antes era 429, e
+      // quem gastasse os 3 pedidos do número de um dono — o WhatsApp dele está no site —
+      // trancava também esta saída, a única de quem foi trancado fora do login. Os pedidos
+      // de quem gastou já mandaram o link ao e-mail do dono: o último vale por 1 hora.
+      return json({ ok: true, mensagem: RESPOSTA_DO_PEDIDO });
     }
   }
 

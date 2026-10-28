@@ -1,0 +1,98 @@
+---
+export const prerender = false;
+
+/**
+ * O registro de tudo o que se fez no painel do operador: cada entrada, cada
+ * ação e cada anotação, com data, hora e o IP de quem fez (`acoes_do_operador`,
+ * migrations 0012 e 0014). Uma entrada que não foi sua aparece aqui — e é o
+ * sinal para trocar a senha (`npm run operador:senha`).
+ */
+import OperadorLayout from '../../layouts/OperadorLayout.astro';
+import { exigirOperador } from '../../lib/operador.js';
+import { descreverAcao, listarBarbearias, registro, type FiltroDoRegistro } from '../../lib/operadorBarbearias.js';
+import { quandoComAno } from '../../lib/operadorTela.js';
+
+const fechada = await exigirOperador(Astro.request, Astro.response.headers);
+if (fechada) return fechada;
+
+const FILTROS: { id: FiltroDoRegistro; rotulo: string }[] = [
+  { id: 'tudo', rotulo: 'Tudo' },
+  { id: 'acoes', rotulo: 'Ações' },
+  { id: 'anotacoes', rotulo: 'Anotações' },
+  { id: 'entradas', rotulo: 'Entradas no painel' },
+];
+const p = Astro.url.searchParams;
+const filtro = FILTROS.find((f) => f.id === p.get('tipo'))?.id ?? 'tudo';
+const numero = (v: string | null) => { const n = Number(v); return Number.isInteger(n) && n > 0 && n < 1e9 ? n : undefined; };
+const barbearia = numero(p.get('barbearia'));
+const r = await registro({ filtro, tenantId: barbearia, antesDe: numero(p.get('antes')) });
+const barbearias = (await listarBarbearias()).map((b) => ({ id: b.id, nome: b.nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+
+const link = (o: { tipo?: string; barbearia?: number; antes?: number }) => {
+  const q = new URLSearchParams();
+  if (o.tipo && o.tipo !== 'tudo') q.set('tipo', o.tipo);
+  if (o.barbearia) q.set('barbearia', String(o.barbearia));
+  if (o.antes) q.set('antes', String(o.antes));
+  const s = q.toString();
+  return s ? `/operador/registro?${s}` : '/operador/registro';
+};
+---
+<OperadorLayout titulo="Registro" ativo="registro">
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h2 class="text-lg font-semibold text-slate-900">Registro</h2>
+      <p class="text-sm text-slate-500 mt-0.5">Tudo o que se fez neste painel, mais novo primeiro, no seu relógio.</p>
+    </div>
+    <form method="get" action="/operador/registro" class="flex items-center gap-2">
+      {filtro !== 'tudo' && <input type="hidden" name="tipo" value={filtro} />}
+      <label for="barbearia" class="sr-only">Barbearia</label>
+      <select id="barbearia" name="barbearia"
+        class="bg-white border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-teal max-w-[16rem]">
+        <option value="">Todas as barbearias</option>
+        {barbearias.map((b) => <option value={b.id} selected={b.id === barbearia}>{b.nome}</option>)}
+      </select>
+      <button type="submit" class="text-sm border border-slate-300 hover:border-slate-400 rounded-md px-3 py-2 bg-white">Filtrar</button>
+    </form>
+  </div>
+
+  <nav class="flex flex-wrap gap-2" aria-label="Filtrar o registro">
+    {FILTROS.map((f) => (
+      <a href={link({ tipo: f.id, barbearia })} aria-current={f.id === filtro ? 'page' : undefined}
+        class:list={['text-xs rounded-full border px-3 py-1.5 transition-colors',
+          f.id === filtro ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400']}>
+        {f.rotulo}
+      </a>
+    ))}
+  </nav>
+
+  <section class="bg-white border border-slate-200 rounded-lg">
+    {r.itens.length === 0 ? (
+      <p class="px-5 py-8 text-sm text-slate-500 text-center">Nada no registro {filtro === 'tudo' && !barbearia ? 'ainda' : 'neste filtro'}.</p>
+    ) : (
+      <ul id="registro" class="divide-y divide-slate-200 text-sm">
+        {r.itens.map((a) => (
+          <li class="px-5 py-3 grid gap-x-4 gap-y-0.5 sm:grid-cols-[9rem_minmax(0,1fr)_auto]">
+            <span class="text-slate-500 tabular-nums">{quandoComAno(a.quando)}</span>
+            <div class="min-w-0">
+              <p class="text-slate-800 break-words">{descreverAcao(a)}</p>
+              {a.tenantId && <a href={`/operador/barbearias/${a.tenantId}`} class="text-xs text-teal hover:underline">{a.nome ?? a.slug} →</a>}
+            </div>
+            <span class="text-xs text-slate-500 font-mono sm:text-right">{a.ip ?? ''}</span>
+          </li>
+        ))}
+      </ul>
+    )}
+    {r.proximo && (
+      <div class="px-5 py-3 border-t border-slate-200">
+        <a href={link({ tipo: filtro, barbearia, antes: r.proximo })} class="text-sm font-medium text-teal hover:underline">Mais antigos →</a>
+      </div>
+    )}
+  </section>
+</OperadorLayout>
+
+<script>
+  // Escolher a barbearia já filtra; o botão fica para quem navega sem JavaScript.
+  document.getElementById('barbearia')?.addEventListener('change', (e) => {
+    (e.target as HTMLSelectElement).form?.submit();
+  });
+</script>

@@ -6,13 +6,13 @@ import { db } from '../../../../db/index.js';
 import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
-import { TZ } from '../../../../lib/timezone.js';
+import { fusoDe } from '../../../../lib/timezone.js';
 
 /**
  * GET /api/admin/appointments/calendar?month=YYYY-MM[&barber=N]
  *
  * Retorna { days: { "YYYY-MM-DD": qty, ... } } com a contagem de agendamentos
- * (confirmed + completed) por dia local Fortaleza no mês solicitado.
+ * (confirmed + completed) por dia, no fuso da barbearia, no mês solicitado.
  *
  * Barbeiro não-admin só vê os próprios agendamentos.
  */
@@ -24,22 +24,22 @@ import { TZ } from '../../../../lib/timezone.js';
  * conversão usa a zona nomeada: `starts_at` é TEXT com ISO em UTC, então o cast
  * para timestamptz e o `AT TIME ZONE` dão o horário local de verdade. Fortaleza
  * não tem horário de verão, então o resultado é o mesmo hoje; a diferença é que
- * a consulta continua certa se um dia a barbearia não for em Fortaleza — e com
- * multi-tenant isso deixa de ser hipótese (a zona vira coluna do tenant).
+ * a consulta continua certa fora de Fortaleza — e desde 12/10/2026 a zona É a
+ * coluna da barbearia (`tenants.timezone`, `fusoDe`).
  *
- * ⚠️ A zona é PARÂMETRO, não texto interpolado. `AT TIME ZONE ${TZ}` com o valor
- * vindo do driver é uma bind, não concatenação — se um dia o fuso vier do banco
- * ou de configuração do dono, isto continua sendo consulta preparada.
+ * ⚠️ A zona é PARÂMETRO, não texto interpolado. `AT TIME ZONE ${fuso}` com o valor
+ * vindo do driver é uma bind, não concatenação — o fuso vem do banco e da
+ * configuração do dono, e isto continua sendo consulta preparada.
  */
-function porDia(tenantId: number, barberId: number | null, month: string) {
+function porDia(tenantId: number, fuso: string, barberId: number | null, month: string) {
   return db.execute<{ day_local: string; qty: string }>(sql`
     SELECT
-      to_char((starts_at::timestamptz) AT TIME ZONE ${TZ}, 'YYYY-MM-DD') AS day_local,
+      to_char((starts_at::timestamptz) AT TIME ZONE ${fuso}, 'YYYY-MM-DD') AS day_local,
       COUNT(*) AS qty
     FROM appointments
     WHERE tenant_id = ${tenantId}
       AND status IN ('confirmed', 'completed')
-      AND to_char((starts_at::timestamptz) AT TIME ZONE ${TZ}, 'YYYY-MM') = ${month}
+      AND to_char((starts_at::timestamptz) AT TIME ZONE ${fuso}, 'YYYY-MM') = ${month}
       AND (${barberId}::int IS NULL OR barber_id = ${barberId}::int)
     GROUP BY day_local
   `);
@@ -67,7 +67,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     barberFilter = session.barberId;
   }
 
-  const rows = await porDia(tenant.id, barberFilter, month);
+  const rows = await porDia(tenant.id, fusoDe(tenant), barberFilter, month);
 
   const days: Record<string, number> = {};
   for (const r of rows) days[r.day_local] = Number(r.qty);

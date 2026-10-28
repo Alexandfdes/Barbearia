@@ -4,10 +4,13 @@
 //
 // "Hoje" é o dia NA BARBEARIA: o fuso desce pela página, como no `/agendar`.
 // Até 09/10/2026 era `new Date().getDay()`, o relógio de quem abre o site.
-import { TZ } from '../lib/timezone.js';
+import { fusoDe } from '../lib/timezone.js';
+import { tenantAtual } from '../lib/tenant.js';
+
+const fuso = fusoDe(tenantAtual());
 ---
 
-<section id="combo" class="py-12 md:py-20 relative" style="display:none" data-tz={TZ}>
+<section id="combo" class="py-12 md:py-20 relative" style="display:none" data-tz={fuso}>
   <div class="relative z-10 max-w-6xl mx-auto px-4 space-y-6" id="combo-list"></div>
 </section>
 

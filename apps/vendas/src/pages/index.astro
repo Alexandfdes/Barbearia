@@ -1,12 +1,29 @@
 ---
 export const prerender = false;
 
+/**
+ * A landing do autoatendimento — RASCUNHO de 12/10/2026 (`docs/PENDENCIAS-ABERTAS.md`
+ * §4.15). A página contava a história da montagem assistida ("eu monto inteira"); desde
+ * 24/09 quem monta é o dono, no cadastro, com 7 dias grátis (`docs/PLANO-PRODUTIZACAO.md`
+ * §13). A tese que sobra é a do §4 de lá: o site é DA BARBEARIA — o nome dela no
+ * endereço, a cor dela —, contra a página dentro do aplicativo dos outros.
+ *
+ * ⚠️ O texto é a voz do dono do projeto: este é o rascunho, para ele ajustar. Cada
+ * frase aqui é verdade no código de hoje; as que dependem de configuração em
+ * produção — o backup fora do servidor, o certificado dos subdomínios — só valem
+ * quando ela existir, e o cadastro não abre antes disso (`docs/PENDENCIAS-ABERTAS.md` §2.31).
+ */
 import Layout from '../layouts/Layout.astro';
-import { NOME_PRODUTO, PRECO, PRECO_ANUAL, PRECO_ANUAL_POR_MES, CONCORRENTES, EXEMPLO_URL, whatsappUrl, reais, CADASTRO_ABERTO, URL_CADASTRO } from '../config';
+import { NOME_PRODUTO, PRECO, CONCORRENTES, whatsappUrl, reais, CADASTRO_ABERTO, URL_CADASTRO } from '../config';
 
-const ctaTopo = whatsappUrl('Olá! Vi o site e quero saber mais sobre o site com agendamento para minha barbearia.');
-const ctaPreco = whatsappUrl('Olá! Quero fechar o site com agendamento para minha barbearia. Podemos conversar?');
-const ctaDuvida = whatsappUrl('Olá! Fiquei com uma dúvida sobre o site para barbearia.');
+// O botão principal leva ao cadastro. Com o cadastro fechado (`CADASTRO_ABERTO`,
+// a mesma variável do app da barbearia), ele vira conversa no WhatsApp — um botão
+// que cai numa porta fechada é pior que nenhum.
+const waQuero = whatsappUrl('Olá! Quero testar o site com agendamento para a minha barbearia.');
+const waDuvida = whatsappUrl('Olá! Fiquei com uma dúvida sobre o site para barbearia.');
+const principal = CADASTRO_ABERTO
+  ? { href: URL_CADASTRO, rotulo: 'Testar 7 dias grátis', externo: false }
+  : { href: waQuero, rotulo: 'Quero testar', externo: true };
 
 const dores = [
   {
@@ -14,39 +31,40 @@ const dores = [
     texto: 'Cliente manda mensagem enquanto você está com a máquina na mão. Você responde meia hora depois, ele já procurou outro. E o que marcou, esqueceu.',
   },
   {
-    titulo: 'Sua barbearia não existe no Google',
-    texto: 'Quem procura "barbearia perto de mim" não te encontra. Quem te indica manda um print do Instagram, porque não tem um link para mandar.',
+    titulo: 'Sua barbearia não tem um link',
+    texto: 'Quem te indica manda um print do Instagram, porque não tem um endereço para mandar. E quem procura no Google não acha onde marcar.',
   },
   {
     titulo: 'O caixa está no caderno',
-    texto: 'No fim do mês você sabe se sobrou dinheiro, mas não sabe qual serviço rende mais, qual dia é fraco, nem quanto os furos custaram.',
+    texto: 'No fim do mês você sabe se sobrou dinheiro, mas não sabe qual serviço rende mais, qual dia é fraco, nem quanto as faltas custaram.',
   },
 ];
 
 const entregas = [
-  { titulo: 'Um site seu, com endereço próprio', texto: 'O nome da sua barbearia no endereço, com as suas fotos e os seus textos. Se quiser domínio próprio, a gente registra no seu nome.' },
-  { titulo: 'Agendamento aberto 24 horas', texto: 'O cliente escolhe serviço, profissional e horário sozinho, de madrugada se quiser. Você acorda com a agenda cheia.' },
+  { titulo: 'Um site com o nome da barbearia', texto: 'O nome dela no endereço, a sua cor, a sua frase no topo e as fotos dos seus cortes. Quer domínio próprio? Dá também: você paga o registro, no seu nome, e a gente aponta para o site.' },
+  { titulo: 'Agendamento aberto 24 horas', texto: 'O cliente escolhe serviço, profissional e horário sozinho, pelo celular, de madrugada se quiser. Só aparecem horários livres de verdade.' },
   { titulo: 'Painel no seu celular', texto: 'Agenda do dia, buscar cliente, remarcar, bloquear horário, fechar a comanda. Tudo do celular, sem instalar nada.' },
   { titulo: 'Faturamento de verdade', texto: 'Quanto entrou por dia, por serviço e por profissional. Quantos faltaram e quanto isso custou.' },
-  { titulo: 'Backup todo dia', texto: 'Sua base de clientes copiada automaticamente, todo dia, para fora do servidor. Se algo der errado, volta.' },
-  { titulo: 'Suporte com quem fez', texto: 'Você fala com o desenvolvedor, não com um robô de central. Ajustes pequenos entram na mensalidade.' },
+  { titulo: 'A lista de clientes é sua', texto: 'Os clientes e os agendamentos saem em planilha, quando você quiser — até com o site fora do ar.' },
+  { titulo: 'Backup todo dia', texto: 'A sua base de clientes copiada automaticamente, todo dia, para fora do servidor. Se algo der errado, volta.' },
 ];
 
 const passos = [
-  { n: '1', titulo: 'A gente conversa', texto: 'Uma conversa de 20 minutos para eu entender seus serviços, preços e horários. Sem compromisso.' },
-  { n: '2', titulo: 'Você manda o material', texto: 'Logo, fotos dos cortes e a lista de serviços. Se não tiver fotos boas, eu te digo exatamente o que fotografar.' },
-  { n: '3', titulo: 'Eu monto', texto: 'Escolho as fotos, trato as imagens, escrevo os textos, cadastro tudo e aponto o domínio. Você não mexe em nada.' },
-  { n: '4', titulo: 'Seu site entra no ar', texto: 'Você recebe o link e a senha do painel. A partir daí, trocar uma foto ou um preço você faz sozinho.' },
+  { n: '1', titulo: 'Você cria a conta', texto: 'O nome da barbearia, o endereço que você quer para o site, o seu WhatsApp e uma senha.' },
+  { n: '2', titulo: 'Serviços, preços e horário', texto: 'O que você faz, quanto cobra e quando abre. É isso que vira o agendamento.' },
+  { n: '3', titulo: 'A cara do site', texto: 'Você escolhe a cor e a frase do topo, vendo como fica. Com qualquer cor, o texto continua legível.' },
+  { n: '4', titulo: 'No ar, agendando', texto: 'O site já recebe agendamento. Pelo painel, você sobe a logo, a capa e as fotos dos cortes.' },
 ];
 
 const faq = [
-  { p: 'Preciso saber mexer em computador?', r: 'Não. Eu monto tudo. Depois, mudar um preço ou trocar uma foto é como editar uma legenda no Instagram — e se preferir, eu faço.' },
-  { p: 'E se eu quiser sair?', r: 'Avisa com 30 dias e pronto. Sem multa e sem carência. E se você tiver optado por domínio próprio, ele está registrado no seu nome — continua seu.' },
-  { p: 'O site é meu mesmo?', r: 'O conteúdo é todo seu: fotos, textos, preços e a sua base de clientes. Com domínio próprio, ele fica no seu CPF ou CNPJ com você como dono, e eu como responsável técnico enquanto você for cliente.' },
-  { p: 'Meus clientes precisam baixar aplicativo?', r: 'Não. Eles abrem o link no navegador do celular e marcam. Sem cadastro, sem senha, sem baixar nada.' },
-  { p: 'Já uso outro sistema. Dá para trazer meus dados?', r: 'Hoje não. O histórico antigo fica onde está e a agenda começa do zero. Se isso for problema para você, é melhor a gente conversar antes de fechar.' },
-  { p: 'Não tem taxa de instalação mesmo?', r: 'Não. Montar o seu site — escolher e tratar as fotos, escrever os textos, cadastrar serviços e horários, apontar o domínio — está incluso na mensalidade. É trabalho que acontece uma vez e eu não cobro à parte por ele.' },
-  { p: 'Vale mais a pena o mensal ou o anual?', r: 'O anual, se você já decidiu: você paga dez meses e usa doze. No mensal você tem a liberdade de sair avisando com 30 dias, e paga um pouco mais por essa liberdade. Não tem pegadinha em nenhum dos dois.' },
+  { p: 'Preciso de cartão para testar?', r: 'Não para começar. O cartão é pedido no fim dos 7 dias — o painel avisa antes —, e nada é cobrado antes do 8º dia. Sem o cartão, o site sai do ar depois de 3 dias de carência; cadastrando, ele volta.' },
+  { p: 'Preciso saber mexer em computador?', r: 'Não. O cadastro é um formulário, e o painel funciona no celular. Trocar um preço ou uma foto é como editar uma legenda no Instagram.' },
+  { p: 'E se eu quiser sair?', r: 'Cancela pelo painel, a qualquer hora, sem multa: o site fica no ar até o fim do mês que você já pagou. No teste, nem precisa cancelar — sem o cartão, nada é cobrado. E a sua lista de clientes sai em planilha quando você quiser.' },
+  { p: 'O site é meu mesmo?', r: 'O conteúdo é todo seu: fotos, textos, preços e a sua lista de clientes. O endereço é o nome da sua barbearia no nosso domínio; com domínio próprio, o registro fica no seu CPF ou CNPJ.' },
+  { p: 'Meus clientes precisam baixar aplicativo?', r: 'Não. Eles abrem o link no navegador do celular e marcam. Sem criar conta, sem senha, sem baixar nada.' },
+  { p: 'E as fotos?', r: 'Você sobe pelo painel, do celular, logo depois do cadastro: a logo, a capa e as fotos dos cortes. A galeria aparece no site a partir de 3 fotos.' },
+  { p: 'Já uso outro sistema. Dá para trazer meus dados?', r: 'Hoje não. O histórico antigo fica onde está e a agenda começa do zero. Se isso for problema para você, chame no WhatsApp antes de começar.' },
+  { p: 'Tem taxa de instalação?', r: 'Não. Você monta o site no próprio cadastro, e depois dos 7 dias paga só a mensalidade.' },
 ];
 ---
 
@@ -61,13 +79,9 @@ const faq = [
       <nav class="flex items-center gap-2 sm:gap-5">
         <a href="/demo" data-nav class="hidden sm:inline text-sm text-cream/70 hover:text-cream transition-colors">Como fica</a>
         <a href="/acessar" data-nav class="text-sm text-cream/70 hover:text-cream transition-colors">Entrar</a>
-        {CADASTRO_ABERTO && (
-          <a href={URL_CADASTRO} data-nav
-            class="hidden sm:inline text-sm text-cream/70 hover:text-cream transition-colors">Criar a minha</a>
-        )}
-        <a href={ctaTopo} target="_blank" rel="noopener"
+        <a href={principal.href} {...(principal.externo ? { target: '_blank', rel: 'noopener' } : {})}
           class="inline-flex items-center justify-center min-h-11 bg-brand hover:bg-brand-hover text-on-brand font-semibold text-sm px-4 sm:px-5 rounded-md transition-colors">
-          Falar no WhatsApp
+          {principal.rotulo}
         </a>
       </nav>
     </div>
@@ -89,41 +103,27 @@ const faq = [
     <div class="relative max-w-6xl mx-auto px-5 pt-28 pb-24 w-full">
       <p data-rise class="text-brand-on-dark text-xs font-semibold tracking-[0.22em] uppercase mb-5">Para barbearias</p>
       <h1 data-rise class="font-serif text-[clamp(2.25rem,6vw,3.9rem)] leading-[1.06] tracking-tight text-cream max-w-4xl">
-        O site da sua barbearia.<br />
-        <span class="italic text-brand-on-dark">Pronto, no ar, sem você montar nada.</span>
+        O site da sua barbearia,<br />
+        <span class="italic text-brand-on-dark">com o nome dela no endereço.</span>
       </h1>
       <p data-rise class="mt-7 text-base sm:text-lg text-cream/75 max-w-xl leading-relaxed">
-        Endereço próprio, sua marca, suas fotos — e agendamento online funcionando 24 horas.
-        Você manda o material uma vez. Eu escolho as fotos, escrevo os textos e ponho no ar.
+        Você preenche os serviços, os preços e o horário, escolhe a cor — e o site já nasce
+        agendando. O cliente marca pelo celular, sem baixar nada. Você toca a agenda pelo painel.
       </p>
       <div data-rise class="mt-9 flex flex-col sm:flex-row gap-3">
-        <a href={ctaTopo} target="_blank" rel="noopener"
+        <a href={principal.href} {...(principal.externo ? { target: '_blank', rel: 'noopener' } : {})}
           class="group inline-flex items-center justify-center gap-2.5 min-h-[52px] bg-brand hover:bg-brand-hover text-on-brand font-bold uppercase tracking-wider text-sm px-8 rounded-md transition-colors">
-          <svg class="w-[18px] h-[18px] transition-transform duration-150 group-hover:translate-x-0.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-          Quero saber mais
+          {principal.rotulo}
+          <span class="transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden="true">→</span>
         </a>
         <a href="/demo"
           class="inline-flex items-center justify-center min-h-[52px] border border-cream/35 hover:border-cream/70 text-cream font-medium text-sm px-8 rounded-md transition-colors">
           Ver como fica
         </a>
-        {/*
-          ⚠️ Terceiro botão, e ele briga com os outros dois de propósito ausente
-          quando `CADASTRO_ABERTO` não está ligado. O argumento de venda desta
-          página é "eu monto inteira, do zero" — ver a tabela comparativa mais
-          abaixo. Um botão de autoatendimento visível o tempo todo contradiz a
-          linha "Quem monta a sua página: você, sozinho, preenchendo formulário"
-          que a página usa contra os concorrentes.
-        */}
-        {CADASTRO_ABERTO && (
-          <a href={URL_CADASTRO}
-            class="inline-flex items-center justify-center min-h-[52px] border border-cream/35 hover:border-cream/70 text-cream font-medium text-sm px-8 rounded-md transition-colors">
-            Criar a minha agora
-          </a>
-        )}
       </div>
-      <p data-rise class="mt-6 text-xs text-cream/65">
-        Atendimento em Mossoró e região. Conversa sem compromisso.
-        <a href="#preco" class="text-cream/75 hover:text-brand-on-dark underline underline-offset-4 ml-1 transition-colors">Ver preços</a>
+      <p data-rise class="mt-6 text-xs text-cream/65 max-w-xl leading-relaxed">
+        Sem cartão para começar: ele só é pedido no fim do teste. Cancela pelo painel, quando quiser.
+        <a href="#preco" class="text-cream/75 hover:text-brand-on-dark underline underline-offset-4 ml-1 transition-colors">Ver preço</a>
       </p>
     </div>
   </section>
@@ -149,7 +149,7 @@ const faq = [
   <section class="bg-card border-y border-line">
     <div class="max-w-6xl mx-auto px-5 py-16 sm:py-24">
       <h2 data-rise class="font-serif text-[clamp(1.75rem,3.4vw,2.6rem)] leading-tight tracking-tight text-ink mb-3">O que você recebe</h2>
-      <p data-rise class="text-ink-soft mb-12 max-w-xl text-[15px]">Tudo funcionando no dia da entrega. Sem pacote básico, sem funcionalidade travada esperando você pagar mais.</p>
+      <p data-rise class="text-ink-soft mb-12 max-w-xl text-[15px]">Tudo funcionando desde o primeiro dia do teste. Sem pacote básico, sem funcionalidade travada esperando você pagar mais.</p>
       <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {entregas.map((e, i) => (
           <div data-rise class="rounded-lg border border-line bg-card p-6 transition-[transform,box-shadow,border-color,background-color] duration-200 hover:-translate-y-0.5 hover:bg-card-hover hover:shadow-[0_10px_30px_rgba(0,0,0,0.45)] hover:border-line-strong">
@@ -165,11 +165,11 @@ const faq = [
   <!-- ============ 5. A DIFERENÇA ============ -->
   <section class="bg-ground">
     <div class="max-w-6xl mx-auto px-5 py-16 sm:py-24">
-      <h2 data-rise class="font-serif text-[clamp(1.75rem,3.4vw,2.6rem)] leading-tight tracking-tight text-ink mb-4">A diferença não é o site. É quem monta.</h2>
+      <h2 data-rise class="font-serif text-[clamp(1.75rem,3.4vw,2.6rem)] leading-tight tracking-tight text-ink mb-4">A diferença não é o agendamento. É de quem é a página.</h2>
       <p data-rise class="text-ink-soft mb-10 max-w-2xl text-[15px] leading-relaxed">
-        Os aplicativos de agendamento são bons no que fazem, e alguns também oferecem uma
-        página para a barbearia. A diferença está em quem enche essa página: neles, você.
-        Aqui, eu — com as suas fotos escolhidas e tratadas uma a uma.
+        Os aplicativos de agendamento são bons no que fazem, e alguns também dão uma página
+        para a barbearia — dentro do aplicativo deles, no endereço deles. Aqui, o site é da
+        sua barbearia: o nome dela no endereço, a cor dela, e o agendamento dentro dele.
       </p>
       <div data-rise class="overflow-x-auto -mx-5 px-5">
         <table class="w-full min-w-[600px] text-sm bg-card border border-line rounded-lg overflow-hidden">
@@ -182,13 +182,8 @@ const faq = [
           </thead>
           <tbody>
             {[
-              ['Quem monta a sua página', 'Você, sozinho, preenchendo formulário', 'Eu monto inteira, do zero'],
-              ['As fotos', 'Você sobe e torce para ficar bom', 'Eu escolho, corto e trato uma a uma'],
-              ['Os textos', 'Você escreve', 'Eu escrevo, a partir do que você me contar'],
-              ['Se você não preencher', 'Fica no ar do jeito que estiver', 'Não vai para o ar até estar bom'],
-              ['O visual', 'O mesmo modelo de todo mundo', 'Ajustado à sua marca e às suas cores'],
-              ['O endereço do site', 'Subdomínio deles, sempre', 'Subdomínio nosso, ou o seu domínio se quiser'],
-              ['Quem te atende', 'Central de atendimento', 'Quem escreveu o sistema'],
+              ['O endereço', 'Subdomínio deles, sempre', 'O nome da sua barbearia — ou o seu domínio, se quiser'],
+              ['A página', 'Dentro do aplicativo deles', 'Um site da sua barbearia, com a sua cor e a sua frase'],
             ].map(([label, deles, aqui]) => (
               <tr class="border-t border-line transition-colors hover:bg-ground group">
                 <td class="px-5 py-4 text-ink font-medium">{label}</td>
@@ -223,8 +218,8 @@ const faq = [
       </div>
       <div data-rise class="mt-12 pt-8 border-t border-line flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <p class="text-sm text-ink-mute max-w-md leading-relaxed">
-          Do primeiro contato até o site no ar costuma levar cerca de uma semana — a maior parte
-          dela esperando as fotos.
+          Do começo do cadastro ao site agendando: o tempo de preencher um formulário. As fotos
+          você sobe depois, pelo painel, no seu ritmo.
         </p>
         <a href="/demo" class="inline-flex items-center gap-2 min-h-11 py-2 text-sm font-semibold text-brand-text hover:text-ink transition-colors shrink-0">
           Ver as telas do sistema
@@ -240,45 +235,39 @@ const faq = [
       <h2 data-rise class="font-serif text-[clamp(1.75rem,3.4vw,2.6rem)] leading-tight tracking-tight text-ink mb-3">Quanto custa</h2>
       <p data-rise class="text-ink-soft mb-2 max-w-xl text-[15px]">Um valor por mês. Sem letra miúda.</p>
       <p data-rise class="text-brand-text text-[15px] font-semibold mb-10">
-        Sem taxa de instalação — a montagem do seu site está inclusa.
+        Sem taxa de instalação — e os primeiros 7 dias são grátis.
       </p>
 
-      <div class="grid sm:grid-cols-2 gap-5 max-w-3xl">
-        <div data-rise class="rounded-xl border border-line bg-card p-7">
-          <p class="text-[11px] uppercase tracking-[0.18em] text-ink-mute mb-3 font-semibold">Mensal</p>
-          <p class="font-serif text-[2.75rem] leading-none text-ink">{reais(PRECO.mensal)}<span class="text-lg text-ink-mute font-sans"> /mês</span></p>
-          <p class="text-sm text-ink-mute mt-3">cancela quando quiser, avisando 30 dias</p>
-          <ul class="mt-6 space-y-2.5 text-[15px] text-ink-soft">
-            {['Site montado por mim, do zero','Endereço próprio com o nome da sua barbearia','Agendamento e painel funcionando','Backup diário dos seus clientes','Suporte e ajustes pequenos'].map((t) => (
-              <li class="flex gap-2.5"><span class="text-brand-text font-bold shrink-0" aria-hidden="true">✓</span>{t}</li>
-            ))}
-          </ul>
-        </div>
-
+      {/*
+        O plano anual, à vista, saiu deste rascunho: o cadastro e a cobrança só fazem
+        o mensal, e vender na página o que o sistema não cobra é promessa que ninguém
+        cumpre. Recomendação registrada: oferecê-lo no painel, depois do 8º dia
+        (`docs/JORNADA-DO-BARBEIRO.md` §4). A decisão é do dono.
+      */}
+      <div class="max-w-md">
         <div data-rise class="respira rounded-xl border-2 border-brand bg-card p-7 relative">
           <div class="absolute -top-3 left-6 bg-brand text-on-brand text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded">
-            {PRECO.mesesBonus} meses de bônus
+            7 dias grátis
           </div>
-          <p class="text-[11px] uppercase tracking-[0.18em] text-ink-mute mb-3 font-semibold">Anual, à vista</p>
-          <p class="font-serif text-[2.75rem] leading-none text-ink">{reais(PRECO_ANUAL)}<span class="text-lg text-ink-mute font-sans"> /ano</span></p>
-          <p class="text-sm text-brand-text mt-3 font-medium">
-            sai por {reais(PRECO_ANUAL_POR_MES)} por mês — você paga {12 - PRECO.mesesBonus} e usa 12
-          </p>
+          <p class="text-[11px] uppercase tracking-[0.18em] text-ink-mute mb-3 font-semibold">Mensal</p>
+          <p class="font-serif text-[2.75rem] leading-none text-ink">{reais(PRECO.mensal)}<span class="text-lg text-ink-mute font-sans"> /mês</span></p>
+          <p class="text-sm text-ink-mute mt-3">depois dos 7 dias · cancela pelo painel, quando quiser</p>
           <ul class="mt-6 space-y-2.5 text-[15px] text-ink-soft">
-            {['Tudo do plano mensal','Dois meses sem pagar nada','Preço travado pelo ano inteiro','Prioridade na fila de montagem'].map((t) => (
+            {['O site com o nome da sua barbearia no endereço','Agendamento 24 horas, sem o cliente baixar nada','Painel no celular, com a agenda e o faturamento','A lista de clientes em planilha, quando quiser','Backup todo dia, fora do servidor'].map((t) => (
               <li class="flex gap-2.5"><span class="text-brand-text font-bold shrink-0" aria-hidden="true">✓</span>{t}</li>
             ))}
           </ul>
         </div>
       </div>
 
-      <a href={ctaPreco} target="_blank" rel="noopener" data-rise
+      <a href={principal.href} {...(principal.externo ? { target: '_blank', rel: 'noopener' } : {})} data-rise
         class="mt-9 inline-flex items-center justify-center min-h-[52px] bg-brand hover:bg-brand-hover text-on-brand font-bold uppercase tracking-wider text-sm px-10 rounded-md transition-colors">
-        Quero começar
+        {principal.rotulo}
       </a>
       <p class="mt-5 text-xs text-ink-mute max-w-xl leading-relaxed">
-        Mudanças no desenho da página, seções novas ou funcionalidades sob medida são orçadas
-        à parte. Trocar foto, texto, preço e horário você faz sozinho, sempre, sem custo.
+        O cartão é pedido no fim do teste, e nada é cobrado antes do 8º dia. Cancelou: o site fica
+        no ar até o fim do mês já pago. Trocar foto, texto, preço e horário você faz sozinho, pelo
+        painel, sempre, sem custo.
       </p>
     </div>
   </section>
@@ -304,15 +293,19 @@ const faq = [
   <!-- ============ 9. FECHAMENTO ============ -->
   <section class="bg-dark sobre-escuro">
     <div class="max-w-3xl mx-auto px-5 py-20 sm:py-28 text-center">
-      <h2 data-rise class="font-serif text-[clamp(2rem,4.6vw,3.25rem)] leading-tight tracking-tight text-cream">Vamos conversar?</h2>
+      <h2 data-rise class="font-serif text-[clamp(2rem,4.6vw,3.25rem)] leading-tight tracking-tight text-cream">Veja com a sua barbearia</h2>
       <p data-rise class="mt-5 text-cream/70 max-w-lg mx-auto leading-relaxed">
-        Vinte minutos no WhatsApp. Eu te mostro como fica, você me diz se faz sentido.
-        Se não fizer, sem problema nenhum.
+        Sete dias com o site no ar, com a sua cor, os seus serviços e o seu horário. Se não
+        fizer sentido, você não paga nada.
       </p>
-      <a href={ctaDuvida} target="_blank" rel="noopener" data-rise
+      <a href={principal.href} {...(principal.externo ? { target: '_blank', rel: 'noopener' } : {})} data-rise
         class="mt-9 inline-flex items-center justify-center min-h-[52px] bg-brand hover:bg-brand-hover text-on-brand font-bold uppercase tracking-wider text-sm px-10 rounded-md transition-colors">
-        Chamar no WhatsApp
+        {principal.rotulo}
       </a>
+      <p data-rise class="mt-6 text-sm text-cream/65">
+        Prefere conversar antes?
+        <a href={waDuvida} target="_blank" rel="noopener" class="text-cream/80 hover:text-brand-on-dark underline underline-offset-4 transition-colors">Chame no WhatsApp</a>
+      </p>
     </div>
   </section>
 
