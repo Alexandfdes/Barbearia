@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **28/10** | **O resto dos erros da revisão de 27/10**, a seu pedido: o boot em ciclo enchendo o disco de backups, o dono trancado fora do painel por quem soubesse o WhatsApp dele, o nome do cliente no e-mail de agendamento, desligar barbeiro com cliente marcado, o Início dizendo "tudo certo" sem serviço agendável e a logo apagando o digitado | §2.61 |
 | **27/10** | **Da revisão antes do primeiro deploy, os dois pequenos:** o servidor que não atendia o pedido de parar e a confirmação da falta que abria atrás do detalhe — consertados no mesmo dia | §2.60 |
 | **26/10** | **Os dois últimos da varredura:** o telefone preso na barbearia fora do ar — o operador o libera agora, na ficha — e o backup interrompido que contava como bom — consertados no mesmo dia | §2.59 |
 | **26/10** | **O concluído sem risco na agenda e o formulário antigo do site de vendas fora**, decididos por você | §2.58 |
@@ -2625,6 +2626,45 @@ dois daemons em ~120 ms (antes: vivo e respondendo 5 s depois, só o SIGKILL o d
 navegador contra o build, a confirmação por cima, o clique no "Sim, faltou" e a falta gravada.
 ⚠️ **Não conferido aqui: o `docker build`** — não há Docker na nuvem. O job `imagem` do CI é quem prova
 que o pacote `tini` do Alpine instala o `/sbin/tini`.
+
+### 2.61 ✅ `[TÉCNICO]` O resto dos erros da revisão de 27/10/2026 — CONSERTADOS em 28/10, a seu pedido
+
+- **Migration que falha não enche mais o disco.** O boot que sai com erro é reiniciado sem parar pelo
+  orquestrador, e cada volta tirava mais um dump "antes-da" — a retenção só roda no daemon, que nesse
+  ciclo nunca sobe. Agora a volta seguinte reaproveita o dump feito há menos de 6 horas e diz isso no
+  log (`backupRecente`, em `apps/barbearia/scripts/backup.mjs`; `scripts/startup.mjs`).
+- **Ninguém de fora tranca mais o dono fora do painel.** O limite por conta contava antes de conferir a
+  senha, inclusive a certa, e o login é o WhatsApp que está no site do dono: com dois IPs, qualquer
+  pessoa o trancava. Agora:
+  - **o aparelho onde o número já entrou** ganha um cookie lacrado (`__fadeline_aparelho`, um ano, só em
+    `/api/auth/`), e nele o limite por conta não vale — o por IP e o por IP + número continuam
+    (`apps/barbearia/src/lib/aparelhoConhecido.ts`);
+  - **a tentativa certa é devolvida** aos limites (`devolverTentativa`, em `src/lib/rateLimit.ts`): o
+    Wi-Fi da barbearia não se tranca mais entrando várias vezes;
+  - **o "esqueci a senha" não recusa mais** o quarto pedido do mesmo número na hora: responde igual e não
+    manda nada — os pedidos anteriores já levaram o link ao e-mail do dono.
+  ⚠️ **Num aparelho novo, a conta trancada continua trancada** — é o que segura a força bruta espalhada.
+- **O e-mail de agendamento não leva mais o nome do cliente**, no assunto nem no texto: era texto livre de
+  qualquer pessoa no site, saindo com o remetente do produto. O telefone vai, só com dígitos, e o nome
+  está na agenda (`src/lib/avisoDeAgenda.ts`). ⚠️ **Falta, antes do `CADASTRO_ABERTO`:** o e-mail do
+  dono não é confirmado, e quem se cadastra escolhe o nome da barbearia, dos serviços e dos barbeiros —
+  que o aviso leva. Um cadastro com o e-mail de outra pessoa ainda manda a ela texto escolhido pelo
+  atacante. O conserto de verdade é **confirmar o e-mail antes de mandar qualquer aviso**.
+- **Desligar barbeiro com cliente marcado pede confirmação**, com quantos são e o próximo horário. Antes
+  salvava calado: ele sumia da agenda, o Início seguia contando o dinheiro e o cliente não conseguia
+  remarcar pelo link (`api/admin/barbers/[id].ts`, `mesmoComAgendados`). ⚠️ Confirmado, os clientes
+  continuam marcados com ele — "Mover horário" não troca de barbeiro.
+- **O Início acusa quando nenhum serviço é agendável** — serviço e barbeiro com expediente existiam, mas
+  ninguém fazia serviço nenhum: o site mostrava "AGENDAR" e respondia "agende pelo WhatsApp". Bloqueio
+  novo, "Diga quem faz cada serviço", também na ficha do operador (`src/lib/completude.ts`).
+- **Subir a logo ou a capa não apaga o que foi digitado e não salvo** (o nº 6 da varredura de 26/10, que
+  tinha ficado de fora): antes de recarregar, o rascunho vai para a sessão da aba e volta aos campos,
+  com o aviso de que falta salvar (`admin/configuracoes.astro`).
+
+**Verificado:** 114 arquivos, **1291 de 1291** contra PostgreSQL 16; o `astro check` com zero; 10
+defeitos reintroduzidos, os 10 vermelhos; e, no navegador contra o build, a frase digitada sobrevivendo à
+logo sem ir ao banco, o Início acusando e deixando de acusar, e a pergunta antes de desligar o barbeiro
+com cliente marcado.
 
 ---
 
