@@ -850,7 +850,10 @@ const clientData: DadosDaAgenda = {
   <!-- ============ MODAIS ============ -->
 
   <!-- Modal de confirmação genérico (cancelar etc.) -->
-  <div id="confirm-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+  <!-- A confirmação abre POR CIMA do detalhe e da comanda (z-[60]; eles são z-50): com o mesmo
+       z-50, o detalhe vinha depois no HTML e a cobria — o "Sim, faltou" ficava inalcançável
+       (revisão de 27/10/2026). tests/confirmacao-por-cima.test.ts -->
+  <div id="confirm-modal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
     <div class="bg-white border border-slate-200 rounded-lg shadow-2xl max-w-sm w-full p-6">
       <p id="confirm-title" class="text-base font-medium text-slate-900 mb-2">Confirmar?</p>
       <p id="confirm-message" class="text-sm text-slate-500 mb-5 leading-relaxed">Tem certeza?</p>
