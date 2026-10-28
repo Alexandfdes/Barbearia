@@ -28,7 +28,8 @@ Por que num repositório só, e o que foi rejeitado: `docs/MONOREPO.md`.
 
 ⚠️ **O build do Docker precisa de `apps/barbearia` como contexto**, não da raiz.
 O caminho mudou (`docs/MONOREPO.md` §3), e o `Dockerfile` também, desde então: o estágio só com as
-dependências de produção, o backup antes das migrations e a saúde (`HEALTHCHECK`).
+dependências de produção, o backup antes das migrations, a saúde (`HEALTHCHECK`) e, desde 27/10/2026, o
+`tini` como processo 1 — sem ele, o servidor ignorava o pedido de parar (`docs/PENDENCIAS-ABERTAS.md` §2.60).
 
 ⚠️ **Padrão de `.gitignore` para conteúdo sensível nunca é ancorado na raiz.** Ao mover
 o app para `apps/barbearia/`, `data/**/*.db` parou de casar e o git tentou versionar o

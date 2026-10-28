@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **27/10** | **Da revisão antes do primeiro deploy, os dois pequenos:** o servidor que não atendia o pedido de parar e a confirmação da falta que abria atrás do detalhe — consertados no mesmo dia | §2.60 |
 | **26/10** | **Os dois últimos da varredura:** o telefone preso na barbearia fora do ar — o operador o libera agora, na ficha — e o backup interrompido que contava como bom — consertados no mesmo dia | §2.59 |
 | **26/10** | **O concluído sem risco na agenda e o formulário antigo do site de vendas fora**, decididos por você | §2.58 |
 | **26/10** | **O cadastro, antes de abrir:** o limite que contava tentativa errada, o e-mail de boas-vindas que servia de golpe, o `/cadastrar` no endereço de outra barbearia e o 404 com a barbearia 1 — consertados no mesmo dia | §2.57 |
@@ -2600,6 +2601,30 @@ recente, e o backup seguinte não é pulado (`apps/barbearia/tests/backup-interr
 aplicada pelo boot de produção sobre um banco na 0017, com o backup de antes; e contra o build, no
 navegador, o botão ausente na barbearia no ar, presente na fora do ar, o barbeiro desligado, o dono
 não, a linha no registro e, na segunda vez, a recusa.
+
+### 2.60 ✅ `[TÉCNICO]` O servidor que não parava e a confirmação escondida — da revisão de 27/10/2026, CONSERTADOS no mesmo dia
+
+A revisão antes do primeiro deploy (o relatório mora no projeto do claude.ai, porque descreve fraquezas)
+não achou nada que impeça o deploy. Dos erros que achou, estes dois foram consertados antes dele:
+
+- **O servidor não atendia o pedido de parar.** O `sh` do Alpine passava o servidor a processo 1 do
+  container, e o Linux não entrega SIGTERM a processo 1 que não o trata: todo redeploy esperava o prazo
+  do orquestrador (~10 s) e acabava em SIGKILL, cortando o que estivesse em andamento. Agora o processo 1
+  é o `tini`, com `-g`, que repassa o sinal ao servidor e aos dois daemons (`apps/barbearia/Dockerfile`).
+  ⚠️ O servidor para na hora, mas **não espera** as requisições em andamento terminarem — isso pediria
+  tratar o sinal no app.
+- **Na agenda do dia, a confirmação de "Faltou" e de "Cancelar" abria atrás do detalhe do
+  agendamento**: as duas janelas no mesmo `z-50`, e o detalhe vem depois no HTML. O botão "Sim, faltou"
+  não recebia o clique. Veio com a confirmação da falta de 26/10 (§2.56). Agora ela abre por cima
+  (`z-[60]`).
+
+**Verificado:** 111 arquivos, **1280 de 1280** contra PostgreSQL 16; o `astro check` com zero; os dois
+consertos desfeitos e o caso vermelho; o CMD do Dockerfile rodado com o `sh` do Alpine (busybox 1.36.1)
+e o `tini` como processo 1 num espaço de processos à parte — o pedido de parar derruba o servidor e os
+dois daemons em ~120 ms (antes: vivo e respondendo 5 s depois, só o SIGKILL o derrubava); e, no
+navegador contra o build, a confirmação por cima, o clique no "Sim, faltou" e a falta gravada.
+⚠️ **Não conferido aqui: o `docker build`** — não há Docker na nuvem. O job `imagem` do CI é quem prova
+que o pacote `tini` do Alpine instala o `/sbin/tini`.
 
 ---
 
