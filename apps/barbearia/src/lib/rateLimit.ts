@@ -37,6 +37,16 @@ export function consultarRateLimit(key: string, opts: RLOptions = {}): { ok: boo
   return { ok: false, retryAfterSecs: Math.ceil((entry.resetAt - now) / 1000) };
 }
 
+/**
+ * Devolve uma tentativa contada por `checkRateLimit` — para quando só o que deu ERRADO
+ * deve contar, mas a conta tem de ser feita ANTES (senão pedidos simultâneos passam
+ * todos pela consulta): o login reserva a tentativa e a devolve quando a senha confere.
+ */
+export function devolverTentativa(key: string): void {
+  const entry = store.get(key);
+  if (entry && entry.count > 0) entry.count--;
+}
+
 export function resetRateLimit(key: string): void {
   store.delete(key);
 }

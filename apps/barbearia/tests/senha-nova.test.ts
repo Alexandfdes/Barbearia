@@ -317,12 +317,22 @@ describe.skipIf(!TEM_BANCO)('as rotas', () => {
     expect(email.caixaDeSaida[0].texto).toContain('https://painel.fadeline.com.br/admin/nova-senha?token=');
   });
 
-  it('esqueci: o quarto pedido para o mesmo número na mesma hora é recusado', async () => {
-    const pedir = (ip: string) => esqueci.POST(pedidoJson('http://painel.test/api/auth/esqueci', { whatsapp: '84977776666' }, ip) as never);
-    expect((await pedir('10.9.1.1')).status).toBe(200);
-    expect((await pedir('10.9.1.2')).status).toBe(200);
-    expect((await pedir('10.9.1.3')).status).toBe(200);
-    expect((await pedir('10.9.1.4')).status).toBe(429);
+  it('esqueci: o quarto pedido para o mesmo número na mesma hora não manda e-mail — e responde igual', async () => {
+    // Até 27/10/2026 o quarto levava 429: quem gastasse os 3 pedidos do número de um dono
+    // (o WhatsApp dele está no site) trancava também esta saída. Agora a resposta é a do
+    // pedido aceito, e nada sai: os 3 anteriores já levaram o link ao e-mail do dono.
+    const pedir = (ip: string) => esqueci.POST(pedidoJson('http://painel.test/api/auth/esqueci', { whatsapp: '84999990004' }, ip) as never);
+    (await import('../src/lib/rateLimit.ts')).resetRateLimit('senha-nova-tel:84999990004');
+    email.caixaDeSaida.length = 0;
+    for (const ip of ['10.9.1.1', '10.9.1.2', '10.9.1.3']) expect((await pedir(ip)).status).toBe(200);
+    await new Promise((r) => setTimeout(r, 300));
+    const enviados = email.caixaDeSaida.length;
+    expect(enviados).toBe(3);
+    const quarto = await pedir('10.9.1.4');
+    expect(quarto.status).toBe(200);
+    expect((await quarto.json()).mensagem).toBe(esqueci.RESPOSTA_DO_PEDIDO);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(email.caixaDeSaida.length).toBe(enviados);
   });
 
   it('esqueci: com o envio de e-mail desligado, a tela diz — em vez de prometer um e-mail que não sai', async () => {

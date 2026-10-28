@@ -38,7 +38,8 @@ import { barbers, tenants } from '../../../db/schema.js';
 import { json } from '../../../lib/api.js';
 import { makeSessionCookie } from '../../../lib/session.js';
 import { situacaoDe, noAr } from '../../../lib/situacao.js';
-import { LIMITE_DA_CONTA, chavesDaConta, checkRateLimit, resetRateLimit } from '../../../lib/rateLimit.js';
+import { LIMITE_DA_CONTA, chavesDaConta, checkRateLimit, devolverTentativa, resetRateLimit } from '../../../lib/rateLimit.js';
+import { aparelhoConhecido, cookieDoAparelho } from '../../../lib/aparelhoConhecido.js';
 import { getClientIp } from '../../../lib/clientIp.js';
 import { normalizePhone } from '../../../lib/phone.js';
 
@@ -95,7 +96,11 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   // A chave da segunda usa o valor NORMALIZADO: senão "84999990000",
   // "(84) 99999-0000" e "+5584999990000" seriam três contadores para a mesma
   // conta, e o limite de 5 viraria 15.
-  const globalRl = checkRateLimit(`admin-login-global:${ip}`, { maxTries: 15 });
+  // Os limites contam ANTES de conferir a senha (pedidos simultâneos não escapam) e a
+  // tentativa é DEVOLVIDA quando a senha confere: só o erro conta (27/10/2026 — antes,
+  // 13 logins certos e 2 errados do Wi-Fi da barbearia trancavam o dono por 10 minutos).
+  const chaveGlobal = `admin-login-global:${ip}`;
+  const globalRl = checkRateLimit(chaveGlobal, { maxTries: 15 });
   if (!globalRl.ok) {
     return json({ error: `Muitas tentativas deste IP. Tente em ${globalRl.retryAfterSecs}s` }, 429);
   }
@@ -106,14 +111,20 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     return json({ error: `Muitas tentativas. Tente em ${rl.retryAfterSecs}s` }, 429);
   }
 
-  // (3) Por conta, de qualquer IP — a força bruta distribuída.
-  if (telefone) {
+  // (3) Por conta, de qualquer IP — a força bruta distribuída. ⚠️ NÃO vale no aparelho
+  // onde este número já entrou (`lib/aparelhoConhecido.ts`): sem isso, qualquer pessoa
+  // trancava o dono fora — o login é o WhatsApp do site dele (revisão de 27/10/2026).
+  let chavesReservadas: string[] = [];
+  if (telefone && !(await aparelhoConhecido(request, telefone))) {
     const [curta, doDia] = chavesDaConta(telefone);
     const conta = checkRateLimit(curta, LIMITE_DA_CONTA.curto);
     const dia = conta.ok ? checkRateLimit(doDia, LIMITE_DA_CONTA.dia) : conta;
     if (!conta.ok || !dia.ok) {
+      if (conta.ok) devolverTentativa(curta);
+      devolverTentativa(chaveGlobal);
       return json({ error: 'Muitas tentativas com este WhatsApp. Tente mais tarde, ou use "Esqueci minha senha".' }, 429);
     }
+    chavesReservadas = [curta, doDia];
   }
 
   const colunas = {
@@ -186,6 +197,8 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   }
 
   resetRateLimit(rlKey);
+  devolverTentativa(chaveGlobal);
+  for (const k of chavesReservadas) devolverTentativa(k);
 
   const cookie = await makeSessionCookie({
     barberId: barbeiro.id,
@@ -194,8 +207,11 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     tenantId: barbeiro.tenantId,
   });
 
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+  headers.append('Set-Cookie', cookie);
+  if (telefone) headers.append('Set-Cookie', await cookieDoAparelho(telefone));
   return new Response(JSON.stringify({ ok: true, destino: noAr(situacao) ? '/admin' : '/admin/assinatura' }), {
     status:  200,
-    headers: { 'Content-Type': 'application/json', 'Set-Cookie': cookie },
+    headers,
   });
 };
