@@ -164,9 +164,11 @@ describe('o texto do aviso', () => {
 
   it('agendamento novo: quem, quando, o quê, o WhatsApp e o link da agenda do dia', () => {
     const { assunto, texto } = textoDoAvisoDeAgenda('novo', appt, ctx);
-    expect(assunto).toBe('Agendamento novo: Joao guilherme, ter 13/10 às 21:30');
+    expect(assunto).toBe('Agendamento novo: ter 13/10 às 21:30');
+    // Sem o nome do cliente — texto livre de qualquer um no site (revisão de 27/10/2026).
+    expect(assunto + texto).not.toContain('Joao');
     expect(texto).toMatch(/^Olá, Ana\.\n/);
-    expect(texto).toContain('Joao guilherme agendou pelo site da Barbearia Navalha:');
+    expect(texto).toContain('Um cliente agendou pelo site da Barbearia Navalha:');
     expect(texto).toContain('terça-feira, 13/10, às 21:30');
     expect(texto).toContain('Corte — R$ 39,90');
     expect(texto).toContain('Com: Ana');
@@ -177,12 +179,14 @@ describe('o texto do aviso', () => {
 
   it('desmarcado e remarcado dizem o que mudou', () => {
     const d = textoDoAvisoDeAgenda('desmarcado', appt, ctx);
-    expect(d.assunto).toBe('Desmarcado: Joao guilherme, ter 13/10 às 21:30');
+    expect(d.assunto).toBe('Desmarcado: ter 13/10 às 21:30');
+    expect(d.texto).not.toContain('Joao');
     expect(d.texto).toContain('O horário ficou livre no site.');
 
     const r = textoDoAvisoDeAgenda('remarcado', { ...appt, inicio: '2026-10-15T13:00:00.000Z' },
       { ...ctx, inicioAnterior: appt.inicio });
-    expect(r.assunto).toBe('Remarcado: Joao guilherme, ter 13/10 às 21:30 → qui 15/10 às 10:00');
+    expect(r.assunto).toBe('Remarcado: ter 13/10 às 21:30 → qui 15/10 às 10:00');
+    expect(r.texto).not.toContain('Joao');
     expect(r.texto).toContain('Era:   terça-feira, 13/10, às 21:30');
     expect(r.texto).toContain('Agora: quinta-feira, 15/10, às 10:00');
     // O link leva ao dia NOVO.
@@ -238,7 +242,7 @@ describe.skipIf(!TEM_BANCO)('o aviso de agenda, pelas rotas do cliente', () => {
   it('o e-mail é o do agendamento gravado — e não leva nascimento nem o link de desmarcar', async () => {
     const r = await agendar(2, as(terca, '11:00'));
     const e = caixaDeSaida[0];
-    expect(e.assunto).toBe(`Agendamento novo: Cliente Teste, ${quandoCurto(as(terca, '11:00'), TZ)}`);
+    expect(e.assunto).toBe(`Agendamento novo: ${quandoCurto(as(terca, '11:00'), TZ)}`);
     expect(e.texto).toContain('Corte — R$ 40');
     expect(e.texto).toContain(`/admin/dia/${terca}`);
     expect(e.texto).not.toMatch(/1990|20\/05/);
@@ -272,7 +276,7 @@ describe.skipIf(!TEM_BANCO)('o aviso de agenda, pelas rotas do cliente', () => {
     const r = await porToken('cancel', tokenDaAna);
     expect(r.status).toBe(200);
     expect(para()).toEqual(['ana@navalha.com', 'vera@navalha.com']);
-    expect(caixaDeSaida[0].assunto).toBe(`Desmarcado: Cliente Teste, ${quandoCurto(as(terca, '10:00'), TZ)}`);
+    expect(caixaDeSaida[0].assunto).toBe(`Desmarcado: ${quandoCurto(as(terca, '10:00'), TZ)}`);
 
     caixaDeSaida.length = 0;
     expect((await porToken('cancel', tokenDaAna)).status).toBe(409);
@@ -294,7 +298,7 @@ describe.skipIf(!TEM_BANCO)('o aviso de agenda, pelas rotas do cliente', () => {
     expect(r.status).toBe(200);
     expect(para()).toEqual(['ana@navalha.com', 'vera@navalha.com']);
     const e = caixaDeSaida[0];
-    expect(e.assunto).toBe(`Remarcado: Cliente Teste, ${quandoCurto(as(terca, '16:00'), TZ)} → ${quandoCurto(as(quarta, '09:00'), TZ)}`);
+    expect(e.assunto).toBe(`Remarcado: ${quandoCurto(as(terca, '16:00'), TZ)} → ${quandoCurto(as(quarta, '09:00'), TZ)}`);
     expect(e.texto).toContain(`Era:   ${quandoPorExtenso(as(terca, '16:00'), TZ)}`);
     expect(e.texto).toContain(`/admin/dia/${quarta}`);
 

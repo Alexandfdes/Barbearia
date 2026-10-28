@@ -92,6 +92,12 @@ export function quandoCurto(iso: string, fuso: string): string {
  *
  * Sem a data de nascimento do cliente e sem o link de gerenciar o agendamento: o
  * primeiro é dado que o barbeiro não precisa, e o segundo é a chave que desmarca.
+ *
+ * ⚠️ **Sem o nome do cliente, no assunto e no texto** (revisão de 27/10/2026): ele é texto
+ * livre de qualquer pessoa no site, e o e-mail sai com o remetente do produto — "Agendamento
+ * novo: FADELINE: regularize em http://golpe…" chegava ao dono como se fosse nosso. É a regra
+ * do e-mail de boas-vindas (`api/cadastrar.ts`). O nome está na agenda, pelo link abaixo; o
+ * telefone vai, só com dígitos.
  */
 export function textoDoAvisoDeAgenda(
   tipo: MudancaNaAgenda,
@@ -109,9 +115,9 @@ export function textoDoAvisoDeAgenda(
   let assunto: string;
 
   if (tipo === 'novo') {
-    assunto = `Agendamento novo: ${a.cliente}, ${quandoCurto(a.inicio, fuso)}`;
+    assunto = `Agendamento novo: ${quandoCurto(a.inicio, fuso)}`;
     linhas.push(
-      `${a.cliente} agendou pelo site da ${contexto.barbearia}:`,
+      `Um cliente agendou pelo site da ${contexto.barbearia}:`,
       '',
       `  ${quandoPorExtenso(a.inicio, fuso)}`,
       `  ${a.servico} — ${reais(a.precoCentavos)}`,
@@ -122,18 +128,18 @@ export function textoDoAvisoDeAgenda(
       `  Com: ${a.barbeiro}`,
     );
   } else if (tipo === 'desmarcado') {
-    assunto = `Desmarcado: ${a.cliente}, ${quandoCurto(a.inicio, fuso)}`;
+    assunto = `Desmarcado: ${quandoCurto(a.inicio, fuso)}`;
     linhas.push(
-      `${a.cliente} desmarcou, pelo link do agendamento, o horário de`,
+      'O cliente desmarcou, pelo link do agendamento, o horário de',
       `${quandoPorExtenso(a.inicio, fuso)} — ${a.servico}, com ${a.barbeiro}.`,
       '',
       'O horário ficou livre no site.',
     );
   } else {
     const antes = contexto.inicioAnterior ?? a.inicio;
-    assunto = `Remarcado: ${a.cliente}, ${quandoCurto(antes, fuso)} → ${quandoCurto(a.inicio, fuso)}`;
+    assunto = `Remarcado: ${quandoCurto(antes, fuso)} → ${quandoCurto(a.inicio, fuso)}`;
     linhas.push(
-      `${a.cliente} remarcou pelo link do agendamento:`,
+      'O cliente remarcou pelo link do agendamento:',
       '',
       `  Era:   ${quandoPorExtenso(antes, fuso)}`,
       `  Agora: ${quandoPorExtenso(a.inicio, fuso)}`,
