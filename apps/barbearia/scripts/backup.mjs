@@ -326,6 +326,31 @@ export async function backupDoBanco(rotulo) {
 }
 
 /**
+ * Um backup `-<rotulo>.sql.gz` feito há menos de `maxIdadeMs` — ou `null`.
+ *
+ * Para o backup de antes das migrations (27/10/2026): migration que falha derruba o
+ * boot, o orquestrador reinicia o container sem parar, e cada volta tirava mais um
+ * dump do banco inteiro — a retenção só roda no daemon, que nesse ciclo nunca sobe.
+ * Com dado de verdade, enchia o disco da VPS, o mesmo do Postgres. Entre uma volta e
+ * outra o banco não mudou (o servidor nem chegou a subir), então o dump de minutos
+ * atrás vale. Só o `.sql.gz` final conta: o `.parcial` é de um que morreu no meio.
+ */
+export function backupRecente(rotulo, maxIdadeMs) {
+  const limpo = String(rotulo).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+  const fim = `-${limpo}${SUFIXO}`;
+  try {
+    const achados = readdirSync(BACKUP_DIR)
+      .filter((f) => f.startsWith('barbearia_') && f.endsWith(fim))
+      .map((f) => ({ f, s: statSync(join(BACKUP_DIR, f)) }))
+      .filter(({ s }) => s.isFile() && s.size > 0 && Date.now() - s.mtimeMs < maxIdadeMs)
+      .sort((a, b) => b.s.mtimeMs - a.s.mtimeMs);
+    return achados.length ? { dest: join(BACKUP_DIR, achados[0].f), bytes: achados[0].s.size } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * O tamanho de cada parte no envio para fora da VPS. O mínimo do S3 — e do
  * Backblaze — é 5 MiB por parte (menos a última); 16 MiB faz um arquivo de 1 GB
  * subir em 64 partes, com no máximo 16 MiB na memória por vez.

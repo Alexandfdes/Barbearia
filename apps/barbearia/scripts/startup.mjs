@@ -23,7 +23,7 @@ import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
-import { backupDoBanco } from './backup.mjs';
+import { backupDoBanco, backupRecente } from './backup.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PASTA = resolve(__dirname, '..', 'drizzle');
@@ -174,6 +174,9 @@ async function main() {
  *    completa depois da carga faz o backup, com os dados carregados;
  *  - o banco novo, sem migration nenhuma aplicada: não há o que guardar.
  */
+/** Quanto tempo o backup de antes de uma volta anterior do boot ainda vale: 6 horas. */
+const BACKUP_ANTES_VALE_MS = 6 * 60 * 60 * 1000;
+
 async function backupAntesDasMigrations(pendentes, quantasJaAplicadas) {
   if (ate || soMigrations || process.env.NODE_ENV !== 'production') return;
   if (quantasJaAplicadas === 0) {
@@ -188,6 +191,13 @@ async function backupAntesDasMigrations(pendentes, quantasJaAplicadas) {
     return;
   }
   const primeira = pendentes[0].slice(0, 4);
+  // Reiniciando depois de uma migration que falhou: o dump de minutos atrás, do mesmo
+  // banco, vale — senão cada volta do orquestrador gravava mais um (`backupRecente`).
+  const jaFeito = backupRecente(`antes-da-${primeira}`, BACKUP_ANTES_VALE_MS);
+  if (jaFeito) {
+    console.log(`✓ backup antes das migrations: ${jaFeito.dest} (já feito há pouco, numa volta anterior do boot — reaproveitado)`);
+    return;
+  }
   try {
     const { dest, bytes } = await backupDoBanco(`antes-da-${primeira}`);
     const tamanho = bytes < 1024 * 1024

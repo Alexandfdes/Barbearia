@@ -116,6 +116,33 @@ describe.skipIf(!TEM_BANCO || !TEM_PGDUMP)('com banco: o backup antes das migrat
     rmSync(pasta, { recursive: true, force: true });
   }, 60_000);
 
+  it('migration que falha: o boot reiniciando em ciclo NÃO grava um backup por volta (27/10/2026)', async () => {
+    // O orquestrador reinicia o container sem parar quando o boot sai com erro. Antes,
+    // cada volta tirava mais um dump do banco inteiro, e a retenção só roda no daemon —
+    // que nesse ciclo nunca sobe: com dado de verdade, enchia o disco da VPS.
+    await bancoDaVespera();
+    // Uma migration que falha, sem depender de qual é a última: o registro dela em
+    // schema_migrations — na mesma transação — é recusado.
+    await sql.unsafe(`
+      CREATE FUNCTION recusa_migration() RETURNS trigger LANGUAGE plpgsql AS
+        $$ BEGIN RAISE EXCEPTION 'migration de teste falhou'; END $$;
+      CREATE TRIGGER recusa BEFORE INSERT ON schema_migrations
+        FOR EACH ROW EXECUTE FUNCTION recusa_migration();`);
+    const voltas = [1, 2, 3].map(() => boot({ NODE_ENV: 'production', BACKUP_DIR: pasta }));
+    for (const v of voltas) expect(v.status, v.saida).toBe(1);
+    expect(arquivos(), voltas.map((v) => v.saida).join('\n')).toHaveLength(1);
+    expect(voltas[1].saida).toMatch(/reaproveitado/);
+    expect(await aplicadas()).not.toContain(ULTIMA);
+
+    // Consertado o motivo, o boot seguinte migra com o mesmo backup de antes.
+    await sql.unsafe('DROP TRIGGER recusa ON schema_migrations; DROP FUNCTION recusa_migration();');
+    const ok = boot({ NODE_ENV: 'production', BACKUP_DIR: pasta });
+    expect(ok.status, ok.saida).toBe(0);
+    expect(arquivos()).toHaveLength(1);
+    expect(await aplicadas()).toContain(ULTIMA);
+    rmSync(pasta, { recursive: true, force: true });
+  }, 90_000);
+
   it('MIGRAR_SEM_BACKUP=1: migra sem o backup, e diz isso', async () => {
     await bancoDaVespera();
     const arquivo = join(pasta, 'nao-e-pasta');
