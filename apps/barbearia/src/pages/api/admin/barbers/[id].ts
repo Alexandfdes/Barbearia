@@ -2,9 +2,11 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, gte } from 'drizzle-orm';
 import { db, first } from '../../../../db/index.js';
-import { barbers } from '../../../../db/schema.js';
+import { appointments, barbers } from '../../../../db/schema.js';
+import { fusoDe } from '../../../../lib/timezone.js';
+import { quandoCurto } from '../../../../lib/avisoDeAgenda.js';
 import { json, violouUnico } from '../../../../lib/api.js';
 import { normalizePhone } from '../../../../lib/phone.js';
 import { getSession } from '../../../../lib/session.js';
@@ -38,6 +40,8 @@ const updateSchema = z.object({
    * e-mail: o barbeiro não tem tela própria.
    */
   avisarAgendamentos: z.boolean().optional(),
+  /** Desligar mesmo com horários marcados — só depois de a tela mostrar quais (abaixo). */
+  mesmoComAgendados: z.boolean().optional(),
 });
 
 export const PUT: APIRoute = async ({ request, params }) => {
@@ -83,6 +87,29 @@ export const PUT: APIRoute = async ({ request, params }) => {
   }
   if (isSelf && role === 'barber') {
     return json({ error: 'Você não pode rebaixar o seu próprio acesso de admin.' }, 403);
+  }
+
+  // Desligar quem tem cliente marcado daqui para a frente pede confirmação, mostrando quem
+  // (revisão de 27/10/2026). Antes salvava calado: ele sumia da agenda do dia, o Início seguia
+  // contando o dinheiro, e o cliente via "confirmado com Carlos" no link sem conseguir remarcar
+  // — sem vaga em dia nenhum, porque barbeiro desligado não tem vaga.
+  if (active === false && target.active && !parsed.data.mesmoComAgendados) {
+    const marcados = await db.select({ startsAt: appointments.startsAt })
+      .from(appointments)
+      .where(and(eq(appointments.tenantId, tenant.id), eq(appointments.barberId, id),
+        eq(appointments.status, 'confirmed'), gte(appointments.startsAt, new Date().toISOString())))
+      .orderBy(asc(appointments.startsAt));
+    if (marcados.length > 0) {
+      const n = marcados.length;
+      return json({
+        error: `${target.name} tem ${n === 1 ? '1 cliente marcado' : `${n} clientes marcados`} daqui para a frente — `
+          + `o próximo, ${quandoCurto(marcados[0].startsAt, fusoDe(tenant))}. Desligado, ele some da agenda e `
+          + `${n === 1 ? 'esse cliente não consegue' : 'esses clientes não conseguem'} remarcar pelo link. `
+          + 'Cancele ou avise antes, na agenda.',
+        pedeConfirmacao: true,
+        marcados: n,
+      }, 409);
+    }
   }
 
   const updates: Record<string, unknown> = {};
