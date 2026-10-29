@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **28–29/10** | **No ar:** o primeiro deploy da `monorepo` (PR #2), o app sem superusuário, o domínio `fadeline.com.br` com o site de vendas na raiz, e o primeiro cadastro de teste pela web. **Decidido por você:** o Bayron não vai ser migrado — o banco dele é fictício; se ele fechar, entra do zero | `PENDENCIAS-ABERTAS.md` §3.2, `PENDENCIAS-ABERTAS.md` §0.1 e `PENDENCIAS-ABERTAS.md` §2.62 |
 | **28/10** | **O resto dos erros da revisão de 27/10**, a seu pedido: o boot em ciclo enchendo o disco de backups, o dono trancado fora do painel por quem soubesse o WhatsApp dele, o nome do cliente no e-mail de agendamento, desligar barbeiro com cliente marcado, o Início dizendo "tudo certo" sem serviço agendável e a logo apagando o digitado | §2.61 |
 | **27/10** | **Da revisão antes do primeiro deploy, os dois pequenos:** o servidor que não atendia o pedido de parar e a confirmação da falta que abria atrás do detalhe — consertados no mesmo dia | §2.60 |
 | **26/10** | **Os dois últimos da varredura:** o telefone preso na barbearia fora do ar — o operador o libera agora, na ficha — e o backup interrompido que contava como bom — consertados no mesmo dia | §2.59 |
@@ -57,8 +58,9 @@
 | **15/10** | **A barra lateral presa na tela**, pedido por você: rolava junto com a página, e no fim de uma tela longa o menu tinha sumido. No computador, agora fica presa — o menu que não cabe rola por dentro, e o Sair fica sempre à vista; no celular, nada muda. A do painel do operador também | `PENDENCIAS-ABERTAS.md` §2.46 |
 | **16/10** | **A revisão do projeto, conferida no GitHub e rodando a árvore do `22ecd85`**: o código verde (1156 de 1156, zero erro de tipo, o CI do GitHub verde), e a `main` — de onde a produção constrói — parada em 10/10, 61 commits atrás. **Decidido por você:** os commits deixam de levar as linhas `Co-Authored-By` e `Claude-Session` (os já publicados ficam), e a pasta `Design/` fica no repositório. **Consertados em 17/10, os achados dela:** o backup antes das migrations (§3.2), a fila do webhook parada visível no painel do operador (§3.13), o rodapé que não acendia o dia (§2.47) e a raiz do painel em 404 (§2.48) | `PENDENCIAS-ABERTAS.md` §3.2, `PENDENCIAS-ABERTAS.md` §3.13 e `CLAUDE.md` |
 
-**Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
-08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
+**Ainda pendente dentro dos itens acima:** ~~registrar `fadeline.com.br`~~ — ✅ **registrado pelo
+dono** (vale até 14/10/2027) e em uso desde 29/10/2026, com o DNS na Hostinger; ⚠️ **não conferido**
+se a Hostinger tem a API que o certificado curinga precisa — a Cloudflare tem (abaixo). Falta procurar o nome na busca de marcas do
 INPI — classes 42, 35 e 44 — antes de gastar com logo. **E, descoberto em 09/10/2026:** para
 os subdomínios terem certificado sem trabalho por cliente, o DNS do domínio tem que morar na
 Cloudflare, não no registro.br — o certificado curinga só sai pelo desafio DNS-01, e o
@@ -1574,10 +1576,8 @@ cada item abaixo foi conferido no código ou nos documentos:
 
 E dois que não são código:
 
-- **O domínio é provisório.** O `DOMINIO_BASE` de produção é um domínio pessoal do dono, não o
-  `fadeline.com.br` — que continua sem registro, com o nome ainda provisório (§0.1). Barbearia
-  que entrar agora ganha um endereço que vai mudar, e endereço de barbearia vai para Instagram,
-  cartão de visita e Google: trocar depois quebra o que ela já divulgou.
+- ~~**O domínio é provisório.**~~ — ✅ desde 29/10/2026 o `DOMINIO_BASE` de produção é
+  `fadeline.com.br`, registrado pelo dono. O nome continua provisório até a busca no INPI (§0.1).
 - **Os termos e o CNPJ** (§1.2 e `ARQUITETURA-COBRANCA-V1.md` §11).
 
 **Para ligar o `CADASTRO_ABERTO=1`:** o certificado curinga provado com um subdomínio que
@@ -2666,6 +2666,22 @@ defeitos reintroduzidos, os 10 vermelhos; e, no navegador contra o build, a fras
 logo sem ir ao banco, o Início acusando e deixando de acusar, e a pergunta antes de desligar o barbeiro
 com cliente marcado.
 
+### 2.62 🟡 `[TÉCNICO]` O que o primeiro cadastro de verdade, no ar, mostrou — 29/10/2026
+
+O dono se cadastrou em `painel.fadeline.com.br/cadastrar`, com o cadastro aberto só para isso e
+fechado em seguida. A barbearia nasceu, a tela final disse *"quase no ar"* (o certo, sem o
+certificado), o painel e o site abriram. Achado no caminho:
+
+- **A prévia do endereço diz que está tudo certo para um endereço reservado.** Digitado `teste`, a
+  prévia mostrou `teste.fadeline.com.br` como os outros; a recusa — *"é um endereço reservado do
+  sistema"* — só veio ao enviar o formulário inteiro. A prévia devia conferir a lista de
+  reservados (`apps/barbearia/src/lib/enderecosReservados.ts`) na hora. *Lido na tela; não
+  consertado.*
+- **O site de cada barbearia nova precisa ser adicionado à mão nos domínios do EasyPanel** para
+  ter cadeado (§2.31, item 1) — continua valendo no domínio novo.
+
+O roteiro de testes do dia seguinte mora no projeto do claude.ai; o que ele achar entra aqui.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -2723,13 +2739,11 @@ de verdade (`apps/barbearia/tests/backup-antes-das-migrations.test.ts`), 8 reint
 vermelhas — uma só depois de reforçar o teste; e o arquivo restaurado num banco vazio voltou com
 a migration anterior e a barbearia, e o boot sobre ele reaplicou a seguinte.
 
-⚠️ **Nada de 10/10 à tarde para cá está no ar** (conferido no GitHub em 16/10): a `main`, de onde
-o EasyPanel constrói, parou no merge do PR #1, e a `monorepo` está à frente dela com a cobrança, o
-operador, o fuso, a exportação, a trava de horário duplo e o resto. O primeiro deploy vai levar
-tudo de uma vez — 9 migrations, da 0010 à 0018, e o Dockerfile novo, construído de verdade pela
-primeira vez no CI de 25/10 (§3.12; o job `imagem`, abaixo). Com o banco vazio de hoje, é o deploy mais barato que vai
-existir; cada semana a mais engorda o lote. O passo a passo, com os nomes do servidor, está no
-projeto do claude.ai.
+✅ **No ar desde 28/10/2026.** A `monorepo` entrou na `main` pelo PR #2, com o CI verde nos três
+jobs, e foi implantada à mão: **o EasyPanel não faz deploy sozinho** — depois do merge, alguém
+clica em Implantar. O boot saiu como o ensaiado no CI: o backup de antes da `0010`, as nove
+migrations, o papel do app e os daemons. ⚠️ *Até 28/10 este parágrafo dizia "nada de 10/10 para
+cá está no ar".* O passo a passo usado e o estado do servidor estão no projeto do claude.ai.
 
 ✅ **O merge não tem conflito** (conferido no GitHub em 17/10/2026): a `main` não tem nada que a
 `monorepo` não tenha — o único commit dela fora da `monorepo` é o próprio merge do PR #1, sem

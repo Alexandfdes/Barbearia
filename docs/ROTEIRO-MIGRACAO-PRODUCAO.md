@@ -1,5 +1,10 @@
 # Roteiro — pôr o Postgres no ar para o Bayron
 
+> ⚠️ **28/10/2026: NÃO VAI SER EXECUTADO** — decisão do dono: o banco do Bayron é fictício. Se ele
+> fechar, entra do zero, como qualquer cliente (pelo cadastro ou pelo provisionador). O app novo
+> está no ar desde 28/10 sem a carga, e este documento fica como histórico — e como roteiro, se um
+> dia uma barbearia real vier de um SQLite.
+>
 > Escrito em 13/09/2026. **Ainda não executado.**
 > ⚠️ **Atualizado em 10/10/2026: o app novo subiu ANTES da migração, com o banco vazio, e o
 > §4.2 não roda mais como está escrito. Leia o §0.2 antes de qualquer passo.**
