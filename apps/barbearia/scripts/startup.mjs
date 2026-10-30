@@ -174,8 +174,13 @@ async function main() {
  *    completa depois da carga faz o backup, com os dados carregados;
  *  - o banco novo, sem migration nenhuma aplicada: não há o que guardar.
  */
-/** Quanto tempo o backup de antes de uma volta anterior do boot ainda vale: 6 horas. */
-const BACKUP_ANTES_VALE_MS = 6 * 60 * 60 * 1000;
+/**
+ * Quanto tempo o backup de antes de uma volta anterior do boot ainda vale: 20 minutos.
+ * Era 6 horas até 30/10/2026: um deploy que falhou de manhã, revertido, com o app velho atendendo
+ * a tarde inteira, deixava o conserto das 15h migrar sobre o dump das 10h — horas de agendamento
+ * de todas as barbearias sem volta. O ciclo de reinício que isto evita leva segundos por volta.
+ */
+const BACKUP_ANTES_VALE_MS = 20 * 60 * 1000;
 
 async function backupAntesDasMigrations(pendentes, quantasJaAplicadas) {
   if (ate || soMigrations || process.env.NODE_ENV !== 'production') return;
@@ -193,7 +198,7 @@ async function backupAntesDasMigrations(pendentes, quantasJaAplicadas) {
   const primeira = pendentes[0].slice(0, 4);
   // Reiniciando depois de uma migration que falhou: o dump de minutos atrás, do mesmo
   // banco, vale — senão cada volta do orquestrador gravava mais um (`backupRecente`).
-  const jaFeito = backupRecente(`antes-da-${primeira}`, BACKUP_ANTES_VALE_MS);
+  const jaFeito = await backupRecente(`antes-da-${primeira}`, BACKUP_ANTES_VALE_MS);
   if (jaFeito) {
     console.log(`✓ backup antes das migrations: ${jaFeito.dest} (já feito há pouco, numa volta anterior do boot — reaproveitado)`);
     return;

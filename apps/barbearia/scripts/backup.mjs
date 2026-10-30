@@ -53,11 +53,11 @@
  * Dockerfile. Se ele quebrar, o backup diário para **em silêncio**. É o que
  * `PENDENCIAS-ABERTAS.md` §3.3 chama de "backup que não existe".
  */
-import { createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { spawn } from 'node:child_process';
-import { createGzip } from 'node:zlib';
+import { createGunzip, createGzip } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
 
 const BACKUP_DIR     = process.env.BACKUP_DIR ?? '/data/backups';
@@ -335,19 +335,37 @@ export async function backupDoBanco(rotulo) {
  * outra o banco não mudou (o servidor nem chegou a subir), então o dump de minutos
  * atrás vale. Só o `.sql.gz` final conta: o `.parcial` é de um que morreu no meio.
  */
-export function backupRecente(rotulo, maxIdadeMs) {
+export async function backupRecente(rotulo, maxIdadeMs) {
   const limpo = String(rotulo).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
   const fim = `-${limpo}${SUFIXO}`;
+  let achados;
   try {
-    const achados = readdirSync(BACKUP_DIR)
+    achados = readdirSync(BACKUP_DIR)
       .filter((f) => f.startsWith('barbearia_') && f.endsWith(fim))
       .map((f) => ({ f, s: statSync(join(BACKUP_DIR, f)) }))
       .filter(({ s }) => s.isFile() && s.size > 0 && Date.now() - s.mtimeMs < maxIdadeMs)
       .sort((a, b) => b.s.mtimeMs - a.s.mtimeMs);
-    return achados.length ? { dest: join(BACKUP_DIR, achados[0].f), bytes: achados[0].s.size } : null;
   } catch {
     return null;
   }
+  // Só vale um dump INTEIRO (30/10/2026): até então qualquer arquivo com o nome certo servia — um
+  // de 26 bytes de lixo foi aceito. O `pg_dump` termina o arquivo com esta linha; sem ela, o dump
+  // está cortado ou não é um dump.
+  for (const { f, s } of achados) {
+    if (await terminaComoDump(join(BACKUP_DIR, f))) return { dest: join(BACKUP_DIR, f), bytes: s.size };
+  }
+  return null;
+}
+
+/** O `.sql.gz` descomprime inteiro e termina com a linha de fim do `pg_dump`? */
+function terminaComoDump(caminho) {
+  return new Promise((resolve) => {
+    let fim = '';
+    const leitor = createReadStream(caminho).pipe(createGunzip());
+    leitor.on('data', (d) => { fim = (fim + d.toString('utf8')).slice(-400); });
+    leitor.on('end', () => resolve(/PostgreSQL database dump complete/.test(fim)));
+    leitor.on('error', () => resolve(false));
+  });
 }
 
 /**
