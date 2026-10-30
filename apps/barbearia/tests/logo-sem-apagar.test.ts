@@ -19,6 +19,9 @@ describe('as imagens de Configurações', () => {
 
   it('o rascunho volta aos campos ao abrir a tela', () => {
     expect(tela).toMatch(/function devolverRascunho\(\)/);
-    expect(tela).toMatch(/\n\s*devolverRascunho\(\);/);
+    // Depois do retrato das "alterações não salvas" (o script do módulo): antes dele, o rascunho
+    // entrava no retrato como se fosse o salvo, e o aviso ficava ao contrário (revisão de 30/10/2026).
+    expect(tela).toMatch(/addEventListener\('DOMContentLoaded', devolverRascunho\)/);
+    expect(tela).not.toMatch(/\n\s*devolverRascunho\(\);/);
   });
 });

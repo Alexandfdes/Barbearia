@@ -670,8 +670,15 @@ const comuns = { valor, opcoesDeFuso, fusoAtual, mapaAgora };
     const aviso = document.getElementById('cfg-msg');
     aviso.textContent = 'Imagem salva. O que você tinha digitado continua aqui — falta clicar em Salvar.';
     aviso.className = 'text-sm rounded px-3 py-2 bg-amber-50 border border-amber-200 text-amber-950';
+    // O aviso fica ao lado do Salvar, no fim da página: leva o dono até ele (30/10/2026 — a página
+    // recarregava no ponto da rolagem da logo, e o aviso ficava fora da vista).
+    // Depois do `load`: o navegador devolve a rolagem de antes do recarregar e desfaria esta.
+    window.addEventListener('load', () => setTimeout(() => aviso.scrollIntoView({ block: 'center' }), 50));
   }
-  devolverRascunho();
+  // Depois do script do módulo (que roda antes do DOMContentLoaded): ele tira o retrato do
+  // formulário para o aviso de "alterações não salvas". Devolvido antes, o rascunho entrava no
+  // retrato como se fosse o salvo, e o aviso ficava ao contrário (revisão de 30/10/2026).
+  document.addEventListener('DOMContentLoaded', devolverRascunho);
 
   const msg = document.getElementById('cfg-msg');
   const status = document.getElementById('cfg-status');
