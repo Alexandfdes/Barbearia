@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **30/10** | **A revisão depois do deploy, consertada:** o cookie de aparelho amarrado ao barbeiro e à senha, o backup de antes só reaproveitado se inteiro e de minutos atrás, o "esqueci" sem e-mail dizendo isso sempre, o gráfico vazio do Início, os bloqueios fora da ordem, o "Próximo" desatualizado e o aviso de não salvo ao contrário. **O roteiro de testes em produção ficou para depois**, por decisão sua | `PENDENCIAS-ABERTAS.md` §2.63 |
 | **28–29/10** | **No ar:** o primeiro deploy da `monorepo` (PR #2), o app sem superusuário, o domínio `fadeline.com.br` com o site de vendas na raiz, e o primeiro cadastro de teste pela web. **Decidido por você:** o Bayron não vai ser migrado — o banco dele é fictício; se ele fechar, entra do zero | `PENDENCIAS-ABERTAS.md` §3.2, `PENDENCIAS-ABERTAS.md` §0.1 e `PENDENCIAS-ABERTAS.md` §2.62 |
 | **28/10** | **O resto dos erros da revisão de 27/10**, a seu pedido: o boot em ciclo enchendo o disco de backups, o dono trancado fora do painel por quem soubesse o WhatsApp dele, o nome do cliente no e-mail de agendamento, desligar barbeiro com cliente marcado, o Início dizendo "tudo certo" sem serviço agendável e a logo apagando o digitado | §2.61 |
 | **27/10** | **Da revisão antes do primeiro deploy, os dois pequenos:** o servidor que não atendia o pedido de parar e a confirmação da falta que abria atrás do detalhe — consertados no mesmo dia | §2.60 |
@@ -2680,7 +2681,46 @@ certificado), o painel e o site abriram. Achado no caminho:
 - **O site de cada barbearia nova precisa ser adicionado à mão nos domínios do EasyPanel** para
   ter cadeado (§2.31, item 1) — continua valendo no domínio novo.
 
-O roteiro de testes do dia seguinte mora no projeto do claude.ai; o que ele achar entra aqui.
+O roteiro de testes do dia seguinte mora no projeto do claude.ai, **ensaiado inteiro em 29/10** num
+ambiente igual ao de produção — o que o ensaio achou está no §2.63. ⚠️ **O teste do dono em produção
+ficou para depois** (decisão de 30/10/2026): o roteiro continua valendo e pendente.
+
+### 2.63 ✅ `[TÉCNICO]` A revisão depois do deploy — CONSERTADA em 30/10/2026
+
+Feita na noite de 29/10, sobre o código que já estava no ar: um olhar adversário sobre os consertos de
+27 e 28/10 e o ensaio inteiro do roteiro de testes (o relatório mora no projeto do claude.ai, porque
+descreve fraquezas). Consertado:
+
+- **O cookie de aparelho era um passe de um ano.** Guardava só o telefone e sobrevivia à troca de
+  senha: o ex-funcionário, o notebook roubado, tirava o limite por conta de qualquer IP. Agora o lacre
+  leva o barbeiro e quando foi feito, e **a troca de senha** (`senha_trocada_em`) **ou o desligar o
+  invalidam**; vale 60 dias e se renova a cada login certo; é um cookie por número, e o dono de duas
+  barbearias não perde a exceção de uma ao entrar na outra (`apps/barbearia/src/lib/aparelhoConhecido.ts`).
+  Recusado pelo limite da conta, o login devolve também a tentativa do limite IP + número.
+- **O backup de antes "reaproveitado" podia ser de um banco que já mudou** — escolhido só pelo nome e
+  por ter menos de 6 horas (um arquivo de lixo de 26 bytes foi aceito). Agora só vale um dump **inteiro**
+  (descomprime e termina com a linha de fim do `pg_dump`) e de **menos de 20 minutos**: cobre o ciclo
+  de reinício, que leva segundos por volta, e não um deploy da manhã revertido (`backupRecente`, em
+  `apps/barbearia/scripts/backup.mjs`).
+- **O "esqueci a senha", sem e-mail configurado**, passou a dizer que não está funcionando em todo
+  pedido — do 4º em diante, o limite por número respondia "o link está a caminho".
+- **O gráfico "Receita esta semana" do Início saía vazio** — as barras com 0 px (`admin/index.astro`).
+- **Na agenda do dia, os bloqueios entram na lista na ordem da hora**, entre os atendimentos
+  (`components/admin/AgendaLista.astro`).
+- **Depois de uma falta ou de um cancelamento, a agenda do dia volta a ser montada**: o cartão
+  "Próximo" mostrava o cliente que tinha cancelado até alguém recarregar.
+- **O aviso de "alterações não salvas" depois de subir a logo** ficava ao contrário (o rascunho entrava
+  no retrato como se fosse o salvo), e o aviso amarelo ficava fora da vista — agora a tela rola até ele.
+
+**Ficou de fora, para decidir ou fazer:** todo e-mail confirmado antes de receber qualquer coisa — o
+aviso de "e-mail trocado" e o do teste e da cobrança também levam texto escolhido por quem tem painel
+(antes do `CADASTRO_ABERTO`, §2.61); a comanda aceitar produto (**decisão sua**); e os menores da
+revisão de 30/10.
+
+**Verificado:** 115 arquivos, **1296 de 1296** contra PostgreSQL 16; o `astro check` com zero; 9
+consertos desfeitos, os 9 vermelhos; no navegador contra o build, as barras do gráfico com altura, o
+bloqueio das 15:00 depois do atendimento das 14:00, o "Próximo" atualizado depois do cancelar, e o
+rascunho da logo com "Alterações não salvas" e o aviso à vista.
 
 ---
 
