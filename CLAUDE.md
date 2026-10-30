@@ -44,15 +44,17 @@ recusando dois agendamentos do mesmo barbeiro no mesmo horário. O passo 6 ("sep
 é por endereço: site e painel continuam **num app e num processo só**. O estado de cada passo:
 `docs/ESTADO-ATUAL.md` §4.
 
-⚠️ **A `main` recebeu a `monorepo` em 09/10/2026** (PR #1), e desde 10/10 o app novo roda
-dela no EasyPanel — com o banco vazio. **O site do Bayron, não:** o serviço dele constrói de
-outro repositório, o `Alexandfdes/Barbearia-Bayron` (a `main` de lá parou em `e50926a`, de
-10/07), em SQLite e Astro 6, até o `docs/ROTEIRO-MIGRACAO-PRODUCAO.md` ser executado — e o
-`docs/ROTEIRO-MIGRACAO-PRODUCAO.md` §0.2 diz o que mudou com o app já no ar.
+⚠️ **Produção roda a `main`, que recebeu a `monorepo` em 28/10/2026** (PR #2): as migrations até a
+`0018`, o `Dockerfile` novo e o app falando com o banco por um usuário sem superusuário. O domínio é
+o do produto desde 29/10: `fadeline.com.br` é o site de vendas, `painel.fadeline.com.br` o painel e
+`<slug>.fadeline.com.br` o site de cada barbearia. **O deploy não é automático:** depois do merge na
+`main`, alguém clica em Implantar no EasyPanel (`docs/PENDENCIAS-ABERTAS.md` §3.2). Os nomes e a
+configuração do servidor moram no projeto do claude.ai, não aqui.
 
-⚠️ **A `main` parou em `0d86871` (10/10/2026), e é dela que o EasyPanel constrói:** o que entrou
-na `monorepo` depois — nove migrations, `0010` a `0018`, e o `Dockerfile` novo — não está em
-produção. Antes de juntar, o `docs/PENDENCIAS-ABERTAS.md` §3.2.
+⚠️ **O Bayron não vai ser migrado** (decisão do dono em 28/10/2026: o banco dele é fictício). Se ele
+fechar, entra do zero, como qualquer cliente. O site antigo dele continua no outro repositório, o
+`Alexandfdes/Barbearia-Bayron` (SQLite e Astro 6), e o `docs/ROTEIRO-MIGRACAO-PRODUCAO.md` ficou como
+histórico.
 
 ⚠️ **Os dois repositórios estão públicos**, este e o `Barbearia-Bayron` (conferido em
 10/10/2026: o clone sem credencial funciona). Enquanto estiverem, nada de credencial, endereço
@@ -219,13 +221,16 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   … `RETURNING`), não só na leitura antes: dois pedidos ao mesmo tempo passavam os dois
   (`lib/fecharAtendimento.ts`). Falta só depois do início; concluído em qualquer hora do mesmo dia,
   **sem mudar o horário marcado e sem liberar a vaga** (decisão do dono, 26/10/2026).
-- **E-mail que sai para endereço não confirmado não leva texto digitado** (o de boas-vindas do cadastro):
-  nome de barbearia ou de dono no assunto vira golpe com o remetente do produto (`api/cadastrar.ts`,
-  `emailDeBoasVindas`; `docs/PENDENCIAS-ABERTAS.md` §2.57). O `/cadastrar` é caminho do painel. O aviso de
-  agendamento não leva o nome do cliente (`docs/PENDENCIAS-ABERTAS.md` §2.61).
+- **Nada sai para e-mail não confirmado** (`barbers.email_confirmado_em`, migration 0019) — menos o pedido de
+  confirmação, que não leva texto digitado (`apps/barbearia/src/lib/confirmacaoDeEmail.ts`). Envio novo
+  filtra `isNotNull(barbers.emailConfirmadoEm)`; caminho novo que grava e-mail volta a confirmação para nula
+  quando ele muda (`docs/PENDENCIAS-ABERTAS.md` §2.64). Nome de barbearia ou de dono no assunto vira golpe
+  com o remetente do produto (`docs/PENDENCIAS-ABERTAS.md` §2.57). O `/cadastrar` é caminho do painel. O
+  aviso de agendamento não leva o nome do cliente (`docs/PENDENCIAS-ABERTAS.md` §2.61).
 - **Limite de tentativa conta antes e devolve no acerto** (`devolverTentativa`): só o erro conta. E o
-  limite do login por CONTA não vale no aparelho onde o número já entrou (`lib/aparelhoConhecido.ts`) —
-  sem isso, qualquer pessoa trancava o dono fora (`docs/PENDENCIAS-ABERTAS.md` §2.61).
+  limite do login por CONTA não vale no aparelho onde ESTE barbeiro já entrou depois da última troca de
+  senha (`lib/aparelhoConhecido.ts`) — sem isso, qualquer pessoa trancava o dono fora; sem amarrar ao
+  barbeiro e à senha, o cookie virava passe (`docs/PENDENCIAS-ABERTAS.md` §2.61 e `docs/PENDENCIAS-ABERTAS.md` §2.63).
 - **O app não precisa de superusuário no banco:** `scripts/usuario-do-app.mjs` faz a troca, e
   migration nova não pode pedir superusuário. **Restaurou um backup?** `scripts/permissoes-do-app.mjs`
   — o boot recusa subir se o papel do app não ler as tabelas (`docs/PENDENCIAS-ABERTAS.md` §3.10 e `docs/PENDENCIAS-ABERTAS.md` §3.11).

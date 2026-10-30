@@ -128,6 +128,8 @@ describe('nenhuma página pública serve barbearia sem perguntar de quem é o en
       'a senha nova começa como o login: acha o barbeiro pelo telefone ANTES de saber a barbearia',
     'src/pages/api/auth/nova-senha.ts':
       'a barbearia sai do token do link do e-mail, não do endereço — lib/redefinicaoDeSenha.ts',
+    'src/pages/api/auth/confirmar-email.ts':
+      'a barbearia sai do token do link de confirmação, não do endereço — lib/confirmacaoDeEmail.ts',
     'src/pages/api/tarefas/avisos.ts':
       'tarefa agendada, chamada pela porta local com token: olha todas as barbearias de propósito — lib/avisos.ts',
     'src/pages/api/asaas/webhook.ts':

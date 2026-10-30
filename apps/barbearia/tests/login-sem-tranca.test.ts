@@ -37,7 +37,7 @@ function entrar(ip: string, senha: string, cookie = '') {
 
 /** O cookie do aparelho que a resposta mandou guardar. */
 function cookieDoAparelho(r: Response): string {
-  const linha = (r.headers.getSetCookie?.() ?? []).find((c) => c.startsWith('__fadeline_aparelho='));
+  const linha = (r.headers.getSetCookie?.() ?? []).find((c) => c.startsWith(`__fadeline_aparelho_${DONO}=`));
   expect(linha, 'o login certo manda guardar o cookie do aparelho').toBeTruthy();
   return linha!.split(';')[0];
 }
@@ -81,10 +81,24 @@ describe.skipIf(!TEM_BANCO)('o login não deixa trancar o dono', () => {
     expect((await entrar('10.2.0.1', SENHA, aparelho)).status).toBe(200);
   });
 
+  it('trocada a senha, o cookie de antes não abre mais a exceção (revisão de 30/10/2026)', async () => {
+    // Antes o lacre guardava só o telefone e valia um ano: o ex-funcionário, o notebook roubado,
+    // tirava o limite por conta de qualquer IP mesmo depois da senha trocada.
+    for (const k of rl.chavesDaConta(DONO)) rl.resetRateLimit(k);
+    const certo = await entrar('10.5.0.1', SENHA);
+    expect(certo.status).toBe(200);
+    const antigo = cookieDoAparelho(certo);
+    await new Promise((r) => setTimeout(r, 5));
+    await sql`UPDATE barbers SET senha_trocada_em = now() WHERE phone = ${DONO}`;
+    for (let i = 0; i < 12; i++) await entrar(`10.6.0.${i}`, 'chute-errado');
+    expect((await entrar('10.6.1.1', SENHA, antigo)).status, 'o cookie de antes da troca não vale').toBe(429);
+    await sql`UPDATE barbers SET senha_trocada_em = NULL WHERE phone = ${DONO}`;
+  });
+
   it('o cookie de outro número, ou adulterado, não abre a exceção', async () => {
     for (const k of rl.chavesDaConta(DONO)) rl.resetRateLimit(k);
     for (let i = 0; i < 12; i++) await entrar(`10.4.0.${i}`, 'chute-errado');
-    const falso = '__fadeline_aparelho=Fe26.2**adulterado';
+    const falso = `__fadeline_aparelho_${DONO}=Fe26.2**adulterado`;
     expect((await entrar('10.4.1.1', SENHA, falso)).status).toBe(429);
   });
 });

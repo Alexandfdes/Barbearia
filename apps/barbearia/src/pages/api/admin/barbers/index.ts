@@ -12,6 +12,7 @@ import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { emailValido, normalizarEmail } from '../../../../lib/email.js';
 import { SENHA_MINIMA } from '../../../../lib/redefinicaoDeSenha.js';
+import { pedirConfirmacao } from '../../../../lib/confirmacaoDeEmail.js';
 
 const BCRYPT_COST = 12;
 
@@ -149,5 +150,10 @@ export const POST: APIRoute = async ({ request }) => {
     return json({ error: 'Erro ao criar barbeiro' }, 500);
   }
 
-  return json({ id: Number(newId), name, slug, role, active: true }, 201);
+  // Com e-mail: o link de confirmação sai agora. Até ele ser aberto, nada mais vai para lá
+  // (`lib/confirmacaoDeEmail.ts`).
+  const confirmacao = email
+    ? await pedirConfirmacao({ tenantId: tenant.id, barberId: Number(newId), esperarEnvio: false })
+    : null;
+  return json({ id: Number(newId), name, slug, role, active: true, ...(confirmacao ? { confirmacao } : {}) }, 201);
 };

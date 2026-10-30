@@ -31,6 +31,12 @@ export interface TrocaDeEmail {
   /** De quem é o e-mail que mudou. */
   pessoa: { id: number; nome: string; papel: 'admin' | 'barber' };
   antigo: string | null;
+  /**
+   * O e-mail antigo estava confirmado? Sem isso, nada sai para ele: o aviso leva o nome da
+   * barbearia, e endereço que ninguém provou ser do dono não recebe texto digitado
+   * (`lib/confirmacaoDeEmail.ts`). Ausente vale `false`.
+   */
+  antigoConfirmado?: boolean;
   /** `null` quando o e-mail foi apagado. */
   novo: string | null;
   /** Quem estava com o painel aberto e fez a troca. */
@@ -111,6 +117,7 @@ export async function avisarEmailTrocado(p: TrocaDeEmail & {
   enviar?: (e: Email) => Promise<unknown>;
 }): Promise<boolean> {
   if (!trocaQueAvisa(p.antigo, p.novo)) return false;
+  if (!p.antigoConfirmado) return false;
   const para = normalizarEmail(p.antigo)!;
   const enviar = p.enviar ?? enviarEmail;
   try {

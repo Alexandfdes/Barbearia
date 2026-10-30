@@ -19,7 +19,7 @@ if (!barberRow) return Astro.redirect('/admin/login');
 
 const list = (await db
   .select({ id: barbers.id, name: barbers.name, slug: barbers.slug, role: barbers.role, active: barbers.active, email: barbers.email, phone: barbers.phone,
-            avisarAgendamentos: barbers.avisarAgendamentos })
+            avisarAgendamentos: barbers.avisarAgendamentos, emailConfirmadoEm: barbers.emailConfirmadoEm })
   .from(barbers)
   .where(eq(barbers.tenantId, tenant.id))
   .orderBy(barbers.name)
@@ -132,10 +132,24 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
                 {b.email
                   ? <span data-email={String(b.id)}>{b.email}</span>
                   : <span data-sem-email={String(b.id)} class="text-amber-700">sem e-mail — não recebe a senha nova nem os avisos de agendamento</span>}
+                {b.email && b.emailConfirmadoEm && <span data-confirmado={String(b.id)} class="text-teal"> · confirmado</span>}
               </p>
+              {/* A confirmação do e-mail (30/10/2026, `lib/confirmacaoDeEmail.ts`): até a pessoa
+                  abrir o link, nada chega nele — nem a senha nova, nem os avisos. */}
+              {b.email && !b.emailConfirmadoEm && (
+                <div data-nao-confirmado={String(b.id)} class="text-xs text-amber-800 mt-1">
+                  <p>
+                    E-mail <strong>não confirmado</strong>: nada chega nele até {b.id === session.barberId ? 'você abrir' : 'a pessoa abrir'} o
+                    link que mandamos para lá.
+                    {' '}<button type="button" data-reenviar={String(b.id)}
+                      class="underline underline-offset-2 hover:text-amber-950">Mandar o link de novo</button>
+                  </p>
+                  <p data-reenviar-msg={String(b.id)} class="hidden mt-0.5" role="status"></p>
+                </div>
+              )}
               {/* Os avisos de agendamento por e-mail (11/10/2026, `lib/avisoDeAgenda.ts`):
                   o dono recebe os de todos; o barbeiro, os dele. Sem e-mail, não há o que dizer. */}
-              {b.email && (
+              {b.email && b.emailConfirmadoEm && (
                 <p data-avisos={String(b.id)} class="text-xs text-slate-400 mt-0.5">
                   {b.avisarAgendamentos
                     ? (b.role === 'admin'
@@ -194,9 +208,10 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
               <input data-edit-email={String(b.id)} type="email" inputmode="email" value={b.email ?? ''}
                 placeholder="para a senha nova e os avisos"
                 class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-teal/50" />
-              {b.email && (
-                <p class="text-xs text-slate-400 mt-1">Se trocar, o e-mail de agora recebe um aviso da troca.</p>
-              )}
+              <p class="text-xs text-slate-400 mt-1">
+                {b.email && b.emailConfirmadoEm ? 'Se trocar, o e-mail de agora recebe um aviso da troca. ' : ''}E-mail novo
+                recebe um link de confirmação, e só recebe o resto depois de confirmado.
+              </p>
             </div>
 
             <label class="flex items-start gap-2 text-sm text-slate-700">
@@ -206,7 +221,7 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
                 Mandar e-mail quando um cliente agenda, desmarca ou remarca pelo site
                 <span class="block text-xs text-slate-400">
                   {b.role === 'admin' ? 'Como admin, recebe os de todos os horários da barbearia.' : 'Só os dos próprios horários.'}
-                  {' '}Precisa do e-mail acima.
+                  {' '}Precisa do e-mail acima, confirmado.
                 </span>
               </span>
             </label>
@@ -303,6 +318,24 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
 
   listEl.addEventListener('click', async (e) => {
     const target = e.target as HTMLElement;
+
+    // Mandar o link de confirmação de novo (`lib/confirmacaoDeEmail.ts`).
+    const reenviar = target.closest<HTMLButtonElement>('[data-reenviar]');
+    if (reenviar) {
+      const id  = reenviar.dataset.reenviar!;
+      const msg = document.querySelector<HTMLElement>(`[data-reenviar-msg="${id}"]`)!;
+      reenviar.disabled = true;
+      try {
+        const res  = await fetch(`/api/admin/barbers/${id}/confirmar-email`, { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        msg.textContent = res.ok ? data.mensagem : (data.error ?? 'Não deu para mandar agora.');
+      } catch {
+        msg.textContent = 'Erro de conexão.';
+      }
+      msg.classList.remove('hidden');
+      reenviar.disabled = false;
+      return;
+    }
 
     const editBtn = target.closest<HTMLButtonElement>('[data-edit]');
     if (editBtn) {

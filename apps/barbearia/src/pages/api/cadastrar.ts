@@ -43,7 +43,8 @@ import { getClientIp } from '../../lib/clientIp.js';
 import { carregarTenants, invalidarTenants, resolverHost, urlDoSite } from '../../lib/tenant.js';
 import { makeSessionCookie } from '../../lib/session.js';
 import { ultimoDia } from '../../lib/situacao.js';
-import { enviarEmail, normalizarEmail } from '../../lib/email.js';
+import { normalizarEmail } from '../../lib/email.js';
+import { pedirConfirmacao, trechoDoLink } from '../../lib/confirmacaoDeEmail.js';
 import { formatarTelefone } from '../../lib/phone.js';
 import { urlDoPainel } from '../../lib/tenant.js';
 import { NOME_PRODUTO } from '../../lib/produto.js';
@@ -186,21 +187,24 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
    */
   const sessao = await makeSessionCookie({ barberId: r.barbeiroId, role: 'admin', tenantId: r.tenantId });
 
-  // O primeiro e-mail — e o único jeito de saber cedo que o endereço existe: se
-  // ele não chegar, o dono descobre hoje, com o cadastro fresco, e não no dia em
-  // que pedir a senha nova. Sem `await`: o cadastro já deu certo, e um provedor
-  // de e-mail lento não pode segurar a tela de fim do cadastro.
-  const email = normalizarEmail(parsed.data.email);
-  if (email) {
-    enviarEmail({
-      para: email,
-      ...emailDeBoasVindas({
-        site,
-        painel: urlDoPainel(),
-        whatsapp: formatarTelefone(r.telefoneLogin),
-        ultimoDiaDoTeste: corpo.ultimoDiaDoTeste,
-      }),
-    }).catch((erro) => console.warn('[cadastro] o e-mail de boas-vindas não saiu:', erro instanceof Error ? erro.message : erro));
+  // O primeiro e-mail, com o link que confirma o endereço (`lib/confirmacaoDeEmail.ts`):
+  // até ele ser aberto, nada mais vai para lá — nem a senha nova, nem os avisos. Se não
+  // chegar, o dono descobre hoje, com o cadastro fresco. Sem esperar o provedor: o
+  // cadastro já deu certo, e um provedor lento não pode segurar a tela de fim.
+  if (normalizarEmail(parsed.data.email)) {
+    const boasVindas = {
+      site,
+      painel: urlDoPainel(),
+      whatsapp: formatarTelefone(r.telefoneLogin),
+      ultimoDiaDoTeste: corpo.ultimoDiaDoTeste,
+    };
+    const resultado = await pedirConfirmacao({
+      tenantId: r.tenantId,
+      barberId: r.barbeiroId,
+      esperarEnvio: false,
+      montar: (linkDeConfirmacao) => emailDeBoasVindas({ ...boasVindas, linkDeConfirmacao }),
+    });
+    if (resultado !== 'enviado') console.warn(`[cadastro] o e-mail de boas-vindas não saiu: ${resultado}`);
   }
 
   return new Response(JSON.stringify(corpo), {
@@ -233,6 +237,8 @@ export function emailDeBoasVindas(d: {
   painel: string;
   whatsapp: string;
   ultimoDiaDoTeste: string | null;
+  /** O link que confirma este e-mail (`lib/confirmacaoDeEmail.ts`). */
+  linkDeConfirmacao: string;
 }): { assunto: string; texto: string } {
   return {
     assunto: `O seu cadastro no ${NOME_PRODUTO}`,
@@ -247,6 +253,8 @@ export function emailDeBoasVindas(d: {
       '',
       ...(d.ultimoDiaDoTeste ? [`O teste grátis vai até ${d.ultimoDiaDoTeste}. Até lá, nada é cobrado.`, ''] : []),
       'É para este e-mail que vão o link de senha nova, se você esquecer a sua, e os avisos do teste e da cobrança.',
+      '',
+      ...trechoDoLink(d.linkDeConfirmacao),
       '',
       'Não foi você que fez este cadastro? Pode ignorar este e-mail.',
       '',

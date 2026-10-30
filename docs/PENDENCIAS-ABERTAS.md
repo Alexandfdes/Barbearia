@@ -24,6 +24,9 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **30/10** | **Nada sai para e-mail não confirmado**, menos o próprio link de confirmação, sem texto digitado: a senha nova, os avisos de agendamento, do teste, da cobrança e o de e-mail trocado esperam a pessoa abrir o link e tocar em "Confirmar". Era o que faltava antes do `CADASTRO_ABERTO` | `PENDENCIAS-ABERTAS.md` §2.64 |
+| **30/10** | **A revisão depois do deploy, consertada:** o cookie de aparelho amarrado ao barbeiro e à senha, o backup de antes só reaproveitado se inteiro e de minutos atrás, o "esqueci" sem e-mail dizendo isso sempre, o gráfico vazio do Início, os bloqueios fora da ordem, o "Próximo" desatualizado e o aviso de não salvo ao contrário. **O roteiro de testes em produção ficou para depois**, por decisão sua | `PENDENCIAS-ABERTAS.md` §2.63 |
+| **28–29/10** | **No ar:** o primeiro deploy da `monorepo` (PR #2), o app sem superusuário, o domínio `fadeline.com.br` com o site de vendas na raiz, e o primeiro cadastro de teste pela web. **Decidido por você:** o Bayron não vai ser migrado — o banco dele é fictício; se ele fechar, entra do zero | `PENDENCIAS-ABERTAS.md` §3.2, `PENDENCIAS-ABERTAS.md` §0.1 e `PENDENCIAS-ABERTAS.md` §2.62 |
 | **28/10** | **O resto dos erros da revisão de 27/10**, a seu pedido: o boot em ciclo enchendo o disco de backups, o dono trancado fora do painel por quem soubesse o WhatsApp dele, o nome do cliente no e-mail de agendamento, desligar barbeiro com cliente marcado, o Início dizendo "tudo certo" sem serviço agendável e a logo apagando o digitado | §2.61 |
 | **27/10** | **Da revisão antes do primeiro deploy, os dois pequenos:** o servidor que não atendia o pedido de parar e a confirmação da falta que abria atrás do detalhe — consertados no mesmo dia | §2.60 |
 | **26/10** | **Os dois últimos da varredura:** o telefone preso na barbearia fora do ar — o operador o libera agora, na ficha — e o backup interrompido que contava como bom — consertados no mesmo dia | §2.59 |
@@ -57,8 +60,9 @@
 | **15/10** | **A barra lateral presa na tela**, pedido por você: rolava junto com a página, e no fim de uma tela longa o menu tinha sumido. No computador, agora fica presa — o menu que não cabe rola por dentro, e o Sair fica sempre à vista; no celular, nada muda. A do painel do operador também | `PENDENCIAS-ABERTAS.md` §2.46 |
 | **16/10** | **A revisão do projeto, conferida no GitHub e rodando a árvore do `22ecd85`**: o código verde (1156 de 1156, zero erro de tipo, o CI do GitHub verde), e a `main` — de onde a produção constrói — parada em 10/10, 61 commits atrás. **Decidido por você:** os commits deixam de levar as linhas `Co-Authored-By` e `Claude-Session` (os já publicados ficam), e a pasta `Design/` fica no repositório. **Consertados em 17/10, os achados dela:** o backup antes das migrations (§3.2), a fila do webhook parada visível no painel do operador (§3.13), o rodapé que não acendia o dia (§2.47) e a raiz do painel em 404 (§2.48) | `PENDENCIAS-ABERTAS.md` §3.2, `PENDENCIAS-ABERTAS.md` §3.13 e `CLAUDE.md` |
 
-**Ainda pendente dentro dos itens acima:** registrar `fadeline.com.br` (livre em
-08/10/2026 e de novo em 09/10, **não registrado**) e procurar o nome na busca de marcas do
+**Ainda pendente dentro dos itens acima:** ~~registrar `fadeline.com.br`~~ — ✅ **registrado pelo
+dono** (vale até 14/10/2027) e em uso desde 29/10/2026, com o DNS na Hostinger; ⚠️ **não conferido**
+se a Hostinger tem a API que o certificado curinga precisa — a Cloudflare tem (abaixo). Falta procurar o nome na busca de marcas do
 INPI — classes 42, 35 e 44 — antes de gastar com logo. **E, descoberto em 09/10/2026:** para
 os subdomínios terem certificado sem trabalho por cliente, o DNS do domínio tem que morar na
 Cloudflare, não no registro.br — o certificado curinga só sai pelo desafio DNS-01, e o
@@ -1574,10 +1578,8 @@ cada item abaixo foi conferido no código ou nos documentos:
 
 E dois que não são código:
 
-- **O domínio é provisório.** O `DOMINIO_BASE` de produção é um domínio pessoal do dono, não o
-  `fadeline.com.br` — que continua sem registro, com o nome ainda provisório (§0.1). Barbearia
-  que entrar agora ganha um endereço que vai mudar, e endereço de barbearia vai para Instagram,
-  cartão de visita e Google: trocar depois quebra o que ela já divulgou.
+- ~~**O domínio é provisório.**~~ — ✅ desde 29/10/2026 o `DOMINIO_BASE` de produção é
+  `fadeline.com.br`, registrado pelo dono. O nome continua provisório até a busca no INPI (§0.1).
 - **Os termos e o CNPJ** (§1.2 e `ARQUITETURA-COBRANCA-V1.md` §11).
 
 **Para ligar o `CADASTRO_ABERTO=1`:** o certificado curinga provado com um subdomínio que
@@ -2649,7 +2651,8 @@ que o pacote `tini` do Alpine instala o `/sbin/tini`.
   está na agenda (`src/lib/avisoDeAgenda.ts`). ⚠️ **Falta, antes do `CADASTRO_ABERTO`:** o e-mail do
   dono não é confirmado, e quem se cadastra escolhe o nome da barbearia, dos serviços e dos barbeiros —
   que o aviso leva. Um cadastro com o e-mail de outra pessoa ainda manda a ela texto escolhido pelo
-  atacante. O conserto de verdade é **confirmar o e-mail antes de mandar qualquer aviso**.
+  atacante. O conserto de verdade é **confirmar o e-mail antes de mandar qualquer aviso**. ✅ *Feito em
+  30/10/2026 (§2.64).*
 - **Desligar barbeiro com cliente marcado pede confirmação**, com quantos são e o próximo horário. Antes
   salvava calado: ele sumia da agenda, o Início seguia contando o dinheiro e o cliente não conseguia
   remarcar pelo link (`api/admin/barbers/[id].ts`, `mesmoComAgendados`). ⚠️ Confirmado, os clientes
@@ -2665,6 +2668,112 @@ que o pacote `tini` do Alpine instala o `/sbin/tini`.
 defeitos reintroduzidos, os 10 vermelhos; e, no navegador contra o build, a frase digitada sobrevivendo à
 logo sem ir ao banco, o Início acusando e deixando de acusar, e a pergunta antes de desligar o barbeiro
 com cliente marcado.
+
+### 2.62 🟡 `[TÉCNICO]` O que o primeiro cadastro de verdade, no ar, mostrou — 29/10/2026
+
+O dono se cadastrou em `painel.fadeline.com.br/cadastrar`, com o cadastro aberto só para isso e
+fechado em seguida. A barbearia nasceu, a tela final disse *"quase no ar"* (o certo, sem o
+certificado), o painel e o site abriram. Achado no caminho:
+
+- **A prévia do endereço diz que está tudo certo para um endereço reservado.** Digitado `teste`, a
+  prévia mostrou `teste.fadeline.com.br` como os outros; a recusa — *"é um endereço reservado do
+  sistema"* — só veio ao enviar o formulário inteiro. A prévia devia conferir a lista de
+  reservados (`apps/barbearia/src/lib/enderecosReservados.ts`) na hora. *Lido na tela; não
+  consertado.*
+- **O site de cada barbearia nova precisa ser adicionado à mão nos domínios do EasyPanel** para
+  ter cadeado (§2.31, item 1) — continua valendo no domínio novo.
+
+O roteiro de testes do dia seguinte mora no projeto do claude.ai, **ensaiado inteiro em 29/10** num
+ambiente igual ao de produção — o que o ensaio achou está no §2.63. ⚠️ **O teste do dono em produção
+ficou para depois** (decisão de 30/10/2026): o roteiro continua valendo e pendente.
+
+### 2.63 ✅ `[TÉCNICO]` A revisão depois do deploy — CONSERTADA em 30/10/2026
+
+Feita na noite de 29/10, sobre o código que já estava no ar: um olhar adversário sobre os consertos de
+27 e 28/10 e o ensaio inteiro do roteiro de testes (o relatório mora no projeto do claude.ai, porque
+descreve fraquezas). Consertado:
+
+- **O cookie de aparelho era um passe de um ano.** Guardava só o telefone e sobrevivia à troca de
+  senha: o ex-funcionário, o notebook roubado, tirava o limite por conta de qualquer IP. Agora o lacre
+  leva o barbeiro e quando foi feito, e **a troca de senha** (`senha_trocada_em`) **ou o desligar o
+  invalidam**; vale 60 dias e se renova a cada login certo; é um cookie por número, e o dono de duas
+  barbearias não perde a exceção de uma ao entrar na outra (`apps/barbearia/src/lib/aparelhoConhecido.ts`).
+  Recusado pelo limite da conta, o login devolve também a tentativa do limite IP + número.
+- **O backup de antes "reaproveitado" podia ser de um banco que já mudou** — escolhido só pelo nome e
+  por ter menos de 6 horas (um arquivo de lixo de 26 bytes foi aceito). Agora só vale um dump **inteiro**
+  (descomprime e termina com a linha de fim do `pg_dump`) e de **menos de 20 minutos**: cobre o ciclo
+  de reinício, que leva segundos por volta, e não um deploy da manhã revertido (`backupRecente`, em
+  `apps/barbearia/scripts/backup.mjs`).
+- **O "esqueci a senha", sem e-mail configurado**, passou a dizer que não está funcionando em todo
+  pedido — do 4º em diante, o limite por número respondia "o link está a caminho".
+- **O gráfico "Receita esta semana" do Início saía vazio** — as barras com 0 px (`admin/index.astro`).
+- **Na agenda do dia, os bloqueios entram na lista na ordem da hora**, entre os atendimentos
+  (`components/admin/AgendaLista.astro`).
+- **Depois de uma falta ou de um cancelamento, a agenda do dia volta a ser montada**: o cartão
+  "Próximo" mostrava o cliente que tinha cancelado até alguém recarregar.
+- **O aviso de "alterações não salvas" depois de subir a logo** ficava ao contrário (o rascunho entrava
+  no retrato como se fosse o salvo), e o aviso amarelo ficava fora da vista — agora a tela rola até ele.
+
+**Ficou de fora, para decidir ou fazer:** ~~todo e-mail confirmado antes de receber qualquer coisa — o
+aviso de "e-mail trocado" e o do teste e da cobrança também levam texto escolhido por quem tem painel
+(antes do `CADASTRO_ABERTO`, §2.61)~~ ✅ feito no mesmo dia (§2.64); a comanda aceitar produto (**decisão sua**); e os menores da
+revisão de 30/10.
+
+**Verificado:** 115 arquivos, **1296 de 1296** contra PostgreSQL 16; o `astro check` com zero; 9
+consertos desfeitos, os 9 vermelhos; no navegador contra o build, as barras do gráfico com altura, o
+bloqueio das 15:00 depois do atendimento das 14:00, o "Próximo" atualizado depois do cancelar, e o
+rascunho da logo com "Alterações não salvas" e o aviso à vista.
+
+---
+
+### 2.64 ✅ `[TÉCNICO]` Nada sai para e-mail não confirmado — FEITO em 30/10/2026
+
+**O buraco.** O e-mail digitado no cadastro, ou pelo dono na Equipe, recebia na hora tudo o que o
+sistema manda, com o remetente do produto. Dois estragos:
+
+- **Digitado errado:** o link de senha nova ia para um estranho. Quem soubesse o WhatsApp do dono —
+  está no site dele — pedia o link, e o estranho ficava com o painel.
+- **Digitado de propósito:** os avisos levam o nome da barbearia e da equipe, escolhidos por quem se
+  cadastra, para o endereço que ele quiser (§2.57, §2.61).
+
+**A regra agora** (`apps/barbearia/src/lib/confirmacaoDeEmail.ts`, migration `0019`):
+
+- **Nada sai para e-mail não confirmado**, menos o próprio pedido de confirmação — e ele não leva nada
+  digitado, nem nome de barbearia nem de pessoa. Esperam a confirmação: a senha nova (o "esqueci"
+  responde igual e não manda nada), o aviso de agendamento, os avisos do teste e da cobrança, e o aviso
+  de "e-mail trocado", que só vai ao endereço antigo se ele estava confirmado.
+- **Abrir o link não confirma; o botão "Confirmar" sim** (`/admin/confirmar-email`, pública). Antivírus de
+  e-mail abre todo link que chega: confirmar na abertura confirmaria o endereço de um estranho que nem
+  leu. A tela mostra só o e-mail mascarado — quem abre pode ser o estranho.
+- **O link confirma o endereço para onde foi**, vale 3 dias, só o mais novo abre, e morre se o e-mail
+  mudar — inclusive entre a tela e o clique. Trocar o e-mail na Equipe volta a confirmação para nula e
+  manda o link ao novo; salvar a ficha com o mesmo e-mail não mexe nela. O banco guarda o hash do token.
+- **Limite:** um pedido por minuto e cinco por dia, por pessoa. Com o envio desligado (sem `SMTP_URL`),
+  nada é gravado — o pedido que não saiu não gasta o limite.
+- **O cadastro** manda as boas-vindas com o link dentro, num e-mail só. **A Equipe** mostra
+  "confirmado" ou "não confirmado — mandar o link de novo" em cada linha; **o Início** avisa quem está
+  com o próprio e-mail sem confirmar, com o mesmo botão (rota `api/admin/barbers/[id]/confirmar-email`:
+  o dono para a equipe, o barbeiro só para si).
+
+⚠️ **O que muda para quem já existe:** todo e-mail gravado antes da `0019` nasce **não confirmado** —
+ninguém provou que ele chega. Em produção, em 30/10/2026, era só a barbearia de teste. **Até o
+`SMTP_URL` existir, ninguém consegue confirmar**, e nada sai — como já era.
+
+⚠️ **O que sobra:** o dono que nunca confirmou e esqueceu a senha depende de você
+(`scripts/set-admin-password.mjs`, com a regra do próprio número de login, §4.17). E o pedido de
+confirmação ainda vai para endereço que ninguém provou — é o preço de existir confirmação. O limite por
+pessoa segura o volume, mas um dono pode criar barbeiros para mandar o link a vários endereços: o texto
+não leva nada dele, e o abuso fica num e-mail nosso, sem conteúdo, por endereço.
+
+*Rejeitado:* confirmar pelo próprio clique no link, sem botão — mais simples, e confirmaria o e-mail de
+quem nunca o leu. *Rejeitado:* mandar a senha nova para e-mail não confirmado "porque o dono precisa" —
+é justamente o caso do e-mail errado entregando o painel.
+
+**Verificado:** 116 arquivos, **1314 de 1314** contra PostgreSQL 16; o `astro check` com zero; 18
+defeitos reintroduzidos, os 18 vermelhos (o último, a troca do e-mail entre a tela e o clique, por um
+gatilho do banco dentro da transação); no navegador contra o build, a tela do link antes e depois do
+clique, o link reaberto ("E-mail confirmado") e o inválido, o aviso do Início mandando o link de novo e a
+Equipe com "confirmado" e "não confirmado". Guarda: `apps/barbearia/tests/confirmacao-de-email.test.ts`.
 
 ---
 
@@ -2723,13 +2832,11 @@ de verdade (`apps/barbearia/tests/backup-antes-das-migrations.test.ts`), 8 reint
 vermelhas — uma só depois de reforçar o teste; e o arquivo restaurado num banco vazio voltou com
 a migration anterior e a barbearia, e o boot sobre ele reaplicou a seguinte.
 
-⚠️ **Nada de 10/10 à tarde para cá está no ar** (conferido no GitHub em 16/10): a `main`, de onde
-o EasyPanel constrói, parou no merge do PR #1, e a `monorepo` está à frente dela com a cobrança, o
-operador, o fuso, a exportação, a trava de horário duplo e o resto. O primeiro deploy vai levar
-tudo de uma vez — 9 migrations, da 0010 à 0018, e o Dockerfile novo, construído de verdade pela
-primeira vez no CI de 25/10 (§3.12; o job `imagem`, abaixo). Com o banco vazio de hoje, é o deploy mais barato que vai
-existir; cada semana a mais engorda o lote. O passo a passo, com os nomes do servidor, está no
-projeto do claude.ai.
+✅ **No ar desde 28/10/2026.** A `monorepo` entrou na `main` pelo PR #2, com o CI verde nos três
+jobs, e foi implantada à mão: **o EasyPanel não faz deploy sozinho** — depois do merge, alguém
+clica em Implantar. O boot saiu como o ensaiado no CI: o backup de antes da `0010`, as nove
+migrations, o papel do app e os daemons. ⚠️ *Até 28/10 este parágrafo dizia "nada de 10/10 para
+cá está no ar".* O passo a passo usado e o estado do servidor estão no projeto do claude.ai.
 
 ✅ **O merge não tem conflito** (conferido no GitHub em 17/10/2026): a `main` não tem nada que a
 `monorepo` não tenha — o único commit dela fora da `monorepo` é o próprio merge do PR #1, sem
@@ -4200,9 +4307,10 @@ barbeiro da equipe também pode pedir a senha nova, se tiver e-mail.
 
 **O que ficou de fora — risco aceito, não esquecimento:**
 
-- **Confirmar o e-mail por um link**, recomendado aqui antes. No lugar dele: o e-mail de
+- ~~**Confirmar o e-mail por um link**, recomendado aqui antes. No lugar dele: o e-mail de
   boas-vindas e o e-mail à vista no painel. O que sobra: e-mail digitado errado só aparece
-  quando o dono nota que não recebeu nada.
+  quando o dono nota que não recebeu nada.~~ ✅ **Feito em 30/10/2026** (§2.64): nada sai para
+  e-mail não confirmado — a senha nova inclusive.
 - ~~**Avisar o e-mail antigo quando o e-mail muda.** Quem roubar a sessão do dono pode trocar
   o e-mail e, depois, a senha. Hoje a troca de e-mail não avisa ninguém.~~ ✅ **Feito em
   13/10/2026**, escolhido por você. Quando o e-mail de alguém da equipe muda — ou é apagado —, o

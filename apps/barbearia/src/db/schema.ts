@@ -126,6 +126,12 @@ export const barbers = pgTable('barbers', {
    * migration 0011). Nasce ligado; o dono desliga por pessoa na tela da Equipe.
    */
   avisarAgendamentos: boolean('avisar_agendamentos').notNull().default(true),
+  /**
+   * Quando o e-mail de AGORA foi confirmado pelo link (migration 0019). Nulo: não
+   * confirmado, e nada sai para ele além do próprio pedido de confirmação
+   * (`lib/confirmacaoDeEmail.ts`). Trocar o e-mail volta para nulo.
+   */
+  emailConfirmadoEm: timestamp('email_confirmado_em', { withTimezone: true }),
 }, (t) => [
   unique('barbers_tenant_slug_uq').on(t.tenantId, t.slug),
 ]);
@@ -138,6 +144,22 @@ export const redefinicoesDeSenha = pgTable('redefinicoes_de_senha', {
   tenantId: integer('tenant_id').notNull().references(() => tenants.id),
   id: serial('id').primaryKey(),
   barberId: integer('barber_id').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiraEm: timestamp('expira_em', { withTimezone: true }).notNull(),
+  usadaEm: timestamp('usada_em', { withTimezone: true }),
+  criadaEm: timestamp('criada_em', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Os links de confirmação de e-mail (migration 0019). Como a senha nova: o HASH do
+ * token, nunca o token. `email` é o endereço para onde o link foi — o link confirma
+ * esse, e morre se o e-mail do barbeiro mudar (`lib/confirmacaoDeEmail.ts`).
+ */
+export const confirmacoesDeEmail = pgTable('confirmacoes_de_email', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
+  barberId: integer('barber_id').notNull(),
+  email: text('email').notNull(),
   tokenHash: text('token_hash').notNull().unique(),
   expiraEm: timestamp('expira_em', { withTimezone: true }).notNull(),
   usadaEm: timestamp('usada_em', { withTimezone: true }),

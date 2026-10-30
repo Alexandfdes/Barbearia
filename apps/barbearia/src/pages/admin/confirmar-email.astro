@@ -1,0 +1,123 @@
+---
+export const prerender = false;
+import '../../styles/global.css';
+import { iconeComLetra } from '../../lib/iconeDaAba.js';
+import { ACCENT_PADRAO } from '../../lib/accent.js';
+import { NOME_PRODUTO } from '../../lib/produto.js';
+import { estadoDoLink } from '../../lib/confirmacaoDeEmail.js';
+
+/**
+ * Onde o link do e-mail de confirmação leva (`lib/confirmacaoDeEmail.ts`). Pública: o
+ * middleware a deixa abrir sem sessão.
+ *
+ * ⚠️ Abrir NÃO confirma — confirma o botão. Antivírus de e-mail abre todo link que chega:
+ * confirmar na abertura confirmaria o endereço de um estranho que nem leu o e-mail.
+ *
+ * Os mesmos cuidados da senha nova com o token no endereço: `no-referrer`, `no-store`, e o
+ * script o tira da barra assim que a página abre.
+ *
+ * A tela não mostra nome nenhum: nem da barbearia, nem da pessoa — só o e-mail mascarado.
+ * Quem abre pode ser o estranho que recebeu o e-mail por engano.
+ */
+const token = Astro.url.searchParams.get('token') ?? '';
+const link = token ? await estadoDoLink(token) : { estado: 'invalido' as const };
+
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+Astro.response.headers.set('Cache-Control', 'no-store');
+---
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/svg+xml" href={iconeComLetra(NOME_PRODUTO, ACCENT_PADRAO.color)} />
+    <title>Confirmar o e-mail — {NOME_PRODUTO}</title>
+  </head>
+  <body class="bg-dark text-cream min-h-screen flex items-center justify-center px-4">
+    <main class="w-full max-w-sm">
+
+      <div class="text-center mb-8">
+        <p class="text-xs text-gray uppercase tracking-widest mb-1">{NOME_PRODUTO}</p>
+        <h1 class="font-serif text-2xl font-medium text-white">Confirmar o e-mail</h1>
+      </div>
+
+      {link.estado === 'valido' && (
+        <form id="confirmar-form" data-token={token} class="bg-dark-card border border-white/10 rounded-md p-6 space-y-4 text-center">
+          <p class="text-sm text-gray-light">
+            Confirme que <strong class="text-cream">{link.emailMascarado}</strong> é seu. Depois disso, o link de
+            senha nova e os avisos do painel passam a chegar nele.
+          </p>
+          <div id="confirmar-erro" class="hidden text-red-400 text-sm py-1" role="alert"></div>
+          <button
+            type="submit"
+            id="confirmar-btn"
+            class="w-full bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest px-6 py-3 rounded transition-colors duration-300 text-sm"
+          >
+            Confirmar
+          </button>
+          <p class="text-[11px] text-gray">Não reconhece? Feche esta página: sem confirmar, nada chega a este e-mail.</p>
+        </form>
+      )}
+
+      <div id="confirmado" class:list={['bg-dark-card border border-white/10 rounded-md p-6 space-y-2 text-center', link.estado !== 'ja-confirmado' && 'hidden']} role="status">
+        <p class="text-sm text-cream">E-mail confirmado.</p>
+        <p class="text-xs text-gray">A partir de agora, o link de senha nova e os avisos chegam nele.</p>
+      </div>
+
+      {link.estado === 'invalido' && (
+        <div id="link-invalido" class="bg-dark-card border border-white/10 rounded-md p-6 space-y-3 text-center">
+          <p class="text-sm text-cream">Este link expirou ou não vale mais.</p>
+          <p class="text-xs text-gray">
+            O link vale por 3 dias, só o mais novo funciona, e morre se o e-mail for trocado. Peça outro no
+            painel: no Início, ou em Equipe, na linha da pessoa.
+          </p>
+        </div>
+      )}
+
+      <p class="text-center mt-6">
+        <a href="/admin/login" class="text-xs text-gray hover:text-cream underline underline-offset-4">Ir para o login</a>
+      </p>
+    </main>
+
+    <script>
+      const form = document.getElementById('confirmar-form') as HTMLFormElement | null;
+      if (form) {
+        const token = form.dataset.token ?? '';
+        const erro  = document.getElementById('confirmar-erro') as HTMLDivElement;
+        const botao = document.getElementById('confirmar-btn') as HTMLButtonElement;
+        const feito = document.getElementById('confirmado') as HTMLDivElement;
+
+        // O token sai da barra de endereço — e do histórico — assim que a página abre.
+        history.replaceState(null, '', location.pathname);
+
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          erro.classList.add('hidden');
+          botao.disabled = true;
+          botao.textContent = 'Confirmando...';
+          try {
+            const res = await fetch('/api/auth/confirmar-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token }),
+            });
+            if (res.ok) {
+              form.remove();
+              feito.classList.remove('hidden');
+              return;
+            }
+            const dados = await res.json().catch(() => ({}));
+            erro.textContent = dados.error ?? 'Não deu para confirmar. Tente de novo.';
+          } catch {
+            erro.textContent = 'Erro de conexão. Tente novamente.';
+          }
+          erro.classList.remove('hidden');
+          botao.disabled = false;
+          botao.textContent = 'Confirmar';
+        });
+      }
+    </script>
+  </body>
+</html>

@@ -17,6 +17,7 @@ import { segundaFeiraDaSemana } from '../../lib/calendario.js';
 import { fusoDe } from '../../lib/timezone.js';
 import { buscaDoMapa, embedDoMapa, mapaPrecisaConferir } from '../../lib/mapa.js';
 import { receitaDoPeriodo } from '../../lib/receita.js';
+import { mascararEmail } from '../../lib/email.js';
 
 
 const session = await getSession(Astro.request);
@@ -24,9 +25,14 @@ if (!session) return Astro.redirect('/admin/login');
 const tenant = tenantDaSessao(session);
 const fuso = fusoDe(tenant);
 
-const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role })
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, role: barbers.role, email: barbers.email,
+    emailConfirmadoEm: barbers.emailConfirmadoEm })
   .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
+
+// O e-mail de quem está logado ainda não confirmado (`lib/confirmacaoDeEmail.ts`): nada chega
+// nele — nem a senha nova. Mascarado: é o que a tela de confirmação também mostra.
+const emailParaConfirmar = barberRow.email && !barberRow.emailConfirmadoEm ? mascararEmail(barberRow.email) : null;
 
 const nowUtc = new Date();
 const todayStr = formatInTimeZone(nowUtc, fuso, 'yyyy-MM-dd');
@@ -307,6 +313,19 @@ const mapaParaConferir = cfg && mapaPrecisaConferir(cfg, cfg.mapaConferido)
 
   <div class="max-w-5xl mx-auto px-4 py-6 space-y-6 pb-20">
 
+    {emailParaConfirmar && (
+      <section id="confirmar-email" data-barbeiro={String(barberRow.id)} class="rounded-lg border border-amber-200 bg-amber-50/50 p-4 text-sm text-amber-950">
+        <h2 class="font-semibold">Confirme o seu e-mail</h2>
+        <p class="mt-1 text-xs text-amber-900/80">
+          {emailParaConfirmar} se confirma pelo link que mandamos para ele. Até você abrir, nada chega nele: nem o
+          link de senha nova, se esquecer a sua, nem os avisos. Não chegou? Olhe o spam, ou
+          {' '}<button type="button" id="confirmar-email-reenviar" class="underline underline-offset-2 hover:text-amber-950">mande de novo</button>.
+          {' '}E-mail errado? Corrija em {session.role === 'admin' ? <a href="/admin/barbeiros" class="underline underline-offset-2">Equipe</a> : 'Equipe, com o dono'}.
+        </p>
+        <p id="confirmar-email-msg" class="hidden mt-1 text-xs" role="status"></p>
+      </section>
+    )}
+
     {/* Medidor de completude — some sozinho quando não há nada a fazer, para
         não virar ruído permanente para quem já preencheu tudo. */}
     {completude && !completude.completo && (
@@ -476,12 +495,15 @@ const mapaParaConferir = cfg && mapaPrecisaConferir(cfg, cfg.mapaConferido)
           {mondayStr.split('-').reverse().slice(0, 2).join('/')} — {addDaysStr(mondayStr, 6).split('-').reverse().slice(0, 2).join('/')}
         </p>
       </div>
-      <div class="flex items-end gap-2 h-32">
+      {/* As colunas ESTICAM até a altura do gráfico (items-stretch) e a barra ocupa o que sobra
+           acima do rótulo (flex-1): com items-end, cada coluna tinha só a altura do rótulo, a
+           porcentagem da barra era de zero, e o gráfico saía vazio (revisão de 30/10/2026). */}
+      <div class="flex items-stretch gap-2 h-32" data-grafico-semana>
         {weekDays.map(d => {
           const heightPct = d.revenue > 0 ? Math.max(8, (d.revenue / maxRevenue) * 100) : 2;
           return (
             <div class="flex-1 flex flex-col items-center gap-2 group">
-              <div class="relative w-full flex items-end" style="height: 100%;">
+              <div class="relative w-full flex items-end flex-1 min-h-0">
                 <div class:list={[
                   'w-full rounded-t transition-all',
                   d.revenue > 0 ? (d.isToday ? 'bg-teal' : 'bg-teal/40') : 'bg-slate-200',
@@ -605,6 +627,23 @@ const mapaParaConferir = cfg && mapaPrecisaConferir(cfg, cfg.mapaConferido)
 </AdminLayout>
 
 <script>
+  // "Mande de novo" — o link de confirmação do e-mail (`lib/confirmacaoDeEmail.ts`).
+  const caixaDoEmail = document.getElementById('confirmar-email');
+  document.getElementById('confirmar-email-reenviar')?.addEventListener('click', async (e) => {
+    const botao = e.currentTarget as HTMLButtonElement;
+    const msg = document.getElementById('confirmar-email-msg')!;
+    botao.disabled = true;
+    try {
+      const res = await fetch(`/api/admin/barbers/${caixaDoEmail?.dataset.barbeiro}/confirmar-email`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      msg.textContent = res.ok ? data.mensagem : (data.error ?? 'Não deu para mandar agora.');
+    } catch {
+      msg.textContent = 'Erro de conexão.';
+    }
+    msg.classList.remove('hidden');
+    botao.disabled = false;
+  });
+
   // O "Está certo" do mapa (`api/admin/mapa-conferido.ts`). Manda a busca que o
   // dono VIU: se o endereço mudou noutra aba, a rota recusa e a tela diz por quê.
   const cartao = document.getElementById('conferir-mapa');
