@@ -160,8 +160,8 @@ export function textoDoAvisoDeAgenda(
 }
 
 /**
- * Quem recebe: o barbeiro do horário e os donos, ativos, com e-mail e com o aviso
- * ligado. O e-mail repetido sai uma vez só — e o do barbeiro do horário vem
+ * Quem recebe: o barbeiro do horário e os donos, ativos, com e-mail CONFIRMADO e com
+ * o aviso ligado. O e-mail repetido sai uma vez só — e o do barbeiro do horário vem
  * primeiro, para o "Olá" ser dele.
  */
 export async function destinatariosDoAviso(tenant: Tenant, barbeiroDoHorario: number): Promise<DestinatarioDoAviso[]> {
@@ -173,6 +173,8 @@ export async function destinatariosDoAviso(tenant: Tenant, barbeiroDoHorario: nu
       eq(barbers.active, true),
       eq(barbers.avisarAgendamentos, true),
       isNotNull(barbers.email),
+      // Só e-mail confirmado (`lib/confirmacaoDeEmail.ts`): o aviso leva nomes digitados.
+      isNotNull(barbers.emailConfirmadoEm),
       or(eq(barbers.id, barbeiroDoHorario), eq(barbers.role, 'admin')),
     ))
     .orderBy(barbers.id);

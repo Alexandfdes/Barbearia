@@ -112,6 +112,9 @@ beforeAll(async () => {
               (5, 1, 'Caio',          'caio',  'admin',  'x', false, '84999990005', 'caio@navalha.com',  true),
               (6, 1, 'Dani',          'dani',  'barber', 'x', true,  '84999990006', 'vera@navalha.com',  true),
               (7, 2, 'Dono da Outra', 'dono',  'admin',  'x', true,  '84999990007', 'dono@outra.com',    true)`;
+  // O e-mail confirmado: só ele recebe (lib/confirmacaoDeEmail.ts). O não confirmado está em
+  // tests/confirmacao-de-email.test.ts.
+  await sql`UPDATE barbers SET email_confirmado_em = now() WHERE email IS NOT NULL`;
   await sql`INSERT INTO services (id, tenant_id, name, slug, price_cents, active) VALUES
               (1, 1, 'Corte', 'corte', 4000, true),
               (2, 2, 'Corte', 'corte', 3000, true)`;

@@ -58,6 +58,11 @@ export type ResultadoDoPedido =
   | 'sem-cadastro'
   /** Cadastrado, sem e-mail: quem nasceu antes de o cadastro pedir, e a equipe. */
   | 'sem-email'
+  /**
+   * Com e-mail, nunca confirmado (`lib/confirmacaoDeEmail.ts`). O link de senha nova não vai
+   * para ele: digitado errado, ele entregaria o painel a um estranho.
+   */
+  | 'email-nao-confirmado'
   /** Sem endereço do painel configurado — não há link para mandar. */
   | 'sem-painel'
   /** O envio falhou. O motivo vai para o log. */
@@ -82,6 +87,7 @@ export async function pedirRedefinicao(whatsapp: string, agora: Date = new Date(
     barbearia: barbers.tenantId,
     nome: barbers.name,
     email: barbers.email,
+    emailConfirmadoEm: barbers.emailConfirmadoEm,
     ativo: barbers.active,
   };
   // O ATIVO dono do telefone: desde a migration 0017 o mesmo número pode estar em linhas de
@@ -99,6 +105,7 @@ export async function pedirRedefinicao(whatsapp: string, agora: Date = new Date(
   }
 
   if (!quem.email) return 'sem-email';
+  if (!quem.emailConfirmadoEm) return 'email-nao-confirmado';
 
   const painel = urlDoPainel();
   if (!painel) {

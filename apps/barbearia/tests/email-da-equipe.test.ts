@@ -58,6 +58,9 @@ beforeAll(async () => {
               (1, 1, 'Dono do Bayron',  'dono',   'admin',  'x', true, '84999990001', NULL),
               (2, 1, 'Ana',             'ana',    'barber', 'x', true, '84999990002', NULL),
               (4, 2, 'Dona da Vintage', 'dona-v', 'admin',  'x', true, '84999990004', 'dona@vintage.com')`;
+  // O e-mail confirmado: só ele recebe (lib/confirmacaoDeEmail.ts). O não confirmado está em
+  // tests/confirmacao-de-email.test.ts.
+  await sql`UPDATE barbers SET email_confirmado_em = now() WHERE email IS NOT NULL`;
   await sql`SELECT setval('barbers_id_seq', 10)`;
 
   const { makeSessionCookie } = await import('../src/lib/session.js');
@@ -169,7 +172,7 @@ describe.skipIf(!TEM_BANCO)('o aviso ao e-mail antigo', () => {
   const para = (endereco: string) => caixa.filter((e) => e.para === endereco);
 
   it('o dono troca o e-mail de alguém: o antigo recebe o aviso, com o novo mascarado', async () => {
-    await sql`UPDATE barbers SET email = 'ana@bayron.com' WHERE id = 2`;
+    await sql`UPDATE barbers SET email = 'ana@bayron.com', email_confirmado_em = now() WHERE id = 2`;
     caixa.length = 0;
     expect((await trocarEmail(2, 'Ana.Nova@Gmail.com')).status).toBe(200);
     expect(caixa).toHaveLength(1);
@@ -186,7 +189,7 @@ describe.skipIf(!TEM_BANCO)('o aviso ao e-mail antigo', () => {
   });
 
   it('o dono troca o próprio: o aviso diz que foi pelo acesso dele, e o que fazer se não foi', async () => {
-    await sql`UPDATE barbers SET email = 'dono@bayron.com' WHERE id = 1`;
+    await sql`UPDATE barbers SET email = 'dono@bayron.com', email_confirmado_em = now() WHERE id = 1`;
     caixa.length = 0;
     expect((await trocarEmail(1, 'outro@invasor.com')).status).toBe(200);
     expect(para('dono@bayron.com')).toHaveLength(1);
@@ -199,7 +202,7 @@ describe.skipIf(!TEM_BANCO)('o aviso ao e-mail antigo', () => {
   });
 
   it('apagar o e-mail também avisa — é o mesmo golpe, sem o link chegar a ninguém', async () => {
-    await sql`UPDATE barbers SET email = 'dono@bayron.com' WHERE id = 1`;
+    await sql`UPDATE barbers SET email = 'dono@bayron.com', email_confirmado_em = now() WHERE id = 1`;
     caixa.length = 0;
     expect((await trocarEmail(1, '')).status).toBe(200);
     expect(await emailDe(1)).toBeNull();
@@ -209,7 +212,7 @@ describe.skipIf(!TEM_BANCO)('o aviso ao e-mail antigo', () => {
   });
 
   it('salvar o mesmo e-mail — com espaço ou maiúscula — não avisa ninguém', async () => {
-    await sql`UPDATE barbers SET email = 'ana@bayron.com' WHERE id = 2`;
+    await sql`UPDATE barbers SET email = 'ana@bayron.com', email_confirmado_em = now() WHERE id = 2`;
     caixa.length = 0;
     expect((await trocarEmail(2, '  ANA@bayron.com ')).status).toBe(200);
     expect(caixa).toHaveLength(0);
@@ -223,7 +226,7 @@ describe.skipIf(!TEM_BANCO)('o aviso ao e-mail antigo', () => {
   });
 
   it('o e-mail recusado, o de outra barbearia e o barbeiro sem permissão não avisam', async () => {
-    await sql`UPDATE barbers SET email = 'ana@bayron.com' WHERE id = 2`;
+    await sql`UPDATE barbers SET email = 'ana@bayron.com', email_confirmado_em = now() WHERE id = 2`;
     caixa.length = 0;
     expect((await trocarEmail(2, 'ana@')).status).toBe(400);
     expect((await trocarEmail(4, 'invasor@x.com')).status).toBe(404);
@@ -237,7 +240,7 @@ describe.skipIf(!TEM_BANCO)('o aviso ao e-mail antigo', () => {
     const troca = {
       tenant: BAYRON as never,
       pessoa: { id: 2, nome: 'Ana', papel: 'barber' as const },
-      antigo: 'ana@bayron.com', novo: 'nova@x.com',
+      antigo: 'ana@bayron.com', antigoConfirmado: true, novo: 'nova@x.com',
       quemTrocou: { id: 1, nome: 'Dono do Bayron' },
     };
     const avisos: unknown[] = [];
@@ -261,7 +264,7 @@ describe.skipIf(!TEM_BANCO)('o aviso ao e-mail antigo', () => {
     const recebidos: { texto: string }[] = [];
     await comTenant(BAYRON, () => avisarEmailTrocado({
       tenant: { ...BAYRON, fuso: 'America/Manaus' } as never,
-      pessoa: { id: 2, nome: 'Ana', papel: 'barber' }, antigo: 'ana@bayron.com', novo: 'nova@x.com',
+      pessoa: { id: 2, nome: 'Ana', papel: 'barber' }, antigo: 'ana@bayron.com', antigoConfirmado: true, novo: 'nova@x.com',
       quemTrocou: { id: 1, nome: 'Dono do Bayron' },
       agora: new Date('2026-10-13T03:30:00.000Z'),
       enviar: async (e) => { recebidos.push(e); },

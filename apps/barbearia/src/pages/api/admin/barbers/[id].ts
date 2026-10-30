@@ -14,6 +14,7 @@ import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { emailValido, normalizarEmail } from '../../../../lib/email.js';
 import { avisarEmailTrocado, trocaQueAvisa } from '../../../../lib/avisoDeEmailTrocado.js';
 import { cancelarPedidosDeSenha } from '../../../../lib/redefinicaoDeSenha.js';
+import { pedirConfirmacao } from '../../../../lib/confirmacaoDeEmail.js';
 
 // Slug NÃO é editável: ele é o identificador de login (ver /api/auth/login).
 // Mudá-lo trocaria o usuário de acesso do barbeiro. Por isso fica fora do schema.
@@ -75,7 +76,8 @@ export const PUT: APIRoute = async ({ request, params }) => {
   const phone = parsed.data.phone === undefined ? undefined : normalizePhone(parsed.data.phone);
   if (phone === '') return json({ error: 'WhatsApp inválido: use DDD + número, 10 ou 11 dígitos.' }, 400);
 
-  const target = await first(db.select({ id: barbers.id, role: barbers.role, name: barbers.name, email: barbers.email, active: barbers.active })
+  const target = await first(db.select({ id: barbers.id, role: barbers.role, name: barbers.name, email: barbers.email,
+    emailConfirmadoEm: barbers.emailConfirmadoEm, active: barbers.active })
     .from(barbers).where(and(eq(barbers.id, id), eq(barbers.tenantId, tenant.id))));
   if (!target) return json({ error: 'Barbeiro não encontrado' }, 404);
 
@@ -116,7 +118,11 @@ export const PUT: APIRoute = async ({ request, params }) => {
   if (name   !== undefined) updates.name   = name;
   if (role   !== undefined) updates.role   = role;
   if (active !== undefined) updates.active = active;
+  // E-mail novo nasce NÃO confirmado — a confirmação era do endereço anterior
+  // (`lib/confirmacaoDeEmail.ts`). Salvar a ficha com o mesmo e-mail não mexe nela.
+  const emailMudou = email !== undefined && email !== normalizarEmail(target.email);
   if (email  !== undefined) updates.email  = email;
+  if (emailMudou) updates.emailConfirmadoEm = null;
   if (avisarAgendamentos !== undefined) updates.avisarAgendamentos = avisarAgendamentos;
   if (phone  !== undefined) updates.phone  = phone;
   // Desligar derruba as sessões abertas: até 18/10/2026 só o `active` barrava, e reativar
@@ -153,9 +159,15 @@ export const PUT: APIRoute = async ({ request, params }) => {
       tenant,
       pessoa: { id, nome: name ?? target.name, papel: role ?? (target.role as 'admin' | 'barber') },
       antigo: target.email,
+      antigoConfirmado: !!target.emailConfirmadoEm,
       novo: email,
       quemTrocou: { id: session.barberId, nome: quem?.name ?? 'o dono da barbearia' },
     });
   }
-  return json({ ok: true });
+
+  // O endereço novo recebe o link de confirmação — e só ele, até confirmar.
+  const confirmacao = emailMudou && email
+    ? await pedirConfirmacao({ tenantId: tenant.id, barberId: id, esperarEnvio: false })
+    : null;
+  return json({ ok: true, ...(confirmacao ? { confirmacao } : {}) });
 };

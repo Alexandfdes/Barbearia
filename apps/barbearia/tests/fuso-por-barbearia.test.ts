@@ -172,6 +172,9 @@ describe.skipIf(!TEM_BANCO)('com banco: Mossoró e Manaus no mesmo processo', ()
       (1, 1, 'Dono de Mossoró', 'dono-mossoro', 'admin', 'x', true, '84990000001', 'dono@mossoro.test'),
       (2, 1, 'Barbeiro de Mossoró', 'barbeiro-mossoro', 'barber', 'x', true, '84990000002', NULL),
       (3, 2, 'Dono de Manaus', 'dono-manaus', 'admin', 'x', true, '92990000001', 'dono@manaus.test')`;
+    // O e-mail confirmado: só ele recebe (lib/confirmacaoDeEmail.ts). O não confirmado está em
+    // tests/confirmacao-de-email.test.ts.
+    await sql`UPDATE barbers SET email_confirmado_em = now() WHERE email IS NOT NULL`;
     await sql`SELECT setval('barbers_id_seq', 3)`;
     await sql`INSERT INTO services (id, tenant_id, name, slug, price_cents, active) VALUES
       (1, 1, 'Corte', 'corte', 4000, true), (2, 2, 'Corte', 'corte', 4000, true)`;
