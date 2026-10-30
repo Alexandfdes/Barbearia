@@ -10,7 +10,7 @@
 //
 // Estes casos rodam o boot de verdade, num processo à parte, como o deploy roda.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
@@ -140,6 +140,30 @@ describe.skipIf(!TEM_BANCO || !TEM_PGDUMP)('com banco: o backup antes das migrat
     expect(ok.status, ok.saida).toBe(0);
     expect(arquivos()).toHaveLength(1);
     expect(await aplicadas()).toContain(ULTIMA);
+    rmSync(pasta, { recursive: true, force: true });
+  }, 90_000);
+
+  it('só reaproveita um dump INTEIRO e de minutos atrás — lixo ou de horas antes não vale (revisão de 30/10/2026)', async () => {
+    // Até 30/10 bastava o nome e menos de 6 horas: um arquivo de 26 bytes de lixo foi aceito, e um
+    // dump de manhã, de um banco que voltou a receber agendamento, cobria o deploy da tarde.
+    await bancoDaVespera();
+    const primeira = ULTIMA.slice(0, 4);
+    const lixo = join(pasta, `barbearia_2026-10-30-10-00-00-antes-da-${primeira}.sql.gz`);
+    writeFileSync(lixo, 'isto não é um dump do banco');
+    const r1 = boot({ NODE_ENV: 'production', BACKUP_DIR: pasta });
+    expect(r1.status, r1.saida).toBe(0);
+    expect(r1.saida).not.toMatch(/reaproveitado/);
+    expect(arquivos()).toHaveLength(2); // o lixo ficou; um dump de verdade foi feito
+
+    // Um dump de verdade, mas de 3 horas atrás: também não vale.
+    await bancoDaVespera();
+    rmSync(lixo);
+    const [verdadeiro] = arquivos();
+    const tresHoras = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    utimesSync(join(pasta, verdadeiro), tresHoras, tresHoras);
+    const r2 = boot({ NODE_ENV: 'production', BACKUP_DIR: pasta });
+    expect(r2.status, r2.saida).toBe(0);
+    expect(r2.saida).not.toMatch(/reaproveitado/);
     rmSync(pasta, { recursive: true, force: true });
   }, 90_000);
 
