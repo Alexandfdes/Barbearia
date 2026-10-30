@@ -139,11 +139,12 @@ async function atender(contexto: APIContext, next: MiddlewareNext): Promise<Resp
 }
 
 /**
- * As telas de `/admin` que abrem sem sessão: o login e as duas da senha nova
- * (`lib/redefinicaoDeSenha.ts`). Nenhuma usa barbearia: quem está fora do ar
+ * As telas de `/admin` que abrem sem sessão: o login, as duas da senha nova
+ * (`lib/redefinicaoDeSenha.ts`) e a do link que confirma o e-mail
+ * (`lib/confirmacaoDeEmail.ts`). Nenhuma usa barbearia: quem está fora do ar
  * precisa conseguir entrar com outra conta — e trocar a senha que esqueceu.
  */
-const PAINEL_PUBLICO = new Set(['/admin/login', '/admin/esqueci', '/admin/nova-senha']);
+const PAINEL_PUBLICO = new Set(['/admin/login', '/admin/esqueci', '/admin/nova-senha', '/admin/confirmar-email']);
 
 /** Rotas do painel — as que pedem sessão. */
 function ehDoPainel(caminho: string): boolean {

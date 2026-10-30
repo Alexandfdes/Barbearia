@@ -188,6 +188,8 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
         eq(barbers.role, 'admin'),
         eq(barbers.active, true),
         isNotNull(barbers.email),
+        // Só e-mail confirmado (`lib/confirmacaoDeEmail.ts`): o aviso leva o nome da barbearia.
+        isNotNull(barbers.emailConfirmadoEm),
       ));
     if (donos.length === 0) {
       resumo.semDestinatario++;
