@@ -221,10 +221,12 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   … `RETURNING`), não só na leitura antes: dois pedidos ao mesmo tempo passavam os dois
   (`lib/fecharAtendimento.ts`). Falta só depois do início; concluído em qualquer hora do mesmo dia,
   **sem mudar o horário marcado e sem liberar a vaga** (decisão do dono, 26/10/2026).
-- **E-mail que sai para endereço não confirmado não leva texto digitado** (o de boas-vindas do cadastro):
-  nome de barbearia ou de dono no assunto vira golpe com o remetente do produto (`api/cadastrar.ts`,
-  `emailDeBoasVindas`; `docs/PENDENCIAS-ABERTAS.md` §2.57). O `/cadastrar` é caminho do painel. O aviso de
-  agendamento não leva o nome do cliente (`docs/PENDENCIAS-ABERTAS.md` §2.61).
+- **Nada sai para e-mail não confirmado** (`barbers.email_confirmado_em`, migration 0019) — menos o pedido de
+  confirmação, que não leva texto digitado (`apps/barbearia/src/lib/confirmacaoDeEmail.ts`). Envio novo
+  filtra `isNotNull(barbers.emailConfirmadoEm)`; caminho novo que grava e-mail volta a confirmação para nula
+  quando ele muda (`docs/PENDENCIAS-ABERTAS.md` §2.64). Nome de barbearia ou de dono no assunto vira golpe
+  com o remetente do produto (`docs/PENDENCIAS-ABERTAS.md` §2.57). O `/cadastrar` é caminho do painel. O
+  aviso de agendamento não leva o nome do cliente (`docs/PENDENCIAS-ABERTAS.md` §2.61).
 - **Limite de tentativa conta antes e devolve no acerto** (`devolverTentativa`): só o erro conta. E o
   limite do login por CONTA não vale no aparelho onde ESTE barbeiro já entrou depois da última troca de
   senha (`lib/aparelhoConhecido.ts`) — sem isso, qualquer pessoa trancava o dono fora; sem amarrar ao
