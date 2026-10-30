@@ -611,21 +611,7 @@ const clientData: DadosDaAgenda = {
           </div>
         </div>
       ) : (
-        <div class="space-y-2">
-          {blockList.map(b => (
-            <div class="flex items-center gap-3 bg-white border border-slate-200 border-l-[3px] border-l-neutral-600/60 rounded-md px-4 py-3">
-              <div class="w-12 shrink-0">
-                <p class="text-sm font-bold tabular-nums text-slate-500">{b.timeLocal}</p>
-                <p class="text-[10px] text-slate-400 tabular-nums">{b.endTimeLocal}</p>
-              </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-slate-500 truncate">{b.reason || 'Horário bloqueado'}</p>
-                <p class="text-[10px] text-slate-400 uppercase tracking-widest">Bloqueio</p>
-              </div>
-            </div>
-          ))}
-          <AgendaLista appts={apptList} role={session.role} />
-        </div>
+        <AgendaLista appts={apptList} role={session.role} bloqueios={blockList} />
       )}
     </section>
 
@@ -1537,6 +1523,7 @@ const clientData: DadosDaAgenda = {
         updateApptCardStatus(id, 'no_show');
         closeDetail();
         toast('Marcado como no-show', 'success');
+        recarregarResumo();
       } else {
         toast(data.error ?? 'Erro', 'error');
         btn.disabled = false;
@@ -1555,12 +1542,21 @@ const clientData: DadosDaAgenda = {
         updateApptCardStatus(id, 'cancelled');
         closeDetail();
         toast('Agendamento cancelado', 'success');
+        recarregarResumo();
       } else {
         toast(data.error ?? 'Erro', 'error');
         btn.disabled = false;
       }
     }
   });
+
+  // O cartão "Próximo" e a ordem do dia saem do servidor: depois de uma falta ou de um
+  // cancelamento, a página volta a ser montada — senão o "Próximo" seguia mostrando o cliente
+  // que faltou ou cancelou, até alguém recarregar (revisão de 30/10/2026). A espera deixa o
+  // aviso aparecer antes.
+  function recarregarResumo() {
+    setTimeout(() => location.reload(), 900);
+  }
 
   // ─── Modal de mensagens rápidas WhatsApp ───────────────────────────────────
   const waModal = document.getElementById('wa-modal') as HTMLElement;

@@ -115,7 +115,7 @@ describe.skipIf(!TEM_BANCO)('o telefone do barbeiro', () => {
     const [{ id: ativo }] = await sql`SELECT id FROM barbers WHERE phone = ${DO_JOAO} AND active`;
     // O João desligado da Bayron, com o mesmo número, foi gravado antes do ativo da Vintage:
     // numa busca sem o filtro de ativo, ele vem primeiro.
-    await sql`UPDATE barbers SET email = 'joao@vintage.test' WHERE id = ${ativo}`;
+    await sql`UPDATE barbers SET email = 'joao@vintage.test', email_confirmado_em = now() WHERE id = ${ativo}`;
     process.env.DOMINIO_BASE ??= 'fadeline.com.br';
     const { pedirRedefinicao } = await import('../src/lib/redefinicaoDeSenha.ts');
     const { caixaDeSaida } = await import('../src/lib/email.ts');

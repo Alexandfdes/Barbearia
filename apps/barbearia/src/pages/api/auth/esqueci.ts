@@ -53,6 +53,15 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) return json({ error: 'Informe o seu WhatsApp.' }, 400);
 
+  // Sem envio de e-mail, diz logo — ANTES dos limites (30/10/2026): o limite por número responde
+  // "o link está a caminho" sem mandar nada, e do 4º pedido em diante prometia um link que nunca
+  // ia sair, num servidor sem e-mail.
+  if (transporteDeEmail() === 'nenhum' || !urlDoPainel()) {
+    return json({
+      error: 'A senha nova por e-mail ainda não está funcionando. Fale com o suporte pelo WhatsApp.',
+    }, 503);
+  }
+
   // Dois limites: por aparelho, contra quem varre números; por número, contra
   // quem enche a caixa de e-mail de um dono de pedidos que ele não fez.
   const ip = getClientIp(request, clientAddress);
@@ -70,12 +79,6 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
       // de quem gastou já mandaram o link ao e-mail do dono: o último vale por 1 hora.
       return json({ ok: true, mensagem: RESPOSTA_DO_PEDIDO });
     }
-  }
-
-  if (transporteDeEmail() === 'nenhum' || !urlDoPainel()) {
-    return json({
-      error: 'A senha nova por e-mail ainda não está funcionando. Fale com o suporte pelo WhatsApp.',
-    }, 503);
   }
 
   // Sem `await`, de propósito — ver o cabeçalho. `pedirRedefinicao` não lança, e o

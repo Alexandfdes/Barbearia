@@ -25,10 +25,10 @@ const TABELAS = [
   'barbers', 'services', 'products', 'appointments', 'appointmentItems',
   'barberServices', 'workingHours', 'timeOff', 'productSales', 'reservations',
   'combos', 'settings', 'galleryImages', 'redefinicoesDeSenha', 'avisosEnviados',
-  'webhookEvents', 'acoesDoOperador',
+  'webhookEvents', 'acoesDoOperador', 'confirmacoesDeEmail',
   'appointment_items', 'barber_services', 'working_hours', 'time_off', 'product_sales',
   'gallery_images', 'redefinicoes_de_senha', 'avisos_enviados', 'webhook_events',
-  'acoes_do_operador',
+  'acoes_do_operador', 'confirmacoes_de_email',
 ];
 
 /**
@@ -219,7 +219,7 @@ const TABELAS_DRIZZLE = [
   'barbers', 'services', 'products', 'appointments', 'appointmentItems',
   'barberServices', 'workingHours', 'timeOff', 'productSales', 'reservations',
   'combos', 'settings', 'galleryImages', 'redefinicoesDeSenha', 'avisosEnviados',
-  'webhookEvents', 'acoesDoOperador',
+  'webhookEvents', 'acoesDoOperador', 'confirmacoesDeEmail',
   // apelidos de importação (`import { services as servicesTable }`)
   'servicesTable', 'settingsTable',
 ];
@@ -235,6 +235,8 @@ const CONSULTAS_SEM_FILTRO: [string, string][] = [
   // saber de qual barbearia ele é. As outras consultas do arquivo filtram.
   ['src/lib/redefinicaoDeSenha.ts .from(barbers)', 'acha o barbeiro pelo TELEFONE do "esqueci minha senha", como o login'],
   ['src/lib/redefinicaoDeSenha.ts .from(redefinicoesDeSenha)', 'acha o pedido pelo hash do TOKEN do link — o token é a identidade, e a barbearia sai dele'],
+  // A confirmação do e-mail (30/10/2026): a tela do link abre sem sessão, como a senha nova.
+  ['src/lib/confirmacaoDeEmail.ts .from(confirmacoesDeEmail)', 'acha o link pelo hash do TOKEN — o token é a identidade, e a barbearia sai dele'],
 ];
 
 const FILTRO = /tenantId|tenant\.id/;

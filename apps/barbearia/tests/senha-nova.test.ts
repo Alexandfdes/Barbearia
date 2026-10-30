@@ -87,6 +87,9 @@ beforeAll(async () => {
               (4, 2, 'Dona da Vintage', 'dona',     '84999990004', 'dona@vintage.com',    'admin',  ${h}, true),
               (5, 3, 'Dono da Fechada', 'dono',     '84999990005', 'dono@fechada.com',    'admin',  ${h}, true),
               (6, 1, 'Ana',             'ana',      '84999990006', 'ana@bayron.com',      'barber', ${h}, true)`;
+  // O e-mail confirmado: só ele recebe (lib/confirmacaoDeEmail.ts). O não confirmado está em
+  // tests/confirmacao-de-email.test.ts.
+  await sql`UPDATE barbers SET email_confirmado_em = now() WHERE email IS NOT NULL`;
   await sql`SELECT setval('barbers_id_seq', 6)`;
 
   process.env.DOMINIO_BASE = 'fadeline.com.br';
@@ -344,6 +347,12 @@ describe.skipIf(!TEM_BANCO)('as rotas', () => {
       const res = await esqueci.POST(pedidoJson('http://painel.test/api/auth/esqueci', { whatsapp: '84999990001' }, '10.9.2.1') as never);
       expect(res.status).toBe(503);
       expect((await res.json()).error).toMatch(/suporte/i);
+      // E continua dizendo, pedido após pedido: até 30/10/2026, do 4º em diante o limite por número
+      // respondia "o link está a caminho" antes de conferir o e-mail.
+      for (const ip of ['10.9.2.11', '10.9.2.12', '10.9.2.13', '10.9.2.14']) {
+        const de = await esqueci.POST(pedidoJson('http://painel.test/api/auth/esqueci', { whatsapp: '84999990001' }, ip) as never);
+        expect(de.status, `pedido de ${ip}`).toBe(503);
+      }
 
       // Com o SMTP configurado e sem endereço do painel, o link não teria para
       // onde apontar: a mesma resposta.
@@ -456,6 +465,10 @@ describe.skipIf(!TEM_BANCO)('o link pedido antes de outra troca de senha ou de e
     const r = await pela(dono, 'PUT', 'http://painel.test/api/admin/barbers/6', { email: 'ana.nova@bayron.com' }, 6, equipe);
     expect(r.status).toBe(200);
     expect(await senha.pedidoValido(token)).toBeNull();
+    // O e-mail novo nasce não confirmado, e o link de senha nova não vai para ele
+    // (`lib/confirmacaoDeEmail.ts`). Os casos seguintes pedem o link para a Ana: confirmado à mão.
+    expect(await senha.pedirRedefinicao('84999990006')).toBe('email-nao-confirmado');
+    await sql`UPDATE barbers SET email_confirmado_em = now() WHERE id = 6`;
   });
 
   it('a senha trocada pelo script de suporte', async () => {

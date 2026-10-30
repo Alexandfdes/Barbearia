@@ -175,6 +175,9 @@ describe.skipIf(!TEM_BANCO)('a tarefa, contra o banco', () => {
       (8,  'Dono Manual',     'dono', 'admin',  'x', true,  'dono@manual.com'),
       (9,  'Dono Encerrada',  'dono', 'admin',  'x', true,  'dono@encerrada.com'),
       (10, 'Dono Quebrada',   'dono', 'admin',  'x', true,  'a b@c.de')`;
+    // Só o e-mail confirmado recebe (lib/confirmacaoDeEmail.ts): a sócia da Carência não
+    // confirmou o dela, e fica de fora — o dono confirmou e recebe.
+    await sql`UPDATE barbers SET email_confirmado_em = now() WHERE email IS NOT NULL AND email <> 'socia@carencia.com'`;
 
     process.env.DOMINIO_BASE = 'fadeline.com.br';
     email = await import('../src/lib/email.ts');
@@ -200,7 +203,6 @@ describe.skipIf(!TEM_BANCO)('a tarefa, contra o banco', () => {
       'dono@atrasada.com | Barbearia Atrasada: a cobrança do cartão não passou',
       'dono@carencia.com | Barbearia Carência: o teste grátis acabou',
       'dono@fora.com | Barbearia Fora: o site saiu do ar',
-      'socia@carencia.com | Barbearia Carência: o teste grátis acabou',
     ]);
     // O link do aviso aponta para a tela de assinatura do painel.
     expect(email.caixaDeSaida[0].texto).toContain('https://painel.fadeline.com.br/admin/assinatura');
