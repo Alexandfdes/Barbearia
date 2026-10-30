@@ -111,36 +111,44 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     return json({ error: `Muitas tentativas. Tente em ${rl.retryAfterSecs}s` }, 429);
   }
 
-  // (3) Por conta, de qualquer IP — a força bruta distribuída. ⚠️ NÃO vale no aparelho
-  // onde este número já entrou (`lib/aparelhoConhecido.ts`): sem isso, qualquer pessoa
-  // trancava o dono fora — o login é o WhatsApp do site dele (revisão de 27/10/2026).
-  let chavesReservadas: string[] = [];
-  if (telefone && !(await aparelhoConhecido(request, telefone))) {
-    const [curta, doDia] = chavesDaConta(telefone);
-    const conta = checkRateLimit(curta, LIMITE_DA_CONTA.curto);
-    const dia = conta.ok ? checkRateLimit(doDia, LIMITE_DA_CONTA.dia) : conta;
-    if (!conta.ok || !dia.ok) {
-      if (conta.ok) devolverTentativa(curta);
-      devolverTentativa(chaveGlobal);
-      return json({ error: 'Muitas tentativas com este WhatsApp. Tente mais tarde, ou use "Esqueci minha senha".' }, 429);
-    }
-    chavesReservadas = [curta, doDia];
-  }
-
   const colunas = {
     id: barbers.id,
     tenantId: barbers.tenantId,
     role: barbers.role,
     passwordHash: barbers.passwordHash,
     active: barbers.active,
+    senhaTrocadaEm: barbers.senhaTrocadaEm,
   };
 
-  let barbeiro: { id: number; tenantId: number; role: string; passwordHash: string; active: boolean } | undefined;
+  let barbeiro: { id: number; tenantId: number; role: string; passwordHash: string; active: boolean; senhaTrocadaEm: Date | null } | undefined;
+  let chavesReservadas: string[] = [];
 
   if (telefone) {
     // O ativo: desde a migration 0017 o número pode estar também em linhas de barbeiros
     // desligados, e só um ativo por número.
     barbeiro = await first(dbDono.select(colunas).from(barbers).where(and(eq(barbers.phone, telefone), eq(barbers.active, true))));
+
+    // (3) Por conta, de qualquer IP — a força bruta distribuída. ⚠️ NÃO vale no aparelho
+    // onde este barbeiro já entrou depois da última troca de senha (`lib/aparelhoConhecido.ts`):
+    // sem isso, qualquer pessoa trancava o dono fora — o login é o WhatsApp do site dele
+    // (revisão de 27/10/2026; amarrado ao barbeiro e à senha em 30/10/2026).
+    const conhecido = barbeiro
+      ? await aparelhoConhecido(request, { telefone, barberId: barbeiro.id, senhaTrocadaEm: barbeiro.senhaTrocadaEm })
+      : false;
+    if (!conhecido) {
+      const [curta, doDia] = chavesDaConta(telefone);
+      const conta = checkRateLimit(curta, LIMITE_DA_CONTA.curto);
+      const dia = conta.ok ? checkRateLimit(doDia, LIMITE_DA_CONTA.dia) : conta;
+      if (!conta.ok || !dia.ok) {
+        if (conta.ok) devolverTentativa(curta);
+        // Recusado pela conta, nada se conferiu: as outras tentativas voltam (30/10/2026 — antes,
+        // o dono que insistia num aparelho novo gastava também o limite IP + número).
+        devolverTentativa(chaveGlobal);
+        devolverTentativa(rlKey);
+        return json({ error: 'Muitas tentativas com este WhatsApp. Tente mais tarde, ou use "Esqueci minha senha".' }, 429);
+      }
+      chavesReservadas = [curta, doDia];
+    }
   } else {
     /**
      * ── TRANSIÇÃO ────────────────────────────────────────────────────────────
@@ -209,7 +217,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
 
   const headers = new Headers({ 'Content-Type': 'application/json' });
   headers.append('Set-Cookie', cookie);
-  if (telefone) headers.append('Set-Cookie', await cookieDoAparelho(telefone));
+  if (telefone) headers.append('Set-Cookie', await cookieDoAparelho({ telefone, barberId: barbeiro.id, senhaTrocadaEm: barbeiro.senhaTrocadaEm }));
   return new Response(JSON.stringify({ ok: true, destino: noAr(situacao) ? '/admin' : '/admin/assinatura' }), {
     status:  200,
     headers,
