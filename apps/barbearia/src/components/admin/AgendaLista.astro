@@ -26,15 +26,41 @@ interface Appt {
   valor: string;
   durationMinutes: number;
 }
+interface Bloqueio { timeLocal: string; endTimeLocal: string; reason: string | null }
 interface Props {
   appts: Appt[];
   role: 'admin' | 'barber';
+  /** Os bloqueios do dia entram na MESMA lista, na ordem da hora (revisão de 30/10/2026: vinham
+   *  todos antes dos atendimentos — o das 15:00 acima do atendimento das 10:30). */
+  bloqueios?: Bloqueio[];
 }
-const { appts, role } = Astro.props;
+const { appts, role, bloqueios = [] } = Astro.props;
+type Item = { tipo: 'appt'; hora: string; a: Appt } | { tipo: 'bloqueio'; hora: string; b: Bloqueio };
+// "HH:mm" do mesmo dia ordena como texto; no empate, o bloqueio vem antes.
+const itens: Item[] = [
+  ...bloqueios.map((b): Item => ({ tipo: 'bloqueio', hora: b.timeLocal, b })),
+  ...appts.map((a): Item => ({ tipo: 'appt', hora: a.timeLocal, a })),
+].sort((x, y) => (x.hora < y.hora ? -1 : x.hora > y.hora ? 1 : 0));
 ---
 
-<div class="space-y-2">
-  {appts.map(a => {
+<div class="space-y-2" data-agenda-lista>
+  {itens.map(item => {
+    if (item.tipo === 'bloqueio') {
+      const b = item.b;
+      return (
+        <div data-list-bloqueio class="flex items-center gap-3 bg-white border border-slate-200 border-l-[3px] border-l-neutral-600/60 rounded-md px-4 py-3">
+          <div class="w-12 shrink-0">
+            <p class="text-sm font-bold tabular-nums text-slate-500">{b.timeLocal}</p>
+            <p class="text-[10px] text-slate-400 tabular-nums">{b.endTimeLocal}</p>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-slate-500 truncate">{b.reason || 'Horário bloqueado'}</p>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest">Bloqueio</p>
+          </div>
+        </div>
+      );
+    }
+    const a = item.a;
     const st = aparenciaDaSituacao(a.status, a.isLate);
     const muted = linhaApagada(a.status);
     const riscado = nomeRiscado(a.status);
