@@ -344,6 +344,12 @@ describe.skipIf(!TEM_BANCO)('as rotas', () => {
       const res = await esqueci.POST(pedidoJson('http://painel.test/api/auth/esqueci', { whatsapp: '84999990001' }, '10.9.2.1') as never);
       expect(res.status).toBe(503);
       expect((await res.json()).error).toMatch(/suporte/i);
+      // E continua dizendo, pedido após pedido: até 30/10/2026, do 4º em diante o limite por número
+      // respondia "o link está a caminho" antes de conferir o e-mail.
+      for (const ip of ['10.9.2.11', '10.9.2.12', '10.9.2.13', '10.9.2.14']) {
+        const de = await esqueci.POST(pedidoJson('http://painel.test/api/auth/esqueci', { whatsapp: '84999990001' }, ip) as never);
+        expect(de.status, `pedido de ${ip}`).toBe(503);
+      }
 
       // Com o SMTP configurado e sem endereço do painel, o link não teria para
       // onde apontar: a mesma resposta.
