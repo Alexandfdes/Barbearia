@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **03/11** | **O e-mail ligado em produção mostrou três falhas, consertadas:** o boot dizia "SMTP configurado" com o `SMTP_URL` quebrado, o envio que falhava ficava no banco ("o link acabou de sair") e a tela dizia "mandamos" sem ter mandado | `PENDENCIAS-ABERTAS.md` §2.65 |
 | **30/10** | **Nada sai para e-mail não confirmado**, menos o próprio link de confirmação, sem texto digitado: a senha nova, os avisos de agendamento, do teste, da cobrança e o de e-mail trocado esperam a pessoa abrir o link e tocar em "Confirmar". Era o que faltava antes do `CADASTRO_ABERTO` | `PENDENCIAS-ABERTAS.md` §2.64 |
 | **30/10** | **A revisão depois do deploy, consertada:** o cookie de aparelho amarrado ao barbeiro e à senha, o backup de antes só reaproveitado se inteiro e de minutos atrás, o "esqueci" sem e-mail dizendo isso sempre, o gráfico vazio do Início, os bloqueios fora da ordem, o "Próximo" desatualizado e o aviso de não salvo ao contrário. **O roteiro de testes em produção ficou para depois**, por decisão sua | `PENDENCIAS-ABERTAS.md` §2.63 |
 | **28–29/10** | **No ar:** o primeiro deploy da `monorepo` (PR #2), o app sem superusuário, o domínio `fadeline.com.br` com o site de vendas na raiz, e o primeiro cadastro de teste pela web. **Decidido por você:** o Bayron não vai ser migrado — o banco dele é fictício; se ele fechar, entra do zero | `PENDENCIAS-ABERTAS.md` §3.2, `PENDENCIAS-ABERTAS.md` §0.1 e `PENDENCIAS-ABERTAS.md` §2.62 |
@@ -2774,6 +2775,33 @@ defeitos reintroduzidos, os 18 vermelhos (o último, a troca do e-mail entre a t
 gatilho do banco dentro da transação); no navegador contra o build, a tela do link antes e depois do
 clique, o link reaberto ("E-mail confirmado") e o inválido, o aviso do Início mandando o link de novo e a
 Equipe com "confirmado" e "não confirmado". Guarda: `apps/barbearia/tests/confirmacao-de-email.test.ts`.
+
+---
+
+### 2.65 ✅ `[TÉCNICO]` O que ligar o e-mail em produção mostrou — CONSERTADO em 03/11/2026
+
+O envio foi ligado em 03/11 (o provedor e a configuração moram no projeto do claude.ai). No caminho, três
+falhas do código, todas vistas no ar:
+
+- **O boot dizia "✓ e-mail: SMTP configurado" só porque a variável existia.** O valor tinha sobra do
+  modelo (`<` e `>`) e, depois, o servidor digitado errado; o boot disse "configurado" nas duas vezes, e o
+  erro só apareceu no log do primeiro envio (`Invalid URL`, `ENOTFOUND`). Agora o boot confere o formato
+  (`apps/barbearia/scripts/smtpUrl.mjs` — as regras saíram de testar o leitor do próprio `nodemailer`) e
+  faz o login no provedor, sem mandar e-mail: diz "o provedor aceitou o login (servidor)" ou o motivo da
+  recusa. Nunca imprime o valor, que tem a chave. Com o provedor fora, o boot espera até ~8 s a mais e sobe.
+- **O envio que falhava ficava no banco.** A linha do link era gravada antes de mandar: com a falha, o
+  segundo "mande de novo" respondia *"o link acabou de sair"*, cada falha gastava um dos cinco pedidos do
+  dia e vencia o link anterior. Agora o link que não saiu é apagado, e o anterior só vence quando o novo
+  sai (`pedirConfirmacao`, em `apps/barbearia/src/lib/confirmacaoDeEmail.ts`).
+- **A tela dizia "o link que mandamos" sem ter mandado** — com o envio desligado e para todo e-mail de
+  antes da `0019`. Agora o Início e a Equipe têm três estados: o envio desligado (sem botão), nenhum link
+  valendo para o e-mail de agora ("Mandar o link de confirmação") e o link mandado (o texto de antes)
+  (`comLinkValido`).
+
+**Verificado:** 117 arquivos, **1336 de 1336** contra PostgreSQL 16; o `astro check` com zero; 13 defeitos
+reintroduzidos, os 13 vermelhos; o boot de verdade contra um provedor SMTP de mentira (aceita, recusa e
+formato errado); e, no navegador contra o build, o Início passando de "Mandar o link" a "mandamos" depois
+do clique, e a Equipe com os dois estados. O estado "envio desligado" foi conferido só no código.
 
 ---
 
