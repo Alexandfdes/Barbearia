@@ -24,6 +24,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
 import { backupDoBanco, backupRecente } from './backup.mjs';
+import { problemaNoSmtpUrl, semSegredo, servidorDoSmtpUrl } from './smtpUrl.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PASTA = resolve(__dirname, '..', 'drizzle');
@@ -346,7 +347,7 @@ async function avisarTravaDeHorario() {
  * nenhum — o dono pede a senha nova e espera, o aviso do fim do teste não chega —,
  * e este é o lugar onde se olha quando o deploy termina.
  */
-function conferirEmail() {
+async function conferirEmail() {
   if (process.env.NODE_ENV !== 'production') return;
   const faltam = [];
   if (!process.env.SMTP_URL?.trim()) {
@@ -355,16 +356,55 @@ function conferirEmail() {
   if (!process.env.PAINEL_URL?.trim() && !process.env.DOMINIO_BASE?.trim()) {
     faltam.push('PAINEL_URL ou DOMINIO_BASE — sem eles, o link do e-mail não tem para onde apontar');
   }
-  if (faltam.length === 0) {
-    console.log('✓ e-mail: SMTP configurado');
+  if (faltam.length > 0) {
+    console.warn(
+      '\n' +
+      '  ┌──────────────────────────────────────────────────────────────┐\n' +
+      '  │  ⚠️  E-MAIL DESLIGADO — SENHA NOVA E AVISOS NÃO VÃO SAIR     │\n' +
+      '  └──────────────────────────────────────────────────────────────┘\n' +
+      faltam.map((f) => `  Falta: ${f}\n`).join('') +
+      '  O app vai subir e atender normalmente.\n'
+    );
     return;
   }
+
+  // Até 03/11/2026, aqui dizia "✓ SMTP configurado" só porque a variável existia — com o valor
+  // quebrado também (`scripts/smtpUrl.mjs` conta a história). Agora: o formato, e depois o login
+  // de verdade no provedor, sem mandar e-mail nenhum. Nunca imprime o valor: ele tem a chave.
+  const url = process.env.SMTP_URL.trim();
+  const problema = problemaNoSmtpUrl(url);
+  if (problema) {
+    avisoDeEmail('O SMTP_URL ESTÁ ESCRITO ERRADO — NENHUM E-MAIL SAI', `O SMTP_URL ${problema}`);
+    return;
+  }
+  const servidor = servidorDoSmtpUrl(url);
+  try {
+    const { createTransport } = await import('nodemailer');
+    const transporte = createTransport({ url, connectionTimeout: 8_000, greetingTimeout: 8_000, socketTimeout: 8_000 });
+    try {
+      await transporte.verify();
+    } finally {
+      transporte.close();
+    }
+    console.log(`✓ e-mail: o provedor aceitou o login (${servidor})`);
+  } catch (erro) {
+    avisoDeEmail(
+      'O PROVEDOR DE E-MAIL RECUSOU — NENHUM E-MAIL SAI',
+      `Servidor: ${servidor}\n  Motivo: ${semSegredo(erro instanceof Error ? erro.message : String(erro), url)}\n` +
+      '  ENOTFOUND: o servidor está digitado errado. 535 / Invalid login: o login ou a chave.\n' +
+      '  Timeout: a porta pode estar bloqueada — troque smtps://…:465 por smtp://…:587.',
+    );
+  }
+}
+
+function avisoDeEmail(titulo, detalhe) {
+  const linha = `  │  ⚠️  ${titulo}`;
   console.warn(
     '\n' +
-    '  ┌──────────────────────────────────────────────────────────────┐\n' +
-    '  │  ⚠️  E-MAIL DESLIGADO — SENHA NOVA E AVISOS NÃO VÃO SAIR     │\n' +
-    '  └──────────────────────────────────────────────────────────────┘\n' +
-    faltam.map((f) => `  Falta: ${f}\n`).join('') +
+    '  ┌' + '─'.repeat(Math.max(62, linha.length - 2)) + '┐\n' +
+    linha + '\n' +
+    '  └' + '─'.repeat(Math.max(62, linha.length - 2)) + '┘\n' +
+    `  ${detalhe}\n` +
     '  O app vai subir e atender normalmente.\n'
   );
 }
@@ -466,7 +506,7 @@ try {
   await conferirPapelDoApp();
   if (!soMigrations) {
     conferirPgDump();
-    conferirEmail();
+    await conferirEmail();
     avisarFusoAntigo();
     await avisarTravaDeHorario();
   }

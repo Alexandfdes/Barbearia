@@ -126,8 +126,9 @@ describe('os comandos do package.json apontam para arquivos que existem', () => 
     // espera, e o aviso do fim do teste não chega. O aviso do boot é o lugar onde
     // se olha quando o deploy termina — conferido rodando em 09/10/2026.
     const fonte = readFileSync('scripts/startup.mjs', 'utf8');
-    expect(fonte).toMatch(/function conferirEmail\(\)/);
-    expect(fonte).toMatch(/if \(!soMigrations\) \{\s*conferirPgDump\(\);\s*conferirEmail\(\);/);
+    // Desde 03/11/2026 ela é assíncrona: confere também o login no provedor (`tests/smtp-url.test.ts`).
+    expect(fonte).toMatch(/async function conferirEmail\(\)/);
+    expect(fonte).toMatch(/if \(!soMigrations\) \{\s*conferirPgDump\(\);\s*await conferirEmail\(\);/);
   });
 
   it('o `npm run dev` aplica as migrations pendentes antes de subir', () => {

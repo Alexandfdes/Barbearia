@@ -230,6 +230,79 @@ describe.skipIf(!TEM_BANCO)('o link de confirmação', () => {
       console.error = erro;
     }
   });
+
+  // 03/11/2026, em produção: o SMTP_URL estava quebrado, o envio falhou, e o segundo clique em
+  // "mande de novo" respondeu "o link acabou de sair" — a linha do envio que falhou ficava no
+  // banco, contava no minuto e no limite do dia, e o Início dizia "mandamos".
+  it('o envio que falha não fica no banco: o pedido seguinte sai na hora, e o link de antes continua valendo', async () => {
+    await sql`UPDATE barbers SET email = 'beto@bayron.com', email_confirmado_em = NULL WHERE id = 3`;
+    await sql`DELETE FROM confirmacoes_de_email WHERE barber_id = 3`;
+    const t = (min: number) => new Date(AGORA.getTime() + (120 + min) * MINUTO);
+    expect(await conf.pedirConfirmacao({ tenantId: 1, barberId: 3, agora: t(0) })).toBe('enviado');
+    const deAntes = tokenDe(email.caixaDeSaida.at(-1)?.texto);
+    expect(await conf.comLinkValido(1, [3], t(5))).toEqual(new Set([3]));
+
+    const erro = console.error;
+    console.error = () => {};
+    try {
+      expect(await conf.pedirConfirmacao({ tenantId: 1, barberId: 3, agora: t(5),
+        enviar: async () => { throw new Error('Invalid URL'); } })).toBe('falhou');
+      // Sem o "cedo-demais": o que falhou não conta.
+      expect(await conf.pedirConfirmacao({ tenantId: 1, barberId: 3, agora: t(5.2),
+        enviar: async () => { throw new Error('Invalid URL'); } })).toBe('falhou');
+      // O que saiu fica de pé — a falha não o venceu.
+      expect((await conf.estadoDoLink(deAntes, t(6))).estado).toBe('valido');
+      // No modo sem espera (o cadastro, a Equipe), a falha chega depois — e a linha some também.
+      await conf.pedirConfirmacao({ tenantId: 1, barberId: 3, agora: t(7), esperarEnvio: false,
+        enviar: async () => { throw new Error('SMTP fora'); } });
+      await new Promise((r) => setTimeout(r, 100));
+    } finally {
+      console.error = erro;
+    }
+    const [{ n }] = await sql`SELECT count(*)::int AS n FROM confirmacoes_de_email WHERE barber_id = 3`;
+    expect(n).toBe(1);
+
+    // O que sai depois vence o de antes.
+    expect(await conf.pedirConfirmacao({ tenantId: 1, barberId: 3, agora: t(8) })).toBe('enviado');
+    expect((await conf.estadoDoLink(deAntes, t(9))).estado).toBe('invalido');
+    expect(await conf.comLinkValido(1, [3], t(9))).toEqual(new Set([3]));
+  });
+
+  it('o "link mandado" é do e-mail de agora: trocado o e-mail, ou usado o link, não há link mandado', async () => {
+    await sql`UPDATE barbers SET email = 'beto@bayron.com', email_confirmado_em = NULL WHERE id = 3`;
+    await sql`DELETE FROM confirmacoes_de_email WHERE barber_id = 3`;
+    const t = new Date(AGORA.getTime() + 200 * MINUTO);
+    expect(await conf.comLinkValido(1, [3], t)).toEqual(new Set());
+    await conf.pedirConfirmacao({ tenantId: 1, barberId: 3, agora: t });
+    expect(await conf.comLinkValido(1, [3], t)).toEqual(new Set([3]));
+    // Barbearia de outra: não enxerga.
+    expect(await conf.comLinkValido(2, [3], t)).toEqual(new Set());
+    await sql`UPDATE barbers SET email = 'beto.novo@bayron.com' WHERE id = 3`;
+    expect(await conf.comLinkValido(1, [3], t)).toEqual(new Set());
+    await sql`UPDATE barbers SET email = 'beto@bayron.com' WHERE id = 3`;
+    await conf.confirmarEmail(tokenDe(email.caixaDeSaida.at(-1)?.texto), t);
+    expect(await conf.comLinkValido(1, [3], t)).toEqual(new Set());
+  });
+});
+
+describe('a tela não diz "mandamos" sem ter mandado', () => {
+  it('o Início escolhe entre envio desligado, link por mandar e link mandado', () => {
+    const tela = readFileSync('src/pages/admin/index.astro', 'utf8');
+    expect(tela).toMatch(/transporteDeEmail\(\) === 'nenhum'/);
+    expect(tela).toMatch(/comLinkValido\(tenant\.id, \[barberRow\.id\]\)/);
+    expect(tela).toMatch(/envioDesligado \? 'desligado' : linkJaMandado \? 'mandado' : 'por-mandar'/);
+    // "mandamos" só no ramo do link mandado.
+    const ramoMandado = tela.slice(tela.indexOf(') : linkJaMandado ? ('), tela.indexOf(') : (', tela.indexOf(') : linkJaMandado ? (')));
+    const quadro = tela.slice(tela.indexOf('{emailParaConfirmar && ('), tela.indexOf('</section>', tela.indexOf('{emailParaConfirmar && (')));
+    expect(quadro.split('mandamos').length - 1).toBe(1);
+    expect(ramoMandado).toContain('mandamos');
+  });
+
+  it('a Equipe também', () => {
+    const tela = readFileSync('src/pages/admin/barbeiros.astro', 'utf8');
+    expect(tela).toMatch(/comLinkValido\(tenant\.id, naoConfirmados\)/);
+    expect(tela).toMatch(/comLink\.has\(b\.id\)\s*\?\s*` nada chega nele até .* o link que mandamos/);
+  });
 });
 
 describe.skipIf(!TEM_BANCO)('nada sai para e-mail não confirmado', () => {
