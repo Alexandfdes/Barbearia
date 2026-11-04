@@ -7,6 +7,8 @@ import { db } from '../../db/index.js';
 import { barbers } from '../../db/schema.js';
 import { and, eq } from 'drizzle-orm';
 import { tenantDaSessao } from '../../lib/tenant.js';
+import { transporteDeEmail } from '../../lib/email.js';
+import { comLinkValido } from '../../lib/confirmacaoDeEmail.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
@@ -31,6 +33,12 @@ const inactiveCount = list.length - activeCount;
 // O dono sem e-mail não recebe a senha nova nem os avisos do teste e da cobrança —
 // e quem nasceu antes de o cadastro pedir não tem (migration 0006).
 const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
+
+// Quem tem um link de confirmação que saiu e ainda vale — para a linha não dizer "mandamos" sem ter
+// mandado (03/11/2026). Com o envio desligado, nenhum link sai, e a linha diz isso.
+const envioDesligado = transporteDeEmail() === 'nenhum';
+const naoConfirmados = list.filter((b) => b.email && !b.emailConfirmadoEm).map((b) => b.id);
+const comLink = envioDesligado ? new Set<number>() : await comLinkValido(tenant.id, naoConfirmados);
 ---
 
 <AdminLayout title="Barbeiros" barberName={barberRow.name} role="admin">
@@ -139,10 +147,18 @@ const euSemEmail = !list.find(b => b.id === session.barberId)?.email;
               {b.email && !b.emailConfirmadoEm && (
                 <div data-nao-confirmado={String(b.id)} class="text-xs text-amber-800 mt-1">
                   <p>
-                    E-mail <strong>não confirmado</strong>: nada chega nele até {b.id === session.barberId ? 'você abrir' : 'a pessoa abrir'} o
-                    link que mandamos para lá.
-                    {' '}<button type="button" data-reenviar={String(b.id)}
-                      class="underline underline-offset-2 hover:text-amber-950">Mandar o link de novo</button>
+                    E-mail <strong>não confirmado</strong>:
+                    {envioDesligado
+                      ? ' nada chega nele, e a confirmação ainda não está disponível neste servidor.'
+                      : comLink.has(b.id)
+                        ? ` nada chega nele até ${b.id === session.barberId ? 'você abrir' : 'a pessoa abrir'} o link que mandamos para lá.`
+                        : ` nada chega nele até ${b.id === session.barberId ? 'você confirmar' : 'a pessoa confirmar'}.`}
+                    {!envioDesligado && (
+                      <Fragment>
+                        {' '}<button type="button" data-reenviar={String(b.id)}
+                          class="underline underline-offset-2 hover:text-amber-950">{comLink.has(b.id) ? 'Mandar o link de novo' : 'Mandar o link de confirmação'}</button>
+                      </Fragment>
+                    )}
                   </p>
                   <p data-reenviar-msg={String(b.id)} class="hidden mt-0.5" role="status"></p>
                 </div>

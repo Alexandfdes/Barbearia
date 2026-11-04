@@ -17,7 +17,8 @@ import { segundaFeiraDaSemana } from '../../lib/calendario.js';
 import { fusoDe } from '../../lib/timezone.js';
 import { buscaDoMapa, embedDoMapa, mapaPrecisaConferir } from '../../lib/mapa.js';
 import { receitaDoPeriodo } from '../../lib/receita.js';
-import { mascararEmail } from '../../lib/email.js';
+import { mascararEmail, transporteDeEmail } from '../../lib/email.js';
+import { comLinkValido } from '../../lib/confirmacaoDeEmail.js';
 
 
 const session = await getSession(Astro.request);
@@ -33,6 +34,11 @@ if (!barberRow) return Astro.redirect('/admin/login');
 // O e-mail de quem está logado ainda não confirmado (`lib/confirmacaoDeEmail.ts`): nada chega
 // nele — nem a senha nova. Mascarado: é o que a tela de confirmação também mostra.
 const emailParaConfirmar = barberRow.email && !barberRow.emailConfirmadoEm ? mascararEmail(barberRow.email) : null;
+// Três estados, para a tela não dizer "mandamos" sem ter mandado (03/11/2026): o envio desligado
+// no servidor, nenhum link que valha para o e-mail de agora, e o link já mandado.
+const envioDesligado = emailParaConfirmar !== null && transporteDeEmail() === 'nenhum';
+const linkJaMandado = emailParaConfirmar !== null && !envioDesligado
+  && (await comLinkValido(tenant.id, [barberRow.id])).has(barberRow.id);
 
 const nowUtc = new Date();
 const todayStr = formatInTimeZone(nowUtc, fuso, 'yyyy-MM-dd');
@@ -316,10 +322,25 @@ const mapaParaConferir = cfg && mapaPrecisaConferir(cfg, cfg.mapaConferido)
     {emailParaConfirmar && (
       <section id="confirmar-email" data-barbeiro={String(barberRow.id)} class="rounded-lg border border-amber-200 bg-amber-50/50 p-4 text-sm text-amber-950">
         <h2 class="font-semibold">Confirme o seu e-mail</h2>
-        <p class="mt-1 text-xs text-amber-900/80">
-          {emailParaConfirmar} se confirma pelo link que mandamos para ele. Até você abrir, nada chega nele: nem o
-          link de senha nova, se esquecer a sua, nem os avisos. Não chegou? Olhe o spam, ou
-          {' '}<button type="button" id="confirmar-email-reenviar" class="underline underline-offset-2 hover:text-amber-950">mande de novo</button>.
+        <p class="mt-1 text-xs text-amber-900/80" data-estado-da-confirmacao={envioDesligado ? 'desligado' : linkJaMandado ? 'mandado' : 'por-mandar'}>
+          {envioDesligado ? (
+            <Fragment>
+              {emailParaConfirmar} ainda não foi confirmado, e a confirmação ainda não está disponível neste
+              servidor. Até lá, nada chega nele: nem o link de senha nova, se esquecer a sua, nem os avisos.
+            </Fragment>
+          ) : linkJaMandado ? (
+            <Fragment>
+              {emailParaConfirmar} se confirma pelo link que mandamos para ele. Até você abrir, nada chega nele: nem o
+              link de senha nova, se esquecer a sua, nem os avisos. Não chegou? Olhe o spam, ou
+              {' '}<button type="button" id="confirmar-email-reenviar" class="underline underline-offset-2 hover:text-amber-950">mande de novo</button>.
+            </Fragment>
+          ) : (
+            <Fragment>
+              Até você confirmar {emailParaConfirmar}, nada chega nele: nem o link de senha nova, se esquecer a sua,
+              nem os avisos.
+              {' '}<button type="button" id="confirmar-email-reenviar" class="underline underline-offset-2 hover:text-amber-950">Mandar o link de confirmação</button>.
+            </Fragment>
+          )}
           {' '}E-mail errado? Corrija em {session.role === 'admin' ? <a href="/admin/barbeiros" class="underline underline-offset-2">Equipe</a> : 'Equipe, com o dono'}.
         </p>
         <p id="confirmar-email-msg" class="hidden mt-1 text-xs" role="status"></p>
