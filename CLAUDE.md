@@ -224,7 +224,8 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **Nada sai para e-mail não confirmado** (`barbers.email_confirmado_em`, migration 0019) — menos o pedido de
   confirmação, que não leva texto digitado (`apps/barbearia/src/lib/confirmacaoDeEmail.ts`). Envio novo
   filtra `isNotNull(barbers.emailConfirmadoEm)`; caminho novo que grava e-mail volta a confirmação para nula
-  quando ele muda (`docs/PENDENCIAS-ABERTAS.md` §2.64). Nome de barbearia ou de dono no assunto vira golpe
+  quando ele muda (`docs/PENDENCIAS-ABERTAS.md` §2.64). O boot de produção confere o formato do `SMTP_URL` e o
+  login no provedor (`scripts/smtpUrl.mjs`), sem imprimir o valor (`docs/PENDENCIAS-ABERTAS.md` §2.65). Nome de barbearia ou de dono no assunto vira golpe
   com o remetente do produto (`docs/PENDENCIAS-ABERTAS.md` §2.57). O `/cadastrar` é caminho do painel. O
   aviso de agendamento não leva o nome do cliente (`docs/PENDENCIAS-ABERTAS.md` §2.61).
 - **Limite de tentativa conta antes e devolve no acerto** (`devolverTentativa`): só o erro conta. E o

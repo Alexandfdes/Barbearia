@@ -35,7 +35,7 @@
  * filtra pela barbearia, e `tests/escopo-rotas.test.ts` justifica as que partem.
  */
 import { createHash, randomBytes } from 'node:crypto';
-import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { dbDono, first } from '../db/index.js';
 import { barbers, confirmacoesDeEmail } from '../db/schema.js';
 import { enviarEmail, mascararEmail, normalizarEmail, transporteDeEmail, type Email } from './email.js';
@@ -164,24 +164,32 @@ export async function pedirConfirmacao(p: {
     }
 
     const token = randomBytes(32).toString('base64url');
-    // O link anterior ainda não usado deixa de valer — vence agora. Não é apagado: a linha
-    // conta no limite do dia.
-    await dbDono.update(confirmacoesDeEmail)
-      .set({ expiraEm: agora })
-      .where(and(
-        eq(confirmacoesDeEmail.tenantId, p.tenantId),
-        eq(confirmacoesDeEmail.barberId, p.barberId),
-        isNull(confirmacoesDeEmail.usadaEm),
-        gt(confirmacoesDeEmail.expiraEm, agora),
-      ));
-    await dbDono.insert(confirmacoesDeEmail).values({
+    const [novo] = await dbDono.insert(confirmacoesDeEmail).values({
       tenantId: p.tenantId,
       barberId: p.barberId,
       email,
       tokenHash: hashDoToken(token),
       expiraEm: new Date(agora.getTime() + VALIDADE_DA_CONFIRMACAO_MS),
       criadaEm: agora,
-    });
+    }).returning({ id: confirmacoesDeEmail.id });
+
+    // Saiu: os links anteriores ainda não usados deixam de valer — vencem agora. Não são
+    // apagados: as linhas contam no limite do dia.
+    const saiu = () => dbDono.update(confirmacoesDeEmail)
+      .set({ expiraEm: agora })
+      .where(and(
+        eq(confirmacoesDeEmail.tenantId, p.tenantId),
+        eq(confirmacoesDeEmail.barberId, p.barberId),
+        ne(confirmacoesDeEmail.id, novo.id),
+        isNull(confirmacoesDeEmail.usadaEm),
+        gt(confirmacoesDeEmail.expiraEm, agora),
+      ));
+    // Não saiu: o link nunca chegou a ninguém, e a linha some (03/11/2026). Com ela no banco,
+    // o "mande de novo" respondia "o link acabou de sair" a um envio que tinha falhado, o
+    // Início dizia "mandamos", e cada falha gastava um dos cinco pedidos do dia. O link
+    // anterior, se havia, continua valendo.
+    const desfazer = () => dbDono.delete(confirmacoesDeEmail)
+      .where(and(eq(confirmacoesDeEmail.id, novo.id), eq(confirmacoesDeEmail.tenantId, p.tenantId)));
 
     const link = `${painel}${TELA_DE_CONFIRMACAO}?token=${token}`;
     const conteudo = (p.montar ?? textoDoPedidoDeConfirmacao)(link);
@@ -189,21 +197,52 @@ export async function pedirConfirmacao(p: {
       `[confirmacao] o e-mail de confirmação para ${mascararEmail(email)} não saiu:`,
       erro instanceof Error ? erro.message : erro,
     );
+    const registrarFalha = (erro: unknown) => {
+      naoSaiu(erro);
+      return desfazer().catch((e) => console.error('[confirmacao] não consegui apagar o link que não saiu:', e));
+    };
     if (p.esperarEnvio === false) {
-      try { enviar({ para: email, ...conteudo }).catch(naoSaiu); } catch (erro) { naoSaiu(erro); return 'falhou'; }
+      try {
+        enviar({ para: email, ...conteudo })
+          .then(() => saiu().catch((e) => console.error('[confirmacao] não consegui vencer os links anteriores:', e)))
+          .catch(registrarFalha);
+      } catch (erro) { await registrarFalha(erro); return 'falhou'; }
       return 'enviado';
     }
     try {
       await enviar({ para: email, ...conteudo });
     } catch (erro) {
-      naoSaiu(erro);
+      await registrarFalha(erro);
       return 'falhou';
     }
+    await saiu();
     return 'enviado';
   } catch (erro) {
     console.error('[confirmacao] não consegui gravar o pedido de confirmação:', erro);
     return 'falhou';
   }
+}
+
+/**
+ * De quem, entre `barberIds`, há um link de confirmação que SAIU para o e-mail de agora e
+ * ainda vale — para a tela dizer "mandamos um link" só quando mandou (03/11/2026). Antes,
+ * dizia sempre: inclusive com o envio desligado, e para o e-mail gravado antes da 0019, que
+ * nunca recebeu link nenhum. O link que não saiu não fica no banco (`pedirConfirmacao`).
+ */
+export async function comLinkValido(tenantId: number, barberIds: number[], agora: Date = new Date()): Promise<Set<number>> {
+  if (barberIds.length === 0) return new Set();
+  const linhas = await dbDono
+    .select({ barbeiro: confirmacoesDeEmail.barberId })
+    .from(confirmacoesDeEmail)
+    .innerJoin(barbers, and(eq(barbers.id, confirmacoesDeEmail.barberId), eq(barbers.tenantId, confirmacoesDeEmail.tenantId)))
+    .where(and(
+      eq(confirmacoesDeEmail.tenantId, tenantId),
+      inArray(confirmacoesDeEmail.barberId, barberIds),
+      isNull(confirmacoesDeEmail.usadaEm),
+      gt(confirmacoesDeEmail.expiraEm, agora),
+      sql`lower(trim(${barbers.email})) = ${confirmacoesDeEmail.email}`,
+    ));
+  return new Set(linhas.map((l) => l.barbeiro));
 }
 
 export type EstadoDoLink =
