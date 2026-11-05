@@ -172,7 +172,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **Arquivo de backup só tem o nome final depois de terminar bem:** grava em `<nome>.parcial` e
   renomeia. Quem procura backup (`newestBackupAgeMs`, a tela de Sistema) olha só `.sql.gz` e
   `-fotos.tar.gz` — um processo novo que grave direto no nome final volta a fazer o interrompido
-  contar como bom (`tests/backup-interrompido.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.59).
+  contar como bom (`tests/backup-interrompido.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.59). A pasta
+  guarda também o registro do envio para fora (`envio-para-fora.ok` e `.falhou`), que a tela de Sistema
+  lê — fora desses padrões, de propósito (`docs/PENDENCIAS-ABERTAS.md` §2.68).
 - **Commit sem as linhas `Co-Authored-By` e `Claude-Session`** — decisão do dono em 16/10/2026.
   Os commits anteriores ficam como estão.
 - **CI:** `.github/workflows/testes.yml` roda a suíte com banco a cada push na `main` e na

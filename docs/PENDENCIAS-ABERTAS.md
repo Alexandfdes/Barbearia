@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **05/11** | **A tela de Sistema diz se o backup saiu do servidor, e quanto do disco está ocupado** — antes dizia só se as variáveis existiam, e o disco não aparecia em tela nenhuma | `PENDENCIAS-ABERTAS.md` §2.68 |
 | **05/11** | **O e-mail de boas-vindas sem o endereço do site, e o "esqueci" dizendo que o e-mail tem de estar confirmado** — os dois que a revisão geral achou e não pediam decisão | `PENDENCIAS-ABERTAS.md` §2.67 |
 | **05/11** | **O dia de e-mail de todas as barbearias, gasto por qualquer um — consertado:** remarcar pelo link do cliente não tinha limite, e cada remarcação mandava dois e-mails; criar barbeiro mandava uma confirmação por barbeiro, sem limite. Agora o link remarca 3 vezes por horário em 24 horas e 10 por aparelho por hora, e o envio tem um orçamento do dia, com uma parte guardada para a senha nova e a confirmação | `PENDENCIAS-ABERTAS.md` §2.66 |
 | **03/11** | **O e-mail ligado em produção mostrou três falhas, consertadas:** o boot dizia "SMTP configurado" com o `SMTP_URL` quebrado, o envio que falhava ficava no banco ("o link acabou de sair") e a tela dizia "mandamos" sem ter mandado | `PENDENCIAS-ABERTAS.md` §2.65 |
@@ -2870,6 +2871,37 @@ WhatsApp, e o link de confirmação vai para o novo).
 reintroduzidos — a linha do site de volta, a resposta e a tela sem "confirmado", e o menu antigo —, os 4
 vermelhos.
 
+### 2.68 ✅ `[TÉCNICO]` A tela de Sistema não sabia se o backup saiu do servidor, nem do disco — FEITO em 05/11/2026
+
+Achado na revisão geral de 05/11. Dois pontos cegos no mesmo lugar:
+
+- **"Sai do servidor: sim" queria dizer só que as `S3_*` existiam.** Uma chave apagada, um bucket
+  recusando ou o provedor fora deixavam o backup só no disco da VPS, e a falha ia para um log que ninguém
+  lê — até o dia de precisar dele.
+- **O disco não aparecia em tela nenhuma.** É o mesmo do banco, das fotos, dos backups e das imagens do
+  Docker; cheio, o banco para, e o site de todas as barbearias com ele.
+
+**Como ficou:**
+
+- **O `scripts/backup.mjs` registra cada envio para fora**, em dois arquivos na pasta dos backups:
+  `envio-para-fora.ok`, com a hora do último backup que subiu **inteiro** — o banco e as fotos —, e
+  `envio-para-fora.falhou`, com a hora e o motivo da última falha. O envio que dá certo apaga a falha. Os
+  nomes ficam fora dos padrões que a retenção apaga e que quem procura backup lê (§2.59), e são gravados em
+  `.parcial` e renomeados, como os backups. Sem as `S3_*`, nada é registrado.
+- **A tela de Sistema** (`apps/barbearia/src/lib/operadorSistema.ts`, `situacaoDoEnvio`) mostra "O último
+  envio para fora", e acusa: **problema** se o último falhou (com o motivo na linha) ou se o último certo tem
+  mais de 26 horas — a mesma janela do backup local —; **atenção** se ainda não há registro. O quadro do
+  backup segue o envio.
+- **Um quadro novo, "Disco"**: quanto está ocupado e quanto sobra, medido na pasta dos backups, como o `df`;
+  **atenção** a partir de 80%, **problema** a partir de 90%.
+
+⚠️ **Depois do deploy, a tela diz "nenhum envio registrado ainda"** até o próximo backup — o do boot, se o último
+tiver mais de 12 horas, ou o diário: os envios de antes não deixaram registro. ⚠️ **A tela só mostra quando você abre** — o monitor externo não vê nada disto.
+
+**Verificado:** 119 arquivos, **1363 de 1363** contra PostgreSQL 16; o `astro check` com zero; contra um S3 de
+mentira, o envio recusado (403, como uma chave sem permissão) registrado com o motivo e apagado quando o envio
+volta; 14 defeitos reintroduzidos, os 14 vermelhos.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -2990,8 +3022,10 @@ parte órfã ocupando o bucket. Medido contra um S3 local, com um arquivo de 200
 chegava a 273 MB de memória; agora, 91 MB. E o SDK passou a mandar só o checksum que a operação
 exige — o padrão da versão instalada manda um cabeçalho de checksum novo em todo envio, que
 serviço compatível com S3 pode recusar. Guarda: `apps/barbearia/tests/backup-envio.test.ts`, contra
-um S3 de mentira dentro da suíte. ⚠️ **Não conferido contra o Backblaze de verdade** — só contra
-esse e contra o moto, um S3 local que segue o protocolo da AWS.
+um S3 de mentira dentro da suíte. ~~⚠️ Não conferido contra o Backblaze de verdade — só contra
+esse e contra o moto, um S3 local que segue o protocolo da AWS.~~ ✏️ *Conferido no Backblaze em 04/11/2026:
+o banco e as fotos subiram, cada um num pedido só. O envio em partes — o dos arquivos de mais de 16 MiB —
+continua sem ter rodado contra ele. Desde 05/11, a tela de Sistema diz se cada envio deu certo (§2.68).*
 
 ⚠️ **O bucket não se limpa sozinho.** Os 30 dias de `BACKUP_RETENTION_DAYS` valem para o disco da
 VPS: o app apaga os arquivos velhos de lá, nunca os do bucket. Sem uma regra de ciclo de vida no
