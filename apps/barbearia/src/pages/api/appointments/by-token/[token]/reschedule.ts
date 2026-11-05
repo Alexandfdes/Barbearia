@@ -15,13 +15,27 @@ import { reagendarAtomicamente } from '../../../../../lib/reagendar.js';
 import { tenantDoHost } from '../../../../../lib/tenant.js';
 import { avisarMudancaNaAgenda } from '../../../../../lib/avisoDeAgenda.js';
 import { fusoDe } from '../../../../../lib/timezone.js';
+import { checkRateLimit, devolverTentativa } from '../../../../../lib/rateLimit.js';
+import { getClientIp } from '../../../../../lib/clientIp.js';
 
 
 const bodySchema = z.object({
   startsAt: z.string().refine(s => !isNaN(new Date(s).getTime()), 'Data/hora inválida'),
 });
 
-export const POST: APIRoute = async ({ params, request }) => {
+/**
+ * Quantas vezes o link remarca (05/11/2026). Até aqui, sem limite nenhum: cada remarcação manda
+ * e-mail ao barbeiro e ao dono, e quem agendasse uma vez no site gastava, só com o link, o dia de
+ * e-mails de todas as barbearias — 20 remarcações, 40 e-mails, em menos de um segundo
+ * (`docs/PENDENCIAS-ABERTAS.md` §2.66). Só a remarcação que acontece conta: a recusada (horário
+ * ocupado, fora do expediente) devolve a vez, para o cliente que tenta outro horário não ficar preso.
+ */
+export const LIMITE_POR_HORARIO = { maxTries: 3, windowMs: 24 * 60 * 60 * 1000 };
+export const LIMITE_POR_APARELHO = { maxTries: 10, windowMs: 60 * 60 * 1000 };
+export const RECUSA_DO_LIMITE_DO_HORARIO =
+  'Este horário já foi remarcado 3 vezes em 24 horas. Para mudar de novo, fale com a barbearia.';
+
+export const POST: APIRoute = async ({ params, request, clientAddress }) => {
   const tenant = tenantDoHost(request);
   // Endereço que não é de barbearia nenhuma. 404 de propósito: servir o site da
   // barbearia errada é pior que não servir nada (`lib/tenant.ts`, passo 6).
@@ -118,6 +132,21 @@ export const POST: APIRoute = async ({ params, request }) => {
   const newStartIso = newStart.toISOString();
   const newEndIso   = newEnd.toISOString();
 
+  // O limite conta ANTES e devolve se não remarcou (o padrão do login, `lib/rateLimit.ts`):
+  // conferido só depois, pedidos simultâneos passariam todos.
+  const chaveDoHorario = `remarcar-link:${tenant.id}:${appt.id}`;
+  const chaveDoAparelho = `remarcar-link-ip:${getClientIp(request, clientAddress)}`;
+  if (!checkRateLimit(chaveDoHorario, LIMITE_POR_HORARIO).ok) {
+    return json({ error: RECUSA_DO_LIMITE_DO_HORARIO }, 429);
+  }
+  const peloAparelho = checkRateLimit(chaveDoAparelho, LIMITE_POR_APARELHO);
+  if (!peloAparelho.ok) {
+    devolverTentativa(chaveDoHorario);
+    const minutos = Math.max(1, Math.ceil((peloAparelho.retryAfterSecs ?? 60) / 60));
+    return json({ error: `Muitas remarcações deste aparelho. Tente de novo em ${minutos === 1 ? '1 minuto' : `${minutos} minutos`}.` }, 429);
+  }
+  let remarcou = false;
+
   // Transação atômica com re-check de conflitos
   try {
     // `editorId: null` — quem reagenda aqui é o cliente pelo link, não um
@@ -144,6 +173,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     // livre (11/10/2026, `lib/avisoDeAgenda.ts`). Remarcar para o mesmo horário
     // não muda nada, e não avisa.
     if (appt.startsAt !== newStartIso) {
+      remarcou = true;
       await avisarMudancaNaAgenda({ tenant, tipo: 'remarcado', agendamentoId: appt.id, inicioAnterior: appt.startsAt });
     }
 
@@ -157,5 +187,11 @@ export const POST: APIRoute = async ({ params, request }) => {
   } catch (err) {
     console.error('[api/appointments/by-token/reschedule POST]', err);
     return json({ error: 'Erro interno ao reagendar' }, 500);
+  } finally {
+    // Recusada, para o mesmo horário ou com erro: não remarcou, a vez volta.
+    if (!remarcou) {
+      devolverTentativa(chaveDoHorario);
+      devolverTentativa(chaveDoAparelho);
+    }
   }
 };

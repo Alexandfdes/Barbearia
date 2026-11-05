@@ -81,8 +81,16 @@ const quadros: Quadro[] = [
         estado: s.email.transporte === 'smtp' ? 'ok' : s.email.transporte === 'nenhum' ? 'problema' : 'neutro',
       },
       { rotulo: 'Os links dos e-mails apontam para', valor: s.enderecos.painel || '—' },
+      {
+        rotulo: 'Nas últimas 24 horas',
+        valor: `${s.email.orcamento.usados} de ${s.email.orcamento.limite} — ${s.email.orcamento.porTipo.agenda} de agenda, ${s.email.orcamento.porTipo.seguranca} de senha e confirmação, ${s.email.orcamento.porTipo.conta} do teste e da cobrança`,
+        estado: s.email.orcamento.usados >= s.email.orcamento.limite ? 'problema' : 'neutro',
+      },
+      ...(s.email.orcamento.recusados > 0
+        ? [{ rotulo: 'Recusados pelo limite', valor: String(s.email.orcamento.recusados), estado: 'atencao' as Estado }]
+        : []),
     ],
-    nota: 'A senha esquecida, os avisos do teste e da cobrança e o aviso de agendamento saem por aqui.',
+    nota: 'A senha esquecida, os avisos do teste e da cobrança e o aviso de agendamento saem por aqui. O limite do dia é o EMAIL_LIMITE_DIARIO; a conta fica na memória do app, e um deploy a zera.',
   },
   {
     titulo: 'Cobrança',

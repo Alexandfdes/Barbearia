@@ -134,6 +134,8 @@ export async function pedirRedefinicao(whatsapp: string, agora: Date = new Date(
       para: quem.email,
       assunto: `Senha nova do painel — ${NOME_PRODUTO}`,
       texto: textoDoEmailDeSenha(quem.nome, barbearia.nome, link),
+      barbearia: quem.barbearia,
+      tipo: 'seguranca',
     });
   } catch (erro) {
     console.error('[senha] o e-mail de senha nova não saiu:', erro instanceof Error ? erro.message : erro);
