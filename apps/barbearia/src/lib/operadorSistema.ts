@@ -12,7 +12,7 @@
  * banco o que é do banco: a versão, o tamanho, quem está conectado e as migrations
  * aplicadas. Não lê tabela de barbearia nenhuma.
  */
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, statfsSync } from 'node:fs';
 import { join } from 'node:path';
 import { sqlConn } from '../db/index.js';
 import { configDaAsaas, webhooksDaConta, type AmbienteAsaas, type ConfigAsaas, type WebhookAsaas } from './asaas.js';
@@ -28,8 +28,29 @@ const PRAZO_DO_BANCO_MS = 3000;
 const BACKUP_VENCE_EM_HORAS = 26;
 /** Quanto a tela espera a Asaas dizer como está a fila do webhook. */
 const PRAZO_DA_ASAAS_MS = 4000;
+/** O disco: acima disto, atenção; acima de `DISCO_CHEIO_PCT`, problema. */
+export const DISCO_ATENCAO_PCT = 80;
+export const DISCO_CHEIO_PCT = 90;
+
+/**
+ * Os registros do envio para fora que o `scripts/backup.mjs` grava na pasta dos backups
+ * (05/11/2026): os nomes são os de lá, e `tests/backup-envio.test.ts` confere que batem.
+ */
+export const REGISTRO_DO_ENVIO_CERTO = 'envio-para-fora.ok';
+export const REGISTRO_DA_FALHA_DO_ENVIO = 'envio-para-fora.falhou';
 
 export interface ArquivoDeBackup { arquivo: string; bytes: number; em: Date }
+
+/** O que os registros do `scripts/backup.mjs` dizem do envio para fora. */
+export interface EnvioParaFora {
+  /** O último backup que subiu inteiro — o banco e as fotos. `null`: nenhum registrado. */
+  ultimoCerto: Date | null;
+  /** A última falha, se for mais nova que o último certo — o envio certo apaga a falha. */
+  ultimaFalha: { em: Date; motivo: string } | null;
+}
+
+/** O disco onde ficam os backups — e, na VPS, o banco e as fotos. */
+export interface DiscoNoPainel { pasta: string; totalBytes: number; livreBytes: number; ocupadoPct: number }
 
 export interface AlertaDoSistema {
   estado: 'atencao' | 'problema';
@@ -58,7 +79,14 @@ export interface SistemaNoPainel {
     horaDoDiario: number | null;
     /** As quatro `S3_*` existem: o backup sobe para fora do servidor. */
     foraDoServidor: boolean;
+    /**
+     * O que de fato subiu (05/11/2026). Antes desta linha, a tela dizia só se as `S3_*` existiam —
+     * o envio podia falhar todo dia sem ninguém saber.
+     */
+    envioParaFora: EnvioParaFora;
   };
+  /** `null` quando o disco não pôde ser lido. */
+  disco: DiscoNoPainel | null;
   /** O orçamento do dia (`lib/email.ts`): o que as últimas 24 horas gastaram, desde o último deploy. */
   email: { transporte: Transporte; orcamento: UsoDoOrcamento };
   cobranca: { ligada: boolean; ambiente: AmbienteAsaas | null; tokenDoWebhook: boolean };
@@ -81,11 +109,12 @@ export function backupNoPainel(env: Ambiente = process.env): SistemaNoPainel['ba
   const horaDoDiario = Number.isInteger(hora) && hora >= 0 && hora <= 23 ? hora : null;
   const foraDoServidor = Boolean(env.S3_ENDPOINT?.trim() && env.S3_BUCKET?.trim()
     && env.S3_ACCESS_KEY_ID?.trim() && env.S3_SECRET_ACCESS_KEY?.trim());
+  const envioParaFora = envioParaForaNaPasta(pasta);
   let nomes: string[] = [];
   try {
     nomes = readdirSync(pasta);
   } catch {
-    return { pasta, ultimo: null, fotos: null, quantos: 0, retencaoDias, horaDoDiario, foraDoServidor };
+    return { pasta, ultimo: null, fotos: null, quantos: 0, retencaoDias, horaDoDiario, foraDoServidor, envioParaFora };
   }
   const ler = (fim: RegExp) => nomes
     .filter((n) => fim.test(n))
@@ -101,7 +130,62 @@ export function backupNoPainel(env: Ambiente = process.env): SistemaNoPainel['ba
     .sort((a, b) => b.em.getTime() - a.em.getTime());
   const banco = ler(/^barbearia_.*\.sql\.gz$/);
   const fotos = ler(/^barbearia_.*-fotos\.tar\.gz$/);
-  return { pasta, ultimo: banco[0] ?? null, fotos: fotos[0] ?? null, quantos: banco.length, retencaoDias, horaDoDiario, foraDoServidor };
+  return { pasta, ultimo: banco[0] ?? null, fotos: fotos[0] ?? null, quantos: banco.length, retencaoDias, horaDoDiario, foraDoServidor, envioParaFora };
+}
+
+/** Um registro do `scripts/backup.mjs`: a hora, e o motivo se for o da falha. `null` se não há, ou não se lê. */
+function lerRegistro(pasta: string, nome: string): { em: Date; motivo: string } | null {
+  try {
+    const dados = JSON.parse(readFileSync(join(pasta, nome), 'utf8')) as { em?: unknown; motivo?: unknown };
+    const em = new Date(String(dados?.em));
+    if (Number.isNaN(em.getTime())) return null;
+    return { em, motivo: typeof dados.motivo === 'string' ? dados.motivo : '' };
+  } catch {
+    return null;
+  }
+}
+
+export function envioParaForaNaPasta(pasta: string): EnvioParaFora {
+  const certo = lerRegistro(pasta, REGISTRO_DO_ENVIO_CERTO);
+  const falha = lerRegistro(pasta, REGISTRO_DA_FALHA_DO_ENVIO);
+  return {
+    ultimoCerto: certo?.em ?? null,
+    ultimaFalha: falha && (!certo || falha.em > certo.em) ? falha : null,
+  };
+}
+
+/**
+ * Como está o envio para fora, para o alerta e para a tela — uma regra só:
+ * `desligado` sem as `S3_*`; `falhou`, a última tentativa falhou; `nunca`, nada registrado ainda;
+ * `parado`, o último certo tem mais de um dia; `ok`.
+ */
+export function situacaoDoEnvio(
+  backup: SistemaNoPainel['backup'], agora: Date = new Date(),
+): 'desligado' | 'falhou' | 'nunca' | 'parado' | 'ok' {
+  if (!backup.foraDoServidor) return 'desligado';
+  const { ultimoCerto, ultimaFalha } = backup.envioParaFora;
+  if (ultimaFalha) return 'falhou';
+  if (!ultimoCerto) return 'nunca';
+  if (agora.getTime() - ultimoCerto.getTime() > BACKUP_VENCE_EM_HORAS * 60 * 60 * 1000) return 'parado';
+  return 'ok';
+}
+
+/**
+ * O disco da pasta dos backups — na VPS, o mesmo do banco e das fotos. Como o `df`: o que o
+ * sistema guarda para o administrador fica fora da conta, e a porcentagem arredonda para cima.
+ */
+export function discoNoPainel(pasta: string): DiscoNoPainel | null {
+  for (const caminho of [pasta, process.cwd()]) {
+    try {
+      const d = statfsSync(caminho);
+      const usado = (d.blocks - d.bfree) * d.bsize;
+      const livre = d.bavail * d.bsize;
+      const total = usado + livre;
+      if (total <= 0) continue;
+      return { pasta: caminho, totalBytes: total, livreBytes: livre, ocupadoPct: Math.ceil((usado / total) * 100) };
+    } catch { /* a pasta pode não existir — tenta onde o app roda */ }
+  }
+  return null;
 }
 
 /** O que só depende do ambiente — sem banco e sem disco. */
@@ -222,6 +306,7 @@ export async function filaDoWebhook(
 export async function sistemaNoPainel(env: Ambiente = process.env, agora: Date = new Date()): Promise<SistemaNoPainel> {
   const config = configuracaoNoPainel(env, agora);
   const backup = backupNoPainel(env);
+  const disco = discoNoPainel(backup.pasta);
 
   let banco: SistemaNoPainel['banco'] = { responde: false, ms: null, versao: null, tamanho: null, usuario: null, superusuario: null };
   let migracoes: SistemaNoPainel['migracoes'] = null;
@@ -246,7 +331,7 @@ export async function sistemaNoPainel(env: Ambiente = process.env, agora: Date =
     console.error(`[operador] o banco não respondeu à tela de sistema: ${erro instanceof Error ? erro.message : String(erro)}`);
   }
 
-  const sistema = { banco, migracoes, backup, ...config, alertas: [] as AlertaDoSistema[] };
+  const sistema = { banco, migracoes, backup, disco, ...config, alertas: [] as AlertaDoSistema[] };
   sistema.alertas = alertasDoSistema(sistema, agora);
   return sistema;
 }
@@ -265,6 +350,19 @@ export function alertasDoSistema(s: Omit<SistemaNoPainel, 'alertas'>, agora: Dat
     a.push({ estado: 'problema', texto: 'O último backup do banco tem mais de um dia: o backup diário parou.' });
   }
   if (!s.backup.foraDoServidor) a.push({ estado: 'atencao', texto: 'O backup não sai deste servidor: perdido o disco, vai tudo.' });
+  const envio = situacaoDoEnvio(s.backup, agora);
+  if (envio === 'falhou') {
+    a.push({ estado: 'problema', texto: 'O último envio do backup para fora do servidor falhou: a cópia mais nova está só neste disco.' });
+  } else if (envio === 'parado') {
+    a.push({ estado: 'problema', texto: 'O último envio do backup para fora do servidor tem mais de um dia: o envio parou.' });
+  } else if (envio === 'nunca') {
+    a.push({ estado: 'atencao', texto: 'Nenhum envio do backup para fora registrado ainda: o próximo backup registra.' });
+  }
+  if (s.disco && s.disco.ocupadoPct >= DISCO_CHEIO_PCT) {
+    a.push({ estado: 'problema', texto: `O disco está ${s.disco.ocupadoPct}% ocupado: cheio, o banco para — e o site de todas as barbearias com ele.` });
+  } else if (s.disco && s.disco.ocupadoPct >= DISCO_ATENCAO_PCT) {
+    a.push({ estado: 'atencao', texto: `O disco está ${s.disco.ocupadoPct}% ocupado.` });
+  }
   if (s.email.transporte === 'nenhum') {
     a.push({ estado: 'problema', texto: 'O e-mail está desligado: a senha esquecida e os avisos não saem.' });
   } else if (s.email.transporte === 'arquivo' && producao) {
