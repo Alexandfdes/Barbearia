@@ -100,7 +100,7 @@ describe('o e-mail que vai para endereço não confirmado', () => {
     const { emailDeBoasVindas } = await import('../src/pages/api/cadastrar.ts');
     expect(emailDeBoasVindas.length).toBe(1);
     const { texto } = emailDeBoasVindas({
-      site: 'https://x.fadeline.com.br', painel: 'https://painel.fadeline.com.br', whatsapp: '(84) 99999-0001',
+      painel: 'https://painel.fadeline.com.br', whatsapp: '(84) 99999-0001',
       ultimoDiaDoTeste: '06/11', linkDeConfirmacao: 'https://painel.fadeline.com.br/admin/confirmar-email?token=abc',
     });
     expect(texto).toContain('https://painel.fadeline.com.br/admin/confirmar-email?token=abc');

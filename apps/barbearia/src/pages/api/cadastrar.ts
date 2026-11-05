@@ -193,7 +193,6 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   // cadastro já deu certo, e um provedor lento não pode segurar a tela de fim.
   if (normalizarEmail(parsed.data.email)) {
     const boasVindas = {
-      site,
       painel: urlDoPainel(),
       whatsapp: formatarTelefone(r.telefoneLogin),
       ultimoDiaDoTeste: corpo.ultimoDiaDoTeste,
@@ -223,8 +222,15 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
  * (26/10/2026). O e-mail não é confirmado: quem cadastra escolhe para quem ele
  * vai. Com o nome da barbearia no assunto e o do dono na saudação, dava para
  * mandar, do remetente do produto, "URGENTE: regularize em http://golpe…" para
- * qualquer endereço. O que entra agora é só o que o sistema monta: os endereços
- * (do slug, que só tem letra, número e hífen), o WhatsApp formatado e a data.
+ * qualquer endereço. O que entra agora é só o que o sistema monta: o endereço do
+ * painel, o WhatsApp formatado e a data.
+ *
+ * ⚠️ E não leva o endereço do site (05/11/2026, `docs/PENDENCIAS-ABERTAS.md` §2.67).
+ * Até aqui levava, com o argumento de que o slug só tem letra, número e hífen — mas é
+ * o nome que a pessoa escolheu ("suporte-fadeline-regularize-o-pix" cabe nele), e o
+ * link abre a página que ela escreveu, sob o nosso domínio. Era um link de estranho,
+ * do nosso remetente, para qualquer endereço. O dono vê o endereço na tela de fim do
+ * cadastro e em toda tela do painel (o "Ver meu site", do `AdminLayout`).
  *
  * ⚠️ Não diz que o site "está no ar" — até 10/10/2026 dizia, no assunto e no
  * corpo. O e-mail sai no segundo do cadastro, e o servidor não sabe se a internet
@@ -233,7 +239,6 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
  * navegador do dono (`src/lib/noAr.ts`).
  */
 export function emailDeBoasVindas(d: {
-  site: string | null;
   painel: string;
   whatsapp: string;
   ultimoDiaDoTeste: string | null;
@@ -247,7 +252,6 @@ export function emailDeBoasVindas(d: {
       '',
       `O cadastro da sua barbearia no ${NOME_PRODUTO} foi feito.`,
       '',
-      ...(d.site ? [`O endereço do site da barbearia: ${d.site}`, ''] : []),
       ...(d.painel ? [`O seu painel: ${d.painel}/admin`] : []),
       `Você entra com o seu WhatsApp, ${d.whatsapp}, e a senha que criou no cadastro.`,
       '',
