@@ -132,7 +132,7 @@ export async function avisarEmailTrocado(p: TrocaDeEmail & {
     );
     // Sem `await`, de propósito: ver o cabeçalho. O `try` pega o envio que estoura
     // antes de devolver a promessa.
-    try { enviar({ para, ...conteudo }).catch(naoSaiu); } catch (erro) { naoSaiu(erro); return false; }
+    try { enviar({ para, ...conteudo, barbearia: p.tenant.id, tipo: 'seguranca' }).catch(naoSaiu); } catch (erro) { naoSaiu(erro); return false; }
     return true;
   } catch (erro) {
     console.error('[equipe] não consegui montar o aviso de e-mail trocado:', erro);

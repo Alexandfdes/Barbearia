@@ -203,14 +203,14 @@ export async function pedirConfirmacao(p: {
     };
     if (p.esperarEnvio === false) {
       try {
-        enviar({ para: email, ...conteudo })
+        enviar({ para: email, ...conteudo, barbearia: p.tenantId, tipo: 'seguranca' })
           .then(() => saiu().catch((e) => console.error('[confirmacao] não consegui vencer os links anteriores:', e)))
           .catch(registrarFalha);
       } catch (erro) { await registrarFalha(erro); return 'falhou'; }
       return 'enviado';
     }
     try {
-      await enviar({ para: email, ...conteudo });
+      await enviar({ para: email, ...conteudo, barbearia: p.tenantId, tipo: 'seguranca' });
     } catch (erro) {
       await registrarFalha(erro);
       return 'falhou';

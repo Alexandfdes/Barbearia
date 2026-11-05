@@ -306,6 +306,32 @@ describe('a tela de sistema não mostra segredo', () => {
     const naMaquina = { ...emOrdem, ...configuracaoNoPainel(envDe({ OPERADOR_SEGUNDO_FATOR: '', NODE_ENV: 'development' })) };
     expect(alertasDoSistema(naMaquina).map((a) => a.texto).join(' ')).not.toMatch(/segundo-fator/);
   });
+
+  it('o e-mail recusado pelo limite do dia aparece — sem a tela, ninguém saberia (05/11/2026)', async () => {
+    const email = await import('../src/lib/email.ts');
+    email.zerarOrcamentoDeEmail();
+    const antes = process.env.EMAIL_LIMITE_DIARIO;
+    process.env.EMAIL_LIMITE_DIARIO = '1';
+    try {
+      await email.enviarEmail({ para: 'dono@x.test', assunto: 'x', texto: 'x', barbearia: 1, tipo: 'agenda' });
+      await expect(email.enviarEmail({ para: 'dono@x.test', assunto: 'x', texto: 'x', barbearia: 1, tipo: 'agenda' }))
+        .rejects.toBeInstanceOf(email.EmailNaoEnviado);
+      const config = configuracaoNoPainel({ ...envDe(), EMAIL_LIMITE_DIARIO: '1' });
+      expect(config.email.orcamento).toEqual({ limite: 1, usados: 1, porTipo: { seguranca: 0, conta: 0, agenda: 1 }, recusados: 1 });
+      const base = {
+        banco: { responde: true, ms: 3, versao: '16.15', tamanho: '9 MB', usuario: 'fadeline', superusuario: false },
+        migracoes: { aplicadas: 14, ultima: '0014_anotacoes_do_operador.sql', em: new Date(), noBuild: 14 },
+        backup: { pasta, ultimo: { arquivo: 'b.sql.gz', bytes: 1, em: new Date() }, fotos: null, quantos: 1, retencaoDias: 30, horaDoDiario: 3, foraDoServidor: true },
+        ...config,
+      };
+      expect(alertasDoSistema(base).map((a) => `${a.estado}: ${a.texto}`)).toContain(
+        'atencao: 1 e-mail não saiu nas últimas 24 horas: o limite do dia chegou (EMAIL_LIMITE_DIARIO).');
+    } finally {
+      email.zerarOrcamentoDeEmail();
+      if (antes === undefined) delete process.env.EMAIL_LIMITE_DIARIO;
+      else process.env.EMAIL_LIMITE_DIARIO = antes;
+    }
+  });
 });
 
 // ── Com banco ───────────────────────────────────────────────────────────────

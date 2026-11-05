@@ -207,7 +207,12 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
       // desfeita e o primeiro recebe de novo na rodada seguinte — raro, e melhor
       // que o segundo não receber nunca.
       for (const dono of donos) {
-        await enviarEmail({ para: dono.email!, ...textoDoAviso(devido.tipo, s, { barbearia: b.nome, nome: dono.nome, painel, fuso: b.fuso }, agora) });
+        await enviarEmail({
+          para: dono.email!,
+          ...textoDoAviso(devido.tipo, s, { barbearia: b.nome, nome: dono.nome, painel, fuso: b.fuso }, agora),
+          barbearia: b.id,
+          tipo: 'conta',
+        });
       }
       resumo.enviados++;
     } catch (erro) {

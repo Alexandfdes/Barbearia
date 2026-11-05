@@ -16,7 +16,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { sqlConn } from '../db/index.js';
 import { configDaAsaas, webhooksDaConta, type AmbienteAsaas, type ConfigAsaas, type WebhookAsaas } from './asaas.js';
-import { transporteDeEmail, type Transporte } from './email.js';
+import { transporteDeEmail, usoDoOrcamento, type Transporte, type UsoDoOrcamento } from './email.js';
 import { urlDoPainel } from './tenant.js';
 import { lerSegundoFator } from './segundoFator.js';
 
@@ -59,7 +59,8 @@ export interface SistemaNoPainel {
     /** As quatro `S3_*` existem: o backup sobe para fora do servidor. */
     foraDoServidor: boolean;
   };
-  email: { transporte: Transporte };
+  /** O orçamento do dia (`lib/email.ts`): o que as últimas 24 horas gastaram, desde o último deploy. */
+  email: { transporte: Transporte; orcamento: UsoDoOrcamento };
   cobranca: { ligada: boolean; ambiente: AmbienteAsaas | null; tokenDoWebhook: boolean };
   cadastro: { aberto: boolean };
   enderecos: { painel: string; dominioBase: string | null };
@@ -107,7 +108,7 @@ export function backupNoPainel(env: Ambiente = process.env): SistemaNoPainel['ba
 export function configuracaoNoPainel(env: Ambiente = process.env, agora: Date = new Date()) {
   const cfg = configDaAsaas(env);
   return {
-    email: { transporte: transporteDeEmail(env) },
+    email: { transporte: transporteDeEmail(env), orcamento: usoDoOrcamento(agora.getTime(), env) },
     cobranca: { ligada: cfg !== null, ambiente: cfg?.ambiente ?? null, tokenDoWebhook: Boolean(env.ASAAS_WEBHOOK_TOKEN?.trim()) },
     cadastro: { aberto: env.CADASTRO_ABERTO === '1' },
     enderecos: { painel: urlDoPainel(env), dominioBase: env.DOMINIO_BASE?.trim() || null },
@@ -268,6 +269,13 @@ export function alertasDoSistema(s: Omit<SistemaNoPainel, 'alertas'>, agora: Dat
     a.push({ estado: 'problema', texto: 'O e-mail está desligado: a senha esquecida e os avisos não saem.' });
   } else if (s.email.transporte === 'arquivo' && producao) {
     a.push({ estado: 'atencao', texto: 'O e-mail vai para uma pasta do servidor, não para o dono.' });
+  }
+  const { recusados } = s.email.orcamento;
+  if (recusados > 0) {
+    a.push({
+      estado: 'atencao',
+      texto: `${recusados} ${recusados === 1 ? 'e-mail não saiu' : 'e-mails não saíram'} nas últimas 24 horas: o limite do dia chegou (EMAIL_LIMITE_DIARIO).`,
+    });
   }
   if (!s.cobranca.ligada) {
     a.push({ estado: 'atencao', texto: 'A cobrança está desligada: ninguém consegue pagar.' });

@@ -446,6 +446,7 @@ describe('a rota, de ponta a ponta', () => {
       await vi.waitFor(() => expect(caixaDeSaida).toHaveLength(1));
       const [boasVindas] = caixaDeSaida;
       expect(boasVindas.para).toBe('ze@exemplo.com.br');
+      expect(boasVindas).toMatchObject({ tipo: 'seguranca', barbearia: Number(t.id) });
       // Nada digitado no formulário vai no e-mail (26/10/2026): o endereço não é
       // confirmado, e o nome da barbearia ou do dono viraria texto de golpe.
       expect(boasVindas.assunto).toMatch(/^O seu cadastro no /);

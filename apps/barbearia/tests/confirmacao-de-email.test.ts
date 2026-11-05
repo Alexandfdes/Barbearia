@@ -122,6 +122,7 @@ describe.skipIf(!TEM_BANCO)('o link de confirmação', () => {
     expect(email.caixaDeSaida).toHaveLength(1);
     const [e] = email.caixaDeSaida;
     expect(e.para).toBe('beto@bayron.com');
+    expect(e).toMatchObject({ tipo: 'seguranca', barbearia: 1 });
     expect(e.texto).toMatch(/https:\/\/painel\.fadeline\.com\.br\/admin\/confirmar-email\?token=/);
     expect(e.texto).not.toMatch(/Beto|Bayron/);
     const token = tokenDe(e.texto);

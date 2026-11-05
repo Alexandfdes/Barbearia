@@ -242,7 +242,7 @@ export async function avisarMudancaNaAgenda(p: {
       );
       // Sem `await`, de propósito: ver o cabeçalho. O `try` pega o envio que
       // estoura antes de devolver a promessa.
-      try { enviar({ para: d.email, ...conteudo }).catch(naoSaiu); } catch (erro) { naoSaiu(erro); }
+      try { enviar({ para: d.email, ...conteudo, barbearia: p.tenant.id, tipo: 'agenda' }).catch(naoSaiu); } catch (erro) { naoSaiu(erro); }
     }
     return destinatarios.length;
   } catch (erro) {

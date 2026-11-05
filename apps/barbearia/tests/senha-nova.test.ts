@@ -138,6 +138,8 @@ describe.skipIf(!TEM_BANCO)('pedir a senha nova', () => {
     expect(email.caixaDeSaida).toHaveLength(1);
     const [e] = email.caixaDeSaida;
     expect(e.para).toBe('dono@bayron.com');
+    // A parte do orçamento de onde sai (`lib/email.ts`): a da segurança, da barbearia dele.
+    expect(e).toMatchObject({ tipo: 'seguranca', barbearia: 1 });
     expect(e.texto).toContain('Olá, Bayron.');
     expect(e.texto).toContain('Barbearia Bayron');
     // ⚠️ O endereço do painel sai da configuração, nunca do `Host` de quem pediu —

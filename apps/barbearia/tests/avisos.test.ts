@@ -204,6 +204,9 @@ describe.skipIf(!TEM_BANCO)('a tarefa, contra o banco', () => {
       'dono@carencia.com | Barbearia Carência: o teste grátis acabou',
       'dono@fora.com | Barbearia Fora: o site saiu do ar',
     ]);
+    // A parte do orçamento de onde saem (`lib/email.ts`): a da conta, cada um com a barbearia dele.
+    expect(email.caixaDeSaida.every((e) => e.tipo === 'conta')).toBe(true);
+    expect(new Set(email.caixaDeSaida.map((e) => e.barbearia)).size).toBe(4);
     // O link do aviso aponta para a tela de assinatura do painel.
     expect(email.caixaDeSaida[0].texto).toContain('https://painel.fadeline.com.br/admin/assinatura');
   });

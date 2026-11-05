@@ -178,6 +178,7 @@ describe.skipIf(!TEM_BANCO)('o aviso ao e-mail antigo', () => {
     expect(caixa).toHaveLength(1);
     const [aviso] = caixa;
     expect(aviso.para).toBe('ana@bayron.com');
+    expect(aviso).toMatchObject({ tipo: 'seguranca', barbearia: 1 });
     expect(aviso.assunto).toMatch(/^O e-mail do seu acesso foi trocado — /);
     expect(aviso.texto).toContain('Olá, Ana.');
     expect(aviso.texto).toMatch(/foi trocado em \d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}, por Dono do Bayron\./);
