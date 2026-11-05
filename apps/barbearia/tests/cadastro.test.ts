@@ -454,7 +454,9 @@ describe('a rota, de ponta a ponta', () => {
       // Nem o assunto nem o corpo afirmam "no ar": o servidor não sabe (`src/lib/noAr.ts`).
       expect(`${boasVindas.assunto}\n${boasVindas.texto}`).not.toMatch(/no ar/i);
       expect(boasVindas.texto).toMatch(/^Olá!/);
-      expect(boasVindas.texto).toContain('https://salao-jovem.fadeline.com.br');
+      // Sem o endereço do site (05/11/2026): o slug é o nome que a pessoa escolheu, e o link
+      // abre a página que ela escreveu — o e-mail vai a um endereço que ninguém confirmou.
+      expect(boasVindas.texto).not.toContain('salao-jovem');
       expect(boasVindas.texto).toContain('https://painel.fadeline.com.br/admin');
       expect(boasVindas.texto).toMatch(/\(84\) 96658-9511/);
       expect(boasVindas.texto).toMatch(/O teste grátis vai até \d{2}\/\d{2}\./);
