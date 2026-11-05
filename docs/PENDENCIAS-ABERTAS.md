@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-26.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-11-05.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **05/11** | **O dia de e-mail de todas as barbearias, gasto por qualquer um — consertado:** remarcar pelo link do cliente não tinha limite, e cada remarcação mandava dois e-mails; criar barbeiro mandava uma confirmação por barbeiro, sem limite. Agora o link remarca 3 vezes por horário em 24 horas e 10 por aparelho por hora, e o envio tem um orçamento do dia, com uma parte guardada para a senha nova e a confirmação | `PENDENCIAS-ABERTAS.md` §2.66 |
 | **03/11** | **O e-mail ligado em produção mostrou três falhas, consertadas:** o boot dizia "SMTP configurado" com o `SMTP_URL` quebrado, o envio que falhava ficava no banco ("o link acabou de sair") e a tela dizia "mandamos" sem ter mandado | `PENDENCIAS-ABERTAS.md` §2.65 |
 | **30/10** | **Nada sai para e-mail não confirmado**, menos o próprio link de confirmação, sem texto digitado: a senha nova, os avisos de agendamento, do teste, da cobrança e o de e-mail trocado esperam a pessoa abrir o link e tocar em "Confirmar". Era o que faltava antes do `CADASTRO_ABERTO` | `PENDENCIAS-ABERTAS.md` §2.64 |
 | **30/10** | **A revisão depois do deploy, consertada:** o cookie de aparelho amarrado ao barbeiro e à senha, o backup de antes só reaproveitado se inteiro e de minutos atrás, o "esqueci" sem e-mail dizendo isso sempre, o gráfico vazio do Início, os bloqueios fora da ordem, o "Próximo" desatualizado e o aviso de não salvo ao contrário. **O roteiro de testes em produção ficou para depois**, por decisão sua | `PENDENCIAS-ABERTAS.md` §2.63 |
@@ -2802,6 +2803,44 @@ falhas do código, todas vistas no ar:
 reintroduzidos, os 13 vermelhos; o boot de verdade contra um provedor SMTP de mentira (aceita, recusa e
 formato errado); e, no navegador contra o build, o Início passando de "Mandar o link" a "mandamos" depois
 do clique, e a Equipe com os dois estados. O estado "envio desligado" foi conferido só no código.
+
+### 2.66 ✅ `[TÉCNICO]` O dia de e-mail de todas as barbearias, gasto de fora — CONSERTADO em 05/11/2026
+
+Achado na revisão geral de 05/11 (os detalhes moram no projeto do claude.ai). O provedor dá um tanto de
+e-mails por dia para todas as barbearias juntas — o plano grátis de hoje, 300 —, e nada no app contava:
+
+- **Remarcar pelo link do cliente não tinha limite**, e cada remarcação manda e-mail ao barbeiro do horário
+  e ao dono. Qualquer pessoa ganha um link agendando uma vez no site: 20 remarcações, 40 e-mails, em menos
+  de um segundo — reproduzido. Gasto o dia, a senha nova, as confirmações e os avisos paravam para todas.
+- **Criar barbeiro com e-mail manda uma confirmação por barbeiro**, e criar barbeiro não tem limite: o da
+  confirmação (1 por minuto, 5 por dia) é por barbeiro. 25 barbeiros em 9 segundos, 25 e-mails para o mesmo
+  endereço — reproduzido.
+
+**Como ficou:**
+
+- **O link remarca 3 vezes por horário em 24 horas, e 10 vezes por aparelho por hora**
+  (`apps/barbearia/src/pages/api/appointments/by-token/[token]/reschedule.ts`). Conta antes e devolve quando
+  não remarca — horário ocupado, fora do expediente, o mesmo horário —, como o login: conferido só depois,
+  pedidos ao mesmo tempo passariam todos.
+- **O envio tem um orçamento do dia** (`enviarEmail`, em `apps/barbearia/src/lib/email.ts`). Nas últimas 24
+  horas: no máximo `EMAIL_LIMITE_DIARIO` (280 sem a variável); os avisos de agenda, até 60% disso — o resto
+  fica para a senha nova, a confirmação e os avisos do teste e da cobrança, que visitante nenhum dispara; e
+  cada barbearia, até 20% em avisos de agenda e 10% em senha e confirmação. Todo e-mail diz de que barbearia
+  é e de que tipo (`barbearia` e `tipo`, na interface `Email`): o conferidor recusa o envio novo que não
+  disser. O que não sai — envio desligado, provedor fora — não gasta.
+- **A tela de Sistema do operador** mostra o que as últimas 24 horas gastaram, por tipo, e acusa quando o
+  limite recusou algum e-mail.
+
+⚠️ **A conta fica na memória do processo**, como os limites de tentativa (`apps/barbearia/src/lib/rateLimit.ts`):
+todo deploy a zera, e num dia de deploy o app pode passar do limite do provedor — aí quem recusa é ele.
+⚠️ **O limite de 280 é o do plano grátis, não o do produto.** Com o aviso de agendamento ligado por padrão,
+cada agendamento pelo site manda até dois e-mails. Conta, não medida: 30 agendamentos por dia pelo site são
+60 e-mails, e cinco barbearias assim passam dos 300. Antes disso, o plano do provedor muda — e o
+`EMAIL_LIMITE_DIARIO` junto.
+
+**Verificado:** 119 arquivos, **1356 de 1356** contra PostgreSQL 16; o `astro check` com zero; 23 defeitos
+reintroduzidos — tirar cada limite, cada parte do orçamento, a devolução da vez e da vaga, o tipo de cada um
+dos cinco envios, o alerta do Sistema, e contar só depois de remarcar —, os 23 vermelhos.
 
 ---
 
