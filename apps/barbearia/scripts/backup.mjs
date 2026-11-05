@@ -53,7 +53,7 @@
  * Dockerfile. Se ele quebrar, o backup diário para **em silêncio**. É o que
  * `PENDENCIAS-ABERTAS.md` §3.3 chama de "backup que não existe".
  */
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -283,10 +283,51 @@ export async function runBackup(opts = {}) {
     if (statSync(p).mtimeMs < cutoff) { unlinkSync(p); removed++; }
   }
 
-  const uploaded = await maybeUploadToS3(dest);
-  if (fotos) await maybeUploadToS3(fotos);
+  const envioDoBanco = await maybeUploadToS3(dest);
+  const envioDasFotos = fotos ? await maybeUploadToS3(fotos) : null;
+  registrarEnvio([[dest, envioDoBanco], ...(fotos ? [[fotos, envioDasFotos]] : [])]);
 
-  return { dest, fotos, erroFotos, removed, skipped: false, uploaded };
+  return { dest, fotos, erroFotos, removed, skipped: false, uploaded: envioDoBanco === true };
+}
+
+/**
+ * O registro do envio para fora (05/11/2026, `docs/PENDENCIAS-ABERTAS.md` §2.68). Até aqui a tela
+ * de Sistema do operador dizia só se as `S3_*` existiam: uma chave apagada, um bucket recusando ou
+ * o provedor fora deixavam o backup só neste disco, com a falha num log que ninguém lê.
+ *
+ * Dois arquivos na pasta dos backups, fora dos padrões que a retenção apaga e que quem procura
+ * backup lê (`.sql.gz`, `-fotos.tar.gz`): `envio-para-fora.ok`, com a hora do último backup que
+ * subiu INTEIRO — o banco e as fotos —, e `envio-para-fora.falhou`, com a da última falha e o
+ * motivo. O envio que dá certo apaga a falha. Quem lê é `backupNoPainel`
+ * (`src/lib/operadorSistema.ts`), com os mesmos nomes — `tests/backup-envio.test.ts` confere.
+ */
+export const REGISTRO_DO_ENVIO_CERTO = 'envio-para-fora.ok';
+export const REGISTRO_DA_FALHA_DO_ENVIO = 'envio-para-fora.falhou';
+
+/** `resultados`: `[arquivo, resultado de maybeUploadToS3]` de cada arquivo desta rodada. */
+function registrarEnvio(resultados, agora = new Date()) {
+  if (resultados.every(([, r]) => r === null)) return; // sem S3: não há envio a registrar
+  const falha = resultados.find(([, r]) => r !== true);
+  try {
+    if (falha) {
+      gravarJson(join(BACKUP_DIR, REGISTRO_DA_FALHA_DO_ENVIO), {
+        em: agora.toISOString(), arquivo: basename(falha[0]), motivo: String(falha[1]).slice(0, 300),
+      });
+    } else {
+      gravarJson(join(BACKUP_DIR, REGISTRO_DO_ENVIO_CERTO), {
+        em: agora.toISOString(), arquivos: resultados.map(([c]) => basename(c)),
+      });
+      try { unlinkSync(join(BACKUP_DIR, REGISTRO_DA_FALHA_DO_ENVIO)); } catch { /* não havia falha */ }
+    }
+  } catch (erro) {
+    console.error('✕ Não deu para registrar o envio para fora (a tela de Sistema não vai saber):', erro.message);
+  }
+}
+
+/** Grava em `.parcial` e renomeia, como os backups: quem lê nunca pega o arquivo pela metade. */
+function gravarJson(caminho, dados) {
+  writeFileSync(caminho + PARCIAL, `${JSON.stringify(dados)}\n`);
+  renameSync(caminho + PARCIAL, caminho);
 }
 
 /**
@@ -379,10 +420,13 @@ export const PARTE_DO_ENVIO = 16 * 1024 * 1024;
  * Upload off-site opcional (S3-compatível, ex: Backblaze B2).
  * Ativa somente se S3_ENDPOINT/S3_BUCKET/S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY existirem.
  * Falha de upload NÃO derruba o backup local — loga e segue.
+ *
+ * Devolve `null` sem S3, `true` se subiu, e a mensagem do erro se não subiu — para o registro
+ * (`registrarEnvio`).
  */
 async function maybeUploadToS3(filePath) {
   const { S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } = process.env;
-  if (!S3_ENDPOINT || !S3_BUCKET || !S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) return false;
+  if (!S3_ENDPOINT || !S3_BUCKET || !S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) return null;
 
   try {
     await enviarParaS3(filePath);
@@ -390,7 +434,7 @@ async function maybeUploadToS3(filePath) {
     return true;
   } catch (err) {
     console.error('✕ Upload off-site falhou (backup local preservado):', err.message);
-    return false;
+    return err.message || String(err);
   }
 }
 

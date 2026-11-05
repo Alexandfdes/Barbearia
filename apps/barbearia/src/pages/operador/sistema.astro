@@ -10,7 +10,7 @@ export const prerender = false;
  */
 import OperadorLayout from '../../layouts/OperadorLayout.astro';
 import { exigirOperador } from '../../lib/operador.js';
-import { comAFila, filaDoWebhook, sistemaNoPainel } from '../../lib/operadorSistema.js';
+import { comAFila, DISCO_ATENCAO_PCT, DISCO_CHEIO_PCT, filaDoWebhook, sistemaNoPainel, situacaoDoEnvio } from '../../lib/operadorSistema.js';
 import { haQuanto, PONTO, quandoComAno, tamanhoDeArquivo, type Estado } from '../../lib/operadorTela.js';
 
 const fechada = await exigirOperador(Astro.request, Astro.response.headers);
@@ -21,6 +21,23 @@ const [s, fila] = await Promise.all([sistemaNoPainel(process.env, agora), filaDo
 const alertas = comAFila(s.alertas, fila);
 const producao = s.processo.ambiente === 'production';
 const backupVelho = s.backup.ultimo ? agora.getTime() - s.backup.ultimo.em.getTime() > 26 * 60 * 60 * 1000 : true;
+
+// O envio para fora (05/11/2026): o que de fato subiu, não só se as variáveis existem.
+const envio = situacaoDoEnvio(s.backup, agora);
+const { ultimoCerto, ultimaFalha } = s.backup.envioParaFora;
+const ENVIO: Record<typeof envio, { valor: string; estado: Estado }> = {
+  desligado: { valor: '—', estado: 'neutro' },
+  falhou: { valor: ultimaFalha ? `falhou ${quandoComAno(ultimaFalha.em)} — ${ultimaFalha.motivo || 'sem motivo'}` : '', estado: 'problema' },
+  nunca: { valor: 'nenhum registrado ainda — o próximo backup registra', estado: 'atencao' },
+  parado: { valor: ultimoCerto ? `${quandoComAno(ultimoCerto)} · ${haQuanto(ultimoCerto, agora)} — parou` : '', estado: 'problema' },
+  ok: { valor: ultimoCerto ? `${quandoComAno(ultimoCerto)} · ${haQuanto(ultimoCerto, agora)}` : '', estado: 'ok' },
+};
+const ESTADO_DO_ENVIO: Record<typeof envio, Estado> = { desligado: 'atencao', falhou: 'problema', nunca: 'atencao', parado: 'problema', ok: 'ok' };
+
+// O disco (05/11/2026): cheio, o banco para.
+const gb = (bytes: number) => `${(bytes / 1024 ** 3).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} GB`;
+const estadoDoDisco: Estado = !s.disco ? 'neutro'
+  : s.disco.ocupadoPct >= DISCO_CHEIO_PCT ? 'problema' : s.disco.ocupadoPct >= DISCO_ATENCAO_PCT ? 'atencao' : 'ok';
 
 // A fila do webhook, como a Asaas diz (`filaDoWebhook`, 17/10/2026).
 const FILA: Record<string, { valor: string; estado: Estado }> = {
@@ -60,16 +77,26 @@ const quadros: Quadro[] = [
   },
   {
     titulo: 'Backup',
-    estado: !s.backup.ultimo ? (producao ? 'problema' : 'atencao') : backupVelho ? 'problema' : !s.backup.foraDoServidor ? 'atencao' : 'ok',
+    estado: !s.backup.ultimo ? (producao ? 'problema' : 'atencao') : backupVelho ? 'problema' : ESTADO_DO_ENVIO[envio],
     linhas: [
       { rotulo: 'O último do banco', valor: s.backup.ultimo ? `${quandoComAno(s.backup.ultimo.em)} · ${haQuanto(s.backup.ultimo.em, agora)} · ${tamanhoDeArquivo(s.backup.ultimo.bytes)}` : 'nenhum nesta máquina', estado: !s.backup.ultimo || backupVelho ? 'problema' : 'ok' },
       { rotulo: 'O último das fotos', valor: s.backup.fotos ? `${quandoComAno(s.backup.fotos.em)} · ${tamanhoDeArquivo(s.backup.fotos.bytes)}` : 'nenhum' },
       { rotulo: 'Guardados', valor: `${s.backup.quantos} ${s.backup.quantos === 1 ? 'arquivo' : 'arquivos'} do banco, em ${s.backup.pasta}` },
       { rotulo: 'Sai do servidor', valor: s.backup.foraDoServidor ? 'sim, para o armazenamento de fora (S3)' : 'não — fica só neste disco', estado: s.backup.foraDoServidor ? 'ok' : 'atencao' },
+      ...(envio === 'desligado' ? [] : [{ rotulo: 'O último envio para fora', valor: ENVIO[envio].valor, estado: ENVIO[envio].estado }]),
     ],
     nota: s.backup.horaDoDiario === null
       ? `O diário não roda: a variável BACKUP_HOUR não é uma hora de 0 a 23. Sai só um quando o app sobe, se o último tiver mais de 12 horas; cada arquivo fica ${s.backup.retencaoDias} dias.`
       : `Um por dia, às ${String(s.backup.horaDoDiario).padStart(2, '0')}:00, e um quando o app sobe, se o último tiver mais de 12 horas; cada arquivo fica ${s.backup.retencaoDias} dias. Perdido o disco, só o que saiu do servidor volta.`,
+  },
+  {
+    titulo: 'Disco',
+    estado: estadoDoDisco,
+    linhas: s.disco ? [
+      { rotulo: 'Ocupado', valor: `${s.disco.ocupadoPct}% — ${gb(s.disco.livreBytes)} livres de ${gb(s.disco.totalBytes)}`, estado: estadoDoDisco },
+      { rotulo: 'Medido em', valor: s.disco.pasta },
+    ] : [{ rotulo: 'Ocupado', valor: 'não deu para ler' }],
+    nota: `Cheio, o banco para — e o site de todas as barbearias com ele. Atenção a partir de ${DISCO_ATENCAO_PCT}%, problema a partir de ${DISCO_CHEIO_PCT}%. O que mais cresce é o backup: cada um guarda as fotos de todas as barbearias inteiras, por ${s.backup.retencaoDias} dias.`,
   },
   {
     titulo: 'E-mail',
