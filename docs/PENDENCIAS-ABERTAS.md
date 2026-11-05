@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **05/11** | **O e-mail de boas-vindas sem o endereço do site, e o "esqueci" dizendo que o e-mail tem de estar confirmado** — os dois que a revisão geral achou e não pediam decisão | `PENDENCIAS-ABERTAS.md` §2.67 |
 | **05/11** | **O dia de e-mail de todas as barbearias, gasto por qualquer um — consertado:** remarcar pelo link do cliente não tinha limite, e cada remarcação mandava dois e-mails; criar barbeiro mandava uma confirmação por barbeiro, sem limite. Agora o link remarca 3 vezes por horário em 24 horas e 10 por aparelho por hora, e o envio tem um orçamento do dia, com uma parte guardada para a senha nova e a confirmação | `PENDENCIAS-ABERTAS.md` §2.66 |
 | **03/11** | **O e-mail ligado em produção mostrou três falhas, consertadas:** o boot dizia "SMTP configurado" com o `SMTP_URL` quebrado, o envio que falhava ficava no banco ("o link acabou de sair") e a tela dizia "mandamos" sem ter mandado | `PENDENCIAS-ABERTAS.md` §2.65 |
 | **30/10** | **Nada sai para e-mail não confirmado**, menos o próprio link de confirmação, sem texto digitado: a senha nova, os avisos de agendamento, do teste, da cobrança e o de e-mail trocado esperam a pessoa abrir o link e tocar em "Confirmar". Era o que faltava antes do `CADASTRO_ABERTO` | `PENDENCIAS-ABERTAS.md` §2.64 |
@@ -2842,6 +2843,33 @@ cada agendamento pelo site manda até dois e-mails. Conta, não medida: 30 agend
 reintroduzidos — tirar cada limite, cada parte do orçamento, a devolução da vez e da vaga, o tipo de cada um
 dos cinco envios, o alerta do Sistema, e contar só depois de remarcar —, os 23 vermelhos.
 
+### 2.67 ✅ `[TÉCNICO]` O e-mail de boas-vindas sem o site, e o "esqueci" que prometia o que não ia sair — CONSERTADOS em 05/11/2026
+
+Os dois que a revisão geral de 05/11 achou e não pediam decisão:
+
+- **O e-mail de boas-vindas levava o endereço do site** a um e-mail que ninguém confirmou. O argumento de
+  26/10 (§2.57) era que o slug só tem letra, número e hífen — mas ele é o nome que a pessoa escolheu
+  (*suporte-fadeline-regularize-o-pix* cabe nele), e o link abre a página que ela escreveu, sob o nosso
+  domínio. Com o cadastro aberto, era um link de estranho, do nosso remetente, para qualquer endereço.
+  Agora o e-mail leva só o painel, o WhatsApp de login, o fim do teste e o link de confirmação
+  (`emailDeBoasVindas`, em `apps/barbearia/src/pages/api/cadastrar.ts`). O dono vê o endereço do site na
+  tela de fim do cadastro e no "Ver meu site" de toda tela do painel.
+- **O "esqueci" dizia *"Se este WhatsApp estiver cadastrado com um e-mail, o link […] está a caminho"*** —
+  e para e-mail não confirmado nada sai (§2.64). O dono que nunca abriu o link de confirmação esperava um
+  e-mail que não ia chegar. Agora diz *"com um e-mail confirmado"*, e a tela, antes do pedido, *"se ele já
+  estiver confirmado"* (`apps/barbearia/src/pages/api/auth/esqueci.ts` e
+  `apps/barbearia/src/pages/admin/esqueci.astro`). A resposta continua a mesma para todo número. No mesmo
+  quadro, o barbeiro da equipe era mandado a "Barbeiros", um menu que se chama Equipe.
+
+⚠️ **Continua sem saída o dono que esqueceu a senha antes de confirmar o e-mail:** a tela agora diz por que
+o link não chega, mas o painel do operador não tem ação para isso — hoje, só SQL. O que o operador pode
+fazer é decisão sua (o caminho que não fura a regra: trocar o e-mail do dono depois de conferir pelo
+WhatsApp, e o link de confirmação vai para o novo).
+
+**Verificado:** 119 arquivos, **1357 de 1357** contra PostgreSQL 16; o `astro check` com zero; 4 defeitos
+reintroduzidos — a linha do site de volta, a resposta e a tela sem "confirmado", e o menu antigo —, os 4
+vermelhos.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -4321,8 +4349,9 @@ rótulo de DNS válido e se já existe (as duas em `provisionarBarbearia`,
 - **Trocar a senha derruba as sessões abertas**, pelos três caminhos (§2.13).
 - **O e-mail aparece e se troca na tela da equipe** (`/admin/barbeiros`), com aviso para o
   dono que está sem; e a tela de assinatura diz para onde vão os avisos.
-- **Boas-vindas:** o cadastro manda o primeiro e-mail na hora, com o site, o painel, o
-  WhatsApp de login e o fim do teste. É a pista mais cedo de um e-mail digitado errado.
+- **Boas-vindas:** o cadastro manda o primeiro e-mail na hora, com o painel, o WhatsApp de
+  login e o fim do teste — e, desde 05/11/2026, sem o endereço do site (§2.67). É a pista mais
+  cedo de um e-mail digitado errado.
 - **Os avisos do teste e da cobrança** (`apps/barbearia/src/lib/avisos.ts`): 2 dias antes do
   fim do teste, no começo da carência — teste vencido ou cobrança que falhou — e quando o site
   sai do ar. Sai só o da fase de agora, um por prazo: a trava é a tabela `avisos_enviados`
