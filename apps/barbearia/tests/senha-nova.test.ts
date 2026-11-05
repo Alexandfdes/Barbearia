@@ -340,6 +340,31 @@ describe.skipIf(!TEM_BANCO)('as rotas', () => {
     expect(email.caixaDeSaida.length).toBe(enviados);
   });
 
+  it('esqueci: a resposta diz que o e-mail tem de estar confirmado — e é a mesma para quem não confirmou (05/11/2026)', async () => {
+    // Até 05/11 dizia "cadastrado com um e-mail": o dono que nunca abriu o link de confirmação
+    // lia "está a caminho" e esperava um e-mail que não ia sair (`docs/PENDENCIAS-ABERTAS.md` §2.67).
+    expect(esqueci.RESPOSTA_DO_PEDIDO).toMatch(/cadastrado com um e-mail confirmado, o link/);
+    const { resetRateLimit } = await import('../src/lib/rateLimit.ts');
+    resetRateLimit('senha-nova-tel:84999990004');
+    resetRateLimit('senha-nova-tel:84999990001');
+    await sql`UPDATE barbers SET email_confirmado_em = NULL WHERE id = 4`;
+    try {
+      email.caixaDeSaida.length = 0;
+      const naoConfirmado = await esqueci.POST(pedidoJson('http://painel.test/api/auth/esqueci', { whatsapp: '84999990004' }, '10.9.2.1') as never);
+      const confirmado = await esqueci.POST(pedidoJson('http://painel.test/api/auth/esqueci', { whatsapp: '84999990001' }, '10.9.2.2') as never);
+      expect(await naoConfirmado.json()).toEqual(await confirmado.json());
+      await vi.waitFor(() => expect(email.caixaDeSaida).toHaveLength(1));
+      expect(email.caixaDeSaida[0].para).toBe('dono@bayron.com');
+    } finally {
+      await sql`UPDATE barbers SET email_confirmado_em = now() WHERE id = 4`;
+    }
+    // A tela diz o mesmo antes do pedido — e o nome do menu é Equipe, não Barbeiros.
+    const { readFileSync } = await import('node:fs');
+    const tela = readFileSync('src/pages/admin/esqueci.astro', 'utf8');
+    expect(tela).toMatch(/e-mail cadastrado, se ele já estiver confirmado/);
+    expect(tela).toMatch(/em Equipe, no painel/);
+  });
+
   it('esqueci: com o envio de e-mail desligado, a tela diz — em vez de prometer um e-mail que não sai', async () => {
     vi.stubEnv('VITEST', '');
     vi.stubEnv('NODE_ENV', 'production');

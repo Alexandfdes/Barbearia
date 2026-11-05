@@ -32,9 +32,16 @@ const bodySchema = z.object({
   whatsapp: z.string().trim().min(1).max(50),
 });
 
-/** O que a tela mostra depois do pedido, exista o número ou não. */
+/**
+ * O que a tela mostra depois do pedido, exista o número ou não.
+ *
+ * "Confirmado" desde 05/11/2026: o link só sai para e-mail confirmado (`lib/confirmacaoDeEmail.ts`),
+ * e o dono que nunca abriu o link de confirmação lia "está a caminho" e esperava um e-mail que não ia
+ * sair. A frase continua igual para todo número — não diz se ele existe, nem se o e-mail dele está
+ * confirmado (`docs/PENDENCIAS-ABERTAS.md` §2.67).
+ */
 export const RESPOSTA_DO_PEDIDO =
-  'Se este WhatsApp estiver cadastrado com um e-mail, o link para criar a senha nova está a caminho. ' +
+  'Se este WhatsApp estiver cadastrado com um e-mail confirmado, o link para criar a senha nova está a caminho. ' +
   'Ele vale por 1 hora. Não chegou em alguns minutos? Olhe a caixa de spam.';
 
 export const POST: APIRoute = async ({ request, clientAddress }) => {
