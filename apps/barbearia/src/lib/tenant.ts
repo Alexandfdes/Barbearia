@@ -377,7 +377,7 @@ export function enderecoPublico(request: Request, url: URL): string {
  *
  * Cravar `https` quebraria isso: o servidor de desenvolvimento não tem TLS.
  */
-function protocoloDe(host: string): 'http' | 'https' {
+export function protocoloDe(host: string): 'http' | 'https' {
   return /^(localhost|127\.0\.0\.1|\[::1\])(:|$)/i.test(host) ? 'http' : 'https';
 }
 

@@ -45,6 +45,7 @@ import { ehRotaDoOperador } from './lib/operador.js';
 import { ROTAS_DA_EXPORTACAO } from './lib/exportacao.js';
 import { faltamNoBanco, respostaDoBancoAtrasado } from './lib/bancoAtrasado.js';
 import { desvioParaOPainel, semMoldura } from './lib/painelCentral.js';
+import { desvioDoWww } from './lib/enderecoWww.js';
 
 // Toda resposta sai sem poder ser emoldurada (`lib/painelCentral.ts`).
 export const onRequest = defineMiddleware(async (contexto, next) => semMoldura(await atender(contexto, next)));
@@ -62,6 +63,11 @@ async function atender(contexto: APIContext, next: MiddlewareNext): Promise<Resp
     console.warn(`[origem] recusado ${contexto.request.method} ${caminho}: ${recusa}`);
     return respostaDaRecusa(caminho);
   }
+
+  // O `www` é do site de vendas: se chegar aqui — o certificado curinga pode trazê-lo —, vai
+  // para a raiz em vez de virar "barbearia não encontrada" (`lib/enderecoWww.ts`).
+  const www = desvioDoWww(contexto.request);
+  if (www) return www;
 
   // No desenvolvimento, o banco atrás do código — migration nova que chegou com o servidor
   // ligado — vira uma tela que diz o que fazer, em vez da primeira consulta que falha
