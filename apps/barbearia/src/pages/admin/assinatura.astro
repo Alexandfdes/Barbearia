@@ -78,7 +78,10 @@ const proximos = foraDoAr
 
 // ── A cobrança ──────────────────────────────────────────────────────────────
 const cobrancaLigada = configDaAsaas() !== null;
-const podeCartao = podeCadastrarCartao(situacao);
+// O site que espera a aprovação (migration 0020) não cadastra cartão: o teste de 7 dias começa
+// quando ele abre, e a rota do cartão recusa antes disso (`abrirCheckout`, 06/11/2026).
+const emPreparacao = tenant.emPreparacao === true;
+const podeCartao = podeCadastrarCartao(situacao) && !emPreparacao;
 const emDia = situacao.fase === 'ativa' && !situacao.encerraEm;
 // A cobrança que falhou não encerra a assinatura na Asaas: ela tenta de novo o
 // cartão. Quem quer sair cancela daqui também — na carência e fora do ar.
@@ -118,7 +121,8 @@ const textoDoRetorno =
   : null;
 
 const Moldura = foraDoAr ? MolduraForaDoAr : AdminLayout;
-const titulo = foraDoAr ? 'O site está fora do ar' : 'Assinatura';
+// O site que nunca abriu não está "fora do ar": espera a conferência.
+const titulo = foraDoAr && !emPreparacao ? 'O site está fora do ar' : 'Assinatura';
 ---
 
 <Moldura title="Assinatura" barberName={barberRow.name} role={session.role}>
@@ -126,7 +130,9 @@ const titulo = foraDoAr ? 'O site está fora do ar' : 'Assinatura';
 
     <div>
       <h1 class="text-lg font-medium text-slate-900">{titulo}</h1>
-      <p id="situacao" class="text-sm text-slate-600 mt-2 max-w-[65ch]">{explicacaoDaSituacao(situacao, fuso, new Date(), cobrancaLigada)}</p>
+      <p id="situacao" class="text-sm text-slate-600 mt-2 max-w-[65ch]">{emPreparacao
+        ? 'O seu site ainda não está no ar: ele abre depois da nossa conferência, e os 7 dias de teste começam nesse dia. Até lá, nada é cobrado.'
+        : explicacaoDaSituacao(situacao, fuso, new Date(), cobrancaLigada)}</p>
       {/* Para onde vão os avisos por e-mail (`lib/avisos.ts`) — o dono precisa saber, e
           o e-mail digitado errado no cadastro só aparece aqui ou no aviso que não chega. */}
       {dono && (

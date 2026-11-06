@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **06/11** | **O cartão também espera a aprovação** — achado ao escrever o rascunho do termo de uso: com o site esperando, o dono podia cadastrar o cartão, e a primeira cobrança seguia o teste contado do cadastro, não o da aprovação, às vezes com o site ainda em preparação. Agora a rota recusa e a tela diz quando o teste começa. E o rascunho do termo e dos dois avisos de privacidade existe, com 16 perguntas para o advogado | `PENDENCIAS-ABERTAS.md` §2.70 e `PENDENCIAS-ABERTAS.md` §1.2 |
 | **05/11** | **O site novo espera a sua aprovação**, decidido por você para os primeiros meses: do cadastro pela web até você aprovar na ficha, o endereço diz "em preparação", sem nada que a pessoa escreveu, e o painel funciona inteiro — com uma prévia que só abre por um link do painel. **E o operador troca o e-mail do dono**, depois de conferir pelo WhatsApp do login: a saída de quem esqueceu a senha com o e-mail errado ou sem confirmar. ⚠️ Decidido na implementação — falta você confirmar: o teste de 7 dias conta da aprovação. Migration 0020 | `PENDENCIAS-ABERTAS.md` §2.70 |
 | **05/11** | **O que a revisão de 05/11 deixou e não pedia mais decisão:** o `www` indo para a raiz, os tetos de cada barbearia (15 na equipe, 100 serviços, 200 produtos, 50 combos — os números seus), só 7 cópias das fotos no disco, e, com a cobrança desligada, o painel e os e-mails mandando ao WhatsApp do suporte em vez de cadastrar o cartão. E o ensaio de restauração em script | `PENDENCIAS-ABERTAS.md` §2.69 e `PENDENCIAS-ABERTAS.md` §3.3 |
 | **05/11** | **A tela de Sistema diz se o backup saiu do servidor, e quanto do disco está ocupado** — antes dizia só se as variáveis existiam, e o disco não aparecia em tela nenhuma | `PENDENCIAS-ABERTAS.md` §2.68 |
@@ -240,6 +241,13 @@ Pergunta nova, que o teste grátis cria: **o que acontece com os dados de quem t
 não pagou?** Nome, telefone e data de nascimento de clientes de terceiro, guardados sem
 contrato vigente. Guardar para sempre é exposição; apagar cedo demais perde quem só
 esqueceu de pagar.
+
+**06/11/2026 — o rascunho existe; falta o advogado.** O termo de uso, o aviso de privacidade para quem agenda,
+o aviso para o dono e a equipe, e 16 perguntas que só o advogado responde, num documento do claude.ai — fora
+deste repositório, que é público. Escrito a partir do código, sem consulta à lei: os artigos citados estão
+marcados para conferir. Duas perguntas que não estavam aqui: o Marco Civil pede 6 meses de registro de acesso
+(IP, data e hora), e o sistema guarda só o das ações do suporte; e a barbearia atende menores, e o formulário
+pede a data de nascimento de quem é atendido. Escrevê-lo achou um defeito — o cartão antes da aprovação (§2.70).
 
 ⚠️ **27/09/2026 — o rodapé fingia que os textos existiam.** O site de toda barbearia mostrava
 "Termos de Uso" e "Políticas de Privacidade" apontando para `#`, num site que coleta nome e
@@ -2979,6 +2987,14 @@ e-mail e nos alertas do navegador —, e com ele sobre o site de todo cliente (�
   fim do teste no de quem se cadastrasse naquele dia — a não ser que ele já vá mais longe, porque você estendeu.
   Sem isso, cada dia de espera seria um dia a menos de teste, com o site fora do ar. E os avisos do teste não
   vão para quem espera: o prazo dele vai mudar.
+- **O cartão também espera** (06/11/2026, achado ao escrever o termo de uso, que promete os 7 dias a partir da
+  aprovação). Até aqui, o dono podia cadastrar o cartão com o site esperando: o Checkout pago põe a barbearia
+  em dia, a aprovação deixava de estender o teste — ela só estende quem está no teste —, e a primeira cobrança
+  saía no fim do teste contado do CADASTRO, às vezes com o site ainda "em preparação". Agora a rota do cartão
+  recusa (`abrirCheckout`, em `apps/barbearia/src/lib/cobranca.ts`), e a tela de assinatura diz que o teste
+  começa quando o site abrir, sem o botão — e não chama de "fora do ar" um site que nunca abriu. ⚠️ Fica um
+  caso: se a aprovação passar de 10 dias do cadastro (7 de teste e 3 de carência), o painel do dono fecha até
+  você aprovar, e aprovar devolve os 7 dias. Para quem você não vai aprovar, é o comportamento certo.
 - **`SITE_SEM_APROVACAO=1` desliga**, para quando os primeiros meses passarem — só para quem se cadastra
   depois: quem já espera continua esperando você.
 
@@ -3002,6 +3018,10 @@ defeitos reintroduzidos — com os do ensaio de restauração (§3.3) —, os 59
 barbearia dentro, que saiu aprovada; e, contra o build, 43 conferências — o cadastro, o "em preparação" sem nada
 do que foi escrito, a prévia pelo painel e pela ficha, a troca do e-mail e a aprovação, com o site abrindo para
 todos e a faixa sumindo.
+
+**06/11/2026, o cartão:** **1413 de 1413**; o `astro check` com zero; 4 defeitos reintroduzidos, os 4 vermelhos;
+e, contra o build, com a cobrança ligada: o site que espera sem o botão e a rota respondendo 409 — e, aprovado,
+o botão de volta e a rota passando.
 
 ---
 
@@ -4654,7 +4674,7 @@ no cadastro, a existência não.
   "Quero testar" da landing já leva ao seu WhatsApp, e até a Asaas o operador estende o teste. A pergunta que
   decide se o projeto existe — R$ 100/mês vende para barbearia sem sistema? — está aberta desde 01/09 (§5).
 - **O termo de uso e o aviso de privacidade**, com um advogado (§1.2): é o que precisa existir antes de
-  guardar dado do cliente de outra pessoa. O rascunho, com as perguntas para ele, está no projeto do claude.ai.
+  guardar dado do cliente de outra pessoa. O rascunho, com as perguntas para ele, existe desde 06/11, num documento do claude.ai.
 
 **2. Antes do primeiro cliente de verdade no ar.**
 

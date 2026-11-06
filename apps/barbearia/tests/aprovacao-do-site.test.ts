@@ -161,6 +161,19 @@ describe('a prévia: o link do painel e o cookie do endereço', () => {
     expect(site).toMatch(/\{naPrevia && <meta name="robots" content="noindex, nofollow" \/>\}/);
     expect(site).toMatch(/<aside id="faixa-da-previa" aria-label="Prévia" hidden=\{!naPrevia\}/);
   });
+
+  it('a tela de assinatura do site que espera: sem o cartão, e dizendo quando o teste começa (06/11/2026)', () => {
+    // Quem recusa de verdade é a rota (`abrirCheckout`, no `tests/cobranca.test.ts`); a tela não
+    // oferece o que a rota recusa, nem fala em "fora do ar" de um site que nunca abriu.
+    const tela = readFileSync('src/pages/admin/assinatura.astro', 'utf8');
+    expect(tela).toMatch(/const emPreparacao = tenant\.emPreparacao === true;/);
+    expect(tela).toMatch(/const podeCartao = podeCadastrarCartao\(situacao\) && !emPreparacao;/);
+    expect(tela).toMatch(/\{emPreparacao\s*\? 'O seu site ainda não está no ar: [^']*os 7 dias de teste começam nesse dia\./);
+    expect(tela).toMatch(/const titulo = foraDoAr && !emPreparacao \? 'O site está fora do ar' : 'Assinatura';/);
+    // Controle: o cartão continua oferecido por `podeCartao`, e a explicação de sempre continua lá.
+    expect(tela).toMatch(/\{!manual && podeCartao && \(/);
+    expect(tela).toMatch(/: explicacaoDaSituacao\(situacao, fuso, new Date\(\), cobrancaLigada\)\}/);
+  });
 });
 
 describe.skipIf(!TEM_BANCO)('com banco: o endereço, a aprovação, o cadastro e os avisos', () => {
