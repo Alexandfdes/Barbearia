@@ -86,8 +86,8 @@ const quadros: Quadro[] = [
       ...(envio === 'desligado' ? [] : [{ rotulo: 'O último envio para fora', valor: ENVIO[envio].valor, estado: ENVIO[envio].estado }]),
     ],
     nota: s.backup.horaDoDiario === null
-      ? `O diário não roda: a variável BACKUP_HOUR não é uma hora de 0 a 23. Sai só um quando o app sobe, se o último tiver mais de 12 horas; cada arquivo fica ${s.backup.retencaoDias} dias.`
-      : `Um por dia, às ${String(s.backup.horaDoDiario).padStart(2, '0')}:00, e um quando o app sobe, se o último tiver mais de 12 horas; cada arquivo fica ${s.backup.retencaoDias} dias. Perdido o disco, só o que saiu do servidor volta.`,
+      ? `O diário não roda: a variável BACKUP_HOUR não é uma hora de 0 a 23. Sai só um quando o app sobe, se o último tiver mais de 12 horas; o do banco fica ${s.backup.retencaoDias} dias, e das fotos ficam as ${s.backup.fotosLocais} cópias mais novas.`
+      : `Um por dia, às ${String(s.backup.horaDoDiario).padStart(2, '0')}:00, e um quando o app sobe, se o último tiver mais de 12 horas; o do banco fica ${s.backup.retencaoDias} dias, e das fotos ficam as ${s.backup.fotosLocais} cópias mais novas. Perdido o disco, só o que saiu do servidor volta.`,
   },
   {
     titulo: 'Disco',
@@ -96,7 +96,7 @@ const quadros: Quadro[] = [
       { rotulo: 'Ocupado', valor: `${s.disco.ocupadoPct}% — ${gb(s.disco.livreBytes)} livres de ${gb(s.disco.totalBytes)}`, estado: estadoDoDisco },
       { rotulo: 'Medido em', valor: s.disco.pasta },
     ] : [{ rotulo: 'Ocupado', valor: 'não deu para ler' }],
-    nota: `Cheio, o banco para — e o site de todas as barbearias com ele. Atenção a partir de ${DISCO_ATENCAO_PCT}%, problema a partir de ${DISCO_CHEIO_PCT}%. O que mais cresce é o backup: cada um guarda as fotos de todas as barbearias inteiras, por ${s.backup.retencaoDias} dias.`,
+    nota: `Cheio, o banco para — e o site de todas as barbearias com ele. Atenção a partir de ${DISCO_ATENCAO_PCT}%, problema a partir de ${DISCO_CHEIO_PCT}%. O que mais cresce é o backup das fotos: cada cópia tem as fotos de todas as barbearias inteiras — ficam as ${s.backup.fotosLocais} mais novas.`,
   },
   {
     titulo: 'E-mail',

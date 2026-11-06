@@ -254,6 +254,10 @@ describe('a tela de sistema não mostra segredo', () => {
     expect(b.retencaoDias).toBe(30);
     expect(backupNoPainel(envDe({ BACKUP_RETENTION_DAYS: '7' })).retencaoDias).toBe(7);
     expect(backupNoPainel(envDe({ BACKUP_RETENTION_DAYS: 'sete' })).retencaoDias).toBe(30);
+    // Das fotos, as 7 mais novas — a mesma leitura do `scripts/backup.mjs` (05/11/2026).
+    expect(b.fotosLocais).toBe(7);
+    expect(backupNoPainel(envDe({ BACKUP_FOTOS_LOCAIS: '3' })).fotosLocais).toBe(3);
+    expect(backupNoPainel(envDe({ BACKUP_FOTOS_LOCAIS: '0' })).fotosLocais).toBe(7);
     // A hora do diário, como o daemon a lê: 03:00 sem a variável; fora de 0 a 23, o daemon
     // nunca roda o diário — e a tela não pode dizer uma hora.
     expect(b.horaDoDiario).toBe(3);
@@ -280,7 +284,7 @@ describe('a tela de sistema não mostra segredo', () => {
     const base = {
       banco: { responde: true, ms: 3, versao: '16.15', tamanho: '9 MB', usuario: 'fadeline', superusuario: true },
       migracoes: { aplicadas: 14, ultima: '0014_anotacoes_do_operador.sql', em: new Date(), noBuild: 14 },
-      backup: { pasta, ultimo: null, fotos: null, quantos: 0, retencaoDias: 30, horaDoDiario: 3, foraDoServidor: false,
+      backup: { pasta, ultimo: null, fotos: null, quantos: 0, retencaoDias: 30, fotosLocais: 7, horaDoDiario: 3, foraDoServidor: false,
         envioParaFora: { ultimoCerto: null, ultimaFalha: null } },
       disco: null,
       ...configuracaoNoPainel(envDe({ SMTP_URL: '', EMAIL_PASTA: '', ASAAS_API_KEY: '' })),
@@ -352,7 +356,7 @@ describe('a tela de sistema não mostra segredo', () => {
     const base = {
       banco: { responde: true, ms: 3, versao: '16.15', tamanho: '9 MB', usuario: 'fadeline', superusuario: false },
       migracoes: { aplicadas: 14, ultima: '0014_anotacoes_do_operador.sql', em: new Date(), noBuild: 14 },
-      backup: { pasta, ultimo: { arquivo: 'b.sql.gz', bytes: 1, em: new Date() }, fotos: null, quantos: 1, retencaoDias: 30, horaDoDiario: 3, foraDoServidor: true,
+      backup: { pasta, ultimo: { arquivo: 'b.sql.gz', bytes: 1, em: new Date() }, fotos: null, quantos: 1, retencaoDias: 30, fotosLocais: 7, horaDoDiario: 3, foraDoServidor: true,
         envioParaFora: { ultimoCerto: new Date(), ultimaFalha: null } as { ultimoCerto: Date | null; ultimaFalha: { em: Date; motivo: string } | null } },
       disco: null as { pasta: string; totalBytes: number; livreBytes: number; ocupadoPct: number } | null,
       ...configuracaoNoPainel(envDe({ ASAAS_AMBIENTE: 'producao' })),
@@ -410,7 +414,7 @@ describe('a tela de sistema não mostra segredo', () => {
       const base = {
         banco: { responde: true, ms: 3, versao: '16.15', tamanho: '9 MB', usuario: 'fadeline', superusuario: false },
         migracoes: { aplicadas: 14, ultima: '0014_anotacoes_do_operador.sql', em: new Date(), noBuild: 14 },
-        backup: { pasta, ultimo: { arquivo: 'b.sql.gz', bytes: 1, em: new Date() }, fotos: null, quantos: 1, retencaoDias: 30, horaDoDiario: 3, foraDoServidor: true,
+        backup: { pasta, ultimo: { arquivo: 'b.sql.gz', bytes: 1, em: new Date() }, fotos: null, quantos: 1, retencaoDias: 30, fotosLocais: 7, horaDoDiario: 3, foraDoServidor: true,
           envioParaFora: { ultimoCerto: new Date(), ultimaFalha: null } },
         disco: null,
         ...config,
