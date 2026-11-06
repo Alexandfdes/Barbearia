@@ -1,7 +1,7 @@
 # Estado atual do código — comece por aqui
 
 > Registro vivo de **onde o código está**, para quem chega ao projeto ou volta
-> depois de um tempo. Atualizado: 05/11/2026 (§8).
+> depois de um tempo. Atualizado: 06/11/2026 (§8).
 >
 > Companheiro de `PENDENCIAS-ABERTAS.md` (o que ainda não foi **decidido**).
 > Este documento é sobre o que já foi **feito** e o que está pela metade.
@@ -368,6 +368,7 @@ dono não reparou vira o preço no site dele.
 
 | Quando | O quê |
 |---|---|
+| 06/11 | **O cartão espera a aprovação do site** (`PENDENCIAS-ABERTAS.md` §2.70): achado ao escrever o rascunho do termo de uso — com o site esperando, o cartão cadastrado fazia a primeira cobrança seguir o teste contado do cadastro, às vezes com o site ainda em preparação. A rota recusa, e a tela diz quando o teste começa. **Verificado:** 125 arquivos, **1413 de 1413** contra PostgreSQL 16; `astro check` com zero; 4 defeitos reintroduzidos, os 4 vermelhos; e contra o build, com a cobrança ligada. E o rascunho do termo e dos avisos de privacidade, com as perguntas para o advogado, num documento do claude.ai (`PENDENCIAS-ABERTAS.md` §1.2) |
 | 05/11 | **O site novo espera a sua aprovação, e o operador troca o e-mail do dono** (`PENDENCIAS-ABERTAS.md` §2.70, migration 0020): do cadastro pela web até você aprovar na ficha, o endereço diz "em preparação", sem nada que a pessoa escreveu; o painel funciona, com uma prévia por um link de 2 minutos; o teste conta da aprovação (⚠️ decidido na implementação). E a troca do e-mail do dono, depois de conferir pelo WhatsApp do login. **E o ensaio de restauração em script** (`PENDENCIAS-ABERTAS.md` §3.3). **Verificado:** 125 arquivos, **1411 de 1411**; `astro check` zero; 59 desfeitos e vermelhos; 43 conferências contra o build |
 | 05/11 | **O que a revisão de 05/11 deixou e não pedia decisão** (`PENDENCIAS-ABERTAS.md` §2.69): o `www` para a raiz, os tetos de cada barbearia, 7 cópias das fotos no disco, e, sem a cobrança, o caminho do suporte em vez do cartão |
 | 05/11 | **A tela de Sistema diz se o backup saiu do servidor, e quanto do disco está ocupado** (`PENDENCIAS-ABERTAS.md` §2.68): o `backup.mjs` registra cada envio para fora — o último certo e a última falha, com o motivo —, e um quadro novo mostra o disco, com alerta a partir de 80%. **Verificado:** 119 arquivos, **1363 de 1363**; `astro check` zero; 14 desfeitos e vermelhos |
