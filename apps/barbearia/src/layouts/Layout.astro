@@ -3,7 +3,7 @@ import '../styles/global.css';
 import { getSettings, numeroDaLojaInternacional } from '../lib/settings';
 import { cssDoAccent } from '../lib/accent.js';
 import { jsonLdSeguro } from '../lib/jsonLd.js';
-import { enderecoPublico, tenantAtual } from '../lib/tenant.js';
+import { enderecoPublico, tenantAtual, tenantDoHost } from '../lib/tenant.js';
 import { ehOBayron } from '../lib/bayron';
 import { iconeDaAba } from '../lib/iconeDaAba.js';
 import { especificacaoDoHorario } from '../lib/horarioDosBuscadores.js';
@@ -60,6 +60,11 @@ const estiloAccent = cssDoAccent({
 // se lê sem dúvida. Até 13/10/2026 ia fixo para toda barbearia, com a faixa de preço "$$"
 // (`lib/horarioDosBuscadores.ts`, `docs/PENDENCIAS-ABERTAS.md` §2.41).
 const horarioParaBuscadores = especificacaoDoHorario(s.businessHours);
+
+// A prévia do site que espera a aprovação do operador (migration 0020, `lib/previaDoSite.ts`):
+// só quem entrou pelo link do painel chega aqui com ela. Toda página diz que é prévia, e
+// nenhuma vai para a busca — o `src/middleware.ts` manda o mesmo no cabeçalho.
+const naPrevia = tenantDoHost(Astro.request)?.emPreparacao === true;
 ---
 
 <!DOCTYPE html>
@@ -82,6 +87,7 @@ const horarioParaBuscadores = especificacaoDoHorario(s.businessHours);
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     {ogImage && <meta name="twitter:image" content={ogImage} />}
+    {naPrevia && <meta name="robots" content="noindex, nofollow" />}
     <link rel="canonical" href={canonical} />
     <link rel="icon" href={favicon} />
     <title>{title}</title>
@@ -106,6 +112,12 @@ const horarioParaBuscadores = especificacaoDoHorario(s.businessHours);
     <style set:html={estiloAccent}></style>
   </head>
   <body class="font-sans pb-24 md:pb-0">
+    {/* A condição mora DENTRO da área, de propósito: fora da prévia, a faixa sai vazia e
+        escondida — e nenhum pedaço do site fica fora de uma área (`tests/site-em-areas.test.ts`). */}
+    <aside id="faixa-da-previa" aria-label="Prévia" hidden={!naPrevia}
+      class="fixed bottom-4 left-4 z-[60] max-w-[calc(100%-7rem)] pointer-events-none rounded-full bg-amber-300 text-amber-950 text-xs font-semibold px-3.5 py-2 shadow-lg">
+      {naPrevia && 'Prévia — este site ainda não está no ar.'}
+    </aside>
     <slot />
   </body>
 </html>

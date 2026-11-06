@@ -202,7 +202,9 @@ describe.skipIf(!TEM_BANCO)('o cadastro nasce no teste', () => {
         clientAddress: '8.8.4.4',
       } as never);
       expect(r.status).toBe(201);
-      expect((await r.json()).ultimoDiaDoTeste).toMatch(/^\d{2}\/\d{2}$/);
+      // O site espera a aprovação (migration 0020): a data do teste é recontada quando ele abrir,
+      // e a resposta não diz nenhuma — mas o teste existe, com fim, desde já.
+      expect(await r.json()).toMatchObject({ emPreparacao: true, ultimoDiaDoTeste: null });
       const [web] = await sql`SELECT status, trial_ends_at FROM tenants WHERE slug = 'nova-pela-web'`;
       expect(web.status).toBe('trial');
       expect(web.trial_ends_at).not.toBeNull();

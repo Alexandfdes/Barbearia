@@ -131,6 +131,14 @@ export async function pedirConfirmacao(p: {
   montar?: (link: string) => Pick<Email, 'assunto' | 'texto'>;
   esperarEnvio?: boolean;
   enviar?: (e: Email) => Promise<unknown>;
+  /**
+   * O operador trocou o e-mail depois de conferir pelo WhatsApp do login que é o dono
+   * (`trocarEmailDoDono`, em `lib/operadorBarbearias.ts`): o limite de um por minuto e cinco
+   * por dia não vale. Ele existe contra quem dispara pedidos para endereços que ninguém
+   * provou; aqui quem provou foi o operador — e os pedidos que o dono gastou no endereço
+   * ERRADO não podem deixá-lo sem o link no certo. O orçamento do dia (`lib/email.ts`) vale.
+   */
+  peloOperador?: boolean;
 }): Promise<ResultadoDoPedidoDeConfirmacao> {
   const agora = p.agora ?? new Date();
   const enviar = p.enviar ?? enviarEmail;
@@ -153,8 +161,10 @@ export async function pedirConfirmacao(p: {
         gt(confirmacoesDeEmail.criadaEm, desde),
       ))
       .orderBy(desc(confirmacoesDeEmail.criadaEm));
-    if (recentes[0] && agora.getTime() - recentes[0].criadaEm.getTime() < ESPERA_ENTRE_PEDIDOS_MS) return 'cedo-demais';
-    if (recentes.length >= PEDIDOS_POR_DIA) return 'limite-do-dia';
+    if (!p.peloOperador) {
+      if (recentes[0] && agora.getTime() - recentes[0].criadaEm.getTime() < ESPERA_ENTRE_PEDIDOS_MS) return 'cedo-demais';
+      if (recentes.length >= PEDIDOS_POR_DIA) return 'limite-do-dia';
+    }
 
     if (transporteDeEmail() === 'nenhum') return 'sem-envio';
     const painel = urlDoPainel();

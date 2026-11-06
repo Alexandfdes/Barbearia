@@ -14,9 +14,13 @@ const fuso = fusoDe(barbearia);
 // Vazio quando não há domínio próprio nem DOMINIO_BASE: aí o link some,
 // em vez de levar o dono para uma página de "barbearia não encontrada".
 const enderecoDoSite = urlDoSite(barbearia);
+// O site que espera a aprovação do operador (migration 0020): o endereço ainda mostra "em
+// preparação", e o link do topo leva à prévia, montada na hora (`pages/admin/previa.astro`).
+const emPreparacao = barbearia.emPreparacao === true;
 // A faixa do teste e da carência, em toda tela do painel: o prazo que ele não
-// vê é o prazo que ele perde (decisão de 08/10/2026, `lib/assinatura.ts`).
-const aviso = avisoDoPainel(situacaoDe(barbearia), fuso, new Date(), cobrancaLigada());
+// vê é o prazo que ele perde (decisão de 08/10/2026, `lib/assinatura.ts`). Esperando a
+// aprovação, a faixa é a dela: o teste recomeça a contar quando o site for ao ar.
+const aviso = emPreparacao ? null : avisoDoPainel(situacaoDe(barbearia), fuso, new Date(), cobrancaLigada());
 
 interface Props {
   title?:     string;
@@ -152,12 +156,22 @@ const grupos: { titulo: string; itens: { href: string; label: string; ativo: boo
             </svg>
           </button>
           <h1 class="text-sm font-semibold text-slate-800 truncate">{title}</h1>
-          <a href={enderecoDoSite} target="_blank" rel="noopener"
+          <a href={emPreparacao ? '/admin/previa' : enderecoDoSite} target="_blank" rel="noopener"
             class:list={['ml-auto text-xs text-slate-500 hover:text-teal transition-colors whitespace-nowrap',
                          !enderecoDoSite && 'hidden']}>
-            Ver meu site ↗
+            {emPreparacao ? 'Ver como está ficando ↗' : 'Ver meu site ↗'}
           </a>
         </header>
+
+        {emPreparacao && (
+          <div id="aviso-em-preparacao" role="status"
+            class="px-4 sm:px-6 py-2.5 text-sm flex flex-wrap items-center gap-x-4 gap-y-1 border-b bg-amber-50 border-amber-200 text-amber-950">
+            <span>O seu site ainda não está no ar: ele abre depois da nossa conferência. Monte tudo por aqui enquanto isso — os 7 dias de teste começam quando ele abrir.</span>
+            {enderecoDoSite && (
+              <a href="/admin/previa" target="_blank" rel="noopener" class="font-semibold underline underline-offset-2 whitespace-nowrap">Ver como está ficando</a>
+            )}
+          </div>
+        )}
 
         {aviso && (
           <div id="aviso-assinatura" role="status"

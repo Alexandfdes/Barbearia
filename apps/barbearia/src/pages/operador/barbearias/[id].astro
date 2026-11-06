@@ -49,6 +49,26 @@ if (f && feito === 'estender-teste') {
   mensagem = 'Anotação guardada.';
 } else if (f && feito === 'liberar-telefones') {
   mensagem = `Telefones liberados: a equipe, menos o dono, foi desligada — ${f.equipe.ativos} ${f.equipe.ativos === 1 ? 'ativo' : 'ativos'} agora.`;
+} else if (f && feito === 'aprovar-site') {
+  mensagem = f.emPreparacao
+    ? 'O site continua esperando a aprovação.'
+    : f.tela.tom === 'fora' || f.tela.tom === 'encerrada'
+      ? `Aprovado, mas o site continua fora do ar: ${f.tela.detalhe}.`
+      : `Aprovado: o site está no ar — ${f.tela.rotulo.toLowerCase()}, ${f.tela.detalhe}.`;
+} else if (f && feito === 'trocar-email-do-dono') {
+  // O resultado do envio vem do navegador, mas só escolhe entre frases daqui: texto
+  // que não é uma delas cai no "não sei".
+  const envio = Astro.url.searchParams.get('envio') ?? '';
+  const reenvio = Astro.url.searchParams.get('reenvio') === '1';
+  const feitoAqui = reenvio ? 'O link de confirmação saiu de novo' : 'E-mail trocado';
+  const DO_ENVIO: Record<string, string> = {
+    'enviado': `${feitoAqui}: confirmado o endereço, o dono pede a senha nova no "Esqueci minha senha" do login.`,
+    'sem-envio': `${reenvio ? 'O link de confirmação NÃO saiu' : 'E-mail trocado, mas o link de confirmação NÃO saiu'}: este servidor está sem envio de e-mail (SMTP_URL).`,
+    'sem-painel': `${reenvio ? 'O link de confirmação NÃO saiu' : 'E-mail trocado, mas o link de confirmação NÃO saiu'}: falta o endereço do painel (DOMINIO_BASE ou PAINEL_URL).`,
+    'falhou': `${reenvio ? 'O link de confirmação NÃO saiu' : 'E-mail trocado, mas o link de confirmação NÃO saiu'}: o envio falhou (o motivo está no log). Mandar de novo é repetir a troca com o mesmo e-mail.`,
+  };
+  mensagem = (DO_ENVIO[envio] ?? `${feitoAqui}. Não sei se o link de confirmação saiu.`)
+    + (Astro.url.searchParams.get('aviso') === '1' ? ' O endereço antigo recebeu o aviso da troca.' : '');
 }
 
 const wa = f?.dono?.telefone ? waPhone(f.dono.telefone) : null;
@@ -79,6 +99,7 @@ const ORIGEM_POR_EXTENSO: Record<EventoDaFicha['origem'], string> = {
           <h2 class="text-xl font-semibold text-slate-900">{f.nome}</h2>
           <Pilula tom={f.tela.tom} rotulo={f.tela.rotulo} />
           <span class="text-sm text-slate-600">{f.tela.detalhe}</span>
+          {f.emPreparacao && <Pilula tom="atencao" rotulo="Site esperando aprovação" />}
         </div>
         <p class="mt-2 text-sm text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
           {f.site
@@ -181,6 +202,9 @@ const ORIGEM_POR_EXTENSO: Record<EventoDaFicha['origem'], string> = {
                   ? <a href={waLink(wa)} target="_blank" rel="noopener noreferrer" class="block text-teal hover:underline tabular-nums">WhatsApp · {formatarTelefone(f.dono.telefone)}</a>
                   : <p class="tabular-nums text-slate-700">{formatarTelefone(f.dono.telefone)}</p>)}
                 {f.dono.email && <a href={`mailto:${f.dono.email}`} class="block text-teal hover:underline break-all">{f.dono.email}</a>}
+                {f.dono.email && (f.dono.emailConfirmado
+                  ? <p id="email-do-dono" class="text-xs text-slate-500">E-mail confirmado.</p>
+                  : <p id="email-do-dono" class="text-xs text-amber-800">E-mail não confirmado: a senha nova e os avisos não chegam a ele.</p>)}
                 {f.cidade && <p class="text-slate-600">{f.cidade}</p>}
                 <p class="text-xs text-slate-500">{f.equipe.total} {f.equipe.total === 1 ? 'pessoa' : 'pessoas'} na equipe</p>
               </div>
@@ -252,6 +276,13 @@ const ORIGEM_POR_EXTENSO: Record<EventoDaFicha['origem'], string> = {
         if (escolhido) corpo.comoEra = escolhido.value;
       }
       if (acao === 'anotar') corpo.texto = campo('texto')?.value ?? '';
+      if (acao === 'trocar-email-do-dono') {
+        corpo.barbeiro = Number(form.dataset.barbeiro);
+        corpo.email = campo('email')?.value ?? '';
+        corpo.conferido = form.querySelector<HTMLInputElement>('[name="conferido"]')?.checked === true;
+        const motivo = campo('motivo')?.value.trim();
+        if (motivo) corpo.motivo = motivo;
+      }
       erro?.classList.add('hidden');
       if (botao) botao.disabled = true;
       try {
@@ -263,7 +294,12 @@ const ORIGEM_POR_EXTENSO: Record<EventoDaFicha['origem'], string> = {
         if (r.ok) {
           // O `t` muda a cada vez: sem ele, a segunda ação seguida daria o MESMO
           // endereço, e o navegador não recarregaria a ficha.
-          location.replace(`${location.pathname}?feito=${encodeURIComponent(acao)}&t=${Date.now()}`);
+          let extra = '';
+          if (acao === 'trocar-email-do-dono') {
+            const d = await r.json().catch(() => ({}));
+            extra = `&envio=${encodeURIComponent(String(d.confirmacao ?? ''))}&aviso=${d.avisouAntigo ? 1 : 0}&reenvio=${d.reenvio ? 1 : 0}`;
+          }
+          location.replace(`${location.pathname}?feito=${encodeURIComponent(acao)}${extra}&t=${Date.now()}`);
           return;
         }
         const d = await r.json().catch(() => ({}));

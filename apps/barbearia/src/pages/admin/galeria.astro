@@ -60,7 +60,7 @@ const site = urlDoSite(tenant);
     ) : (
       <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center justify-between gap-3">
         <p class="text-sm text-emerald-900">A galeria está no site com {fotos.length} {fotos.length === 1 ? 'foto' : 'fotos'}.</p>
-        {site && <a href={`${site}/#galeria`} target="_blank" rel="noopener" class="shrink-0 text-xs font-medium text-emerald-800 underline underline-offset-2">Ver no site</a>}
+        {site && <a href={tenant.emPreparacao ? '/admin/previa#galeria' : `${site}/#galeria`} target="_blank" rel="noopener" class="shrink-0 text-xs font-medium text-emerald-800 underline underline-offset-2">Ver no site</a>}
       </div>
     )}
 

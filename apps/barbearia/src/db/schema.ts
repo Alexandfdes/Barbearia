@@ -48,6 +48,12 @@ export const tenants = pgTable('tenants', {
    */
   timezone: text('timezone').notNull().default(TZ_PADRAO),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  /**
+   * Quando o operador aprovou o site (migration 0020). Nulo: em preparação — o painel
+   * funciona, e o endereço mostra "em preparação" (`lib/previaDoSite.ts`). Só o cadastro
+   * pela web grava nulo; o padrão é aprovado.
+   */
+  siteAprovadoEm: timestamp('site_aprovado_em', { withTimezone: true }).defaultNow(),
 });
 
 /**

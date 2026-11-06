@@ -477,14 +477,22 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
 
     function mostrarFim(dados: {
       site?: string | null; telefoneLogin?: string; servicosAtivos?: number; ultimoDiaDoTeste?: string | null;
+      emPreparacao?: boolean;
     }): void {
       const pronto = $('pronto') as HTMLElement;
       pronto.replaceChildren();
       const site = dados.site || null;
 
-      const titulo = el('h2', {}, site ? 'Conferindo o seu endereço…' : 'A sua barbearia existe.');
+      const titulo = el('h2', {}, site && !dados.emPreparacao ? 'Conferindo o seu endereço…' : 'A sua barbearia existe.');
       pronto.append(titulo);
-      if (site) {
+      if (dados.emPreparacao) {
+        // O site espera a aprovação do operador (migration 0020): o endereço mostra "em
+        // preparação", então não há o que conferir nem o que divulgar ainda.
+        pronto.append(el('p', { className: 'aviso' },
+          'O seu site abre depois de uma conferência nossa. Enquanto isso, monte tudo no painel — e veja como ele ' +
+          'está ficando em "Ver como está ficando", no topo do painel. Até abrir, não divulgue o endereço.'));
+        if (site) pronto.append(el('p', { className: 'endereco' }, semProtocolo(site)));
+      } else if (site) {
         // "No ar" só depois de conferido, do navegador do dono (`lib/noAr.ts`). Até
         // abrir, o endereço vai em texto e sem botão de divulgar: link que não abre,
         // mandado no WhatsApp no minuto mais animado, é o pior primeiro contato.
@@ -540,7 +548,10 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
         : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : d;
       // O prazo, dito na hora: o cartão só é pedido no fim do teste (decisão de
       // 08/10/2026), e quem não sabe a data não se prepara para ela.
-      if (dados.ultimoDiaDoTeste) {
+      if (dados.emPreparacao) {
+        pronto.append(el('p', { className: 'teste' },
+          el('strong', {}, '7 dias grátis,'), ' que começam quando o site abrir. O cartão só é pedido no fim do teste — o painel avisa antes.'));
+      } else if (dados.ultimoDiaDoTeste) {
         pronto.append(el('p', { className: 'teste' },
           el('strong', {}, `7 dias grátis, até ${dados.ultimoDiaDoTeste}.`),
           ' O cartão só é pedido no fim do teste — o painel avisa antes.'));

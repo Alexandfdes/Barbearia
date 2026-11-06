@@ -1,19 +1,41 @@
 ---
 /**
- * As ações sobre UMA barbearia, na ficha dela: estender o teste ou a carência,
- * tirar do ar, reativar (`lib/operadorBarbearias.ts`). Os botões que aparecem dependem do
- * status — o mesmo critério das funções, que recusam o resto de qualquer jeito.
+ * As ações sobre UMA barbearia, na ficha dela: aprovar o site novo, estender o teste ou a
+ * carência, tirar do ar, reativar, liberar os telefones, trocar o e-mail do dono
+ * (`lib/operadorBarbearias.ts`). Os botões que aparecem dependem do status — o mesmo
+ * critério das funções, que recusam o resto de qualquer jeito.
  *
  * O envio é do script da ficha (`pages/operador/barbearias/[id].astro`): ele lê
  * `data-acao` e `data-barbearia` de cada formulário.
  */
 import { DIAS_MAXIMOS_DE_EXTENSAO, statusPorExtenso, type BarbeariaNoPainel } from '../../lib/operadorBarbearias.js';
+import { formatarTelefone } from '../../lib/phone.js';
 
 interface Props { b: BarbeariaNoPainel }
 const { b } = Astro.props;
 const nenhuma = !(b.status === 'trial' || b.status === 'active' || b.status === 'past_due' || b.status === 'suspended');
 ---
 <div class="space-y-2">
+  {b.emPreparacao && b.status !== 'cancelled' && (
+    <details class="group" data-painel-acao open>
+      <summary class="cursor-pointer select-none text-sm font-medium border border-amber-300 bg-amber-50 rounded-md px-3 py-2 hover:border-amber-400 text-amber-950 flex items-center justify-between">
+        Aprovar o site <span class="text-amber-700 group-open:rotate-90 transition-transform" aria-hidden="true">›</span>
+      </summary>
+      <form data-acao="aprovar-site" data-barbearia={b.id} class="mt-2 bg-slate-50 border border-slate-200 rounded-md p-3 space-y-2">
+        <p class="text-xs text-slate-600">O site ainda não está no ar: o endereço mostra "em preparação", sem nada do que foi escrito. O painel do dono funciona inteiro.</p>
+        <a id="ver-previa" href={`/operador/barbearias/${b.id}/previa`} target="_blank" rel="noopener"
+          class="inline-block text-sm font-medium text-teal hover:underline">Ver como o site está ↗</a>
+        <p class="text-xs text-slate-600">Olhe o nome, as fotos, os textos e o WhatsApp: o que passar daqui vai ao ar sob o domínio do produto.</p>
+        {b.status === 'trial' && (
+          <p class="text-xs text-slate-500">O teste de 7 dias passa a contar de hoje — a não ser que já vá mais longe.</p>
+        )}
+        <p class="text-xs text-slate-500">Não deve ir ao ar? Use o Tirar do ar, com o motivo.</p>
+        <button type="submit" class="text-xs px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded transition-colors">Aprovar e pôr no ar</button>
+        <p data-erro role="alert" class="hidden text-sm text-red-700"></p>
+      </form>
+    </details>
+  )}
+
   {b.status === 'trial' && (
     <details class="group" data-painel-acao>
       <summary class="cursor-pointer select-none text-sm font-medium border border-slate-300 rounded-md px-3 py-2 hover:border-slate-400 flex items-center justify-between">
@@ -104,6 +126,33 @@ const nenhuma = !(b.status === 'trial' || b.status === 'active' || b.status === 
         <p class="text-xs text-slate-600">Desliga os barbeiros desta barbearia — <strong class="text-slate-900">menos o dono</strong> —, e o WhatsApp de cada um volta a servir para entrar noutra barbearia ou cadastrar a sua. Use quando alguém da equipe de uma barbearia fora do ar precisar do número.</p>
         <p class="text-xs text-slate-500">Se ela voltar ao ar, o dono religa quem quiser na Equipe.</p>
         <button type="submit" class="text-xs px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded transition-colors">Liberar os telefones</button>
+        <p data-erro role="alert" class="hidden text-sm text-red-700"></p>
+      </form>
+    </details>
+  )}
+
+  {b.dono && b.status !== 'cancelled' && (
+    <details class="group" data-painel-acao>
+      <summary class="cursor-pointer select-none text-sm font-medium border border-slate-300 rounded-md px-3 py-2 hover:border-slate-400 flex items-center justify-between">
+        Trocar o e-mail do dono <span class="text-slate-400 group-open:rotate-90 transition-transform" aria-hidden="true">›</span>
+      </summary>
+      <form data-acao="trocar-email-do-dono" data-barbearia={b.id} data-barbeiro={b.dono.id} class="mt-2 bg-slate-50 border border-slate-200 rounded-md p-3 space-y-2">
+        <p class="text-xs text-slate-600">Para o dono que esqueceu a senha com o e-mail errado ou sem confirmar: o "Esqueci minha senha" só manda para e-mail confirmado. O mesmo e-mail, ainda sem confirmar, manda o link de novo.</p>
+        <p class="text-xs rounded px-2 py-1.5 bg-amber-50 text-amber-950 border border-amber-200">
+          Antes, confira que é ele: escreva você para o WhatsApp do login{b.dono.telefone && <> — <span class="tabular-nums whitespace-nowrap">{formatarTelefone(b.dono.telefone)}</span></>} — e espere a resposta de lá. Não troque a pedido de outro número: é assim que se rouba um painel.
+        </p>
+        <label for={`email-dono-${b.id}`} class="block text-xs text-slate-600">E-mail novo</label>
+        <input id={`email-dono-${b.id}`} name="email" type="email" maxlength="254" required autocomplete="off" spellcheck="false" autocapitalize="off"
+          class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-teal" />
+        <label for={`motivo-email-${b.id}`} class="block text-xs text-slate-600">Motivo — fica no registro</label>
+        <input id={`motivo-email-${b.id}`} name="motivo" maxlength="300" autocomplete="off" placeholder="Ex.: digitou o e-mail errado no cadastro"
+          class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-sm placeholder-slate-400 focus:outline-none focus:border-teal" />
+        <label class="flex gap-2 text-sm text-slate-800">
+          <input type="checkbox" name="conferido" required class="mt-0.5" />
+          Conferi pelo WhatsApp do login que é o dono.
+        </label>
+        <p class="text-xs text-slate-500">O endereço novo recebe o link de confirmação, e o antigo, se estava confirmado, o aviso da troca. Confirmado o novo, o dono pede a senha nova no "Esqueci minha senha" do login.</p>
+        <button type="submit" class="text-xs px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest rounded transition-colors">Trocar o e-mail</button>
         <p data-erro role="alert" class="hidden text-sm text-red-700"></p>
       </form>
     </details>

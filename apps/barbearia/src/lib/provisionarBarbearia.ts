@@ -105,6 +105,13 @@ export interface DadosDaBarbearia {
    * web nunca — lá todo mundo começa no teste (decisão de 08/10/2026).
    */
   semTeste?: boolean;
+  /**
+   * O site nasce ESPERANDO A APROVAÇÃO do operador (`site_aprovado_em` nulo, migration 0020):
+   * o painel funciona, o endereço mostra "em preparação" (`lib/previaDoSite.ts`). Quem passa é
+   * o cadastro pela web (`aprovacaoDoSiteLigada`); o script de linha de comando, que é você
+   * criando à mão, não — sem ele, nasce aprovado, como o padrão da coluna.
+   */
+  esperaAprovacao?: boolean;
 }
 
 export interface HorarioDoCadastro {
@@ -141,6 +148,8 @@ export interface BarbeariaCriada {
   testeAte: Date | null;
   /** O fuso da barbearia, gravado em `tenants.timezone`. */
   fuso: string;
+  /** O site espera a aprovação do operador (`esperaAprovacao`). */
+  siteEmPreparacao: boolean;
 }
 
 export interface RecusaDeProvisionamento {
@@ -406,9 +415,13 @@ export async function provisionarBarbearia(
     // o conversor de datas pelo que não converte nada, e um `Date` chega ao driver
     // cru — "The string argument must be of type string". O teste só pega isso
     // pela rota, que usa o pool; pelo script, com conexão própria, passava.
+    //
+    // `site_aprovado_em` vai sempre escrito, nulo ou não: a decisão de esperar a aprovação é
+    // de quem chama (`esperaAprovacao`), e não do padrão da coluna (migration 0020).
     const [tenant] = await tx`
-      INSERT INTO tenants (slug, domain, business_name, status, trial_ends_at, timezone)
-      VALUES (${slug}, ${dominio}, ${nome}, ${testeAte ? 'trial' : 'active'}, ${testeAte ? testeAte.toISOString() : null}, ${fuso})
+      INSERT INTO tenants (slug, domain, business_name, status, trial_ends_at, timezone, site_aprovado_em)
+      VALUES (${slug}, ${dominio}, ${nome}, ${testeAte ? 'trial' : 'active'}, ${testeAte ? testeAte.toISOString() : null}, ${fuso},
+              ${dados.esperaAprovacao ? null : agora.toISOString()})
       RETURNING id
     `;
 
@@ -478,5 +491,6 @@ export async function provisionarBarbearia(
     servicosAtivos: resultado.ativos,
     testeAte,
     fuso,
+    siteEmPreparacao: Boolean(dados.esperaAprovacao),
   };
 }

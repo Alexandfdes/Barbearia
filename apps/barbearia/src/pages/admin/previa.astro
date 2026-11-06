@@ -1,0 +1,29 @@
+---
+export const prerender = false;
+
+/**
+ * "Ver como está ficando" — o site de quem espera a aprovação do operador (migration 0020).
+ *
+ * Monta, na hora do clique, o link da prévia (`lib/previaDoSite.ts`): ele vale 2 minutos,
+ * e no endereço do site vira o cookie que abre o site naquele navegador. Montado na hora
+ * de propósito — um link escrito na tela venceria com a tela aberta.
+ *
+ * Site já aprovado: vai direto para ele, como o "Ver meu site". Sem endereço
+ * (`DOMINIO_BASE` vazio, no desenvolvimento): volta ao Início.
+ */
+import { getSession } from '../../lib/session.js';
+import { tenantDaSessao, urlDoSite } from '../../lib/tenant.js';
+import { linkDaPrevia } from '../../lib/previaDoSite.js';
+
+const session = await getSession(Astro.request);
+if (!session) return Astro.redirect('/admin/login');
+const tenant = tenantDaSessao(session);
+
+const site = urlDoSite(tenant);
+const destino = !site ? '/admin' : tenant.emPreparacao ? linkDaPrevia(site, tenant.id) ?? '/admin' : site;
+// O link leva o selo: nem cache, nem o endereço desta tela para o site.
+return new Response(null, {
+  status: 303,
+  headers: { location: destino, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' },
+});
+---

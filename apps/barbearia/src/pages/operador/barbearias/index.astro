@@ -80,6 +80,7 @@ const colunas = 'lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.7fr)_minmax(0,1.8fr)_m
               </div>
               <div class="min-w-0">
                 <Pilula tom={b.tela.tom} rotulo={b.tela.rotulo} />
+                {b.emPreparacao && <Pilula tom="atencao" rotulo="Site esperando aprovação" />}
                 <p class="text-xs text-slate-600 mt-1">{b.tela.detalhe}</p>
               </div>
               <div class="min-w-0 text-sm">

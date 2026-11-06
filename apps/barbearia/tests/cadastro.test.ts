@@ -459,7 +459,12 @@ describe('a rota, de ponta a ponta', () => {
       expect(boasVindas.texto).not.toContain('salao-jovem');
       expect(boasVindas.texto).toContain('https://painel.fadeline.com.br/admin');
       expect(boasVindas.texto).toMatch(/\(84\) 96658-9511/);
-      expect(boasVindas.texto).toMatch(/O teste grátis vai até \d{2}\/\d{2}\./);
+      // O site espera a sua aprovação (migration 0020): o teste conta de quando ele abrir, e a
+      // resposta não diz data nenhuma — a de agora seria recontada na aprovação.
+      expect(boasVindas.texto).toMatch(/Os 7 dias de teste grátis começam quando ele abrir\./);
+      expect(boasVindas.texto).not.toMatch(/O teste grátis vai até/);
+      expect(corpo.emPreparacao).toBe(true);
+      expect(corpo.ultimoDiaDoTeste).toBeNull();
     } finally {
       if (anterior === undefined) delete process.env.CADASTRO_ABERTO;
       else process.env.CADASTRO_ABERTO = anterior;
