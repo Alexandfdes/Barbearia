@@ -16,3 +16,17 @@ export const NOME_PRODUTO = 'Fadeline';
  * landing promete é o que o painel cobra.
  */
 export const PRECO_MENSAL = 100;
+
+/**
+ * O WhatsApp do suporte — o mesmo que a landing usa (`WHATSAPP`, em `apps/vendas/src/config.ts`), e
+ * `tests/whatsapp-do-suporte.test.ts` reprova se divergirem. Formato wa.me: DDI + DDD + número.
+ *
+ * Desde 05/11/2026 é para onde o painel e os avisos mandam o dono enquanto a cobrança está
+ * desligada (`lib/assinatura.ts`): antes mandavam cadastrar um cartão que não tinha onde cadastrar.
+ */
+export const WHATSAPP_SUPORTE = '5584996658951';
+
+/** O link do WhatsApp do suporte, com a mensagem já escrita se houver. */
+export function linkDoSuporte(mensagem?: string): string {
+  return `https://wa.me/${WHATSAPP_SUPORTE}${mensagem ? `?text=${encodeURIComponent(mensagem)}` : ''}`;
+}

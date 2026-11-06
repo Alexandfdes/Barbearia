@@ -4,7 +4,7 @@ import { getSettings } from '../lib/settings';
 import { tenantAtual, urlDoSite } from '../lib/tenant.js';
 import { iconeDaAba } from '../lib/iconeDaAba.js';
 import { situacaoDe } from '../lib/situacao.js';
-import { avisoDoPainel, TELA_DE_ASSINATURA } from '../lib/assinatura.js';
+import { avisoDoPainel, cobrancaLigada, TELA_DE_ASSINATURA } from '../lib/assinatura.js';
 import { formatInTimeZone } from 'date-fns-tz';
 import { fusoDe } from '../lib/timezone.js';
 
@@ -16,7 +16,7 @@ const fuso = fusoDe(barbearia);
 const enderecoDoSite = urlDoSite(barbearia);
 // A faixa do teste e da carência, em toda tela do painel: o prazo que ele não
 // vê é o prazo que ele perde (decisão de 08/10/2026, `lib/assinatura.ts`).
-const aviso = avisoDoPainel(situacaoDe(barbearia), fuso);
+const aviso = avisoDoPainel(situacaoDe(barbearia), fuso, new Date(), cobrancaLigada());
 
 interface Props {
   title?:     string;

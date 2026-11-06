@@ -80,3 +80,47 @@ describe('quem cancelou (10/10/2026)', () => {
     expect(texto).not.toMatch(/cobrança|cartão não passou|teste/);
   });
 });
+
+describe('com a cobrança desligada, o caminho é o suporte (05/11/2026)', () => {
+  // Até 05/11, com a cobrança desligada, a faixa, a tela e os e-mails mandavam cadastrar o cartão,
+  // e o botão dizia que ainda não dava: o dono que acreditasse via o site sair do ar no 10º dia
+  // (`docs/PENDENCIAS-ABERTAS.md` §2.69).
+  it('a regra de "ligada" é a mesma do módulo da cobrança', async () => {
+    const { cobrancaLigada } = await import('../src/lib/assinatura');
+    const { configDaAsaas } = await import('../src/lib/asaas');
+    for (const env of [{}, { ASAAS_API_KEY: '' }, { ASAAS_API_KEY: '   ' }, { ASAAS_API_KEY: '$aact_x' }, { ASAAS_API_KEY: 'x', ASAAS_AMBIENTE: 'producao' }]) {
+      expect(cobrancaLigada(env), JSON.stringify(env)).toBe(configDaAsaas(env) !== null);
+    }
+  });
+
+  it('no teste e na carência do teste: suporte, não cartão', () => {
+    const teste = avisoDoPainel({ fase: 'teste', ate: FIM_DO_TESTE }, FORTALEZA, local('2026-10-08T21:28:00'), false);
+    expect(teste).toEqual({ tom: 'info', texto: 'Teste grátis: faltam 7 dias, até 15/10.', acao: 'Ver como continuar' });
+    expect(avisoDoPainel({ fase: 'carencia', motivo: 'teste', ate: FIM_DA_CARENCIA }, FORTALEZA, new Date(), false))
+      .toEqual({ tom: 'alerta', texto: 'O teste acabou. Fale com o suporte até 18/10 para o site continuar no ar.', acao: 'Ver como continuar' });
+    for (const s of [
+      { fase: 'teste' as const, ate: FIM_DO_TESTE },
+      { fase: 'carencia' as const, motivo: 'teste' as const, ate: FIM_DA_CARENCIA },
+      { fase: 'suspensa' as const, motivo: 'teste' as const, desde: FIM_DA_CARENCIA },
+    ]) {
+      const texto = explicacaoDaSituacao(s, FORTALEZA, local('2026-10-08T21:28:00'), false);
+      expect(texto, s.fase).toMatch(/fale com o suporte pelo WhatsApp/);
+      expect(texto, s.fase).not.toMatch(/cadastre o cartão|regularizou/i);
+    }
+  });
+
+  it('a cobrança que falhou continua falando em cartão — só existe com a cobrança ligada', () => {
+    expect(avisoDoPainel({ fase: 'carencia', motivo: 'cobranca', ate: FIM_DA_CARENCIA }, FORTALEZA, new Date(), false)?.texto)
+      .toBe('A cobrança não passou. Atualize o cartão até 18/10 para o site continuar no ar.');
+  });
+
+  it('quem mostra o texto passa a cobrança de verdade: a faixa, a tela de assinatura e os avisos', async () => {
+    const { readFileSync } = await import('node:fs');
+    expect(readFileSync('src/layouts/AdminLayout.astro', 'utf8')).toMatch(/avisoDoPainel\(situacaoDe\(barbearia\), fuso, new Date\(\), cobrancaLigada\(\)\)/);
+    const tela = readFileSync('src/pages/admin/assinatura.astro', 'utf8');
+    expect(tela).toMatch(/explicacaoDaSituacao\(situacao, fuso, new Date\(\), cobrancaLigada\)/);
+    expect(tela).toMatch(/id="falar-com-o-suporte" href=\{linkDoSuporte\(/);
+    expect(tela).not.toMatch(/Ainda não dá para pagar por aqui/);
+    expect(readFileSync('src/lib/avisos.ts', 'utf8')).toMatch(/agora, cobrancaLigada\(\)\)/);
+  });
+});

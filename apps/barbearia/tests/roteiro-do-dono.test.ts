@@ -92,7 +92,8 @@ describe('o rodapé não mostra o que a barbearia não preencheu', () => {
 describe('textos e menus que diziam o que não é', () => {
   it('a tela de assinatura sem a Asaas não fala de uma "próxima etapa" que já foi feita', () => {
     const tela = readFileSync('src/pages/admin/assinatura.astro', 'utf8');
-    expect(tela).toMatch(/Ainda não dá para pagar por aqui/); // controle: o aviso existe
+    // Controle: o aviso existe — desde 05/11/2026, o caminho do suporte (`lib/assinatura.ts`).
+    expect(tela).toMatch(/O pagamento pelo painel ainda não abriu/);
     expect(soCodigo(tela)).not.toMatch(/próxima etapa/);
   });
 
