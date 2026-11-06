@@ -37,10 +37,10 @@ import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import { dbDono } from '../db/index.js';
 import { avisosEnviados, barbers, tenants } from '../db/schema.js';
 import { diasAte, situacaoDe, type Situacao } from './situacao.js';
-import { explicacaoDaSituacao, TELA_DE_ASSINATURA } from './assinatura.js';
+import { cobrancaLigada, explicacaoDaSituacao, TELA_DE_ASSINATURA } from './assinatura.js';
 import { enviarEmail, transporteDeEmail } from './email.js';
 import { urlDoPainel } from './tenant.js';
-import { NOME_PRODUTO } from './produto.js';
+import { linkDoSuporte, NOME_PRODUTO } from './produto.js';
 
 export type TipoDeAviso = 'teste-acabando' | 'teste-acabou' | 'cobranca-falhou' | 'fora-do-ar';
 
@@ -91,6 +91,8 @@ export function textoDoAviso(
   /** `fuso`: o da barbearia — as datas do e-mail são as do calendário dela. */
   d: { barbearia: string; nome: string; painel: string; fuso: string },
   agora: Date = new Date(),
+  /** A cobrança está ligada (`cobrancaLigada`)? Desligada, o aviso manda falar com o suporte. */
+  ligada = true,
 ): { assunto: string; texto: string } {
   const assunto = `${d.barbearia}: ${resumoDoAssunto(tipo, s, d.fuso, agora)}`;
 
@@ -102,8 +104,9 @@ export function textoDoAviso(
     `Olá, ${d.nome}.`,
     '',
     ...abertura,
-    explicacaoDaSituacao(s, d.fuso, agora),
+    explicacaoDaSituacao(s, d.fuso, agora, ligada),
     '',
+    ...(ligada ? [] : ['O WhatsApp do suporte:', linkDoSuporte(), '']),
     'A tela de assinatura, no painel:',
     `${d.painel}${TELA_DE_ASSINATURA}`,
     '',
@@ -209,7 +212,7 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
       for (const dono of donos) {
         await enviarEmail({
           para: dono.email!,
-          ...textoDoAviso(devido.tipo, s, { barbearia: b.nome, nome: dono.nome, painel, fuso: b.fuso }, agora),
+          ...textoDoAviso(devido.tipo, s, { barbearia: b.nome, nome: dono.nome, painel, fuso: b.fuso }, agora, cobrancaLigada()),
           barbearia: b.id,
           tipo: 'conta',
         });
