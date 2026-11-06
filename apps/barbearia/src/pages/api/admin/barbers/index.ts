@@ -7,6 +7,7 @@ import { and, eq } from 'drizzle-orm';
 import { db, first } from '../../../../db/index.js';
 import { barbers, barberServices, services, workingHours } from '../../../../db/schema.js';
 import { json, violouUnico } from '../../../../lib/api.js';
+import { recusaDoTeto } from '../../../../lib/tetos.js';
 import { normalizePhone } from '../../../../lib/phone.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
@@ -106,6 +107,10 @@ export const POST: APIRoute = async ({ request }) => {
   if (existing.length > 0) {
     return json({ error: `O slug "${slug}" já está em uso. Escolha outro.` }, 409);
   }
+
+  // O teto da equipe (`lib/tetos.ts`) — antes do bcrypt, que é o que custa.
+  const cheio = await recusaDoTeto('barbeirosAtivos', tenant.id);
+  if (cheio) return json({ error: cheio }, 409);
 
   const passwordHash = await hash(password, BCRYPT_COST);
 

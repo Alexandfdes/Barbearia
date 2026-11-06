@@ -8,6 +8,7 @@ import { appointments, barbers } from '../../../../db/schema.js';
 import { fusoDe } from '../../../../lib/timezone.js';
 import { quandoCurto } from '../../../../lib/avisoDeAgenda.js';
 import { json, violouUnico } from '../../../../lib/api.js';
+import { recusaDoTeto } from '../../../../lib/tetos.js';
 import { normalizePhone } from '../../../../lib/phone.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
@@ -89,6 +90,13 @@ export const PUT: APIRoute = async ({ request, params }) => {
   }
   if (isSelf && role === 'barber') {
     return json({ error: 'Você não pode rebaixar o seu próprio acesso de admin.' }, 403);
+  }
+
+  // Religar conta no teto da equipe, como criar (`lib/tetos.ts`): sem isso, criar, desligar
+  // e religar passava de qualquer teto.
+  if (active === true && !target.active) {
+    const cheio = await recusaDoTeto('barbeirosAtivos', tenant.id);
+    if (cheio) return json({ error: cheio }, 409);
   }
 
   // Desligar quem tem cliente marcado daqui para a frente pede confirmação, mostrando quem
