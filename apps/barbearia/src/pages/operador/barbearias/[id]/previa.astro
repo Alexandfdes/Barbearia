@@ -1,0 +1,45 @@
+---
+export const prerender = false;
+
+/**
+ * A prévia do site de UMA barbearia, para o operador olhar antes de aprovar (migration 0020,
+ * `aprovarSite` em `lib/operadorBarbearias.ts`). Monta o link na hora do clique, como o "Ver
+ * como está ficando" do dono (`pages/admin/previa.astro`): ele vale 2 minutos, e no endereço
+ * do site vira o cookie que abre o site neste navegador (`lib/previaDoSite.ts`).
+ *
+ * Site já aprovado: vai direto para ele.
+ */
+import OperadorLayout from '../../../../layouts/OperadorLayout.astro';
+import { exigirOperador } from '../../../../lib/operador.js';
+import { listarBarbearias } from '../../../../lib/operadorBarbearias.js';
+import { linkDaPrevia } from '../../../../lib/previaDoSite.js';
+import { noAr } from '../../../../lib/situacao.js';
+
+const fechada = await exigirOperador(Astro.request, Astro.response.headers);
+if (fechada) return fechada;
+
+const id = Number(Astro.params.id);
+const [b] = Number.isInteger(id) && id > 0 && id < 1e9 ? await listarBarbearias(new Date(), id) : [];
+// A prévia abre só com ela no ar (`tenantDoHost`): fora do ar pelo teste, o site não abre nem
+// para quem aprova — aprovar devolve os 7 dias, e aí dá para olhar.
+const abre = b && b.site && (!b.emPreparacao || noAr(b.situacao));
+const destino = abre ? (b.emPreparacao ? linkDaPrevia(b.site, b.id) : b.site) : null;
+if (destino) {
+  return new Response(null, {
+    status: 303,
+    headers: { location: destino, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' },
+  });
+}
+if (!b) Astro.response.status = 404;
+---
+<OperadorLayout titulo="Prévia do site" ativo="barbearias">
+  <a href={b ? `/operador/barbearias/${b.id}` : '/operador/barbearias'} class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-teal">← {b ? b.nome : 'Barbearias'}</a>
+  <p id="sem-previa" class="bg-white border border-slate-200 rounded-lg px-5 py-10 text-center text-sm text-slate-600">
+    {!b
+      ? 'Não existe barbearia com este número.'
+      : !b.site
+        ? 'Sem o endereço do site: este servidor está sem DOMINIO_BASE.'
+        : `A prévia não abre com ela fora do ar (${b.tela.detalhe}).`
+          + (b.status === 'trial' ? ' Aprovar devolve o teste de 7 dias e põe o site no ar; se ele não puder ficar, tire do ar depois.' : '')}
+  </p>
+</OperadorLayout>

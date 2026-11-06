@@ -24,7 +24,7 @@
 import { sqlConn } from '../db/index.js';
 import { configDaAsaas, type AmbienteAsaas } from './asaas.js';
 import { PRECO_MENSAL } from './produto.js';
-import { ultimoDia } from './situacao.js';
+import { diaDe, ultimoDia } from './situacao.js';
 import {
   eventosQuePedemOlho, listarBarbearias, pedeOlhoSql, resumoDasFases, ultimasAcoes,
   type EventoQuePedeOlho, type LinhaDoRegistro, type Tom,
@@ -123,6 +123,13 @@ export async function numerosDoNegocio(agora: Date = new Date(), env: Ambiente =
     const s = b.situacao;
     const telefoneDoDono = b.dono?.telefone ?? null;
     const daBarbearia = { tenantId: b.id, titulo: b.nome, href: `/operador/barbearias/${b.id}`, telefoneDoDono };
+    // O site que espera a sua aprovação vem antes de tudo — é o dono parado esperando você
+    // (migration 0020). O prazo do teste dele não conta aqui: é recontado quando você aprovar.
+    if (b.emPreparacao && s.fase !== 'cancelada') {
+      atencao.push({ ...daBarbearia, tom: 'atencao', ordem: b.criadaEm?.getTime() ?? 0,
+        texto: `O site espera a sua aprovação${b.criadaEm ? ` — cadastrou em ${diaDe(b.criadaEm, b.fuso)}` : ''}` });
+      continue;
+    }
     if (s.fase === 'ativa') {
       if (s.encerraEm) {
         cancelando++;

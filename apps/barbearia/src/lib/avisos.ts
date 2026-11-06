@@ -162,7 +162,9 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
 
   const resumo: ResumoDosAvisos = { avaliadas: 0, enviados: 0, falhas: 0, semDestinatario: 0 };
 
-  // Pagando em dia, encerrada e tirada do ar à mão não têm prazo correndo.
+  // Pagando em dia, encerrada e tirada do ar à mão não têm prazo correndo. Nem o site que
+  // espera a sua aprovação (migration 0020): o teste dele é recontado quando ele abrir
+  // (`aprovarSite`), e "o seu teste está acabando" a quem nunca teve o site no ar seria mentira.
   const barbearias = await dbDono
     .select({
       id: tenants.id,
@@ -174,7 +176,7 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
       fuso: tenants.timezone,
     })
     .from(tenants)
-    .where(inArray(tenants.status, ['trial', 'past_due']))
+    .where(and(inArray(tenants.status, ['trial', 'past_due']), isNotNull(tenants.siteAprovadoEm)))
     .orderBy(tenants.id);
 
   for (const b of barbearias) {

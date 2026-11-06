@@ -51,6 +51,7 @@ const semComentarios = (s: string) =>
 /** As telas do operador. Tela nova entra aqui de propósito — e passa pela conferência abaixo. */
 const TELAS = [
   'src/pages/operador/barbearias/[id].astro',
+  'src/pages/operador/barbearias/[id]/previa.astro',
   'src/pages/operador/barbearias/index.astro',
   'src/pages/operador/cobranca.astro',
   'src/pages/operador/index.astro',
@@ -684,7 +685,9 @@ describe.skipIf(!TEM_BANCO)('com banco: os números, a ficha, a cobrança, o reg
       agendamentos: { total: 3, ultimos7Dias: 1, ultimos30Dias: 2, proximos: 1 },
       fotosNaGaleria: 3,
     });
-    expect(f!.dono).toEqual({ nome: 'Dono em-dia', telefone: '84990000001', email: 'em-dia@dono.test' });
+    // O `id` é o que a troca do e-mail confere; o e-mail deste dono nunca foi confirmado (0019).
+    expect(f!.dono).toEqual({ id: 1, nome: 'Dono em-dia', telefone: '84990000001', email: 'em-dia@dono.test', emailConfirmado: false });
+    expect(f!.emPreparacao).toBe(false); // criada fora do cadastro pela web: nasce aprovada (0020)
     expect(f!.completude.bloqueios).toEqual([]);
     expect(f!.completude.percentual).toBeGreaterThan(0);
     expect(f!.completude.percentual).toBeLessThan(100);

@@ -40,7 +40,8 @@ import { CATALOGO_SUGERIDO } from '../../lib/catalogoSugerido.js';
 import { json } from '../../lib/api.js';
 import { checkRateLimit, consultarRateLimit } from '../../lib/rateLimit.js';
 import { getClientIp } from '../../lib/clientIp.js';
-import { carregarTenants, invalidarTenants, resolverHost, urlDoSite } from '../../lib/tenant.js';
+import { carregarTenants, invalidarTenants, resolverHost, tenantEmPreparacaoDoHost, urlDoSite } from '../../lib/tenant.js';
+import { aprovacaoDoSiteLigada } from '../../lib/previaDoSite.js';
 import { makeSessionCookie } from '../../lib/session.js';
 import { ultimoDia } from '../../lib/situacao.js';
 import { normalizarEmail } from '../../lib/email.js';
@@ -137,7 +138,9 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     return json({ error: 'Confira os campos.', campo: primeiro?.path?.[0] ?? null }, 400);
   }
 
-  const r = await provisionarBarbearia(sqlConn, parsed.data);
+  // O site nasce esperando a sua aprovação (migration 0020, `lib/previaDoSite.ts`) — a não ser
+  // com `SITE_SEM_APROVACAO=1`. Depois do corpo, de propósito: quem decide é o servidor.
+  const r = await provisionarBarbearia(sqlConn, { ...parsed.data, esperaAprovacao: aprovacaoDoSiteLigada() });
 
   if (!r.ok) {
     return json({ error: r.erro, campo: r.campo }, r.conflito ? 409 : 400);
@@ -153,8 +156,10 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   // O endereço do site, para a tela de fim mostrar e mandar no WhatsApp. Passa
   // pelo RESOLVEDOR de propósito: se ele não achar a barbearia pelo slug, o link
   // daria 404 — e é melhor não mostrar link nenhum. Sem `DOMINIO_BASE`
-  // (desenvolvimento), `urlDoSite` devolve vazio, e a tela diz isso.
-  const recemCriada = resolverHost(r.slug);
+  // (desenvolvimento), `urlDoSite` devolve vazio, e a tela diz isso. O site que espera a
+  // aprovação o resolvedor não serve: ele vem pelo `tenantEmPreparacaoDoHost`, e a tela não
+  // confere o endereço — ele mostra "em preparação" até você aprovar.
+  const recemCriada = resolverHost(r.slug) ?? tenantEmPreparacaoDoHost(r.slug);
   const site = recemCriada ? urlDoSite(recemCriada) || null : null;
 
   const corpo = {
@@ -163,8 +168,13 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     site,
     telefoneLogin: r.telefoneLogin,
     servicosAtivos: r.servicosAtivos,
-    /** "15/10", no fuso da barbearia — o navegador de quem cadastra pode estar em outro. */
-    ultimoDiaDoTeste: r.testeAte ? ultimoDia(r.testeAte, r.fuso) : null,
+    /** O site espera a sua aprovação: a tela de fim não confere o endereço, e o teste conta da aprovação. */
+    emPreparacao: r.siteEmPreparacao,
+    /**
+     * "15/10", no fuso da barbearia — o navegador de quem cadastra pode estar em outro. Nulo
+     * com o site esperando a aprovação: o fim do teste é recontado quando ele abrir (`aprovarSite`).
+     */
+    ultimoDiaDoTeste: r.testeAte && !r.siteEmPreparacao ? ultimoDia(r.testeAte, r.fuso) : null,
     /** O que ainda falta para o site ficar de pé, dito na hora. */
     avisos: r.servicosAtivos === 0
       ? ['Nenhum serviço com preço: ninguém consegue agendar até você preencher um em /admin/servicos.']
@@ -196,6 +206,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
       painel: urlDoPainel(),
       whatsapp: formatarTelefone(r.telefoneLogin),
       ultimoDiaDoTeste: corpo.ultimoDiaDoTeste,
+      siteEmPreparacao: r.siteEmPreparacao,
     };
     const resultado = await pedirConfirmacao({
       tenantId: r.tenantId,
@@ -242,6 +253,8 @@ export function emailDeBoasVindas(d: {
   painel: string;
   whatsapp: string;
   ultimoDiaDoTeste: string | null;
+  /** O site espera a sua aprovação (migration 0020): o teste começa quando ele abrir. */
+  siteEmPreparacao?: boolean;
   /** O link que confirma este e-mail (`lib/confirmacaoDeEmail.ts`). */
   linkDeConfirmacao: string;
 }): { assunto: string; texto: string } {
@@ -255,7 +268,9 @@ export function emailDeBoasVindas(d: {
       ...(d.painel ? [`O seu painel: ${d.painel}/admin`] : []),
       `Você entra com o seu WhatsApp, ${d.whatsapp}, e a senha que criou no cadastro.`,
       '',
-      ...(d.ultimoDiaDoTeste ? [`O teste grátis vai até ${d.ultimoDiaDoTeste}. Até lá, nada é cobrado.`, ''] : []),
+      ...(d.siteEmPreparacao
+        ? ['O seu site abre depois de uma conferência nossa — o painel já funciona inteiro. Os 7 dias de teste grátis começam quando ele abrir.', '']
+        : d.ultimoDiaDoTeste ? [`O teste grátis vai até ${d.ultimoDiaDoTeste}. Até lá, nada é cobrado.`, ''] : []),
       'É para este e-mail que vão o link de senha nova, se você esquecer a sua, e os avisos do teste e da cobrança.',
       '',
       ...trechoDoLink(d.linkDeConfirmacao),
