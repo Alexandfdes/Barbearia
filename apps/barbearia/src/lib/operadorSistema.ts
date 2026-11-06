@@ -72,6 +72,8 @@ export interface SistemaNoPainel {
     pasta: string; ultimo: ArquivoDeBackup | null; fotos: ArquivoDeBackup | null; quantos: number;
     /** Por quantos dias o `scripts/backup.mjs` guarda cada arquivo (`BACKUP_RETENTION_DAYS`). */
     retencaoDias: number;
+    /** Das fotos, quantas cópias ficam neste disco — as mais novas (`BACKUP_FOTOS_LOCAIS`, 05/11/2026). */
+    fotosLocais: number;
     /**
      * A hora do backup diário do `scripts/backup-daemon.mjs` (`BACKUP_HOUR`), no `TZ` do
      * container. `null` se a variável não é uma hora de 0 a 23 — e aí o diário nunca roda.
@@ -104,6 +106,8 @@ export function backupNoPainel(env: Ambiente = process.env): SistemaNoPainel['ba
   // A mesma leitura do `scripts/backup.mjs`, com o mesmo padrão.
   const retencao = Number.parseInt(env.BACKUP_RETENTION_DAYS ?? '30', 10);
   const retencaoDias = Number.isFinite(retencao) && retencao > 0 ? retencao : 30;
+  const fotosLidas = Number.parseInt(env.BACKUP_FOTOS_LOCAIS ?? '7', 10);
+  const fotosLocais = Number.isFinite(fotosLidas) && fotosLidas > 0 ? fotosLidas : 7;
   // O daemon compara a hora do relógio com este número: fora de 0 a 23, nunca bate.
   const hora = Number.parseInt(env.BACKUP_HOUR ?? '3', 10);
   const horaDoDiario = Number.isInteger(hora) && hora >= 0 && hora <= 23 ? hora : null;
@@ -114,7 +118,7 @@ export function backupNoPainel(env: Ambiente = process.env): SistemaNoPainel['ba
   try {
     nomes = readdirSync(pasta);
   } catch {
-    return { pasta, ultimo: null, fotos: null, quantos: 0, retencaoDias, horaDoDiario, foraDoServidor, envioParaFora };
+    return { pasta, ultimo: null, fotos: null, quantos: 0, retencaoDias, fotosLocais, horaDoDiario, foraDoServidor, envioParaFora };
   }
   const ler = (fim: RegExp) => nomes
     .filter((n) => fim.test(n))
@@ -130,7 +134,7 @@ export function backupNoPainel(env: Ambiente = process.env): SistemaNoPainel['ba
     .sort((a, b) => b.em.getTime() - a.em.getTime());
   const banco = ler(/^barbearia_.*\.sql\.gz$/);
   const fotos = ler(/^barbearia_.*-fotos\.tar\.gz$/);
-  return { pasta, ultimo: banco[0] ?? null, fotos: fotos[0] ?? null, quantos: banco.length, retencaoDias, horaDoDiario, foraDoServidor, envioParaFora };
+  return { pasta, ultimo: banco[0] ?? null, fotos: fotos[0] ?? null, quantos: banco.length, retencaoDias, fotosLocais, horaDoDiario, foraDoServidor, envioParaFora };
 }
 
 /** Um registro do `scripts/backup.mjs`: a hora, e o motivo se for o da falha. `null` se não há, ou não se lê. */

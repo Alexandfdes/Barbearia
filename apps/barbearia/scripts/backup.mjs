@@ -68,6 +68,12 @@ const BACKUP_DIR     = process.env.BACKUP_DIR ?? '/data/backups';
 // mostrar o prazo que de fato vale.
 const RETENCAO_LIDA = Number.parseInt(process.env.BACKUP_RETENTION_DAYS ?? '30', 10);
 const RETENTION_DAYS = Number.isFinite(RETENCAO_LIDA) && RETENCAO_LIDA > 0 ? RETENCAO_LIDA : 30;
+// As fotos ficam nas N cópias mais novas (05/11/2026, `docs/PENDENCIAS-ABERTAS.md` §2.69): o
+// arquivo das fotos é a pasta INTEIRA de todas as barbearias, todo dia — com 30 dias, eram 30
+// cópias inteiras no disco onde mora o banco, e cada 1 GB de fotos virava 30. O armazenamento de
+// fora guarda o prazo inteiro. Inteiro de 1 para cima; a mesma leitura de `backupNoPainel`.
+const FOTOS_LIDAS = Number.parseInt(process.env.BACKUP_FOTOS_LOCAIS ?? '7', 10);
+export const FOTOS_LOCAIS = Number.isFinite(FOTOS_LIDAS) && FOTOS_LIDAS > 0 ? FOTOS_LIDAS : 7;
 const SUFIXO         = '.sql.gz';
 const SUFIXO_FOTOS   = '-fotos.tar.gz';
 
@@ -282,6 +288,13 @@ export async function runBackup(opts = {}) {
     if (p === dest || p === fotos) continue; // o desta rodada nunca sai, qualquer que seja a retenção
     if (statSync(p).mtimeMs < cutoff) { unlinkSync(p); removed++; }
   }
+
+  // As fotos: só as `FOTOS_LOCAIS` mais novas ficam neste disco — a desta rodada sempre entre elas.
+  const arquivosDeFotos = readdirSync(BACKUP_DIR)
+    .filter((f) => f.endsWith(SUFIXO_FOTOS))
+    .map((f) => ({ caminho: join(BACKUP_DIR, f), em: statSync(join(BACKUP_DIR, f)).mtimeMs }))
+    .sort((a, b) => (a.caminho === fotos ? -1 : b.caminho === fotos ? 1 : b.em - a.em));
+  for (const velho of arquivosDeFotos.slice(FOTOS_LOCAIS)) { unlinkSync(velho.caminho); removed++; }
 
   const envioDoBanco = await maybeUploadToS3(dest);
   const envioDasFotos = fotos ? await maybeUploadToS3(fotos) : null;
