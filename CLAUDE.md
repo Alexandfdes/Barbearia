@@ -233,6 +233,14 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   horário (`docs/PENDENCIAS-ABERTAS.md` §2.66). Nome de barbearia ou de dono no assunto vira golpe
   com o remetente do produto (`docs/PENDENCIAS-ABERTAS.md` §2.57). O `/cadastrar` é caminho do painel. O
   aviso de agendamento não leva o nome do cliente (`docs/PENDENCIAS-ABERTAS.md` §2.61).
+- **O site novo do cadastro pela web espera a aprovação do operador** (`tenants.site_aprovado_em`, migration
+  0020): o endereço diz "em preparação", sem nada digitado, e o painel funciona. `resolverHost` não serve quem
+  espera; `tenantDoHost`, só na prévia (`apps/barbearia/src/lib/previaDoSite.ts`). O padrão da coluna é
+  aprovado: caminho novo que cria barbearia escreve a coluna, como `provisionarBarbearia`
+  (`tests/aprovacao-do-site.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.70).
+- **Cada barbearia tem teto** (`apps/barbearia/src/lib/tetos.ts`): rota nova que cria barbeiro, serviço,
+  produto ou combo — ou religa barbeiro ou serviço — passa por `recusaDoTeto` antes de gravar
+  (`docs/PENDENCIAS-ABERTAS.md` §2.69).
 - **Limite de tentativa conta antes e devolve no acerto** (`devolverTentativa`): só o erro conta. E o
   limite do login por CONTA não vale no aparelho onde ESTE barbeiro já entrou depois da última troca de
   senha (`lib/aparelhoConhecido.ts`) — sem isso, qualquer pessoa trancava o dono fora; sem amarrar ao

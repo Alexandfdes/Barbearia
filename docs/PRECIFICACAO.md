@@ -76,6 +76,13 @@ freelancer e R$ 2.500–5.000 com agência.
 VPS já comprada. A premissa é que as 10 instâncias cabem nela — **ainda não medido**
 (`docker stats` com 5 containers resolve).
 
+> ✏️ **05/11/2026 (revisão geral de 05/11):** a máquina de produção, medida em 26/10, tem **metade dos
+> núcleos e menos da metade da memória** desta tabela — os números estão no projeto do claude.ai, que guarda o
+> que é de produção. Não conferido se o plano comprado é outro ou se a medida viu um limite do painel; o preço
+> da tabela também não foi reconferido. E "10 instâncias" é do desenho de uma instância por barbearia: com um
+> app para todas, a pergunta de capacidade é a do `PENDENCIAS-ABERTAS.md` §5 — e cada deploy constrói a imagem
+> no mesmo núcleo que serve os sites.
+
 Com subdomínio incluso (§6), o custo de domínio **sai da conta base**: só entra quando
 o cliente opta por domínio próprio, e nesse caso é ele quem paga.
 
