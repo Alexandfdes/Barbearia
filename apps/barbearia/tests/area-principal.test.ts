@@ -27,7 +27,7 @@ const mains = (texto: string) => (texto.match(/<main[\s>]/g) ?? []).length;
 const normal = (c: string) => c.split(sep).join('/');
 
 /** Os layouts que trazem o `<main>`, em volta do conteúdo da página. */
-const COM_MAIN = ['AdminLayout', 'OperadorLayout', 'MolduraForaDoAr'];
+const COM_MAIN = ['AdminLayout', 'OperadorLayout', 'MolduraForaDoAr', 'TextoDoTermo'];
 
 const usaLayoutComMain = (texto: string) =>
   COM_MAIN.some((l) => new RegExp(`import\\s+\\w+\\s+from\\s+['"][./]+layouts/${l}\\.astro['"]`).test(texto));
