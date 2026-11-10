@@ -304,6 +304,20 @@ describe('a tela não diz "mandamos" sem ter mandado', () => {
     expect(tela).toMatch(/comLinkValido\(tenant\.id, naoConfirmados\)/);
     expect(tela).toMatch(/comLink\.has\(b\.id\)\s*\?\s*` nada chega nele até .* o link que mandamos/);
   });
+
+  it('a Assinatura não promete aviso para e-mail não confirmado (10/11/2026)', () => {
+    // A linha dizia "Os avisos do teste e da cobrança vão para <e-mail>" sem olhar a confirmação, e
+    // os avisos só leem o confirmado (`lib/avisos.ts`): o dono contava com um aviso que nunca saía.
+    const tela = readFileSync('src/pages/admin/assinatura.astro', 'utf8');
+    expect(tela).toMatch(/emailConfirmadoEm: barbers\.emailConfirmadoEm \}\)\s*\.from\(barbers\)/);
+    const linha = tela.slice(tela.indexOf('<p id="email-dos-avisos"'), tela.indexOf('</p>', tela.indexOf('<p id="email-dos-avisos"')));
+    // O "vão para" sem ressalva só no ramo do confirmado.
+    expect(linha).toMatch(/: barberRow\.emailConfirmadoEm\s*\? <>Os avisos do teste e da cobrança vão para <strong[^>]*>\{barberRow\.email\}<\/strong>\.<\/>/);
+    expect(linha).toMatch(/: <>Os avisos do teste e da cobrança vão para <strong[^>]*>\{barberRow\.email\}<\/strong> só depois que você confirmar esse e-mail: até lá, nenhum chega\.<\/>/);
+    expect(linha).toMatch(/barberRow\.email && !barberRow\.emailConfirmadoEm && <>[^\n]*href="\/admin#confirmar-email"/);
+    // O Início tem a caixa com esse id — o link não cai num lugar vazio.
+    expect(readFileSync('src/pages/admin/index.astro', 'utf8')).toMatch(/<section id="confirmar-email"/);
+  });
 });
 
 describe.skipIf(!TEM_BANCO)('nada sai para e-mail não confirmado', () => {
