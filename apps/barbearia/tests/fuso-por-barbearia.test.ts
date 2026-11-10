@@ -398,6 +398,9 @@ describe.skipIf(!TEM_BANCO)('com banco: Mossoró e Manaus no mesmo processo', ()
     it('pela web, o estado é obrigatório — e o "último dia do teste" da resposta é o do fuso dele', async () => {
       const anterior = process.env.CADASTRO_ABERTO;
       process.env.CADASTRO_ABERTO = '1';
+      // Sem a aprovação (migration 0020): com ela, a resposta não diz data nenhuma — o teste é
+      // recontado quando o site abrir (`tests/aprovacao-do-site.test.ts`).
+      process.env.SITE_SEM_APROVACAO = '1';
       try {
         const { POST } = await import('../src/pages/api/cadastrar.js');
         const cadastrar = (corpo: Record<string, unknown>, ip: string) => POST({
@@ -418,6 +421,7 @@ describe.skipIf(!TEM_BANCO)('com banco: Mossoró e Manaus no mesmo processo', ()
       } finally {
         if (anterior === undefined) delete process.env.CADASTRO_ABERTO;
         else process.env.CADASTRO_ABERTO = anterior;
+        delete process.env.SITE_SEM_APROVACAO;
       }
     });
   });

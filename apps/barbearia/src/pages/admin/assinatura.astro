@@ -14,8 +14,8 @@ export const prerender = false;
  * o botão leva à página de pagamento dela, e a volta traz `?cartao=ok`,
  * `cancelado` ou `expirou`. ⚠️ Quem confirma é o webhook, nunca a volta — com
  * `?cartao=ok` e a barbearia ainda sem confirmação, a tela confere de novo
- * sozinha. Sem `ASAAS_API_KEY`, a tela continua dizendo que ainda não dá para
- * pagar por aqui.
+ * sozinha. Sem `ASAAS_API_KEY`, a tela diz que o pagamento pelo painel ainda não
+ * abriu, e leva ao WhatsApp do suporte (05/11/2026, `lib/assinatura.ts`).
  */
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import MolduraForaDoAr from '../../layouts/MolduraForaDoAr.astro';
@@ -31,7 +31,7 @@ import { situacaoDe, ultimoDia } from '../../lib/situacao.js';
 import { explicacaoDaSituacao, ROTA_DO_CANCELAMENTO, ROTA_DO_CARTAO } from '../../lib/assinatura.js';
 import { configDaAsaas } from '../../lib/asaas.js';
 import { dataDaPrimeiraCobranca, podeCadastrarCartao, temAssinaturaNaAsaas } from '../../lib/cobranca.js';
-import { PRECO_MENSAL } from '../../lib/produto.js';
+import { linkDoSuporte, NOME_PRODUTO, PRAZO_DA_CONFERENCIA, PRECO_MENSAL } from '../../lib/produto.js';
 import { fusoDe } from '../../lib/timezone.js';
 import { waPhone, waLink } from '../../lib/whatsapp.js';
 
@@ -78,7 +78,10 @@ const proximos = foraDoAr
 
 // ── A cobrança ──────────────────────────────────────────────────────────────
 const cobrancaLigada = configDaAsaas() !== null;
-const podeCartao = podeCadastrarCartao(situacao);
+// O site que espera a aprovação (migration 0020) não cadastra cartão: o teste de 7 dias começa
+// quando ele abre, e a rota do cartão recusa antes disso (`abrirCheckout`, 06/11/2026).
+const emPreparacao = tenant.emPreparacao === true;
+const podeCartao = podeCadastrarCartao(situacao) && !emPreparacao;
 const emDia = situacao.fase === 'ativa' && !situacao.encerraEm;
 // A cobrança que falhou não encerra a assinatura na Asaas: ela tenta de novo o
 // cartão. Quem quer sair cancela daqui também — na carência e fora do ar.
@@ -118,7 +121,8 @@ const textoDoRetorno =
   : null;
 
 const Moldura = foraDoAr ? MolduraForaDoAr : AdminLayout;
-const titulo = foraDoAr ? 'O site está fora do ar' : 'Assinatura';
+// O site que nunca abriu não está "fora do ar": espera a conferência.
+const titulo = foraDoAr && !emPreparacao ? 'O site está fora do ar' : 'Assinatura';
 ---
 
 <Moldura title="Assinatura" barberName={barberRow.name} role={session.role}>
@@ -126,7 +130,9 @@ const titulo = foraDoAr ? 'O site está fora do ar' : 'Assinatura';
 
     <div>
       <h1 class="text-lg font-medium text-slate-900">{titulo}</h1>
-      <p id="situacao" class="text-sm text-slate-600 mt-2 max-w-[65ch]">{explicacaoDaSituacao(situacao, fuso)}</p>
+      <p id="situacao" class="text-sm text-slate-600 mt-2 max-w-[65ch]">{emPreparacao
+        ? `O seu site ainda não está no ar: ele abre depois da nossa conferência, em até ${PRAZO_DA_CONFERENCIA} do cadastro, e os 7 dias de teste começam nesse dia. Até lá, nada é cobrado.`
+        : explicacaoDaSituacao(situacao, fuso, new Date(), cobrancaLigada)}</p>
       {/* Para onde vão os avisos por e-mail (`lib/avisos.ts`) — o dono precisa saber, e
           o e-mail digitado errado no cadastro só aparece aqui ou no aviso que não chega. */}
       {dono && (
@@ -166,12 +172,15 @@ const titulo = foraDoAr ? 'O site está fora do ar' : 'Assinatura';
             </>
           ) : (
             <>
-              <button type="button" disabled
-                class="text-white font-bold uppercase tracking-widest text-xs px-4 py-2.5 rounded bg-slate-300 cursor-not-allowed">
-                {rotuloDoBotao}
-              </button>
-              <p class="text-xs text-slate-500">
-                Ainda não dá para pagar por aqui: a cobrança pelo cartão ainda não foi ligada.
+              {/* Com a cobrança desligada, o caminho é o suporte (05/11/2026, `lib/assinatura.ts`):
+                  antes, um botão desligado dizia que ainda não dava — e o dono ficava sem saída. */}
+              <a id="falar-com-o-suporte" href={linkDoSuporte(`Olá! Quero continuar com o ${NOME_PRODUTO} depois do teste — barbearia ${tenant.slug}.`)}
+                target="_blank" rel="noopener"
+                class="inline-block text-white font-bold uppercase tracking-widest text-xs px-4 py-2.5 rounded bg-teal hover:bg-teal-hover">
+                Falar com o suporte
+              </a>
+              <p class="text-xs text-slate-500 max-w-[65ch]">
+                O pagamento pelo painel ainda não abriu. Pelo WhatsApp, a gente combina como o site continua no ar.
               </p>
             </>
           )

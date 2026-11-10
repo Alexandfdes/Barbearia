@@ -239,7 +239,10 @@ beforeAll(async () => {
     (10, 'dono-b',   'Do Mesmo Dono B',   'trial',     ${daqui7}, NULL,      NULL,         NULL,         '{chk_b}'),
     (11, 'fora',     'Fora pela Cobrança', 'past_due', NULL,      ${ha10},   'cus_fora',   'sub_fora',   '{}'),
     (12, 'prazo-paga',   'Prazo e Pagou',     'past_due', NULL,   ${ha10},   'cus_pp',     'sub_pp',     '{}'),
-    (13, 'prazo-cancela', 'Prazo e Cancelou', 'past_due', NULL,   ${ha10},   'cus_pc',     'sub_pc',     '{}')`;
+    (13, 'prazo-cancela', 'Prazo e Cancelou', 'past_due', NULL,   ${ha10},   'cus_pc',     'sub_pc',     '{}'),
+    (14, 'espera',   'Esperando Aprovação', 'trial',   ${daqui7}, NULL,      NULL,         NULL,         '{}')`;
+  // A 14 veio do cadastro pela web e espera a aprovação do operador (migration 0020).
+  await conn`UPDATE tenants SET site_aprovado_em = NULL WHERE id = 14`;
   // As duas com a carência estendida pelo operador (migration 0016): a cobrança
   // falhou há 10 dias, e elas continuam no ar.
   await conn`UPDATE tenants SET carencia_ate = ${new Date(Date.now() + 5 * DIA)} WHERE id IN (12, 13)`;
@@ -255,7 +258,8 @@ beforeAll(async () => {
     (3, 30, 'Dono Manual',  'dono', 'admin',  'x', true, '84990000030', NULL),
     (11, 110, 'Dono Fora',  'dono', 'admin',  'x', true, '84990000110', NULL),
     (12, 120, 'Dono PP',    'dono', 'admin',  'x', true, '84990000120', NULL),
-    (13, 130, 'Dono PC',    'dono', 'admin',  'x', true, '84990000130', NULL)`;
+    (13, 130, 'Dono PC',    'dono', 'admin',  'x', true, '84990000130', NULL),
+    (14, 140, 'Dono Espera', 'dono', 'admin', 'x', true, '84990000140', 'dono@espera.com.br')`;
 
   ({ POST: WEBHOOK } = await import('../src/pages/api/asaas/webhook.js') as never);
   ({ POST: CARTAO } = await import('../src/pages/api/admin/assinatura/cartao.js') as never);
@@ -713,6 +717,22 @@ describe.skipIf(!TEM_BANCO)('o Checkout', () => {
     expect(ids).toHaveLength(CHECKOUTS_GUARDADOS);
     expect(ids[0]).toBe('chk_muitos_3');
     expect(ids.at(-1)).toBe(`chk_muitos_${CHECKOUTS_GUARDADOS + 2}`);
+  });
+
+  it('o site esperando a aprovação: 409, sem abrir Checkout — o teste começa na aprovação, e a cobrança depois dele', async () => {
+    // Antes de 06/11/2026, o cartão cadastrado aqui punha a barbearia em dia: a aprovação não
+    // estendia mais o teste, e a primeira cobrança saía no fim do teste contado do CADASTRO.
+    const r = await pedir(CARTAO, { barberId: 140, role: 'admin', tenantId: 14 });
+    expect(r.status).toBe(409);
+    expect(String(r.corpo.error)).toMatch(/depois que o seu site abrir/);
+    expect(chamadas).toHaveLength(0);
+    expect((await linha(14)).asaas_checkout_ids).toEqual([]);
+    // Controle: aprovado, o mesmo dono vai ao Checkout — a recusa era a espera, não outra coisa.
+    await conn`UPDATE tenants SET site_aprovado_em = now() WHERE id = 14`;
+    await carregarTenants(true);
+    responder = () => ({ corpo: { id: 'chk_aprovado', link: 'https://x/chk_aprovado' } });
+    expect((await pedir(CARTAO, { barberId: 140, role: 'admin', tenantId: 14 })).status).toBe(200);
+    expect(chamadas).toHaveLength(1);
   });
 
   it('em dia: 409, sem abrir Checkout', async () => {

@@ -31,8 +31,13 @@ import {
   situacaoDe, fimDoTeste, fimDoTesteEstendido, fimDoPrazoEstendido, fimDaCarenciaDoAtraso, ultimoDia, diaDe,
   type Situacao, type StatusDaBarbearia,
 } from './situacao.js';
-import { invalidarTenants, urlDoSite } from './tenant.js';
+import { invalidarTenants, urlDoSite, type Tenant } from './tenant.js';
 import { fusoDe } from './timezone.js';
+import { emailValido, mascararEmail, normalizarEmail, type Email } from './email.js';
+import { cancelarPedidosDeSenha } from './redefinicaoDeSenha.js';
+import { pedirConfirmacao, type ResultadoDoPedidoDeConfirmacao } from './confirmacaoDeEmail.js';
+import { avisarEmailTrocado } from './avisoDeEmailTrocado.js';
+import { NOME_PRODUTO } from './produto.js';
 import { calcularCompletude, type Completude } from './completude.js';
 import { parseBusinessHours } from './settings.js';
 import { dinheiro, rotuloDoEvento } from './operadorTela.js';
@@ -110,7 +115,17 @@ export interface BarbeariaNoPainel {
   /** O endereço do site; vazio sem domínio próprio nem `DOMINIO_BASE`. */
   site: string;
   criadaEm: Date | null;
-  dono: { nome: string; telefone: string | null; email: string | null } | null;
+  /**
+   * O dono: o primeiro admin, o ativo antes. `id` é o que a troca do e-mail confere — a ficha
+   * manda o de quem ela mostrou (`trocarEmailDoDono`). `emailConfirmado`: sem ele, nada sai
+   * para o e-mail (migration 0019), nem a senha nova.
+   */
+  dono: { id: number; nome: string; telefone: string | null; email: string | null; emailConfirmado: boolean } | null;
+  /**
+   * O site espera a sua aprovação (`site_aprovado_em` nulo, migration 0020): o painel funciona,
+   * o endereço mostra "em preparação" (`lib/previaDoSite.ts`).
+   */
+  emPreparacao: boolean;
   barbeirosAtivos: number;
   agendamentos30Dias: number;
   /** `created_at` do agendamento mais recente: texto UTC "aaaa-mm-dd hh:mm:ss". */
@@ -129,7 +144,9 @@ interface LinhaDaLista {
   trial_ends_at: unknown; past_due_since: unknown; carencia_ate: unknown; subscription_ends_at: unknown; created_at: unknown;
   timezone: string;
   tem_assinatura: boolean;
-  dono_nome: string | null; dono_telefone: string | null; dono_email: string | null;
+  site_aprovado_em: unknown;
+  dono_id: number | null; dono_nome: string | null; dono_telefone: string | null; dono_email: string | null;
+  dono_email_confirmado: boolean | null;
   barbeiros_ativos: number; agendamentos_30_dias: number; ultimo_agendamento: string | null;
   antes_da_suspensao: string | null;
 }
@@ -140,8 +157,9 @@ export async function listarBarbearias(agora: Date = new Date(), apenas?: number
   const linhas = await sqlConn<LinhaDaLista[]>`
     SELECT t.id, t.slug, t.business_name, s.business_name AS nome_no_site, t.status, t.domain,
            t.trial_ends_at, t.past_due_since, t.carencia_ate, t.subscription_ends_at, t.created_at, t.timezone,
-           (t.asaas_subscription_id IS NOT NULL) AS tem_assinatura,
-           dono.name AS dono_nome, dono.phone AS dono_telefone, dono.email AS dono_email,
+           (t.asaas_subscription_id IS NOT NULL) AS tem_assinatura, t.site_aprovado_em,
+           dono.id AS dono_id, dono.name AS dono_nome, dono.phone AS dono_telefone, dono.email AS dono_email,
+           (dono.email_confirmado_em IS NOT NULL) AS dono_email_confirmado,
            (SELECT count(*)::int FROM barbers b WHERE b.tenant_id = t.id AND b.active) AS barbeiros_ativos,
            (SELECT count(*)::int FROM appointments a
              WHERE a.tenant_id = t.id
@@ -157,7 +175,7 @@ export async function listarBarbearias(agora: Date = new Date(), apenas?: number
       FROM tenants t
       LEFT JOIN settings s ON s.tenant_id = t.id
       LEFT JOIN LATERAL (
-        SELECT b.name, b.phone, b.email FROM barbers b
+        SELECT b.id, b.name, b.phone, b.email, b.email_confirmado_em FROM barbers b
          WHERE b.tenant_id = t.id AND b.role = 'admin'
          ORDER BY b.active DESC, b.id
          LIMIT 1
@@ -184,7 +202,10 @@ export async function listarBarbearias(agora: Date = new Date(), apenas?: number
       tela: faseNaTela(situacao, tenant.fuso),
       site: urlDoSite(tenant),
       criadaEm: comoData(l.created_at),
-      dono: l.dono_nome ? { nome: l.dono_nome, telefone: l.dono_telefone, email: l.dono_email } : null,
+      dono: l.dono_id != null && l.dono_nome
+        ? { id: l.dono_id, nome: l.dono_nome, telefone: l.dono_telefone, email: l.dono_email, emailConfirmado: Boolean(l.dono_email_confirmado) }
+        : null,
+      emPreparacao: l.site_aprovado_em == null,
       barbeirosAtivos: l.barbeiros_ativos,
       agendamentos30Dias: l.agendamentos_30_dias,
       ultimoAgendamento: l.ultimo_agendamento,
@@ -254,7 +275,8 @@ export async function eventosQuePedemOlho(limite = 20): Promise<EventoQuePedeOlh
 
 // ── O registro ──────────────────────────────────────────────────────────────
 
-export type Acao = 'entrou' | 'estendeu-teste' | 'estendeu-carencia' | 'suspendeu' | 'reativou' | 'anotou' | 'liberou-telefones';
+export type Acao = 'entrou' | 'estendeu-teste' | 'estendeu-carencia' | 'suspendeu' | 'reativou' | 'anotou' | 'liberou-telefones'
+  | 'aprovou-site' | 'trocou-email-do-dono';
 
 export interface AcaoRegistrada {
   acao: Acao;
@@ -279,7 +301,7 @@ export type FiltroDoRegistro = 'tudo' | 'entradas' | 'acoes' | 'anotacoes';
 
 const ACOES_DO_FILTRO: Record<Exclude<FiltroDoRegistro, 'tudo'>, Acao[]> = {
   entradas: ['entrou'],
-  acoes: ['estendeu-teste', 'estendeu-carencia', 'suspendeu', 'reativou', 'liberou-telefones'],
+  acoes: ['estendeu-teste', 'estendeu-carencia', 'suspendeu', 'reativou', 'liberou-telefones', 'aprovou-site', 'trocou-email-do-dono'],
   anotacoes: ['anotou'],
 };
 
@@ -357,6 +379,18 @@ export function descreverAcao(a: AcaoRegistrada): string {
       const nomes = Array.isArray(d.barbeiros) ? (d.barbeiros as unknown[]).filter((n) => typeof n === 'string') as string[] : [];
       return `Liberou os telefones da equipe de ${quem}${nomes.length ? ` — desligou ${nomes.join(', ')}` : ''}`;
     }
+    case 'aprovou-site': {
+      const ate = typeof d.testeDepois === 'string' ? ` — o teste passou a ir até ${ultimoDia(new Date(d.testeDepois), fusoDe(a))}` : '';
+      return `Aprovou o site de ${quem}: foi ao ar${ate}`;
+    }
+    case 'trocou-email-do-dono': {
+      const de = typeof d.antes === 'string' ? d.antes : 'nenhum';
+      const para = typeof d.depois === 'string' ? d.depois : '?';
+      const motivo = typeof d.motivo === 'string' && d.motivo ? `. Motivo: ${d.motivo}` : '';
+      return d.reenvio === true
+        ? `Mandou de novo o link de confirmação ao e-mail do dono de ${quem} (${para})${motivo}`
+        : `Trocou o e-mail do dono de ${quem}: ${de} → ${para}${motivo}`;
+    }
     default:
       return String(a.acao);
   }
@@ -399,6 +433,7 @@ interface LinhaDaBarbearia {
   id: number; slug: string; status: StatusDaBarbearia;
   trial_ends_at: unknown; past_due_since: unknown; carencia_ate: unknown; subscription_ends_at: unknown;
   timezone: string;
+  site_aprovado_em: unknown;
 }
 
 // ⚠️ Não `Parameters<typeof sqlConn.begin>`: o `begin` tem duas assinaturas, e o
@@ -407,7 +442,7 @@ type Tx = TransactionSql<{}>;
 
 async function travar(tx: Tx, tenantId: number): Promise<LinhaDaBarbearia> {
   const [t] = await tx<LinhaDaBarbearia[]>`
-    SELECT id, slug, status, trial_ends_at, past_due_since, carencia_ate, subscription_ends_at, timezone
+    SELECT id, slug, status, trial_ends_at, past_due_since, carencia_ate, subscription_ends_at, timezone, site_aprovado_em
       FROM tenants WHERE id = ${tenantId} FOR UPDATE`;
   if (!t) throw new ErroDoOperador('Barbearia não encontrada.', 404);
   return t;
@@ -623,6 +658,147 @@ export async function liberarTelefones(tenantId: number, ip: string, agora: Date
     return { ...atual, desligados: nomes };
   });
   return r as ResultadoDaAcao & { desligados: string[] };
+}
+
+/**
+ * Aprova o site de uma barbearia que se cadastrou pela web: ele vai ao ar (decisão do dono em
+ * 05/11/2026, migration 0020). Antes de aprovar, o operador olha a prévia — a ficha leva até
+ * ela (`pages/operador/barbearias/[id]/previa.astro`).
+ *
+ * ⚠️ O TESTE CONTA DA APROVAÇÃO: no teste, o fim passa a ser o de quem se cadastrasse hoje
+ * (`fimDoTeste`) — a não ser que o de agora seja mais tarde, porque você estendeu. Sem isso,
+ * cada dia de espera pela aprovação era um dia a menos de teste, com o site fora do ar; e a
+ * barbearia que esperou além do teste volta ao ar na hora, como no estender.
+ *
+ * Não aprovar não tem botão: o que não pode ir ao ar sai pelo "Tirar do ar", com o motivo.
+ */
+export async function aprovarSite(tenantId: number, ip: string, agora: Date = new Date()): Promise<ResultadoDaAcao> {
+  const r = await sqlConn.begin(async (tx) => {
+    const t = await travar(tx, tenantId);
+    const fuso = fusoDe({ fuso: t.timezone });
+    const aprovadoEm = comoData(t.site_aprovado_em);
+    if (aprovadoEm) throw new ErroDoOperador(`O site já está aprovado, desde ${diaDe(aprovadoEm, fuso, 'dd/MM/yyyy')}.`, 409);
+    if (t.status === 'cancelled') throw new ErroDoOperador('Encerrada: ela saiu do produto.', 409);
+
+    const antes = comoData(t.trial_ends_at);
+    const minimo = fimDoTeste(agora, fuso);
+    const estende = t.status === 'trial' && (!antes || antes.getTime() < minimo.getTime());
+    await tx`UPDATE tenants SET site_aprovado_em = ${agora.toISOString()}::timestamptz WHERE id = ${tenantId}`;
+    if (estende) await tx`UPDATE tenants SET trial_ends_at = ${minimo.toISOString()}::timestamptz WHERE id = ${tenantId}`;
+    const detalhe = estende ? { testeAntes: antes?.toISOString() ?? null, testeDepois: minimo.toISOString() } : {};
+    await tx`INSERT INTO acoes_do_operador (tenant_id, acao, detalhe, ip)
+             VALUES (${tenantId}, 'aprovou-site', ${JSON.stringify(detalhe)}::text::jsonb, ${ip})`;
+    return resultado({ ...t, trial_ends_at: estende ? minimo : t.trial_ends_at }, agora);
+  });
+  // O cache de barbearias segura a aprovação por até 30 s — o mesmo motivo de `estenderTeste`.
+  invalidarTenants();
+  return r as ResultadoDaAcao;
+}
+
+/** O que a troca do e-mail do dono fez — para a ficha dizer, e para o teste. */
+export interface ResultadoDaTrocaDeEmail {
+  slug: string;
+  /** O pedido de confirmação ao endereço NOVO (`lib/confirmacaoDeEmail.ts`). */
+  confirmacao: ResultadoDoPedidoDeConfirmacao;
+  /** Se o endereço antigo, confirmado, recebeu o aviso da troca (`lib/avisoDeEmailTrocado.ts`). */
+  avisouAntigo: boolean;
+  /** O e-mail era o mesmo, não confirmado: nada mudou, só o link saiu de novo. */
+  reenvio: boolean;
+}
+
+/**
+ * Troca o e-mail do DONO — a saída de quem esqueceu a senha com o e-mail errado ou nunca
+ * confirmado (revisão de 05/11/2026, 🟠 5; decisão do dono em 05/11/2026). O "esqueci" só
+ * manda para e-mail confirmado (migration 0019), e até aqui a saída era SQL no console.
+ *
+ * ⚠️ É A PORTA DE UM GOLPE, E O PROTOCOLO É O QUE A FECHA: quem pede pelo WhatsApp pode não
+ * ser o dono. A ficha manda conferir pelo WhatsApp DO LOGIN — escrever para aquele número,
+ * não responder a quem chamou —, e a rota só aceita com a caixa "conferi" marcada. O resto
+ * é o mesmo da troca pela Equipe (`api/admin/barbers/[id].ts`):
+ *
+ *  - o e-mail novo nasce NÃO confirmado, e recebe o link de confirmação — sem os limites de
+ *    pedidos por pessoa, que não são para o operador (`pedirConfirmacao`, `peloOperador`);
+ *  - os links de senha nova pedidos antes morrem (`cancelarPedidosDeSenha`);
+ *  - o endereço antigo, se confirmado, fica sabendo — é o que avisa o dono de verdade, se
+ *    quem pediu se passou por ele (`avisarEmailTrocado`, `peloSuporte`).
+ *
+ * **O mesmo e-mail, ainda não confirmado, só manda o link de novo** — o caso mais comum: o
+ * endereço está certo, o link de 3 dias venceu sem ser aberto, e o dono, sem a senha, não entra
+ * para pedir outro. Confirmado, recusa: não há o que fazer.
+ *
+ * `barbeiroId` é o dono que a ficha mostrou: se não for mais o dono, recusa. No registro, os
+ * dois e-mails vão mascarados — o completo fica só na tabela da equipe.
+ */
+export async function trocarEmailDoDono(p: {
+  tenantId: number;
+  barbeiroId: number;
+  email: string;
+  motivo?: string;
+  ip: string;
+  agora?: Date;
+  /** Para o teste simular o provedor. */
+  enviar?: (e: Email) => Promise<unknown>;
+}): Promise<ResultadoDaTrocaDeEmail> {
+  const agora = p.agora ?? new Date();
+  const novo = normalizarEmail(p.email);
+  if (!novo || !emailValido(novo)) throw new ErroDoOperador(`"${p.email.trim()}" não parece um e-mail.`, 400);
+  const motivo = p.motivo?.trim() || null;
+
+  const feito = await sqlConn.begin(async (tx) => {
+    const t = await travar(tx, p.tenantId);
+    if (t.status === 'cancelled') throw new ErroDoOperador('Encerrada: ela saiu do produto.', 409);
+    // O mesmo critério da lista: o primeiro admin, o ativo antes.
+    const [dono] = await tx<{ id: number; name: string; email: string | null; confirmado: boolean; active: boolean }[]>`
+      SELECT id, name, email, (email_confirmado_em IS NOT NULL) AS confirmado, active
+        FROM barbers
+       WHERE tenant_id = ${p.tenantId} AND role = 'admin'
+       ORDER BY active DESC, id
+       LIMIT 1
+         FOR UPDATE`;
+    if (!dono || !dono.active) throw new ErroDoOperador('Esta barbearia não tem dono ativo.', 409);
+    if (dono.id !== p.barbeiroId) {
+      throw new ErroDoOperador('O dono desta barbearia não é mais quem a ficha mostrava. Recarregue a ficha.', 409);
+    }
+    const antigo = normalizarEmail(dono.email);
+    const reenvio = antigo === novo;
+    if (reenvio && dono.confirmado) throw new ErroDoOperador('Este já é o e-mail do dono, e está confirmado.', 409);
+
+    if (!reenvio) {
+      await tx`UPDATE barbers SET email = ${novo}, email_confirmado_em = NULL
+                WHERE id = ${dono.id} AND tenant_id = ${p.tenantId}`;
+    }
+    const detalhe = {
+      barbeiro: dono.id, nome: dono.name,
+      antes: antigo ? mascararEmail(antigo) : null, depois: mascararEmail(novo),
+      antigoConfirmado: dono.confirmado,
+      ...(reenvio ? { reenvio: true } : {}),
+      ...(motivo ? { motivo } : {}),
+    };
+    await tx`INSERT INTO acoes_do_operador (tenant_id, acao, detalhe, ip)
+             VALUES (${p.tenantId}, 'trocou-email-do-dono', ${JSON.stringify(detalhe)}::text::jsonb, ${p.ip})`;
+    return { t, dono, antigo, reenvio };
+  });
+
+  const { t, dono, antigo, reenvio } = feito;
+  let avisouAntigo = false;
+  if (!reenvio) {
+    // Senha mudou ou e-mail mudou, por qualquer caminho (`CLAUDE.md`).
+    await cancelarPedidosDeSenha(p.tenantId, dono.id);
+    const tenant: Tenant = { id: t.id, slug: t.slug, status: t.status, domain: null, fuso: fusoDe({ fuso: t.timezone }) };
+    avisouAntigo = await avisarEmailTrocado({
+      tenant,
+      pessoa: { id: dono.id, nome: dono.name, papel: 'admin' },
+      antigo, antigoConfirmado: dono.confirmado, novo,
+      quemTrocou: { id: 0, nome: `o suporte do ${NOME_PRODUTO}` },
+      peloSuporte: true,
+      agora,
+      enviar: p.enviar,
+    });
+  }
+  const confirmacao = await pedirConfirmacao({
+    tenantId: p.tenantId, barberId: dono.id, agora, peloOperador: true, enviar: p.enviar,
+  });
+  return { slug: t.slug, confirmacao, avisouAntigo, reenvio };
 }
 
 // ── A ficha ─────────────────────────────────────────────────────────────────

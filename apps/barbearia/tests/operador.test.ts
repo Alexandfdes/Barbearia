@@ -464,7 +464,7 @@ describe.skipIf(!TEM_BANCO)('com banco: entrar, listar e agir', () => {
     expect(por['encerrada'].situacao.fase).toBe('cancelada');
 
     expect(por['em-dia'].nome).toBe('Em Dia (no site)'); // o nome que o dono mantém no painel
-    expect(por['em-dia'].dono).toEqual({ nome: 'Dona Em Dia', telefone: '84990000001', email: 'dona@emdia.com' });
+    expect(por['em-dia'].dono).toEqual({ id: 1, nome: 'Dona Em Dia', telefone: '84990000001', email: 'dona@emdia.com', emailConfirmado: false });
     expect(por['em-dia'].barbeirosAtivos).toBe(2);          // o que saiu não conta
     expect(por['em-dia'].agendamentos30Dias).toBe(2);       // o de 41 dias atrás não conta
     expect(por['em-dia'].ultimoAgendamento).not.toBeNull();

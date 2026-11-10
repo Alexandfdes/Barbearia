@@ -76,7 +76,7 @@ describe('enviarEmail, nos testes', () => {
   beforeEach(() => { email.caixaDeSaida.length = 0; });
 
   it('vai para a caixa de saída da memória, com o remetente', async () => {
-    await email.enviarEmail({ para: 'Dono@Barbearia.com', assunto: 'Oi', texto: 'corpo' });
+    await email.enviarEmail({ para: 'Dono@Barbearia.com', assunto: 'Oi', texto: 'corpo', barbearia: 1, tipo: 'conta' });
     expect(email.caixaDeSaida).toHaveLength(1);
     expect(email.caixaDeSaida[0]).toMatchObject({ para: 'dono@barbearia.com', assunto: 'Oi', texto: 'corpo' });
     expect(email.caixaDeSaida[0].de).toMatch(/nao-responda@/);
@@ -84,12 +84,12 @@ describe('enviarEmail, nos testes', () => {
 
   it('quebra de linha no assunto não vira cabeçalho', async () => {
     // O nome da barbearia entra no assunto, e ele vem de um formulário público.
-    await email.enviarEmail({ para: 'ze@x.com', assunto: 'Barbearia\r\nBcc: todos@x.com', texto: '.' });
+    await email.enviarEmail({ para: 'ze@x.com', assunto: 'Barbearia\r\nBcc: todos@x.com', texto: '.', barbearia: 1, tipo: 'conta' });
     expect(email.caixaDeSaida[0].assunto).toBe('Barbearia Bcc: todos@x.com');
   });
 
   it('destinatário sem forma de e-mail é recusado, com o motivo', async () => {
-    await expect(email.enviarEmail({ para: 'ze@gmail', assunto: 'x', texto: 'x' }))
+    await expect(email.enviarEmail({ para: 'ze@gmail', assunto: 'x', texto: 'x', barbearia: 1, tipo: 'conta' }))
       .rejects.toBeInstanceOf(email.EmailNaoEnviado);
     expect(email.caixaDeSaida).toHaveLength(0);
   });
@@ -102,7 +102,7 @@ describe('o transporte de arquivo — o do desenvolvimento', () => {
 
   it('grava um .txt legível, com cabeçalho e corpo', () => {
     const caminho = email.gravarEmArquivo({
-      para: 'ze@gmail.com', assunto: 'Senha nova', texto: 'Abra: http://x/y?token=abc',
+      para: 'ze@gmail.com', assunto: 'Senha nova', texto: 'Abra: http://x/y?token=abc', barbearia: 1, tipo: 'seguranca',
       de: 'Produto <nao-responda@localhost>', respostaPara: null, enviadoEm: new Date('2026-10-09T15:00:00Z'),
     }, pasta);
     expect(readdirSync(pasta)).toHaveLength(1);
@@ -184,6 +184,8 @@ describe('o SMTP, pela rede', () => {
     de: 'Produto <nao-responda@exemplo.com.br>',
     respostaPara: 'suporte@exemplo.com.br',
     enviadoEm: new Date(),
+    barbearia: 1,
+    tipo: 'seguranca' as const,
   });
 
   it('entrega: remetente, destinatário, assunto e corpo chegam ao servidor', async () => {

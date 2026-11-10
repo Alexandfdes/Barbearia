@@ -29,14 +29,22 @@
  * que muda é decidido aqui, antes delas: o site mostra o aviso com o WhatsApp da
  * barbearia, e o painel leva o dono à tela de assinatura (decisões de 08/10/2026,
  * `docs/PLANO-PRODUTIZACAO.md` §13).
+ *
+ * ── E O SITE QUE ESPERA A APROVAÇÃO ──────────────────────────────────────────
+ *
+ * Do cadastro pela web até o operador aprovar (migration 0020), o endereço mostra "em
+ * preparação", sem nada que a pessoa escreveu; o painel funciona inteiro. Quem tem a prévia
+ * — o link do painel virou um cookie deste endereço — vê o site, sem indexação
+ * (`lib/previaDoSite.ts`).
  */
 import type { APIContext, MiddlewareNext } from 'astro';
 import { defineMiddleware } from 'astro:middleware';
 import { comTenant } from './db/index.js';
 import { getSession, sessaoForaDoAr } from './lib/session.js';
 import {
-  carregarTenants, tenantDaSessaoOuNulo, tenantDoHost, tenantSuspensoDoHost, type Tenant,
+  carregarTenants, tenantDaSessaoOuNulo, tenantDoHost, tenantEmPreparacaoDoHost, tenantSuspensoDoHost, type Tenant,
 } from './lib/tenant.js';
+import { PARAMETRO_DA_PREVIA, respostaDoLinkDaPrevia, respostaEmPreparacao } from './lib/previaDoSite.js';
 import { getSettings } from './lib/settings.js';
 import { respostaForaDoAr } from './lib/siteForaDoAr.js';
 import { ROTA_DO_CANCELAMENTO, ROTA_DO_CARTAO, TELA_DE_ASSINATURA } from './lib/assinatura.js';
@@ -45,6 +53,7 @@ import { ehRotaDoOperador } from './lib/operador.js';
 import { ROTAS_DA_EXPORTACAO } from './lib/exportacao.js';
 import { faltamNoBanco, respostaDoBancoAtrasado } from './lib/bancoAtrasado.js';
 import { desvioParaOPainel, semMoldura } from './lib/painelCentral.js';
+import { desvioDoWww } from './lib/enderecoWww.js';
 
 // Toda resposta sai sem poder ser emoldurada (`lib/painelCentral.ts`).
 export const onRequest = defineMiddleware(async (contexto, next) => semMoldura(await atender(contexto, next)));
@@ -62,6 +71,11 @@ async function atender(contexto: APIContext, next: MiddlewareNext): Promise<Resp
     console.warn(`[origem] recusado ${contexto.request.method} ${caminho}: ${recusa}`);
     return respostaDaRecusa(caminho);
   }
+
+  // O `www` é do site de vendas: se chegar aqui — o certificado curinga pode trazê-lo —, vai
+  // para a raiz em vez de virar "barbearia não encontrada" (`lib/enderecoWww.ts`).
+  const www = desvioDoWww(contexto.request);
+  if (www) return www;
 
   // No desenvolvimento, o banco atrás do código — migration nova que chegou com o servidor
   // ligado — vira uma tela que diz o que fazer, em vez da primeira consulta que falha
@@ -107,6 +121,14 @@ async function atender(contexto: APIContext, next: MiddlewareNext): Promise<Resp
 
   const { tenant, daSessao } = await tenantDaRequisicao(contexto.request);
 
+  // O link da prévia chegando ao endereço de um site que espera a aprovação: vira o cookie
+  // deste endereço e sai da barra (`lib/previaDoSite.ts`). Antes de servir: com o cookie
+  // antigo ainda valendo, o site abriria com o link na barra.
+  if (!daSessao && new URL(contexto.request.url).searchParams.has(PARAMETRO_DA_PREVIA)) {
+    const esperando = tenantEmPreparacaoDoHost(contexto.request.headers.get('host'));
+    if (esperando) return respostaDoLinkDaPrevia(contexto.request, esperando.id);
+  }
+
   // ⚠️ ANTES de olhar o endereço: no desenvolvimento, o painel e a barbearia 1
   // dividem o `localhost`, e o endereço devolveria a barbearia 1 para quem está
   // com a sessão de outra, fora do ar — que cairia num laço entre o login e o
@@ -126,16 +148,38 @@ async function atender(contexto: APIContext, next: MiddlewareNext): Promise<Resp
   // página pública responde 404 antes de renderizar qualquer coisa
   // (`lib/tenant.ts`, passo 6).
   if (tenant === null) {
+    const host = contexto.request.headers.get('host');
+    // Endereço de site que ESPERA A APROVAÇÃO, sem a prévia: "em preparação", sem nada da
+    // barbearia (`lib/previaDoSite.ts`). As rotas públicas nem chegam a rodar.
+    if (tenantEmPreparacaoDoHost(host)) return respostaEmPreparacao(caminho);
     // Endereço de barbearia FORA DO AR: em vez do 404, o aviso com o WhatsApp
     // dela (`lib/siteForaDoAr.ts`). As rotas públicas nem chegam a rodar.
-    const suspensa = tenantSuspensoDoHost(contexto.request.headers.get('host'));
+    const suspensa = tenantSuspensoDoHost(host);
     if (suspensa) {
       return comTenant(suspensa, async () => respostaForaDoAr(caminho, await getSettings(suspensa)));
     }
     return next();
   }
 
-  return servirComTenant(tenant, next);
+  const r = await servirComTenant(tenant, next);
+  // A prévia (o site que espera a aprovação, aberto pelo cookie): fora da busca e de cache.
+  return !daSessao && tenant.emPreparacao ? foraDaBusca(r) : r;
+}
+
+function foraDaBusca(r: Response): Response {
+  const aplicar = (h: Headers) => {
+    h.set('X-Robots-Tag', 'noindex, nofollow');
+    h.set('Cache-Control', 'private, no-store');
+  };
+  try {
+    aplicar(r.headers);
+    return r;
+  } catch {
+    // Cabeçalhos imutáveis (`Response.redirect`): copia e aplica, como `semMoldura`.
+    const copia = new Response(r.body, { status: r.status, statusText: r.statusText, headers: new Headers(r.headers) });
+    aplicar(copia.headers);
+    return copia;
+  }
 }
 
 /**

@@ -37,10 +37,10 @@ import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import { dbDono } from '../db/index.js';
 import { avisosEnviados, barbers, tenants } from '../db/schema.js';
 import { diasAte, situacaoDe, type Situacao } from './situacao.js';
-import { explicacaoDaSituacao, TELA_DE_ASSINATURA } from './assinatura.js';
+import { cobrancaLigada, explicacaoDaSituacao, TELA_DE_ASSINATURA } from './assinatura.js';
 import { enviarEmail, transporteDeEmail } from './email.js';
 import { urlDoPainel } from './tenant.js';
-import { NOME_PRODUTO } from './produto.js';
+import { linkDoSuporte, NOME_PRODUTO } from './produto.js';
 
 export type TipoDeAviso = 'teste-acabando' | 'teste-acabou' | 'cobranca-falhou' | 'fora-do-ar';
 
@@ -91,6 +91,8 @@ export function textoDoAviso(
   /** `fuso`: o da barbearia — as datas do e-mail são as do calendário dela. */
   d: { barbearia: string; nome: string; painel: string; fuso: string },
   agora: Date = new Date(),
+  /** A cobrança está ligada (`cobrancaLigada`)? Desligada, o aviso manda falar com o suporte. */
+  ligada = true,
 ): { assunto: string; texto: string } {
   const assunto = `${d.barbearia}: ${resumoDoAssunto(tipo, s, d.fuso, agora)}`;
 
@@ -102,8 +104,9 @@ export function textoDoAviso(
     `Olá, ${d.nome}.`,
     '',
     ...abertura,
-    explicacaoDaSituacao(s, d.fuso, agora),
+    explicacaoDaSituacao(s, d.fuso, agora, ligada),
     '',
+    ...(ligada ? [] : ['O WhatsApp do suporte:', linkDoSuporte(), '']),
     'A tela de assinatura, no painel:',
     `${d.painel}${TELA_DE_ASSINATURA}`,
     '',
@@ -159,7 +162,9 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
 
   const resumo: ResumoDosAvisos = { avaliadas: 0, enviados: 0, falhas: 0, semDestinatario: 0 };
 
-  // Pagando em dia, encerrada e tirada do ar à mão não têm prazo correndo.
+  // Pagando em dia, encerrada e tirada do ar à mão não têm prazo correndo. Nem o site que
+  // espera a sua aprovação (migration 0020): o teste dele é recontado quando ele abrir
+  // (`aprovarSite`), e "o seu teste está acabando" a quem nunca teve o site no ar seria mentira.
   const barbearias = await dbDono
     .select({
       id: tenants.id,
@@ -171,7 +176,7 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
       fuso: tenants.timezone,
     })
     .from(tenants)
-    .where(inArray(tenants.status, ['trial', 'past_due']))
+    .where(and(inArray(tenants.status, ['trial', 'past_due']), isNotNull(tenants.siteAprovadoEm)))
     .orderBy(tenants.id);
 
   for (const b of barbearias) {
@@ -207,7 +212,12 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
       // desfeita e o primeiro recebe de novo na rodada seguinte — raro, e melhor
       // que o segundo não receber nunca.
       for (const dono of donos) {
-        await enviarEmail({ para: dono.email!, ...textoDoAviso(devido.tipo, s, { barbearia: b.nome, nome: dono.nome, painel, fuso: b.fuso }, agora) });
+        await enviarEmail({
+          para: dono.email!,
+          ...textoDoAviso(devido.tipo, s, { barbearia: b.nome, nome: dono.nome, painel, fuso: b.fuso }, agora, cobrancaLigada()),
+          barbearia: b.id,
+          tipo: 'conta',
+        });
       }
       resumo.enviados++;
     } catch (erro) {

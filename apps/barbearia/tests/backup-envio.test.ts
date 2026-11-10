@@ -40,6 +40,8 @@ class S3DeMentira {
   cancelados: string[] = [];
   /** Responde 500 a toda tentativa desta parte — para provar o cancelamento. */
   falharParte: number | null = null;
+  /** Recusa tudo com 403, como uma chave apagada ou sem permissão — para provar o registro da falha. */
+  recusarTudo = false;
   private seq = 0;
 
   constructor() {
@@ -52,6 +54,10 @@ class S3DeMentira {
         const chave = decodeURIComponent(url.pathname);
         const q = url.searchParams;
         this.pedidos.push({ metodo: req.method ?? '', caminho: chave, consulta: q, cabecalhos: req.headers, bytes: corpo.length });
+        if (this.recusarTudo) {
+          res.writeHead(403, { 'content-type': 'application/xml' });
+          return res.end('<?xml version="1.0" encoding="UTF-8"?><Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>');
+        }
         const xml = (s: string) => { res.writeHead(200, { 'content-type': 'application/xml' }); res.end(`<?xml version="1.0" encoding="UTF-8"?>${s}`); };
 
         if (req.method === 'POST' && q.has('uploads')) {
@@ -95,7 +101,7 @@ class S3DeMentira {
   }
 
   limpar() {
-    this.objetos.clear(); this.envios.clear(); this.pedidos = []; this.cancelados = []; this.falharParte = null;
+    this.objetos.clear(); this.envios.clear(); this.pedidos = []; this.cancelados = []; this.falharParte = null; this.recusarTudo = false;
   }
 }
 
@@ -209,13 +215,71 @@ describe.skipIf(!TEM_BANCO || !TEM_PGDUMP)('o backup de verdade, com o envio lig
       const mod = await import('../scripts/backup.mjs');
       const r = await mod.runBackup() as { dest: string; fotos: string; uploaded: boolean };
       expect(r.uploaded).toBe(true);
-      const locais = readdirSync(pastaBackup).sort();
+      const locais = readdirSync(pastaBackup).filter((n) => n.startsWith('barbearia_')).sort();
       expect(locais).toHaveLength(2);
       for (const nome of locais) {
         const enviado = s3.objetos.get(`/backups-teste/backups/${nome}`);
         expect(enviado, nome).toBeDefined();
         expect(sha(enviado!)).toBe(sha(readFileSync(join(pastaBackup, nome))));
       }
+      // O registro do envio (05/11/2026): os dois arquivos, e a hora — para a tela de Sistema.
+      const registro = JSON.parse(readFileSync(join(pastaBackup, 'envio-para-fora.ok'), 'utf8'));
+      expect(registro.arquivos.sort()).toEqual(locais);
+      expect(Date.now() - new Date(registro.em).getTime()).toBeLessThan(60_000);
+      expect(readdirSync(pastaBackup)).not.toContain('envio-para-fora.falhou');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  }, 30_000);
+
+  it('o envio recusado fica registrado, com o motivo — e o envio que volta apaga a falha (05/11/2026)', async () => {
+    // Até 05/11 a tela de Sistema dizia só se as S3_* existiam: uma chave apagada deixava o
+    // backup só na VPS, com a falha num log que ninguém lê (`docs/PENDENCIAS-ABERTAS.md` §2.68).
+    const pastaBackup = join(pasta, 'backups');
+    vi.resetModules();
+    vi.stubEnv('BACKUP_DIR', pastaBackup);
+    vi.stubEnv('UPLOAD_ROOT', join(pasta, 'sem-fotos'));
+    for (const [k, v] of Object.entries(envDoS3())) vi.stubEnv(k, v);
+    try {
+      const mod = await import('../scripts/backup.mjs');
+      const sistema = await import('../src/lib/operadorSistema.ts');
+      // Quem grava e quem lê usam os mesmos nomes.
+      expect(mod.REGISTRO_DO_ENVIO_CERTO).toBe(sistema.REGISTRO_DO_ENVIO_CERTO);
+      expect(mod.REGISTRO_DA_FALHA_DO_ENVIO).toBe(sistema.REGISTRO_DA_FALHA_DO_ENVIO);
+
+      s3.recusarTudo = true;
+      const r = await mod.runBackup() as { dest: string; uploaded: boolean };
+      expect(r.uploaded).toBe(false);
+      expect(r.dest).toBeTruthy(); // o backup local ficou
+      const falha = JSON.parse(readFileSync(join(pastaBackup, 'envio-para-fora.falhou'), 'utf8'));
+      expect(falha.motivo).toMatch(/Access Denied/);
+      expect(readdirSync(pastaBackup)).not.toContain('envio-para-fora.ok');
+      let lido = sistema.envioParaForaNaPasta(pastaBackup);
+      expect(lido.ultimoCerto).toBeNull();
+      expect(lido.ultimaFalha?.motivo).toMatch(/Access Denied/);
+
+      s3.recusarTudo = false;
+      expect((await mod.runBackup() as { uploaded: boolean }).uploaded).toBe(true);
+      expect(readdirSync(pastaBackup)).toContain('envio-para-fora.ok');
+      expect(readdirSync(pastaBackup)).not.toContain('envio-para-fora.falhou');
+      lido = sistema.envioParaForaNaPasta(pastaBackup);
+      expect(lido.ultimaFalha).toBeNull();
+      expect(lido.ultimoCerto).not.toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  }, 60_000);
+
+  it('sem as S3_*, nada é registrado — não há envio para dizer que falhou', async () => {
+    const pastaBackup = join(pasta, 'backups');
+    vi.resetModules();
+    vi.stubEnv('BACKUP_DIR', pastaBackup);
+    vi.stubEnv('UPLOAD_ROOT', join(pasta, 'sem-fotos'));
+    for (const k of Object.keys(envDoS3())) vi.stubEnv(k, '');
+    try {
+      const mod = await import('../scripts/backup.mjs');
+      await mod.runBackup();
+      expect(readdirSync(pastaBackup).filter((n) => n.startsWith('envio-para-fora'))).toEqual([]);
     } finally {
       vi.unstubAllEnvs();
     }

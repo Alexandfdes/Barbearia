@@ -41,6 +41,12 @@ export interface TrocaDeEmail {
   novo: string | null;
   /** Quem estava com o painel aberto e fez a troca. */
   quemTrocou: { id: number; nome: string };
+  /**
+   * Quem trocou foi o operador, a pedido feito pelo WhatsApp (`trocarEmailDoDono`, em
+   * `lib/operadorBarbearias.ts`, 05/11/2026). O texto diz isso — e, para quem não pediu,
+   * que alguém pode ter se passado por ele: é o golpe que esta troca abre.
+   */
+  peloSuporte?: boolean;
 }
 
 /**
@@ -59,7 +65,9 @@ export function textoDoAvisoDeEmailTrocado(
   ctx: { barbearia: string; painel: string; quando: string },
 ): Pick<Email, 'assunto' | 'texto'> {
   const { pessoa, novo, quemTrocou } = troca;
-  const porQuem = quemTrocou.id === pessoa.id ? 'pelo seu próprio acesso' : `por ${quemTrocou.nome}`;
+  const porQuem = troca.peloSuporte
+    ? `pelo suporte do ${NOME_PRODUTO}, a pedido feito pelo WhatsApp`
+    : quemTrocou.id === pessoa.id ? 'pelo seu próprio acesso' : `por ${quemTrocou.nome}`;
   const oQue = novo
     ? [
         `O e-mail do seu acesso ao painel — ${ctx.barbearia} — foi trocado em ${ctx.quando}, ${porQuem}.`,
@@ -74,7 +82,16 @@ export function textoDoAvisoDeEmailTrocado(
     ? `Entre no painel com o seu WhatsApp e a sua senha: ${ctx.painel}/admin/login`
     : 'Entre no painel com o seu WhatsApp e a sua senha.';
   // O barbeiro não tem a tela da Equipe: quem mexe no e-mail e na senha dele é o dono.
-  const seNaoFoi = pessoa.papel === 'admin'
+  const seNaoFoi = troca.peloSuporte
+    ? [
+        'Não pediu essa troca? Alguém pode ter se passado por você. Faça isto agora:',
+        `1. ${entrar}`,
+        '2. Em Equipe, na sua linha, ponha uma senha nova — todo aparelho com o painel aberto vai pedir login de novo.',
+        '3. Na mesma tela, volte o e-mail para este.',
+        '',
+        `E avise o suporte do ${NOME_PRODUTO} pelo WhatsApp do seu login.`,
+      ]
+    : pessoa.papel === 'admin'
     ? [
         'Não reconhece a troca? Alguém pode estar com o painel da barbearia aberto. Faça isto agora:',
         `1. ${entrar}`,
@@ -96,7 +113,9 @@ export function textoDoAvisoDeEmailTrocado(
       '',
       ...oQue,
       '',
-      'Foi você, ou alguém da barbearia que pode fazer isso? Então não precisa fazer nada.',
+      troca.peloSuporte
+        ? 'Foi você que pediu? Então não precisa fazer nada.'
+        : 'Foi você, ou alguém da barbearia que pode fazer isso? Então não precisa fazer nada.',
       '',
       ...seNaoFoi,
       '',
@@ -132,7 +151,7 @@ export async function avisarEmailTrocado(p: TrocaDeEmail & {
     );
     // Sem `await`, de propósito: ver o cabeçalho. O `try` pega o envio que estoura
     // antes de devolver a promessa.
-    try { enviar({ para, ...conteudo }).catch(naoSaiu); } catch (erro) { naoSaiu(erro); return false; }
+    try { enviar({ para, ...conteudo, barbearia: p.tenant.id, tipo: 'seguranca' }).catch(naoSaiu); } catch (erro) { naoSaiu(erro); return false; }
     return true;
   } catch (erro) {
     console.error('[equipe] não consegui montar o aviso de e-mail trocado:', erro);

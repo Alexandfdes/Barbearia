@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '../../../../db/index.js';
 import { products } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
+import { recusaDoTeto } from '../../../../lib/tetos.js';
 import { getSession } from '../../../../lib/session.js';
 import { saveProductImage } from '../../../../lib/uploads.js';
 import { tenantDaSessao, type Tenant } from '../../../../lib/tenant.js';
@@ -57,6 +58,10 @@ export const POST: APIRoute = async ({ request }) => {
   const priceCents = Math.round(priceReais * 100);
 
   const active = String(form.get('active') ?? 'true') !== 'false';
+
+  // O teto (`lib/tetos.ts`) antes de gravar a foto: recusar depois deixaria o arquivo no disco.
+  const cheio = await recusaDoTeto('produtos', tenant.id);
+  if (cheio) return json({ error: cheio }, 409);
 
   try {
     let image: string | null = null;

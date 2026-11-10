@@ -27,7 +27,7 @@ import { exigirBancoDeTeste } from './guardaBanco.js';
 import { listarMigrations, migrationSql, recriarSchema } from './migrations.js';
 import { abrirPorta, cookieDoOperador, exigirOperador, gerarHash, voltaValida } from '../src/lib/operador';
 import { descreverAcao } from '../src/lib/operadorBarbearias';
-import { alertasDoSistema, backupNoPainel, configuracaoNoPainel } from '../src/lib/operadorSistema';
+import { alertasDoSistema, backupNoPainel, configuracaoNoPainel, discoNoPainel, situacaoDoEnvio } from '../src/lib/operadorSistema';
 import { dinheiro, grupoDoEvento, inicioDoMes, rotuloDoEvento, ultimasSemanas } from '../src/lib/operadorTela';
 
 process.env.SESSION_SECRET ??= 'segredo-de-teste-com-mais-de-32-caracteres-ok';
@@ -51,6 +51,7 @@ const semComentarios = (s: string) =>
 /** As telas do operador. Tela nova entra aqui de propósito — e passa pela conferência abaixo. */
 const TELAS = [
   'src/pages/operador/barbearias/[id].astro',
+  'src/pages/operador/barbearias/[id]/previa.astro',
   'src/pages/operador/barbearias/index.astro',
   'src/pages/operador/cobranca.astro',
   'src/pages/operador/index.astro',
@@ -254,6 +255,10 @@ describe('a tela de sistema não mostra segredo', () => {
     expect(b.retencaoDias).toBe(30);
     expect(backupNoPainel(envDe({ BACKUP_RETENTION_DAYS: '7' })).retencaoDias).toBe(7);
     expect(backupNoPainel(envDe({ BACKUP_RETENTION_DAYS: 'sete' })).retencaoDias).toBe(30);
+    // Das fotos, as 7 mais novas — a mesma leitura do `scripts/backup.mjs` (05/11/2026).
+    expect(b.fotosLocais).toBe(7);
+    expect(backupNoPainel(envDe({ BACKUP_FOTOS_LOCAIS: '3' })).fotosLocais).toBe(3);
+    expect(backupNoPainel(envDe({ BACKUP_FOTOS_LOCAIS: '0' })).fotosLocais).toBe(7);
     // A hora do diário, como o daemon a lê: 03:00 sem a variável; fora de 0 a 23, o daemon
     // nunca roda o diário — e a tela não pode dizer uma hora.
     expect(b.horaDoDiario).toBe(3);
@@ -280,7 +285,9 @@ describe('a tela de sistema não mostra segredo', () => {
     const base = {
       banco: { responde: true, ms: 3, versao: '16.15', tamanho: '9 MB', usuario: 'fadeline', superusuario: true },
       migracoes: { aplicadas: 14, ultima: '0014_anotacoes_do_operador.sql', em: new Date(), noBuild: 14 },
-      backup: { pasta, ultimo: null, fotos: null, quantos: 0, retencaoDias: 30, horaDoDiario: 3, foraDoServidor: false },
+      backup: { pasta, ultimo: null, fotos: null, quantos: 0, retencaoDias: 30, fotosLocais: 7, horaDoDiario: 3, foraDoServidor: false,
+        envioParaFora: { ultimoCerto: null, ultimaFalha: null } },
+      disco: null,
       ...configuracaoNoPainel(envDe({ SMTP_URL: '', EMAIL_PASTA: '', ASAAS_API_KEY: '' })),
     };
     const textos = alertasDoSistema(base).map((a) => `${a.estado}: ${a.texto}`);
@@ -292,7 +299,8 @@ describe('a tela de sistema não mostra segredo', () => {
       'atencao: O app fala com o banco como superusuário — a troca do usuário está pronta e falta rodar.',
     ]);
     const emOrdem = { ...base, banco: { ...base.banco, superusuario: false },
-      backup: { ...base.backup, ultimo: { arquivo: 'b.sql.gz', bytes: 1, em: new Date() }, foraDoServidor: true },
+      backup: { ...base.backup, ultimo: { arquivo: 'b.sql.gz', bytes: 1, em: new Date() }, foraDoServidor: true,
+        envioParaFora: { ultimoCerto: new Date(), ultimaFalha: null } },
       ...configuracaoNoPainel(envDe()) };
     expect(alertasDoSistema(emOrdem).map((a) => a.texto))
       .toEqual(['A cobrança está no ambiente de teste da Asaas: o dinheiro não é de verdade.']);
@@ -305,6 +313,120 @@ describe('a tela de sistema não mostra segredo', () => {
       'atencao: Este painel entra só com a senha: ligue o código do aplicativo (npm run operador:segundo-fator).');
     const naMaquina = { ...emOrdem, ...configuracaoNoPainel(envDe({ OPERADOR_SEGUNDO_FATOR: '', NODE_ENV: 'development' })) };
     expect(alertasDoSistema(naMaquina).map((a) => a.texto).join(' ')).not.toMatch(/segundo-fator/);
+  });
+
+  it('o envio para fora: o que de fato subiu, lido dos registros do backup (05/11/2026)', () => {
+    const certo = join(pasta, 'envio-para-fora.ok');
+    const falha = join(pasta, 'envio-para-fora.falhou');
+    const agora = new Date('2026-11-05T12:00:00Z');
+    const horasAtras = (h: number) => new Date(agora.getTime() - h * 3600_000).toISOString();
+    try {
+      // Sem registro nenhum: o envio está ligado, e nada subiu ainda.
+      let b = backupNoPainel(envDe());
+      expect(b.envioParaFora).toEqual({ ultimoCerto: null, ultimaFalha: null });
+      expect(situacaoDoEnvio(b, agora)).toBe('nunca');
+      // Subiu há 2 horas: ok.
+      writeFileSync(certo, JSON.stringify({ em: horasAtras(2), arquivos: ['a.sql.gz'] }));
+      b = backupNoPainel(envDe());
+      expect(b.envioParaFora.ultimoCerto?.toISOString()).toBe(horasAtras(2));
+      expect(situacaoDoEnvio(b, agora)).toBe('ok');
+      // A falha MAIS NOVA que o certo manda — com o motivo.
+      writeFileSync(falha, JSON.stringify({ em: horasAtras(1), arquivo: 'a.sql.gz', motivo: 'Access Denied' }));
+      b = backupNoPainel(envDe());
+      expect(b.envioParaFora.ultimaFalha).toEqual({ em: new Date(horasAtras(1)), motivo: 'Access Denied' });
+      expect(situacaoDoEnvio(b, agora)).toBe('falhou');
+      // A falha mais VELHA que o certo já passou.
+      writeFileSync(falha, JSON.stringify({ em: horasAtras(30), motivo: 'antiga' }));
+      expect(backupNoPainel(envDe()).envioParaFora.ultimaFalha).toBeNull();
+      // O certo com mais de um dia: o envio parou.
+      writeFileSync(certo, JSON.stringify({ em: horasAtras(27) }));
+      expect(situacaoDoEnvio(backupNoPainel(envDe()), agora)).toBe('parado');
+      // Registro quebrado não derruba a tela: conta como não registrado.
+      writeFileSync(certo, '{ isto não é json');
+      expect(backupNoPainel(envDe()).envioParaFora.ultimoCerto).toBeNull();
+      // Sem as S3_*: desligado, diga o registro o que disser.
+      expect(situacaoDoEnvio(backupNoPainel(envDe({ S3_BUCKET: '' })), agora)).toBe('desligado');
+    } finally {
+      rmSync(certo, { force: true });
+      rmSync(falha, { force: true });
+    }
+  });
+
+  it('os alertas do envio para fora e do disco', () => {
+    const agora = new Date();
+    const base = {
+      banco: { responde: true, ms: 3, versao: '16.15', tamanho: '9 MB', usuario: 'fadeline', superusuario: false },
+      migracoes: { aplicadas: 14, ultima: '0014_anotacoes_do_operador.sql', em: new Date(), noBuild: 14 },
+      backup: { pasta, ultimo: { arquivo: 'b.sql.gz', bytes: 1, em: new Date() }, fotos: null, quantos: 1, retencaoDias: 30, fotosLocais: 7, horaDoDiario: 3, foraDoServidor: true,
+        envioParaFora: { ultimoCerto: new Date(), ultimaFalha: null } as { ultimoCerto: Date | null; ultimaFalha: { em: Date; motivo: string } | null } },
+      disco: null as { pasta: string; totalBytes: number; livreBytes: number; ocupadoPct: number } | null,
+      ...configuracaoNoPainel(envDe({ ASAAS_AMBIENTE: 'producao' })),
+    };
+    const textos = (s: typeof base) => alertasDoSistema(s, agora).map((a) => `${a.estado}: ${a.texto}`);
+    expect(textos(base)).toEqual([]);
+    const comEnvio = (e: typeof base.backup.envioParaFora) => ({ ...base, backup: { ...base.backup, envioParaFora: e } });
+    expect(textos(comEnvio({ ultimoCerto: new Date(), ultimaFalha: { em: new Date(), motivo: 'Access Denied' } }))).toEqual([
+      'problema: O último envio do backup para fora do servidor falhou: a cópia mais nova está só neste disco.',
+    ]);
+    expect(textos(comEnvio({ ultimoCerto: new Date(Date.now() - 27 * 3600_000), ultimaFalha: null }))).toEqual([
+      'problema: O último envio do backup para fora do servidor tem mais de um dia: o envio parou.',
+    ]);
+    expect(textos(comEnvio({ ultimoCerto: null, ultimaFalha: null }))).toEqual([
+      'atencao: Nenhum envio do backup para fora registrado ainda: o próximo backup registra.',
+    ]);
+    const comDisco = (ocupadoPct: number) => ({ ...base, disco: { pasta, totalBytes: 100, livreBytes: 100 - ocupadoPct, ocupadoPct } });
+    expect(textos(comDisco(79))).toEqual([]);
+    expect(textos(comDisco(80))).toEqual(['atencao: O disco está 80% ocupado.']);
+    expect(textos(comDisco(90))).toEqual([
+      'problema: O disco está 90% ocupado: cheio, o banco para — e o site de todas as barbearias com ele.',
+    ]);
+  });
+
+  it('a tela de Sistema mostra o envio para fora e o disco — e o quadro do backup segue o envio', () => {
+    const tela = readFileSync('src/pages/operador/sistema.astro', 'utf8');
+    expect(tela).toMatch(/const envio = situacaoDoEnvio\(s\.backup, agora\)/);
+    expect(tela).toMatch(/rotulo: 'O último envio para fora'/);
+    expect(tela).toMatch(/backupVelho \? 'problema' : ESTADO_DO_ENVIO\[envio\]/);
+    expect(tela).toMatch(/titulo: 'Disco'/);
+  });
+
+  it('o disco é lido de verdade, como o df — e a pasta que não existe cai onde o app roda', () => {
+    const d = discoNoPainel(pasta);
+    expect(d).not.toBeNull();
+    expect(d!.pasta).toBe(pasta);
+    expect(d!.totalBytes).toBeGreaterThan(0);
+    expect(d!.livreBytes).toBeLessThanOrEqual(d!.totalBytes);
+    expect(d!.ocupadoPct).toBeGreaterThanOrEqual(0);
+    expect(d!.ocupadoPct).toBeLessThanOrEqual(100);
+    expect(discoNoPainel(join(pasta, 'nao-existe'))?.pasta).toBe(process.cwd());
+  });
+
+  it('o e-mail recusado pelo limite do dia aparece — sem a tela, ninguém saberia (05/11/2026)', async () => {
+    const email = await import('../src/lib/email.ts');
+    email.zerarOrcamentoDeEmail();
+    const antes = process.env.EMAIL_LIMITE_DIARIO;
+    process.env.EMAIL_LIMITE_DIARIO = '1';
+    try {
+      await email.enviarEmail({ para: 'dono@x.test', assunto: 'x', texto: 'x', barbearia: 1, tipo: 'agenda' });
+      await expect(email.enviarEmail({ para: 'dono@x.test', assunto: 'x', texto: 'x', barbearia: 1, tipo: 'agenda' }))
+        .rejects.toBeInstanceOf(email.EmailNaoEnviado);
+      const config = configuracaoNoPainel({ ...envDe(), EMAIL_LIMITE_DIARIO: '1' });
+      expect(config.email.orcamento).toEqual({ limite: 1, usados: 1, porTipo: { seguranca: 0, conta: 0, agenda: 1, operador: 0 }, recusados: 1 });
+      const base = {
+        banco: { responde: true, ms: 3, versao: '16.15', tamanho: '9 MB', usuario: 'fadeline', superusuario: false },
+        migracoes: { aplicadas: 14, ultima: '0014_anotacoes_do_operador.sql', em: new Date(), noBuild: 14 },
+        backup: { pasta, ultimo: { arquivo: 'b.sql.gz', bytes: 1, em: new Date() }, fotos: null, quantos: 1, retencaoDias: 30, fotosLocais: 7, horaDoDiario: 3, foraDoServidor: true,
+          envioParaFora: { ultimoCerto: new Date(), ultimaFalha: null } },
+        disco: null,
+        ...config,
+      };
+      expect(alertasDoSistema(base).map((a) => `${a.estado}: ${a.texto}`)).toContain(
+        'atencao: 1 e-mail não saiu nas últimas 24 horas: o limite do dia chegou (EMAIL_LIMITE_DIARIO).');
+    } finally {
+      email.zerarOrcamentoDeEmail();
+      if (antes === undefined) delete process.env.EMAIL_LIMITE_DIARIO;
+      else process.env.EMAIL_LIMITE_DIARIO = antes;
+    }
   });
 });
 
@@ -563,7 +685,9 @@ describe.skipIf(!TEM_BANCO)('com banco: os números, a ficha, a cobrança, o reg
       agendamentos: { total: 3, ultimos7Dias: 1, ultimos30Dias: 2, proximos: 1 },
       fotosNaGaleria: 3,
     });
-    expect(f!.dono).toEqual({ nome: 'Dono em-dia', telefone: '84990000001', email: 'em-dia@dono.test' });
+    // O `id` é o que a troca do e-mail confere; o e-mail deste dono nunca foi confirmado (0019).
+    expect(f!.dono).toEqual({ id: 1, nome: 'Dono em-dia', telefone: '84990000001', email: 'em-dia@dono.test', emailConfirmado: false });
+    expect(f!.emPreparacao).toBe(false); // criada fora do cadastro pela web: nasce aprovada (0020)
     expect(f!.completude.bloqueios).toEqual([]);
     expect(f!.completude.percentual).toBeGreaterThan(0);
     expect(f!.completude.percentual).toBeLessThan(100);

@@ -14,7 +14,7 @@ export const prerender = false;
  * quando ela existir, e o cadastro não abre antes disso (`docs/PENDENCIAS-ABERTAS.md` §2.31).
  */
 import Layout from '../layouts/Layout.astro';
-import { NOME_PRODUTO, PRECO, CONCORRENTES, whatsappUrl, reais, CADASTRO_ABERTO, URL_CADASTRO } from '../config';
+import { NOME_PRODUTO, PRECO, CONCORRENTES, whatsappUrl, reais, CADASTRO_ABERTO, URL_CADASTRO, PRAZO_DA_CONFERENCIA } from '../config';
 
 // O botão principal leva ao cadastro. Com o cadastro fechado (`CADASTRO_ABERTO`,
 // a mesma variável do app da barbearia), ele vira conversa no WhatsApp — um botão
@@ -53,7 +53,9 @@ const passos = [
   { n: '1', titulo: 'Você cria a conta', texto: 'O nome da barbearia, o endereço que você quer para o site, o seu WhatsApp e uma senha.' },
   { n: '2', titulo: 'Serviços, preços e horário', texto: 'O que você faz, quanto cobra e quando abre. É isso que vira o agendamento.' },
   { n: '3', titulo: 'A cara do site', texto: 'Você escolhe a cor e a frase do topo, vendo como fica. Com qualquer cor, o texto continua legível.' },
-  { n: '4', titulo: 'No ar, agendando', texto: 'O site já recebe agendamento. Pelo painel, você sobe a logo, a capa e as fotos dos cortes.' },
+  // Até 10/11/2026 o título era "No ar, agendando", como se o site abrisse na hora: desde 05/11 ele
+  // espera a nossa conferência (`apps/barbearia/src/lib/previaDoSite.ts`).
+  { n: '4', titulo: 'Conferido e no ar', texto: `Conferimos o site em até ${PRAZO_DA_CONFERENCIA}, e ele passa a receber agendamento. Enquanto isso, você sobe pelo painel a logo, a capa e as fotos dos cortes.` },
 ];
 
 const faq = [

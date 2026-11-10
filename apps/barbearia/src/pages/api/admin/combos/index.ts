@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm';
 import { db, first } from '../../../../db/index.js';
 import { combos, services, products } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
+import { recusaDoTeto } from '../../../../lib/tetos.js';
 import { getSession } from '../../../../lib/session.js';
 import { saveProductImage } from '../../../../lib/uploads.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
@@ -46,6 +47,9 @@ export const POST: APIRoute = async ({ request }) => {
 
   const name = String(form.get('name') ?? '').trim();
   if (name.length < 2 || name.length > 100) return json({ error: 'Nome inválido' }, 400);
+
+  const cheio = await recusaDoTeto('combos', tenant.id);
+  if (cheio) return json({ error: cheio }, 409);
 
   const serviceId = parseIntField(form, 'serviceId');
   const productId = parseIntField(form, 'productId');
