@@ -129,14 +129,17 @@ plano anual. O texto é rascunho: a voz é a do dono.
 ### 2.2 Passo 2 — Ele cria a conta
 
 **O que ele vê.** O `/cadastrar`, com a marca do produto e não a da barbearia, que ainda não
-existe (`apps/barbearia/src/pages/cadastrar.astro:55-61`). Embaixo do título, *"No fim, o seu
-site nasce — com os seus serviços e a sua cor."* (`cadastrar.astro:198`), e logo abaixo *"7
-dias grátis, sem cartão: ele só é pedido no fim do teste."* (`cadastrar.astro:201`). A
-primeira era *"Leva dois minutos"* até 08/10, quando deixou de ser verdade com o bloco da
-marca maior, e *"o seu site já está no ar"* até 10/10, sem ninguém conferir (§2.8). A segunda
-entrou em 10/10: até então o teste e o cartão só apareciam na tela do fim, e quem tem medo de
-cobrança pode desistir antes de enviar (`PENDENCIAS-ABERTAS.md` §2.32). Uma página só, em cinco
-blocos (`cadastrar.astro:205-327`):
+existe (`apps/barbearia/src/pages/cadastrar.astro:62-68`). Embaixo do título, *"No fim, o seu
+painel já funciona. O site, com os seus serviços e a sua cor, abre depois de uma conferência
+nossa, em até 1 dia útil."* (`cadastrar.astro:210-212`), e logo abaixo *"7 dias grátis, sem
+cartão: ele só é pedido no fim do teste. Os dias contam a partir de quando o site abrir."*
+(`cadastrar.astro:215`). A primeira era *"Leva dois minutos"* até 08/10, quando deixou de ser
+verdade com o bloco da marca maior; *"o seu site já está no ar"* até 10/10, sem ninguém conferir
+(§2.8); e *"No fim, o seu site nasce"* até 10/11, quando o site passou a esperar a aprovação e a
+tela do fim já dizia outra coisa (`PENDENCIAS-ABERTAS.md` §2.70) — essa volta só com a aprovação
+desligada. A segunda entrou em 10/10: até então o teste e o cartão só apareciam na tela do fim, e
+quem tem medo de cobrança pode desistir antes de enviar (`PENDENCIAS-ABERTAS.md` §2.32). Uma página
+só, em cinco blocos (`cadastrar.astro:219-351`):
 
 - **A barbearia:** nome, **endereço do site** com a prévia de como vai ficar, rua, cidade e
   **o estado**, obrigatório desde 12/10 — é dele que sai o fuso dos horários do site, e o dono
@@ -168,7 +171,9 @@ tinham andado — agora cita a função, como a skill de documentos manda para s
 
 - **O termo de uso e a privacidade, aceitos aqui**, com a versão aceita gravada junto da
   barbearia (`PENDENCIAS-ABERTAS.md` §1.2). Sem ninguém no caminho, esta tela é o único
-  lugar onde ele lê o combinado — inclusive quando o cartão vai ser cobrado.
+  lugar onde ele lê o combinado — inclusive quando o cartão vai ser cobrado. *10/11/2026: a caixa,
+  a conferência na rota e a gravação existem, desligadas até o texto final do advogado
+  (`apps/barbearia/src/lib/termos.ts`); falta o texto.*
 - ~~**Endereços reservados**~~ — ✅ feito em 08/10/2026, na tabela acima
   (`PENDENCIAS-ABERTAS.md` §4.16).
 - **Dizer que o endereço é para sempre.** O painel não tem como trocá-lo — a rota que grava
@@ -185,14 +190,18 @@ tinham andado — agora cita a função, como a skill de documentos manda para s
   até existir o provedor de envio.
 - **Um WhatsApp para duas coisas.** Quem entra com o número pessoal e quer o da loja no
   site não tem como separar. O provisionador aceita um segundo número (`telefoneDono`,
-  `apps/barbearia/src/lib/provisionarBarbearia.ts:65`), mas nem a tela nem a rota do
-  cadastro o recebem (`apps/barbearia/src/pages/api/cadastrar.ts:62-88`).
+  `apps/barbearia/src/lib/provisionarBarbearia.ts:64`), mas nem a tela nem a rota do
+  cadastro o recebem (`apps/barbearia/src/pages/api/cadastrar.ts:70-101`; *as duas linhas corrigidas em
+  10/11/2026 — tinham andado*).
 - ~~**Não pedimos e-mail**~~ — ✅ pedimos desde 08/10/2026, e desde 09/10 ele é usado: a
   senha nova, os avisos e o e-mail de boas-vindas (`PENDENCIAS-ABERTAS.md` §4.17).
 - **E-mail digitado errado continua difícil de perceber.** A forma é conferida, a existência
   não: `ze@gmial.com` passa. Desde 09/10 há duas pistas — o e-mail de boas-vindas, que não
   chega, e o e-mail à vista no painel, na tela da equipe e na de assinatura, onde se corrige.
-  A confirmação por link, recomendada aqui antes, não foi feita (`PENDENCIAS-ABERTAS.md` §4.17).
+  ~~A confirmação por link, recomendada aqui antes, não foi feita (`PENDENCIAS-ABERTAS.md` §4.17).~~
+  ✅ *Feita em 30/10/2026: nada sai para e-mail não confirmado (`PENDENCIAS-ABERTAS.md` §2.64). E desde
+  10/11 a tela de assinatura diz que os avisos do teste só chegam depois de confirmar, com o caminho
+  para a caixa do Início — antes dizia que iam para o e-mail, confirmado ou não.*
 
 ### 2.3 Passo 3 — Horário, serviços e preços
 
