@@ -59,6 +59,11 @@ export async function rodarAvisos() {
       console.log(`[avisos-daemon] ✓ ${resumo}`);
     }
     ultimoResumo = resumo;
+    // O lembrete ao operador do site que espera a aprovação (10/11/2026, `src/lib/avisos.ts`): sai
+    // sempre que houver, como o e-mail mandado ao dono.
+    if (corpo.lembradosAoOperador > 0) {
+      console.log(`[avisos-daemon] ✓ lembrete ao operador: ${corpo.lembradosAoOperador} site(s) esperando a aprovação`);
+    }
     return true;
   } catch (erro) {
     return falhou(`[avisos-daemon] ✕ a tarefa não respondeu: ${erro instanceof Error ? erro.message : erro}`);
