@@ -16,7 +16,8 @@ export const prerender = false;
  * O que ele deixar em branco entra DESLIGADO. Nenhum "R$ 0,00" vai para o ar.
  */
 import { CATALOGO_SUGERIDO } from '../lib/catalogoSugerido.js';
-import { NOME_PRODUTO } from '../lib/produto.js';
+import { NOME_PRODUTO, PRAZO_DA_CONFERENCIA } from '../lib/produto.js';
+import { aprovacaoDoSiteLigada } from '../lib/previaDoSite.js';
 import { DIAS_DE_TESTE } from '../lib/situacao.js';
 import { ESTADOS } from '../lib/timezone.js';
 /**
@@ -34,6 +35,11 @@ const estadosPorNome = [...ESTADOS].sort((a, b) => a.nome.localeCompare(b.nome, 
 if (process.env.CADASTRO_ABERTO !== '1') {
   return new Response('Not found', { status: 404 });
 }
+
+// O topo fala como o fim (10/11/2026): com a conferência ligada, o que nasce ao enviar é o
+// painel — o site abre depois que o operador olha (`lib/previaDoSite.ts`). O topo dizia "No fim,
+// o seu site nasce", e a tela do fim, minutos depois, que ele ainda não estava no ar.
+const comConferencia = aprovacaoDoSiteLigada();
 
 /**
  * O resto do endereço, para a prévia mostrar o endereço INTEIRO que o barbeiro
@@ -195,10 +201,12 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
   <main class="env">
     <h1>Criar a sua barbearia</h1>
     {/* Não promete "no ar": quem confere é a tela do fim, do navegador do dono (`lib/noAr.ts`). */}
-    <p class="sub">No fim, o seu site nasce — com os seus serviços e a sua cor.</p>
+    <p class="sub" id="o-que-nasce">{comConferencia
+      ? `No fim, o seu painel já funciona. O site, com os seus serviços e a sua cor, abre depois de uma conferência nossa, em até ${PRAZO_DA_CONFERENCIA}.`
+      : 'No fim, o seu site nasce — com os seus serviços e a sua cor.'}</p>
     {/* Antes de ele gastar cinco minutos no formulário: quem tem medo de cobrança
         desiste antes de enviar, e só a tela do fim falava do teste (roteiro de 10/10/2026). */}
-    <p class="sub" id="teste-gratis">{DIAS_DE_TESTE} dias grátis, sem cartão: ele só é pedido no fim do teste.</p>
+    <p class="sub" id="teste-gratis">{DIAS_DE_TESTE} dias grátis, sem cartão: ele só é pedido no fim do teste.{comConferencia && ' Os dias contam a partir de quando o site abrir.'}</p>
 
     <div id="erro" class="erro" hidden></div>
 

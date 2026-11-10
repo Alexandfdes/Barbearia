@@ -132,7 +132,8 @@ const VOLTE_EM_SEGUNDOS = 3600;
 
 /**
  * A página do endereço que espera a aprovação. ⚠️ Nada aqui vem da barbearia: é o que ainda
- * não foi olhado.
+ * não foi olhado. E nenhuma promessa de minutos: a conferência leva até `PRAZO_DA_CONFERENCIA`,
+ * e quem chega aqui não sabe quando foi o cadastro — dizia "Volte daqui a pouco" (10/11/2026).
  */
 export function paginaEmPreparacao(): string {
   return `<!doctype html>
@@ -156,7 +157,7 @@ export function paginaEmPreparacao(): string {
 <body>
   <main>
     <h1>Este site está em preparação.</h1>
-    <p>Ele abre em breve. Volte daqui a pouco.</p>
+    <p>Ele ainda não abriu ao público. Volte em breve.</p>
   </main>
 </body>
 </html>`;

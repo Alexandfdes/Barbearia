@@ -116,4 +116,16 @@ describe('textos e menus que diziam o que não é', () => {
     expect(marcacao).toMatch(/\{DIAS_DE_TESTE\} dias grátis, sem cartão: ele só é pedido no fim do teste\./);
     expect(cadastro).toMatch(/import \{ DIAS_DE_TESTE \} from '\.\.\/lib\/situacao\.js';/);
   });
+
+  it('o topo do cadastro não diz que o site nasce no fim quando ele espera a conferência (10/11/2026)', () => {
+    const cadastro = readFileSync('src/pages/cadastrar.astro', 'utf8');
+    const marcacao = cadastro.slice(0, cadastro.indexOf('<script>'));
+    expect(cadastro).toMatch(/const comConferencia = aprovacaoDoSiteLigada\(\);/);
+    // Com a conferência: o painel nasce, o site abre no prazo — e o teste conta da abertura.
+    expect(marcacao).toMatch(/\{comConferencia\s*\? `No fim, o seu painel já funciona\. O site, com os seus serviços e a sua cor, abre depois de uma conferência nossa, em até \$\{PRAZO_DA_CONFERENCIA\}\.`\s*: 'No fim, o seu site nasce/);
+    expect(marcacao).toMatch(/no fim do teste\.\{comConferencia && ' Os dias contam a partir de quando o site abrir\.'\}/);
+    // "Nasce" na tela, só no ramo sem a conferência (o comentário do topo do arquivo cita a frase velha).
+    const tela = cadastro.slice(cadastro.indexOf('<main class="env">'), cadastro.indexOf('<script>'));
+    expect(tela.match(/o seu site nasce/g)).toHaveLength(1);
+  });
 });
