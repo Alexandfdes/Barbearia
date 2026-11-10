@@ -1,0 +1,72 @@
+---
+/**
+ * A moldura das páginas do termo de uso e do aviso de privacidade (`src/lib/termos.ts`).
+ *
+ * A paleta é a do cadastro — a do produto, não a de barbearia nenhuma —, porque é de lá que se
+ * chega aqui, numa aba nova, no meio do formulário. Os valores são os de `pages/cadastrar.astro`,
+ * que os copia de `apps/vendas/src/styles` (dois aplicativos, dois builds).
+ *
+ * Em rascunho (`versao` nula), a página só abre no desenvolvimento, e diz que é rascunho.
+ */
+import { NOME_PRODUTO } from '../lib/produto.js';
+
+interface Props {
+  titulo: string;
+  versao: string | null;
+}
+const { titulo, versao } = Astro.props;
+/** '2026-12-01' → '01/12/2026'. A versão é escrita à mão, no formato da data. */
+const dataDaVersao = versao?.split('-').reverse().join('/') ?? null;
+---
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  {versao === null && <meta name="robots" content="noindex" />}
+  <title>{titulo} — {NOME_PRODUTO}</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ground: #12161f;
+      --card: #1b2330;
+      --line: #2b3750;
+      --ink: #f5efe6;
+      --ink-suave: #c3ccd9;
+      --ink-fraco: #a8b3c2;
+      --brand-claro: #4ade80;
+      --aviso: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--ground); color: var(--ink);
+           font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .env { max-width: 68ch; margin: 0 auto; padding: 32px 16px 64px; }
+    .texto h1 { font-size: 26px; line-height: 1.25; margin: 0 0 20px; font-weight: 600; text-wrap: balance; }
+    .texto h2 { font-size: 19px; line-height: 1.3; margin: 32px 0 8px; font-weight: 600; text-wrap: balance; }
+    .texto h3 { font-size: 16px; margin: 24px 0 6px; font-weight: 600; }
+    .texto p, .texto li { color: var(--ink-suave); }
+    .texto p { margin: 0 0 14px; }
+    .texto ul, .texto ol { padding-left: 22px; margin: 0 0 14px; }
+    .texto li { margin: 0 0 6px; }
+    .texto a { color: var(--brand-claro); }
+    .texto a:focus-visible { outline: 2px solid var(--brand-claro); outline-offset: 2px; }
+    .texto strong { color: var(--ink); }
+    .texto code { font-size: 14px; background: var(--card); padding: 1px 5px; border-radius: 4px; }
+    .rascunho { border: 1px solid var(--aviso); color: var(--aviso); background: #2a2210;
+                border-radius: 8px; padding: 10px 14px; margin: 0 0 24px; font-size: 14px; }
+    .versao { margin: 32px 0 0; padding-top: 14px; border-top: 1px solid var(--line);
+              color: var(--ink-fraco); font-size: 13px; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <main class="env">
+    {versao === null && (
+      <p class="rascunho" role="note">
+        Rascunho: este texto ainda não vale. O cadastro só pede o aceite depois que ele for publicado.
+      </p>
+    )}
+    <article class="texto"><slot /></article>
+    {dataDaVersao && <p class="versao">Versão de {dataDaVersao}. {NOME_PRODUTO}.</p>}
+  </main>
+</body>
+</html>
