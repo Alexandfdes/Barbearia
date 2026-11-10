@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
 import { backupDoBanco, backupRecente } from './backup.mjs';
 import { problemaNoSmtpUrl, semSegredo, servidorDoSmtpUrl } from './smtpUrl.mjs';
+import { conferenciaDoOperador } from './operadorNoBoot.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PASTA = resolve(__dirname, '..', 'drizzle');
@@ -374,7 +375,7 @@ async function conferirEmail() {
   const url = process.env.SMTP_URL.trim();
   const problema = problemaNoSmtpUrl(url);
   if (problema) {
-    avisoDeEmail('O SMTP_URL ESTÁ ESCRITO ERRADO — NENHUM E-MAIL SAI', `O SMTP_URL ${problema}`);
+    avisoEmCaixa('O SMTP_URL ESTÁ ESCRITO ERRADO — NENHUM E-MAIL SAI', `O SMTP_URL ${problema}`);
     return;
   }
   const servidor = servidorDoSmtpUrl(url);
@@ -388,7 +389,7 @@ async function conferirEmail() {
     }
     console.log(`✓ e-mail: o provedor aceitou o login (${servidor})`);
   } catch (erro) {
-    avisoDeEmail(
+    avisoEmCaixa(
       'O PROVEDOR DE E-MAIL RECUSOU — NENHUM E-MAIL SAI',
       `Servidor: ${servidor}\n  Motivo: ${semSegredo(erro instanceof Error ? erro.message : String(erro), url)}\n` +
       '  ENOTFOUND: o servidor está digitado errado. 535 / Invalid login: o login ou a chave.\n' +
@@ -397,7 +398,7 @@ async function conferirEmail() {
   }
 }
 
-function avisoDeEmail(titulo, detalhe) {
+function avisoEmCaixa(titulo, detalhe) {
   const linha = `  │  ⚠️  ${titulo}`;
   console.warn(
     '\n' +
@@ -407,6 +408,19 @@ function avisoDeEmail(titulo, detalhe) {
     `  ${detalhe}\n` +
     '  O app vai subir e atender normalmente.\n'
   );
+}
+
+/**
+ * Confere, no boot de produção, o que o operador precisa e não dá erro em lugar nenhum: o aviso de
+ * cadastro novo e o código do painel dele (`scripts/operadorNoBoot.mjs`, 10/11/2026). Em 10/11, o
+ * cadastro rodou aberto sem o `OPERADOR_EMAIL`, e o painel do operador, só com a senha — os dois só
+ * apareceram abrindo a tela de Sistema. Não derruba o boot: nenhum dos dois tira barbearia do ar.
+ */
+function conferirOperador() {
+  if (process.env.NODE_ENV !== 'production') return;
+  const { avisos, certos } = conferenciaDoOperador(process.env);
+  for (const linha of certos) console.log(`✓ ${linha}`);
+  for (const { titulo, detalhe } of avisos) avisoEmCaixa(titulo, detalhe);
 }
 
 /** Falha de boot que JÁ se explicou sozinha — o `catch` final não repete nada. */
@@ -507,6 +521,7 @@ try {
   if (!soMigrations) {
     conferirPgDump();
     await conferirEmail();
+    conferirOperador();
     avisarFusoAntigo();
     await avisarTravaDeHorario();
   }
