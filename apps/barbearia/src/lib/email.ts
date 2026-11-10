@@ -44,7 +44,10 @@
  *    confirmação e os avisos do teste e da cobrança, que visitante nenhum dispara;
  *  - por barbearia, até 20% em avisos de agenda e 10% em senha e confirmação: uma
  *    barbearia sob ataque — ou um cadastro mal-intencionado — não leva o dia das
- *    outras, e a senha nova dela não para porque os avisos dela acabaram.
+ *    outras, e a senha nova dela não para porque os avisos dela acabaram;
+ *  - os avisos ao operador de cadastro novo (10/11/2026, `lib/avisoAoOperador.ts`),
+ *    até 5%: o cadastro é público, e uma enxurrada deles não leva o dia — passado da
+ *    parte, o Início do operador continua listando quem espera.
  *
  * ⚠️ A conta fica na memória do processo, como os limites de tentativa
  * (`lib/rateLimit.ts`): todo deploy a zera. Num dia de deploy, o app pode passar do
@@ -60,10 +63,12 @@ import { NOME_PRODUTO } from './produto.js';
  *  - `seguranca` — a senha nova, a confirmação do e-mail (com as boas-vindas) e o
  *    aviso de e-mail trocado;
  *  - `conta` — os avisos do teste e da cobrança (`lib/avisos.ts`);
- *  - `agenda` — o aviso de agendamento (`lib/avisoDeAgenda.ts`), o único que um
- *    visitante do site dispara.
+ *  - `agenda` — o aviso de agendamento (`lib/avisoDeAgenda.ts`), que um visitante do
+ *    site dispara;
+ *  - `operador` — o aviso ao operador de cadastro novo (`lib/avisoAoOperador.ts`), que
+ *    quem se cadastra dispara.
  */
-export type TipoDeEmail = 'seguranca' | 'conta' | 'agenda';
+export type TipoDeEmail = 'seguranca' | 'conta' | 'agenda' | 'operador';
 
 export interface Email {
   para: string;
@@ -151,6 +156,7 @@ export function partesDoOrcamento(limite: number) {
     agenda: Math.max(1, Math.floor(limite * 0.6)),
     agendaPorBarbearia: Math.max(1, Math.floor(limite * 0.2)),
     segurancaPorBarbearia: Math.max(1, Math.floor(limite * 0.1)),
+    operador: Math.max(1, Math.floor(limite * 0.05)),
   };
 }
 
@@ -179,6 +185,9 @@ export function foraDoOrcamento(
       return `a barbearia ${barbearia} chegou a ${p.agendaPorBarbearia} avisos de agenda em 24 horas`;
     }
   }
+  if (tipo === 'operador' && gastos.filter((g) => g.tipo === 'operador').length >= p.operador) {
+    return `a parte dos avisos ao operador acabou: ${p.operador} em 24 horas, de ${p.total}`;
+  }
   if (tipo === 'seguranca' && barbearia !== null
       && gastos.filter((g) => g.tipo === 'seguranca' && g.barbearia === barbearia).length >= p.segurancaPorBarbearia) {
     return `a barbearia ${barbearia} chegou a ${p.segurancaPorBarbearia} e-mails de senha e confirmação em 24 horas`;
@@ -196,7 +205,7 @@ export interface UsoDoOrcamento {
 /** Quanto do orçamento as últimas 24 horas gastaram — desde que o processo subiu, no máximo. */
 export function usoDoOrcamento(agora: number = Date.now(), env: Ambiente = process.env): UsoDoOrcamento {
   esquecerOVelho(agora);
-  const porTipo: Record<TipoDeEmail, number> = { seguranca: 0, conta: 0, agenda: 0 };
+  const porTipo: Record<TipoDeEmail, number> = { seguranca: 0, conta: 0, agenda: 0, operador: 0 };
   for (const g of gastos) porTipo[g.tipo]++;
   return { limite: limiteDiario(env), usados: gastos.length, porTipo, recusados: recusas.length };
 }

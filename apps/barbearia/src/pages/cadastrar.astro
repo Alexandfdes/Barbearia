@@ -335,6 +335,7 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     // para o site, sem lógica duplicada.
     import { derivarAccent, ACCENT_PADRAO } from '../lib/accent.js';
     import { esperarNoAr } from '../lib/noAr.js';
+    import { PRAZO_DA_CONFERENCIA } from '../lib/produto.js';
 
     // O tipo de `$` só serve ao conferidor (some no build): quase todo campo daqui é
     // um <input>, e os outros dizem o que são — `$<HTMLSelectElement>('estado')`.
@@ -489,7 +490,7 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
         // O site espera a aprovação do operador (migration 0020): o endereço mostra "em
         // preparação", então não há o que conferir nem o que divulgar ainda.
         pronto.append(el('p', { className: 'aviso' },
-          'O seu site abre depois de uma conferência nossa. Enquanto isso, monte tudo no painel — e veja como ele ' +
+          `O seu site abre depois de uma conferência nossa, em até ${PRAZO_DA_CONFERENCIA}. Enquanto isso, monte tudo no painel — e veja como ele ` +
           'está ficando em "Ver como está ficando", no topo do painel. Até abrir, não divulgue o endereço.'));
         if (site) pronto.append(el('p', { className: 'endereco' }, semProtocolo(site)));
       } else if (site) {

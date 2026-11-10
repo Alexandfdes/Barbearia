@@ -110,12 +110,18 @@ const quadros: Quadro[] = [
       { rotulo: 'Os links dos e-mails apontam para', valor: s.enderecos.painel || '—' },
       {
         rotulo: 'Nas últimas 24 horas',
-        valor: `${s.email.orcamento.usados} de ${s.email.orcamento.limite} — ${s.email.orcamento.porTipo.agenda} de agenda, ${s.email.orcamento.porTipo.seguranca} de senha e confirmação, ${s.email.orcamento.porTipo.conta} do teste e da cobrança`,
+        valor: `${s.email.orcamento.usados} de ${s.email.orcamento.limite} — ${s.email.orcamento.porTipo.agenda} de agenda, ${s.email.orcamento.porTipo.seguranca} de senha e confirmação, ${s.email.orcamento.porTipo.conta} do teste e da cobrança, ${s.email.orcamento.porTipo.operador} de cadastro novo para você`,
         estado: s.email.orcamento.usados >= s.email.orcamento.limite ? 'problema' : 'neutro',
       },
       ...(s.email.orcamento.recusados > 0
         ? [{ rotulo: 'Recusados pelo limite', valor: String(s.email.orcamento.recusados), estado: 'atencao' as Estado }]
         : []),
+      // Sem ele, o site novo espera a sua aprovação sem ninguém saber (10/11/2026, `lib/avisoAoOperador.ts`).
+      {
+        rotulo: 'O aviso de cadastro novo vai para',
+        valor: s.email.avisoDeCadastro ?? 'ninguém — falta o OPERADOR_EMAIL',
+        estado: s.email.avisoDeCadastro ? 'ok' : s.cadastro.aberto ? 'problema' : 'neutro',
+      },
     ],
     nota: 'A senha esquecida, os avisos do teste e da cobrança e o aviso de agendamento saem por aqui. O limite do dia é o EMAIL_LIMITE_DIARIO; a conta fica na memória do app, e um deploy a zera.',
   },

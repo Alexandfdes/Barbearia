@@ -31,7 +31,7 @@ import { situacaoDe, ultimoDia } from '../../lib/situacao.js';
 import { explicacaoDaSituacao, ROTA_DO_CANCELAMENTO, ROTA_DO_CARTAO } from '../../lib/assinatura.js';
 import { configDaAsaas } from '../../lib/asaas.js';
 import { dataDaPrimeiraCobranca, podeCadastrarCartao, temAssinaturaNaAsaas } from '../../lib/cobranca.js';
-import { linkDoSuporte, NOME_PRODUTO, PRECO_MENSAL } from '../../lib/produto.js';
+import { linkDoSuporte, NOME_PRODUTO, PRAZO_DA_CONFERENCIA, PRECO_MENSAL } from '../../lib/produto.js';
 import { fusoDe } from '../../lib/timezone.js';
 import { waPhone, waLink } from '../../lib/whatsapp.js';
 
@@ -131,7 +131,7 @@ const titulo = foraDoAr && !emPreparacao ? 'O site está fora do ar' : 'Assinatu
     <div>
       <h1 class="text-lg font-medium text-slate-900">{titulo}</h1>
       <p id="situacao" class="text-sm text-slate-600 mt-2 max-w-[65ch]">{emPreparacao
-        ? 'O seu site ainda não está no ar: ele abre depois da nossa conferência, e os 7 dias de teste começam nesse dia. Até lá, nada é cobrado.'
+        ? `O seu site ainda não está no ar: ele abre depois da nossa conferência, em até ${PRAZO_DA_CONFERENCIA} do cadastro, e os 7 dias de teste começam nesse dia. Até lá, nada é cobrado.`
         : explicacaoDaSituacao(situacao, fuso, new Date(), cobrancaLigada)}</p>
       {/* Para onde vão os avisos por e-mail (`lib/avisos.ts`) — o dono precisa saber, e
           o e-mail digitado errado no cadastro só aparece aqui ou no aviso que não chega. */}

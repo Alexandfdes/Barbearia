@@ -18,6 +18,7 @@ import { sqlConn } from '../db/index.js';
 import { configDaAsaas, webhooksDaConta, type AmbienteAsaas, type ConfigAsaas, type WebhookAsaas } from './asaas.js';
 import { transporteDeEmail, usoDoOrcamento, type Transporte, type UsoDoOrcamento } from './email.js';
 import { urlDoPainel } from './tenant.js';
+import { avisoDeCadastroNoPainel } from './avisoAoOperador.js';
 import { lerSegundoFator } from './segundoFator.js';
 
 type Ambiente = Record<string, string | undefined>;
@@ -90,7 +91,11 @@ export interface SistemaNoPainel {
   /** `null` quando o disco não pôde ser lido. */
   disco: DiscoNoPainel | null;
   /** O orçamento do dia (`lib/email.ts`): o que as últimas 24 horas gastaram, desde o último deploy. */
-  email: { transporte: Transporte; orcamento: UsoDoOrcamento };
+  /**
+   * `avisoDeCadastro`: para quem vai o aviso de cadastro novo (`OPERADOR_EMAIL`, mascarado), ou
+   * `null` — e aí ninguém sabe do site que espera a aprovação (`lib/avisoAoOperador.ts`).
+   */
+  email: { transporte: Transporte; orcamento: UsoDoOrcamento; avisoDeCadastro: string | null };
   cobranca: { ligada: boolean; ambiente: AmbienteAsaas | null; tokenDoWebhook: boolean };
   cadastro: { aberto: boolean };
   enderecos: { painel: string; dominioBase: string | null };
@@ -196,7 +201,7 @@ export function discoNoPainel(pasta: string): DiscoNoPainel | null {
 export function configuracaoNoPainel(env: Ambiente = process.env, agora: Date = new Date()) {
   const cfg = configDaAsaas(env);
   return {
-    email: { transporte: transporteDeEmail(env), orcamento: usoDoOrcamento(agora.getTime(), env) },
+    email: { transporte: transporteDeEmail(env), orcamento: usoDoOrcamento(agora.getTime(), env), avisoDeCadastro: avisoDeCadastroNoPainel(env) },
     cobranca: { ligada: cfg !== null, ambiente: cfg?.ambiente ?? null, tokenDoWebhook: Boolean(env.ASAAS_WEBHOOK_TOKEN?.trim()) },
     cadastro: { aberto: env.CADASTRO_ABERTO === '1' },
     enderecos: { painel: urlDoPainel(env), dominioBase: env.DOMINIO_BASE?.trim() || null },
