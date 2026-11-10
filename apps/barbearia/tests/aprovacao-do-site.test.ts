@@ -104,6 +104,9 @@ describe('a prévia: o link do painel e o cookie do endereço', () => {
     expect(r.headers.get('cache-control')).toBe('no-store');
     const html = await r.text();
     expect(html).toContain('Este site está em preparação.');
+    // Sem prazo de minutos: a conferência leva até um dia útil (10/11/2026).
+    expect(html).toContain('Ele ainda não abriu ao público. Volte em breve.');
+    expect(html).not.toMatch(/daqui a pouco|minutos?/i);
     expect(html).toContain('<meta name="robots" content="noindex" />');
     expect(previa.paginaEmPreparacao.length).toBe(0);
     expect(previa.respostaEmPreparacao.length).toBe(1);
