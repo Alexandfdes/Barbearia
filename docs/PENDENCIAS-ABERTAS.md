@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-11-06.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-11-10.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -24,8 +24,9 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **10/11** | **A aprovação do site continua, com prazo e com aviso a você** — decidido por você, depois da explicação do porquê: o site novo abre **em até 1 dia útil** do cadastro, prometido nas cinco telas e e-mails que o dono vê e na landing; e cada cadastro novo manda um e-mail a você (`OPERADOR_EMAIL`), só com o endereço escolhido e o link da ficha. **E confirmadas as duas decisões da implementação de 05/11:** o teste conta da aprovação, e quem espera não recebe os avisos do teste. O passo 4 da landing deixou de dizer que o site vai ao ar na hora | `PENDENCIAS-ABERTAS.md` §2.70 |
 | **06/11** | **O cartão também espera a aprovação** — achado ao escrever o rascunho do termo de uso: com o site esperando, o dono podia cadastrar o cartão, e a primeira cobrança seguia o teste contado do cadastro, não o da aprovação, às vezes com o site ainda em preparação. Agora a rota recusa e a tela diz quando o teste começa. E o rascunho do termo e dos dois avisos de privacidade existe, com 16 perguntas para o advogado | `PENDENCIAS-ABERTAS.md` §2.70 e `PENDENCIAS-ABERTAS.md` §1.2 |
-| **05/11** | **O site novo espera a sua aprovação**, decidido por você para os primeiros meses: do cadastro pela web até você aprovar na ficha, o endereço diz "em preparação", sem nada que a pessoa escreveu, e o painel funciona inteiro — com uma prévia que só abre por um link do painel. **E o operador troca o e-mail do dono**, depois de conferir pelo WhatsApp do login: a saída de quem esqueceu a senha com o e-mail errado ou sem confirmar. ⚠️ Decidido na implementação — falta você confirmar: o teste de 7 dias conta da aprovação. Migration 0020 | `PENDENCIAS-ABERTAS.md` §2.70 |
+| **05/11** | **O site novo espera a sua aprovação**, decidido por você para os primeiros meses: do cadastro pela web até você aprovar na ficha, o endereço diz "em preparação", sem nada que a pessoa escreveu, e o painel funciona inteiro — com uma prévia que só abre por um link do painel. **E o operador troca o e-mail do dono**, depois de conferir pelo WhatsApp do login: a saída de quem esqueceu a senha com o e-mail errado ou sem confirmar. ⚠️ Decidido na implementação — falta você confirmar: o teste de 7 dias conta da aprovação (✏️ *confirmado em 10/11*). Migration 0020 | `PENDENCIAS-ABERTAS.md` §2.70 |
 | **05/11** | **O que a revisão de 05/11 deixou e não pedia mais decisão:** o `www` indo para a raiz, os tetos de cada barbearia (15 na equipe, 100 serviços, 200 produtos, 50 combos — os números seus), só 7 cópias das fotos no disco, e, com a cobrança desligada, o painel e os e-mails mandando ao WhatsApp do suporte em vez de cadastrar o cartão. E o ensaio de restauração em script | `PENDENCIAS-ABERTAS.md` §2.69 e `PENDENCIAS-ABERTAS.md` §3.3 |
 | **05/11** | **A tela de Sistema diz se o backup saiu do servidor, e quanto do disco está ocupado** — antes dizia só se as variáveis existiam, e o disco não aparecia em tela nenhuma | `PENDENCIAS-ABERTAS.md` §2.68 |
 | **05/11** | **O e-mail de boas-vindas sem o endereço do site, e o "esqueci" dizendo que o e-mail tem de estar confirmado** — os dois que a revisão geral achou e não pediam decisão | `PENDENCIAS-ABERTAS.md` §2.67 |
@@ -2983,7 +2984,7 @@ e-mail e nos alertas do navegador —, e com ele sobre o site de todo cliente (�
 - **No painel do operador:** "Site esperando aprovação" na lista e na ficha; o site que espera vem primeiro no
   "pede atenção" do Início; e, na ficha, "Ver como o site está" e "Aprovar e pôr no ar", registrado. Não
   aprovar não tem botão: o que não pode ir ao ar sai pelo "Tirar do ar", com o motivo.
-- ⚠️ **Decidido na implementação — falta você confirmar: o teste de 7 dias conta da aprovação.** Aprovar põe o
+- ✅ **Decidido na implementação, confirmado por você em 10/11/2026: o teste de 7 dias conta da aprovação.** Aprovar põe o
   fim do teste no de quem se cadastrasse naquele dia — a não ser que ele já vá mais longe, porque você estendeu.
   Sem isso, cada dia de espera seria um dia a menos de teste, com o site fora do ar. E os avisos do teste não
   vão para quem espera: o prazo dele vai mudar.
@@ -3022,6 +3023,34 @@ todos e a faixa sumindo.
 **06/11/2026, o cartão:** **1413 de 1413**; o `astro check` com zero; 4 defeitos reintroduzidos, os 4 vermelhos;
 e, contra o build, com a cobrança ligada: o site que espera sem o botão e a rota respondendo 409 — e, aprovado,
 o botão de volta e a rota passando.
+
+**10/11/2026 — a aprovação continua, com prazo e com aviso a você** (decidido por você, depois de eu explicar o
+porquê; a outra opção era o site ir ao ar direto, com um filtro de palavras e você revisando depois):
+
+- **O prazo: em até 1 dia útil do cadastro.** Dito na tela de fim do cadastro, no e-mail de boas-vindas, na faixa
+  do painel, na tela de assinatura e no aviso a você — e na landing, que dizia "No ar, agendando" como se fosse
+  na hora. Mora numa constante, `PRAZO_DA_CONFERENCIA`, em `apps/barbearia/src/lib/produto.ts` e no
+  `apps/vendas/src/config.ts`; `apps/barbearia/tests/prazo-da-conferencia.test.ts` reprova se as duas divergirem
+  ou se alguém escrever o prazo à mão.
+- **O aviso a você, a cada cadastro novo pela web** (`apps/barbearia/src/lib/avisoAoOperador.ts`): um e-mail para
+  `OPERADOR_EMAIL`, com o endereço escolhido e o link da ficha — e nada do que a pessoa digitou: nem o nome da
+  barbearia, nem o do dono, nem o telefone; o assunto é fixo. ⚠️ É o golpe que o aviso poderia abrir contra você,
+  com o remetente do produto: conferir é na prévia. O endereço vem do ambiente, não de formulário, e por isso não
+  passa pela confirmação do §2.64. Sai de uma parte própria do orçamento do dia (5%, §2.66): o cadastro é
+  público, e uma enxurrada deles não leva a senha nova de ninguém. A tela de Sistema diz para onde vai — e, com
+  o cadastro aberto e sem a variável, marca o problema.
+- **O que continua igual:** o aviso é um só, na hora do cadastro. Não há lembrete se você não aprovar, e o
+  painel do dono ainda fecha 10 dias depois do cadastro sem aprovação — o caso de cima. O Início do operador
+  continua listando quem espera, o mais antigo primeiro.
+- **Achado no caminho:** o Início ordenava o site que espera junto com os prazos das outras, pela data — o
+  cadastro de hoje contra o teste que vence amanhã. Com o relógio de verdade dava certo, porque os outros prazos
+  estão sempre no futuro; o teste, com o relógio parado em 06/11, passou a falhar no dia 07. Agora quem espera
+  vai num grupo à frente (`apps/barbearia/src/lib/operadorNumeros.ts`).
+
+**Verificado, 10/11/2026:** 127 arquivos, **1428 de 1428** contra PostgreSQL 16; o `astro check` com zero nos dois
+apps; 14 defeitos reintroduzidos, os 14 vermelhos; e, contra o build, um cadastro com "Suporte Fadeline
+Regularize o Pix" no nome: o aviso a você saiu com o endereço e a ficha, sem nada do que foi digitado, e o prazo
+apareceu nas boas-vindas, na faixa do painel e na tela de assinatura — e na landing, servida pelo build dela.
 
 ---
 
@@ -4678,8 +4707,9 @@ no cadastro, a existência não.
 
 **2. Antes do primeiro cliente de verdade no ar.**
 
-- O push, o merge e o Implantar do que está na `monorepo` desde 05/11, com a migration 0020 (§2.66, §2.67,
-  §2.68, §2.69 e §2.70).
+- O merge e o Implantar do que está na `monorepo` desde 05/11, com a migration 0020 (§2.66, §2.67,
+  §2.68, §2.69 e §2.70) — o push dos 15 commits até 06/11 já foi feito; o de 10/11 ainda não. Com o
+  `OPERADOR_EMAIL` no EasyPanel.
 - O monitor externo (§3.4).
 - O backup das 03:00 visto no armazenamento de fora, e o arquivo de lá restaurado com o
   `apps/barbearia/scripts/ensaiar-restauracao.mjs` (§3.3).
@@ -4691,6 +4721,7 @@ no cadastro, a existência não.
 - A cobrança provada no sandbox (§4.14).
 - O certificado dos subdomínios — o curinga, ou o clique por barbearia na hora de aprovar (§2.70).
 - O termo na tela do cadastro (§1.2).
+- O `OPERADOR_EMAIL` configurado, e a tela de Sistema dizendo para onde o aviso de cadastro vai (§2.70).
 - Os repositórios privados e os segredos trocados.
 
 **4. Depois dos primeiros meses:** decidir se a aprovação do site novo continua (`SITE_SEM_APROVACAO`, §2.70).
