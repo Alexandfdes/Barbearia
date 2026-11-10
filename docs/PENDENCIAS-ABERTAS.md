@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **10/11, noite** | **O que dava para adiantar enquanto você testava em produção**, pedido por você: o lembrete a você do site que espera há mais de 20 horas; o boot avisando do cadastro aberto sem `OPERADOR_EMAIL` e do painel do operador só com a senha; a tela de assinatura sem prometer aviso a e-mail não confirmado; o topo do cadastro e a página "em preparação" sem pressa; o agendamento manual já com o barbeiro; o envio do backup com o motivo inteiro no log e uma segunda tentativa; e **o aceite do termo de uso no cadastro, pronto e desligado** até o texto do advogado (migration 0021) | `PENDENCIAS-ABERTAS.md` §2.70, `PENDENCIAS-ABERTAS.md` §1.2 e `PENDENCIAS-ABERTAS.md` §3.3 |
 | **10/11** | **A aprovação do site continua, com prazo e com aviso a você** — decidido por você, depois da explicação do porquê: o site novo abre **em até 1 dia útil** do cadastro, prometido nas cinco telas e e-mails que o dono vê e na landing; e cada cadastro novo manda um e-mail a você (`OPERADOR_EMAIL`), só com o endereço escolhido e o link da ficha. **E confirmadas as duas decisões da implementação de 05/11:** o teste conta da aprovação, e quem espera não recebe os avisos do teste. O passo 4 da landing deixou de dizer que o site vai ao ar na hora | `PENDENCIAS-ABERTAS.md` §2.70 |
 | **06/11** | **O cartão também espera a aprovação** — achado ao escrever o rascunho do termo de uso: com o site esperando, o dono podia cadastrar o cartão, e a primeira cobrança seguia o teste contado do cadastro, não o da aprovação, às vezes com o site ainda em preparação. Agora a rota recusa e a tela diz quando o teste começa. E o rascunho do termo e dos dois avisos de privacidade existe, com 16 perguntas para o advogado | `PENDENCIAS-ABERTAS.md` §2.70 e `PENDENCIAS-ABERTAS.md` §1.2 |
 | **05/11** | **O site novo espera a sua aprovação**, decidido por você para os primeiros meses: do cadastro pela web até você aprovar na ficha, o endereço diz "em preparação", sem nada que a pessoa escreveu, e o painel funciona inteiro — com uma prévia que só abre por um link do painel. **E o operador troca o e-mail do dono**, depois de conferir pelo WhatsApp do login: a saída de quem esqueceu a senha com o e-mail errado ou sem confirmar. ⚠️ Decidido na implementação — falta você confirmar: o teste de 7 dias conta da aprovação (✏️ *confirmado em 10/11*). Migration 0020 | `PENDENCIAS-ABERTAS.md` §2.70 |
@@ -249,6 +250,23 @@ deste repositório, que é público. Escrito a partir do código, sem consulta �
 marcados para conferir. Duas perguntas que não estavam aqui: o Marco Civil pede 6 meses de registro de acesso
 (IP, data e hora), e o sistema guarda só o das ações do suporte; e a barbearia atende menores, e o formulário
 pede a data de nascimento de quem é atendido. Escrevê-lo achou um defeito — o cartão antes da aprovação (§2.70).
+
+**10/11/2026 — o aceite no cadastro está pronto, e desligado.** O que falta para pedir o aceite é o texto, não o
+código (`apps/barbearia/src/lib/termos.ts`, migration 0021):
+
+- **Desligado enquanto `VERSAO_DOS_TERMOS` for nula** — e ela é nula: o cadastro não mostra a caixa, nada é
+  gravado, e as duas páginas, `/termos/uso` e `/termos/privacidade`, respondem 404 em produção. No
+  desenvolvimento elas abrem com a faixa de rascunho. Os textos que estão em `apps/barbearia/src/termos/` só dizem
+  que o texto final entra ali: o rascunho continua fora do repositório.
+- **Publicar é um commit:** o texto final nos dois arquivos e a versão com a data dele, juntos —
+  `apps/barbearia/tests/termos.test.ts` reprova a versão com o texto de espera no lugar. Daí em diante, o cadastro
+  pede a caixa marcada, a rota recusa sem ela (400) ou com a versão de uma página aberta antes da troca (409), e a
+  barbearia nasce com a versão e a hora gravadas (`tenants.termos_versao` e `termos_aceitos_em`, que o banco só
+  aceita juntas). As páginas ficam no endereço do painel; no de uma barbearia, vão para ele.
+- **O que ainda não existe:** pedir o aceite a quem já está dentro — as barbearias de antes, e as de uma versão
+  anterior, quando o texto mudar —; a ficha do operador mostrar o aceite; e o aviso de privacidade a quem agenda,
+  no site de cada barbearia, que é outro texto e outro endereço. Nenhum guarda o IP de quem aceitou: é uma das
+  perguntas do advogado (o Marco Civil, acima).
 
 ⚠️ **27/09/2026 — o rodapé fingia que os textos existiam.** O site de toda barbearia mostrava
 "Termos de Uso" e "Políticas de Privacidade" apontando para `#`, num site que coleta nome e
@@ -3039,9 +3057,9 @@ porquê; a outra opção era o site ir ao ar direto, com um filtro de palavras e
   passa pela confirmação do §2.64. Sai de uma parte própria do orçamento do dia (5%, §2.66): o cadastro é
   público, e uma enxurrada deles não leva a senha nova de ninguém. A tela de Sistema diz para onde vai — e, com
   o cadastro aberto e sem a variável, marca o problema.
-- **O que continua igual:** o aviso é um só, na hora do cadastro. Não há lembrete se você não aprovar, e o
-  painel do dono ainda fecha 10 dias depois do cadastro sem aprovação — o caso de cima. O Início do operador
-  continua listando quem espera, o mais antigo primeiro.
+- **O que continua igual:** ~~o aviso é um só, na hora do cadastro. Não há lembrete se você não aprovar,~~ *(mudou
+  na mesma noite: o lembrete de 20 horas, abaixo)* e o painel do dono ainda fecha 10 dias depois do cadastro sem
+  aprovação — o caso de cima. O Início do operador continua listando quem espera, o mais antigo primeiro.
 - **Achado no caminho:** o Início ordenava o site que espera junto com os prazos das outras, pela data — o
   cadastro de hoje contra o teste que vence amanhã. Com o relógio de verdade dava certo, porque os outros prazos
   estão sempre no futuro; o teste, com o relógio parado em 06/11, passou a falhar no dia 07. Agora quem espera
@@ -3051,6 +3069,42 @@ porquê; a outra opção era o site ir ao ar direto, com um filtro de palavras e
 apps; 14 defeitos reintroduzidos, os 14 vermelhos; e, contra o build, um cadastro com "Suporte Fadeline
 Regularize o Pix" no nome: o aviso a você saiu com o endereço e a ficha, sem nada do que foi digitado, e o prazo
 apareceu nas boas-vindas, na faixa do painel e na tela de assinatura — e na landing, servida pelo build dela.
+
+**10/11/2026, à noite — o que dava para adiantar enquanto você testava em produção** (pedido seu, "faça todos"):
+
+- **O lembrete a você do site que espera há mais de 20 horas** (`lembrarSitesQueEsperam`, em
+  `apps/barbearia/src/lib/avisos.ts`): a tarefa de hora em hora, a mesma dos avisos do teste, manda a
+  `OPERADOR_EMAIL` um e-mail com os sites que passaram das 20 horas desde o cadastro — o endereço, a hora do
+  cadastro e a ficha; nada do que a pessoa digitou, e o assunto só muda com a quantidade. Um e-mail por rodada,
+  com todos, e **um lembrete por site, nunca mais** (a trava é a de `avisos_enviados`, com a hora do cadastro como
+  prazo); o envio que falha tenta de novo na hora seguinte. Barbearia encerrada ou tirada do ar à mão não entra.
+  ⚠️ São 20 horas corridas, sem contar dia útil: no fim de semana o lembrete chega antes do prazo, nunca depois.
+  Sem a variável, nada fica reservado — o lembrete sai na primeira hora depois de ela entrar.
+- **O boot diz o que falta ao operador** (`apps/barbearia/scripts/operadorNoBoot.mjs`): com o cadastro aberto e
+  sem `OPERADOR_EMAIL` — ou com ele torto —, uma caixa de aviso no log; com a senha do operador e sem o segundo
+  fator, outra, com o comando que o gera; e o segundo fator ou a senha fora do formato, que fecham o painel com
+  404, também. Certo, uma linha de ✓. Nunca o valor de nada. As formas repetem as do app, e
+  `apps/barbearia/tests/operador-no-boot.test.ts` passa os mesmos valores pelas duas pontas.
+- **A tela de assinatura prometia aviso a e-mail não confirmado:** dizia "os avisos do teste e da cobrança vão
+  para <e-mail>" sem olhar a confirmação — e os avisos só leem o confirmado (§2.64). Agora diz que só chegam
+  depois de confirmar, com o caminho para a caixa do Início.
+- **Os textos de pressa:** o topo do `/cadastrar` dizia "No fim, o seu site nasce", e a tela do fim, minutos
+  depois, que ele não estava no ar; agora diz que o painel funciona no fim e o site abre em até
+  `PRAZO_DA_CONFERENCIA`, e que os 7 dias contam da abertura. Sem a aprovação (`SITE_SEM_APROVACAO=1`), a frase
+  antiga volta. E a página "em preparação" dizia "Volte daqui a pouco": agora, "Volte em breve" — quem chega
+  ali não sabe quando foi o cadastro.
+- **O agendamento manual vinha com o barbeiro em branco** mesmo na barbearia de uma pessoa só — achado no ensaio
+  do roteiro: os horários só apareciam depois de o dono escolher a si mesmo. Agora vem escolhido — o único, ou o
+  da agenda filtrada, se ele estiver ativo; o filtro de quem foi desligado volta ao "Selecione", em vez de o
+  navegador marcar o primeiro em silêncio.
+- **O envio do backup:** §3.3. **O aceite do termo:** §1.2.
+
+**Verificado, 10/11/2026 à noite:** 131 arquivos, **1475 de 1475** contra PostgreSQL 16 — e **1461 de 1461** na árvore
+sem o termo — os seis commits de antes dele, juntos; o `astro check` com zero nos dois apps; 50 defeitos
+reintroduzidos, os 50 vermelhos; a 0021 aplicada pelo `scripts/startup.mjs` num banco na 0020 com duas barbearias,
+depois do backup — e de novo, sem erro; e, contra o build, num navegador: o topo do cadastro, nenhuma caixa de
+aceite, as páginas do termo em 404 e desviadas para o painel, o "em preparação" sem pressa, a linha da assinatura
+com o link para o Início, e o agendamento manual com o barbeiro escolhido e 20 horários só de escolher o serviço.
 
 ---
 
@@ -3174,6 +3228,16 @@ antes de mandar (`Body: readFileSync(filePath)`, em `apps/barbearia/scripts/back
 arquivo das fotos junta a galeria de todas as barbearias e cresce com cada uma — e roda no
 mesmo container que atende os sites. Não medido, e só morde com as `S3_*` ligadas; o conserto
 é mandar em partes, lendo do disco aos pedaços. **Não feito.**~~
+
+⚠️ **10/11/2026 — um envio recusado, e o log sem o porquê.** O envio do backup do boot foi recusado pelo
+armazenamento com "The request body was too small", e os diários dos dias em volta subiram. A causa não se sabe:
+a mensagem não está no SDK — vem do provedor —, e o log só tinha ela. **Feito na mesma noite, como diagnóstico, não
+conserto** (`maybeUploadToS3`, em `apps/barbearia/scripts/backup.mjs`): a falha sai com o que o SDK sabe — o código
+do provedor, o status HTTP, as tentativas dele e o id do pedido —, o tamanho do arquivo e o modo do envio; e o
+envio tenta de novo, uma vez, um minuto depois. Medido contra o S3 de mentira: o SDK repete sozinho um 500, mas
+não um 400 — a segunda tentativa é nossa. Se ela passar, o log diz "na segunda tentativa", e fica sabido que a
+recusa é passageira; as duas falhando, o registro da tela de Sistema guarda o motivo da segunda. A espera é do
+daemon do backup, à parte do site: o boot não espera nada.
 
 ✅ **Feito no mesmo dia, escolhido por você:** o envio vai em partes, com uma parte de 16 MiB na
 memória por vez, e o arquivo de até 16 MiB num pedido só (`enviarParaS3`, em
@@ -4707,12 +4771,15 @@ no cadastro, a existência não.
 
 **2. Antes do primeiro cliente de verdade no ar.**
 
-- O merge e o Implantar do que está na `monorepo` desde 05/11, com a migration 0020 (§2.66, §2.67,
+- ~~O merge e o Implantar do que está na `monorepo` desde 05/11, com a migration 0020 (§2.66, §2.67,
   §2.68, §2.69 e §2.70) — o push dos 15 commits até 06/11 já foi feito; o de 10/11 ainda não. Com o
-  `OPERADOR_EMAIL` no EasyPanel.
+  `OPERADOR_EMAIL` no EasyPanel.~~ ✅ *No ar em 10/11, com a 0020 e o `OPERADOR_EMAIL`.* Falta o de 10/11 à noite —
+  o push, o merge e o Implantar, com a migration 0021 (§2.70, §1.2 e §3.3).
+- O segundo fator do painel do operador (`npm run operador:segundo-fator`): sem ele, o painel que aprova site e
+  mexe na cobrança entra só com a senha — o boot avisa desde 10/11 (§2.70).
 - O monitor externo (§3.4).
-- O backup das 03:00 visto no armazenamento de fora, e o arquivo de lá restaurado com o
-  `apps/barbearia/scripts/ensaiar-restauracao.mjs` (§3.3).
+- ~~O backup das 03:00 visto no armazenamento de fora~~ ✅ *visto em 10/11, os diários de 04 a 10/11* — e o arquivo de
+  lá restaurado com o `apps/barbearia/scripts/ensaiar-restauracao.mjs` (§3.3).
 - O site antigo do Bayron fora do servidor do produto: ele divide a máquina com o banco de todas (os
   detalhes estão no projeto do claude.ai).
 
@@ -4720,8 +4787,10 @@ no cadastro, a existência não.
 
 - A cobrança provada no sandbox (§4.14).
 - O certificado dos subdomínios — o curinga, ou o clique por barbearia na hora de aprovar (§2.70).
-- O termo na tela do cadastro (§1.2).
-- O `OPERADOR_EMAIL` configurado, e a tela de Sistema dizendo para onde o aviso de cadastro vai (§2.70).
+- O termo na tela do cadastro (§1.2): o mecanismo existe desde 10/11, desligado — falta o texto do advogado, e
+  publicar é um commit.
+- ~~O `OPERADOR_EMAIL` configurado, e a tela de Sistema dizendo para onde o aviso de cadastro vai (§2.70).~~ ✅ *Em
+  10/11; o lembrete de 20 horas vai para o mesmo endereço.*
 - Os repositórios privados e os segredos trocados.
 
 **4. Depois dos primeiros meses:** decidir se a aprovação do site novo continua (`SITE_SEM_APROVACAO`, §2.70).

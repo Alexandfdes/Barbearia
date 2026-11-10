@@ -238,9 +238,15 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   espera; `tenantDoHost`, só na prévia (`apps/barbearia/src/lib/previaDoSite.ts`). O cartão também espera: o teste
   conta da aprovação, e `abrirCheckout` recusa antes dela. O prazo prometido ao dono que espera é
   `PRAZO_DA_CONFERENCIA` (`apps/barbearia/src/lib/produto.ts` e o `config.ts` da landing), nunca escrito à mão; cada
-  cadastro avisa o operador em `OPERADOR_EMAIL`, sem texto digitado (`lib/avisoAoOperador.ts`). O padrão da coluna é
+  cadastro avisa o operador em `OPERADOR_EMAIL`, sem texto digitado (`lib/avisoAoOperador.ts`), e o site que espera há
+  mais de 20 horas ganha um lembrete, uma vez (`lembrarSitesQueEsperam`, em `lib/avisos.ts`). O padrão da coluna é
   aprovado: caminho novo que cria barbearia escreve a coluna, como `provisionarBarbearia`
   (`tests/aprovacao-do-site.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.70).
+- **O termo de uso nasce desligado** (`apps/barbearia/src/lib/termos.ts`, migration 0021): com `VERSAO_DOS_TERMOS`
+  nula, o cadastro não pede aceite e `/termos/*` dá 404 em produção. Publicar é o texto final em
+  `apps/barbearia/src/termos/*.md` e a versão, no MESMO commit — a versão é o que prova qual texto a pessoa leu. Função
+  que confere o aceite recebe a versão de quem chama, sem valor padrão (`tests/termos-publicados.test.ts`;
+  `docs/PENDENCIAS-ABERTAS.md` §1.2).
 - **Cada barbearia tem teto** (`apps/barbearia/src/lib/tetos.ts`): rota nova que cria barbeiro, serviço,
   produto ou combo — ou religa barbeiro ou serviço — passa por `recusaDoTeto` antes de gravar
   (`docs/PENDENCIAS-ABERTAS.md` §2.69).
