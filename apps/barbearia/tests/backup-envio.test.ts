@@ -18,7 +18,7 @@ import { mkdtempSync, writeFileSync, readFileSync, rmSync, mkdirSync, readdirSyn
 import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { exigirBancoDeTeste } from './guardaBanco.js';
 
@@ -29,7 +29,7 @@ const TEM_PGDUMP = spawnSync('pg_dump', ['--version'], { stdio: 'ignore' }).stat
 const MiB = 1024 * 1024;
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 
-interface Pedido { metodo: string; caminho: string; consulta: URLSearchParams; cabecalhos: IncomingMessage['headers']; bytes: number }
+interface Pedido { metodo: string; caminho: string; consulta: URLSearchParams; cabecalhos: IncomingMessage['headers']; bytes: number; em: number }
 
 /** O S3 de mentira: guarda os objetos, as partes e cada pedido que chegou. */
 class S3DeMentira {
@@ -42,6 +42,12 @@ class S3DeMentira {
   falharParte: number | null = null;
   /** Recusa tudo com 403, como uma chave apagada ou sem permissão — para provar o registro da falha. */
   recusarTudo = false;
+  /**
+   * Recusa com 400 os próximos N pedidos de PUT inteiro — para provar a segunda tentativa
+   * (10/11/2026). O código `BadRequest` é escolha do teste: qual o Backblaze usa com a mensagem
+   * "The request body was too small", não se sabe.
+   */
+  recusar400 = 0;
   private seq = 0;
 
   constructor() {
@@ -53,7 +59,7 @@ class S3DeMentira {
         const url = new URL(req.url ?? '/', 'http://s3.teste');
         const chave = decodeURIComponent(url.pathname);
         const q = url.searchParams;
-        this.pedidos.push({ metodo: req.method ?? '', caminho: chave, consulta: q, cabecalhos: req.headers, bytes: corpo.length });
+        this.pedidos.push({ metodo: req.method ?? '', caminho: chave, consulta: q, cabecalhos: req.headers, bytes: corpo.length, em: Date.now() });
         if (this.recusarTudo) {
           res.writeHead(403, { 'content-type': 'application/xml' });
           return res.end('<?xml version="1.0" encoding="UTF-8"?><Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>');
@@ -84,6 +90,11 @@ class S3DeMentira {
           res.writeHead(204);
           return res.end();
         }
+        if (req.method === 'PUT' && this.recusar400 > 0) {
+          this.recusar400--;
+          res.writeHead(400, { 'content-type': 'application/xml', 'x-amz-request-id': 'pedido-de-teste-400' });
+          return res.end('<?xml version="1.0" encoding="UTF-8"?><Error><Code>BadRequest</Code><Message>The request body was too small</Message></Error>');
+        }
         if (req.method === 'PUT') {
           this.objetos.set(chave, corpo);
           res.writeHead(200, { ETag: `"${sha(corpo).slice(0, 8)}"` });
@@ -102,6 +113,7 @@ class S3DeMentira {
 
   limpar() {
     this.objetos.clear(); this.envios.clear(); this.pedidos = []; this.cancelados = []; this.falharParte = null; this.recusarTudo = false;
+    this.recusar400 = 0;
   }
 }
 
@@ -192,6 +204,29 @@ describe('o envio para fora da VPS', () => {
     expect(s3.pedidos.some((p) => p.metodo === 'POST' && p.consulta.has('uploadId'))).toBe(false);
   });
 
+  it('o SDK não repete um 400 — por isso a segunda tentativa é nossa (medido em 10/11/2026)', async () => {
+    const arquivo = join(pasta, 'recusado.sql.gz');
+    writeFileSync(arquivo, randomBytes(64 * 1024));
+    s3.recusar400 = 1;
+    const erro = await backup.enviarParaS3(arquivo, { env: envDoS3() }).catch((e: unknown) => e) as Record<string, unknown>;
+    expect(erro).toBeInstanceOf(Error);
+    expect(s3.pedidos.filter((p) => p.metodo === 'PUT')).toHaveLength(1);
+    // O que `detalheDaFalha` lê do erro do SDK.
+    expect(backup.detalheDaFalha(erro)).toBe('BadRequest, HTTP 400, pedido pedido-de-teste-400');
+    expect(backup.detalheDaFalha(new Error('o arquivo sumiu'))).toBe('');
+    expect(backup.detalheDaFalha('texto')).toBe('');
+  });
+
+  it('controle: o 500 o SDK repete sozinho, e o detalhe conta as tentativas dele', async () => {
+    const arquivo = join(pasta, 'cai-sempre.tar.gz');
+    writeFileSync(arquivo, randomBytes(11 * MiB));
+    s3.falharParte = 1;
+    const erro = await backup.enviarParaS3(arquivo, { env: envDoS3(), parte: 5 * MiB }).catch((e: unknown) => e);
+    const tentativasDaParte = s3.pedidos.filter((p) => p.metodo === 'PUT' && p.consulta.get('partNumber') === '1').length;
+    expect(tentativasDaParte).toBeGreaterThan(1);
+    expect(backup.detalheDaFalha(erro)).toBe(`InternalError, HTTP 500, ${tentativasDaParte} tentativas do SDK`);
+  }, 30_000);
+
   it('o código não volta a ler o arquivo inteiro para mandar', () => {
     const fonte = readFileSync('scripts/backup.mjs', 'utf8')
       .split('\n').filter((l) => !/^\s*(\/\/|\*)/.test(l)).join('\n');
@@ -248,18 +283,22 @@ describe.skipIf(!TEM_BANCO || !TEM_PGDUMP)('o backup de verdade, com o envio lig
       expect(mod.REGISTRO_DA_FALHA_DO_ENVIO).toBe(sistema.REGISTRO_DA_FALHA_DO_ENVIO);
 
       s3.recusarTudo = true;
-      const r = await mod.runBackup() as { dest: string; uploaded: boolean };
+      const r = await mod.runBackup({ esperaDaNovaTentativaMs: 20 }) as { dest: string; uploaded: boolean };
       expect(r.uploaded).toBe(false);
       expect(r.dest).toBeTruthy(); // o backup local ficou
+      // Duas tentativas, a nossa e a segunda (10/11/2026) — e o SDK não repete o 403.
+      expect(s3.pedidos.filter((p) => p.metodo === 'PUT' && p.caminho.endsWith(basename(r.dest)))).toHaveLength(2);
       const falha = JSON.parse(readFileSync(join(pastaBackup, 'envio-para-fora.falhou'), 'utf8'));
       expect(falha.motivo).toMatch(/Access Denied/);
+      // O motivo leva o que o SDK sabe: o código e o status — é o que faltava em 10/11.
+      expect(falha.motivo).toMatch(/\[AccessDenied, HTTP 403/);
       expect(readdirSync(pastaBackup)).not.toContain('envio-para-fora.ok');
       let lido = sistema.envioParaForaNaPasta(pastaBackup);
       expect(lido.ultimoCerto).toBeNull();
       expect(lido.ultimaFalha?.motivo).toMatch(/Access Denied/);
 
       s3.recusarTudo = false;
-      expect((await mod.runBackup() as { uploaded: boolean }).uploaded).toBe(true);
+      expect((await mod.runBackup({ esperaDaNovaTentativaMs: 20 }) as { uploaded: boolean }).uploaded).toBe(true);
       expect(readdirSync(pastaBackup)).toContain('envio-para-fora.ok');
       expect(readdirSync(pastaBackup)).not.toContain('envio-para-fora.falhou');
       lido = sistema.envioParaForaNaPasta(pastaBackup);
@@ -269,6 +308,44 @@ describe.skipIf(!TEM_BANCO || !TEM_PGDUMP)('o backup de verdade, com o envio lig
       vi.unstubAllEnvs();
     }
   }, 60_000);
+
+  it('a recusa que passa: a segunda tentativa sobe, o log diz o porquê da primeira, e nada fica como falha (10/11/2026)', async () => {
+    const pastaBackup = join(pasta, 'backups');
+    vi.resetModules();
+    vi.stubEnv('BACKUP_DIR', pastaBackup);
+    vi.stubEnv('UPLOAD_ROOT', join(pasta, 'sem-fotos'));
+    for (const [k, v] of Object.entries(envDoS3())) vi.stubEnv(k, v);
+    const erros: string[] = [];
+    const certos: string[] = [];
+    const espiaErro = vi.spyOn(console, 'error').mockImplementation((...a) => { erros.push(a.join(' ')); });
+    const espiaLog = vi.spyOn(console, 'log').mockImplementation((...a) => { certos.push(a.join(' ')); });
+    try {
+      const mod = await import('../scripts/backup.mjs');
+      expect(mod.ESPERA_DA_NOVA_TENTATIVA_MS).toBe(60_000);
+      s3.recusar400 = 1;
+      const r = await mod.runBackup({ esperaDaNovaTentativaMs: 400 }) as { dest: string; uploaded: boolean };
+      expect(r.uploaded).toBe(true);
+      expect(s3.objetos.get(`/backups-teste/backups/${basename(r.dest)}`)).toBeDefined();
+      // A segunda tentativa espera — não sai colada na primeira.
+      const doBanco = s3.pedidos.filter((p) => p.metodo === 'PUT' && p.caminho.endsWith(basename(r.dest)));
+      expect(doBanco).toHaveLength(2);
+      expect(doBanco[1].em - doBanco[0].em).toBeGreaterThanOrEqual(380);
+      const log = erros.join('\n');
+      expect(log).toMatch(/✕ Upload off-site falhou \(backup local preservado\): The request body was too small \[BadRequest, HTTP 400, pedido pedido-de-teste-400\]/);
+      // O tamanho e o modo, que decidem o caminho do envio.
+      expect(log).toMatch(new RegExp(`${basename(r.dest).replace(/\./g, '\\.')}: \\d+ KiB \\(\\d+ bytes\\), num pedido só`));
+      expect(log).toMatch(/Nova tentativa em 0 s\./); // 400 ms, arredondados
+      expect(certos.join('\n')).toMatch(/✓ Upload off-site: .* — na segunda tentativa/);
+      expect(readdirSync(pastaBackup)).toContain('envio-para-fora.ok');
+      expect(readdirSync(pastaBackup)).not.toContain('envio-para-fora.falhou');
+      // Nenhuma credencial no log.
+      expect(log).not.toMatch(/segredo-de-teste|chave-de-teste/);
+    } finally {
+      espiaErro.mockRestore();
+      espiaLog.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  }, 30_000);
 
   it('sem as S3_*, nada é registrado — não há envio para dizer que falhou', async () => {
     const pastaBackup = join(pasta, 'backups');
