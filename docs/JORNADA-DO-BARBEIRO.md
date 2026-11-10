@@ -64,11 +64,11 @@ flowchart TD
 | 2 | Cria a conta: nome, endereço do site, WhatsApp, e-mail, senha | ⚠️ existe; falta o termo aceito |
 | 3 | Horário, serviços e preços | ✅ |
 | 4 | Escolhe a cor e a frase do topo, vendo a prévia | ✅ desde 08/10 — um layout só, por decisão |
-| 5 | Cadastra o cartão | ⚠️ desde 10/10, no fim do teste, pela tela de assinatura — no código, sem a prova no sandbox (`PENDENCIAS-ABERTAS.md` §4.14) |
+| 5 | Cadastra o cartão | ⚠️ desde 10/10, no fim do teste, pela tela de assinatura — no código, sem a prova no sandbox (`PENDENCIAS-ABERTAS.md` §4.14); desde 06/11, só depois da aprovação do site (`PENDENCIAS-ABERTAS.md` §2.70) |
 | 6 | A barbearia é criada | ✅ no teste, com a data de fim gravada, desde 08/10 |
 | 7 | Entra no painel | ✅ já logado, desde 25/09 |
-| 8 | O site vai ao ar | ⚠️ a tela de fim confere o endereço antes de dizer "no ar", desde 10/10; falta o certificado curinga |
-| 9 | Os 7 dias grátis | ⚠️ a contagem no painel existe desde 08/10, e o aviso por e-mail desde 09/10 — falta o provedor de envio |
+| 8 | O site vai ao ar | ⚠️ desde 05/11, depois da sua aprovação — prometida em até 1 dia útil, com o aviso a você desde 10/11 (`PENDENCIAS-ABERTAS.md` §2.70); falta o certificado curinga, ou o clique por subdomínio na hora de aprovar |
+| 9 | Os 7 dias grátis | ⚠️ a contagem no painel existe desde 08/10, e o aviso por e-mail desde 09/10, com o provedor de envio em produção desde 03/11 (`PENDENCIAS-ABERTAS.md` §2.65); desde 05/11, os 7 dias contam da aprovação do site |
 | 10 | A primeira cobrança, e o que vem depois | ⚠️ a carência e o site fora do ar desde 08/10; a cobrança e o cancelar desde 10/10, sem a prova no sandbox |
 
 **O que já dá para mostrar hoje, de ponta a ponta,** na sua máquina, com
@@ -428,6 +428,14 @@ confirmar, e de novo se o endereço mudar (`PENDENCIAS-ABERTAS.md` §2.33).
 
 ### 2.8 Passo 8 — O site no ar
 
+> ✏️ **05 e 10/11/2026 — o site do cadastro pela web espera a sua aprovação**, nos primeiros meses
+> (`PENDENCIAS-ABERTAS.md` §2.70). A tela de fim diz *"A sua barbearia existe."* e que o site abre
+> depois de uma conferência nossa, **em até 1 dia útil** (o prazo é de 10/11, e mora numa constante:
+> `PRAZO_DA_CONFERENCIA`, em `apps/barbearia/src/lib/produto.ts`); o endereço mostra "em preparação",
+> o painel funciona inteiro, e o dono vê o site pela prévia. Você recebe um e-mail a cada cadastro
+> (`OPERADOR_EMAIL`, `apps/barbearia/src/lib/avisoAoOperador.ts`) e aprova na ficha. O que está abaixo
+> continua valendo para o site que nasce aprovado — o do `db:provisionar`, ou com `SITE_SEM_APROVACAO=1`.
+
 **O que ele vê.** ✅ *Desde 10/10/2026, só depois de conferir:* a tela pede ao endereço novo,
 do navegador do dono, uma imagem que só o app serve — se ela carrega, o caminho inteiro
 funciona: o DNS, o certificado, o proxy, o app e a barbearia achada pelo endereço. Aí, *"O seu
@@ -510,6 +518,10 @@ sem a cor e a frase, que passaram a ser pedidas no próprio cadastro (passo 4).
 ### 2.9 Passo 9 — Os 7 dias
 
 **Hoje: ⚠️**, desde 08/10/2026.
+
+> ✏️ **Desde 05/11/2026, para o site que espera a aprovação, os 7 dias contam da aprovação** —
+> confirmado por você em 10/11 (`PENDENCIAS-ABERTAS.md` §2.70). Enquanto ele espera, a faixa do teste
+> e os avisos por e-mail não aparecem: a data ainda vai mudar.
 
 - **A contagem existe.** Toda tela do painel tem a faixa do teste — *"Teste grátis: faltam
   7 dias, até 15/10."* —, que vira alerta na véspera e no último dia, com o botão para a tela

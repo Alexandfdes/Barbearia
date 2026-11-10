@@ -1,7 +1,7 @@
 # Estado atual do código — comece por aqui
 
 > Registro vivo de **onde o código está**, para quem chega ao projeto ou volta
-> depois de um tempo. Atualizado: 06/11/2026 (§8).
+> depois de um tempo. Atualizado: 10/11/2026 (§8).
 >
 > Companheiro de `PENDENCIAS-ABERTAS.md` (o que ainda não foi **decidido**).
 > Este documento é sobre o que já foi **feito** e o que está pela metade.
@@ -368,6 +368,7 @@ dono não reparou vira o preço no site dele.
 
 | Quando | O quê |
 |---|---|
+| 10/11 | **A aprovação do site continua, com prazo e com aviso** (`PENDENCIAS-ABERTAS.md` §2.70), decidido pelo dono: o site novo abre em até 1 dia útil do cadastro — dito nas telas e e-mails que o dono vê e na landing, por uma constante só (`PRAZO_DA_CONFERENCIA`) —, e cada cadastro novo manda um e-mail ao operador (`OPERADOR_EMAIL`), só com o endereço escolhido e o link da ficha, numa parte própria do orçamento de e-mail. Confirmados o teste contado da aprovação e os avisos que não vão para quem espera. E o Início do operador põe quem espera num grupo à frente — o teste, com o relógio parado, falhava desde 07/11. **Verificado:** 127 arquivos, **1428 de 1428** contra PostgreSQL 16; `astro check` com zero nos dois apps; 14 defeitos reintroduzidos, os 14 vermelhos; e contra o build dos dois apps |
 | 06/11 | **O cartão espera a aprovação do site** (`PENDENCIAS-ABERTAS.md` §2.70): achado ao escrever o rascunho do termo de uso — com o site esperando, o cartão cadastrado fazia a primeira cobrança seguir o teste contado do cadastro, às vezes com o site ainda em preparação. A rota recusa, e a tela diz quando o teste começa. **Verificado:** 125 arquivos, **1413 de 1413** contra PostgreSQL 16; `astro check` com zero; 4 defeitos reintroduzidos, os 4 vermelhos; e contra o build, com a cobrança ligada. E o rascunho do termo e dos avisos de privacidade, com as perguntas para o advogado, num documento do claude.ai (`PENDENCIAS-ABERTAS.md` §1.2) |
 | 05/11 | **O site novo espera a sua aprovação, e o operador troca o e-mail do dono** (`PENDENCIAS-ABERTAS.md` §2.70, migration 0020): do cadastro pela web até você aprovar na ficha, o endereço diz "em preparação", sem nada que a pessoa escreveu; o painel funciona, com uma prévia por um link de 2 minutos; o teste conta da aprovação (⚠️ decidido na implementação). E a troca do e-mail do dono, depois de conferir pelo WhatsApp do login. **E o ensaio de restauração em script** (`PENDENCIAS-ABERTAS.md` §3.3). **Verificado:** 125 arquivos, **1411 de 1411**; `astro check` zero; 59 desfeitos e vermelhos; 43 conferências contra o build |
 | 05/11 | **O que a revisão de 05/11 deixou e não pedia decisão** (`PENDENCIAS-ABERTAS.md` §2.69): o `www` para a raiz, os tetos de cada barbearia, 7 cópias das fotos no disco, e, sem a cobrança, o caminho do suporte em vez do cartão |

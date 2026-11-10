@@ -236,7 +236,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **O site novo do cadastro pela web espera a aprovação do operador** (`tenants.site_aprovado_em`, migration
   0020): o endereço diz "em preparação", sem nada digitado, e o painel funciona. `resolverHost` não serve quem
   espera; `tenantDoHost`, só na prévia (`apps/barbearia/src/lib/previaDoSite.ts`). O cartão também espera: o teste
-  conta da aprovação, e `abrirCheckout` recusa antes dela. O padrão da coluna é
+  conta da aprovação, e `abrirCheckout` recusa antes dela. O prazo prometido ao dono que espera é
+  `PRAZO_DA_CONFERENCIA` (`apps/barbearia/src/lib/produto.ts` e o `config.ts` da landing), nunca escrito à mão; cada
+  cadastro avisa o operador em `OPERADOR_EMAIL`, sem texto digitado (`lib/avisoAoOperador.ts`). O padrão da coluna é
   aprovado: caminho novo que cria barbearia escreve a coluna, como `provisionarBarbearia`
   (`tests/aprovacao-do-site.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.70).
 - **Cada barbearia tem teto** (`apps/barbearia/src/lib/tetos.ts`): rota nova que cria barbeiro, serviço,
