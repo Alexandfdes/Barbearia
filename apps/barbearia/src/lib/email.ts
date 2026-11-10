@@ -25,15 +25,58 @@
  * público de cadastro e entra no corpo: em HTML, ele teria que ser escapado em
  * cada aviso, e o primeiro esquecido vira link falso dentro de um e-mail com o
  * NOSSO remetente. Em texto puro não há o que escapar.
+ *
+ * ── O ORÇAMENTO DO DIA (05/11/2026) ──────────────────────────────────────────
+ *
+ * O provedor dá um tanto de e-mails por dia para TODAS as barbearias juntas — o
+ * Brevo grátis, 300. Até aqui, nada contava: remarcar pelo link do cliente, sem
+ * conta, mandava dois e-mails por remarcação, sem limite (20 remarcações, 40
+ * e-mails, em menos de um segundo), e criar barbeiro com e-mail mandava uma
+ * confirmação por barbeiro, também sem limite. Gasto o dia, a senha nova de todo
+ * mundo parava junto (`docs/PENDENCIAS-ABERTAS.md` §2.66).
+ *
+ * Por isso todo e-mail diz de que barbearia é e de que tipo (`Email`), e
+ * `enviarEmail` recusa o que não cabe — nas últimas 24 horas:
+ *
+ *  - no total, `EMAIL_LIMITE_DIARIO` (280 sem a variável: os 300 do Brevo grátis,
+ *    com folga);
+ *  - os avisos de agenda, até 60% disso: o resto fica para a senha nova, a
+ *    confirmação e os avisos do teste e da cobrança, que visitante nenhum dispara;
+ *  - por barbearia, até 20% em avisos de agenda e 10% em senha e confirmação: uma
+ *    barbearia sob ataque — ou um cadastro mal-intencionado — não leva o dia das
+ *    outras, e a senha nova dela não para porque os avisos dela acabaram;
+ *  - os avisos ao operador de cadastro novo (10/11/2026, `lib/avisoAoOperador.ts`),
+ *    até 5%: o cadastro é público, e uma enxurrada deles não leva o dia — passado da
+ *    parte, o Início do operador continua listando quem espera.
+ *
+ * ⚠️ A conta fica na memória do processo, como os limites de tentativa
+ * (`lib/rateLimit.ts`): todo deploy a zera. Num dia de deploy, o app pode passar do
+ * limite do provedor — e aí quem recusa é ele. Trocar de plano no provedor é trocar
+ * `EMAIL_LIMITE_DIARIO`.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NOME_PRODUTO } from './produto.js';
 
+/**
+ * De que parte do orçamento o e-mail sai:
+ *  - `seguranca` — a senha nova, a confirmação do e-mail (com as boas-vindas) e o
+ *    aviso de e-mail trocado;
+ *  - `conta` — os avisos do teste e da cobrança (`lib/avisos.ts`);
+ *  - `agenda` — o aviso de agendamento (`lib/avisoDeAgenda.ts`), que um visitante do
+ *    site dispara;
+ *  - `operador` — o aviso ao operador de cadastro novo (`lib/avisoAoOperador.ts`), que
+ *    quem se cadastra dispara.
+ */
+export type TipoDeEmail = 'seguranca' | 'conta' | 'agenda' | 'operador';
+
 export interface Email {
   para: string;
   assunto: string;
   texto: string;
+  /** A barbearia de quem o e-mail é — o orçamento conta por ela. `null`: de nenhuma. */
+  barbearia: number | null;
+  tipo: TipoDeEmail;
 }
 
 export interface EmailEnviado extends Email {
@@ -96,10 +139,87 @@ export function remetente(env: Ambiente = process.env): string {
   return `${NOME_PRODUTO} <nao-responda@${dominio}>`;
 }
 
+/** Sem a variável — os 300 por dia do Brevo grátis, com folga. Ver o cabeçalho. */
+export const LIMITE_DIARIO_PADRAO = 280;
+const DIA_MS = 24 * 60 * 60 * 1000;
+
+/** `EMAIL_LIMITE_DIARIO`, se for um número inteiro positivo; senão, o padrão. */
+export function limiteDiario(env: Ambiente = process.env): number {
+  const lido = Number(env.EMAIL_LIMITE_DIARIO?.trim() || NaN);
+  return Number.isInteger(lido) && lido > 0 ? lido : LIMITE_DIARIO_PADRAO;
+}
+
+/** As partes do limite. Cada uma deixa passar pelo menos um, mesmo com um limite pequeno. */
+export function partesDoOrcamento(limite: number) {
+  return {
+    total: limite,
+    agenda: Math.max(1, Math.floor(limite * 0.6)),
+    agendaPorBarbearia: Math.max(1, Math.floor(limite * 0.2)),
+    segurancaPorBarbearia: Math.max(1, Math.floor(limite * 0.1)),
+    operador: Math.max(1, Math.floor(limite * 0.05)),
+  };
+}
+
+interface Gasto { em: number; barbearia: number | null; tipo: TipoDeEmail }
+/** Os e-mails que saíram nas últimas 24 horas, do mais velho para o mais novo. */
+const gastos: Gasto[] = [];
+/** Quando cada recusa do orçamento aconteceu — para a tela de Sistema. */
+const recusas: number[] = [];
+
+function esquecerOVelho(agora: number): void {
+  while (gastos.length > 0 && gastos[0].em <= agora - DIA_MS) gastos.shift();
+  while (recusas.length > 0 && recusas[0] <= agora - DIA_MS) recusas.shift();
+}
+
+/** Por que este e-mail não cabe no orçamento agora — ou `null`, se cabe. */
+export function foraDoOrcamento(
+  tipo: TipoDeEmail, barbearia: number | null, agora: number = Date.now(), env: Ambiente = process.env,
+): string | null {
+  esquecerOVelho(agora);
+  const p = partesDoOrcamento(limiteDiario(env));
+  if (gastos.length >= p.total) return `o limite do dia acabou: ${p.total} e-mails em 24 horas (EMAIL_LIMITE_DIARIO)`;
+  if (tipo === 'agenda') {
+    const deAgenda = gastos.filter((g) => g.tipo === 'agenda');
+    if (deAgenda.length >= p.agenda) return `a parte dos avisos de agenda acabou: ${p.agenda} em 24 horas, de ${p.total}`;
+    if (barbearia !== null && deAgenda.filter((g) => g.barbearia === barbearia).length >= p.agendaPorBarbearia) {
+      return `a barbearia ${barbearia} chegou a ${p.agendaPorBarbearia} avisos de agenda em 24 horas`;
+    }
+  }
+  if (tipo === 'operador' && gastos.filter((g) => g.tipo === 'operador').length >= p.operador) {
+    return `a parte dos avisos ao operador acabou: ${p.operador} em 24 horas, de ${p.total}`;
+  }
+  if (tipo === 'seguranca' && barbearia !== null
+      && gastos.filter((g) => g.tipo === 'seguranca' && g.barbearia === barbearia).length >= p.segurancaPorBarbearia) {
+    return `a barbearia ${barbearia} chegou a ${p.segurancaPorBarbearia} e-mails de senha e confirmação em 24 horas`;
+  }
+  return null;
+}
+
+export interface UsoDoOrcamento {
+  limite: number;
+  usados: number;
+  porTipo: Record<TipoDeEmail, number>;
+  recusados: number;
+}
+
+/** Quanto do orçamento as últimas 24 horas gastaram — desde que o processo subiu, no máximo. */
+export function usoDoOrcamento(agora: number = Date.now(), env: Ambiente = process.env): UsoDoOrcamento {
+  esquecerOVelho(agora);
+  const porTipo: Record<TipoDeEmail, number> = { seguranca: 0, conta: 0, agenda: 0, operador: 0 };
+  for (const g of gastos) porTipo[g.tipo]++;
+  return { limite: limiteDiario(env), usados: gastos.length, porTipo, recusados: recusas.length };
+}
+
+/** Para os testes: o orçamento volta a zero, como depois de um deploy. */
+export function zerarOrcamentoDeEmail(): void {
+  gastos.length = 0;
+  recusas.length = 0;
+}
+
 /**
  * Manda o e-mail pelo transporte do ambiente. Devolve o que saiu; recusa com
  * `EmailNaoEnviado` quando não sai — destinatário sem forma de e-mail, envio não
- * configurado, provedor fora do ar.
+ * configurado, fora do orçamento do dia, provedor fora do ar.
  */
 export async function enviarEmail(email: Email): Promise<EmailEnviado> {
   const para = normalizarEmail(email.para);
@@ -107,32 +227,54 @@ export async function enviarEmail(email: Email): Promise<EmailEnviado> {
     throw new EmailNaoEnviado(`Destinatário sem forma de e-mail: "${email.para}".`);
   }
 
+  const transporte = transporteDeEmail();
+  if (transporte === 'nenhum') {
+    throw new EmailNaoEnviado(
+      'O envio de e-mail não está configurado: defina SMTP_URL (ver docs/PENDENCIAS-ABERTAS.md §4.17).',
+    );
+  }
+
+  // A conta e o registro sem `await` no meio: dois envios ao mesmo tempo não passam
+  // os dois pela última vaga.
+  const agora = Date.now();
+  const motivo = foraDoOrcamento(email.tipo, email.barbearia, agora);
+  if (motivo) {
+    recusas.push(agora);
+    throw new EmailNaoEnviado(`Fora do orçamento de e-mail: ${motivo}.`);
+  }
+  const gasto: Gasto = { em: agora, barbearia: email.barbearia, tipo: email.tipo };
+  gastos.push(gasto);
+
   const enviado: EmailEnviado = {
     para,
     // Quebra de linha no assunto viraria cabeçalho novo. O nome da barbearia
     // chega aqui, e ele vem de um formulário público.
     assunto: email.assunto.replace(/[\r\n]+/g, ' ').trim(),
     texto: email.texto,
+    barbearia: email.barbearia,
+    tipo: email.tipo,
     de: remetente(),
     respostaPara: process.env.EMAIL_RESPONDER_PARA?.trim() || null,
-    enviadoEm: new Date(),
+    enviadoEm: new Date(agora),
   };
 
-  const transporte = transporteDeEmail();
-  switch (transporte) {
-    case 'memoria':
-      caixaDeSaida.push(enviado);
-      return enviado;
-    case 'arquivo':
-      gravarEmArquivo(enviado, process.env.EMAIL_PASTA?.trim() || join('data', 'emails'));
-      return enviado;
-    case 'smtp':
-      await enviarPorSmtp(enviado, process.env.SMTP_URL!.trim());
-      return enviado;
-    case 'nenhum':
-      throw new EmailNaoEnviado(
-        'O envio de e-mail não está configurado: defina SMTP_URL (ver docs/PENDENCIAS-ABERTAS.md §4.17).',
-      );
+  try {
+    switch (transporte) {
+      case 'memoria':
+        caixaDeSaida.push(enviado);
+        return enviado;
+      case 'arquivo':
+        gravarEmArquivo(enviado, process.env.EMAIL_PASTA?.trim() || join('data', 'emails'));
+        return enviado;
+      case 'smtp':
+        await enviarPorSmtp(enviado, process.env.SMTP_URL!.trim());
+        return enviado;
+    }
+  } catch (erro) {
+    // Não saiu: não gastou do provedor.
+    const i = gastos.indexOf(gasto);
+    if (i >= 0) gastos.splice(i, 1);
+    throw erro;
   }
 }
 

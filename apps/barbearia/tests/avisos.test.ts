@@ -101,6 +101,18 @@ describe('o texto do aviso', () => {
     expect(assunto(dia14)).toBe('Barbearia do Zé: o teste grátis termina amanhã');
     expect(assunto(dia15)).toBe('Barbearia do Zé: o teste grátis termina hoje');
   });
+
+  it('com a cobrança desligada, o aviso manda ao WhatsApp do suporte — não a cadastrar o cartão (05/11/2026)', async () => {
+    const { linkDoSuporte } = await import('../src/lib/produto.ts');
+    for (const agora of [local('2026-10-13T09:00:00'), local('2026-10-17T09:00:00'), local('2026-10-19T09:00:00')]) {
+      const s = noTeste(agora);
+      const devido = avisos.avisoDevido(s, FORTALEZA, agora)!;
+      const { texto } = avisos.textoDoAviso(devido.tipo, s, d, agora, false);
+      expect(texto).toContain(explicacaoDaSituacao(s, FORTALEZA, agora, false));
+      expect(texto).toContain(linkDoSuporte());
+      expect(texto).not.toMatch(/cadastre o cartão/i);
+    }
+  });
 });
 
 describe('o token da tarefa', () => {
@@ -204,6 +216,9 @@ describe.skipIf(!TEM_BANCO)('a tarefa, contra o banco', () => {
       'dono@carencia.com | Barbearia Carência: o teste grátis acabou',
       'dono@fora.com | Barbearia Fora: o site saiu do ar',
     ]);
+    // A parte do orçamento de onde saem (`lib/email.ts`): a da conta, cada um com a barbearia dele.
+    expect(email.caixaDeSaida.every((e) => e.tipo === 'conta')).toBe(true);
+    expect(new Set(email.caixaDeSaida.map((e) => e.barbearia)).size).toBe(4);
     // O link do aviso aponta para a tela de assinatura do painel.
     expect(email.caixaDeSaida[0].texto).toContain('https://painel.fadeline.com.br/admin/assinatura');
   });

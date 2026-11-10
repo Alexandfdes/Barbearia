@@ -33,6 +33,14 @@ export const PRECO = {
   mesesBonus: 2,
 };
 
+/**
+ * Em quanto tempo o site novo abre: ele espera a conferência do operador (05/11/2026), e o prazo
+ * prometido é este (10/11/2026). O painel tem o dele (`PRAZO_DA_CONFERENCIA`, em
+ * `apps/barbearia/src/lib/produto.ts`), e `apps/barbearia/tests/prazo-da-conferencia.test.ts`
+ * reprova se divergirem. Sempre depois de "em até".
+ */
+export const PRAZO_DA_CONFERENCIA = '1 dia útil';
+
 /** O que o cliente paga no plano anual, à vista. */
 export const PRECO_ANUAL = PRECO.mensal * (12 - PRECO.mesesBonus);
 

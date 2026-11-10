@@ -147,4 +147,31 @@ describe.skipIf(!TEM_BANCO || !TEM_PGDUMP)('o backup das fotos', () => {
 
     expect(readdirSync(pastaBackup)).not.toContain('barbearia_2020-01-01-00-00-00-fotos.tar.gz');
   });
+
+  it('das fotos ficam só as 7 cópias mais novas — e o banco continua com o prazo inteiro (05/11/2026)', async () => {
+    // Cada arquivo de fotos é a pasta INTEIRA de todas as barbearias: com 30 dias, eram 30 cópias
+    // inteiras no disco do banco (`docs/PENDENCIAS-ABERTAS.md` §2.69).
+    const antigo = (nome: string, diasAtras: number) => {
+      const p = join(pastaBackup, nome);
+      writeFileSync(p, 'x');
+      const t = new Date(Date.now() - diasAtras * 24 * 60 * 60 * 1000);
+      utimesSync(p, t, t);
+    };
+    for (let d = 1; d <= 10; d++) antigo(`barbearia_2026-10-${String(30 - d).padStart(2, '0')}-03-00-00-fotos.tar.gz`, d);
+    for (let d = 1; d <= 3; d++) antigo(`barbearia_2026-10-${String(30 - d).padStart(2, '0')}-03-00-00.sql.gz`, d);
+
+    const r = await backupCom(pastaFotos);
+
+    const fotos = readdirSync(pastaBackup).filter((n) => n.endsWith('-fotos.tar.gz')).sort();
+    expect(fotos).toHaveLength(7);
+    expect(fotos).toContain(String(r.fotos).split(/[\\/]/).pop());
+    // As mais velhas saíram: as de 7 a 10 dias atrás.
+    for (let d = 7; d <= 10; d++) expect(fotos).not.toContain(`barbearia_2026-10-${String(30 - d).padStart(2, '0')}-03-00-00-fotos.tar.gz`);
+    // O banco: as três de antes e a de agora — o prazo dele é o de dias, não o de cópias.
+    expect(readdirSync(pastaBackup).filter((n) => n.endsWith('.sql.gz'))).toHaveLength(4);
+
+    vi.stubEnv('BACKUP_FOTOS_LOCAIS', '2');
+    await backupCom(pastaFotos);
+    expect(readdirSync(pastaBackup).filter((n) => n.endsWith('-fotos.tar.gz'))).toHaveLength(2);
+  });
 });

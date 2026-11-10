@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '../../../../db/index.js';
 import { services } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
+import { recusaDoTeto } from '../../../../lib/tetos.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 
@@ -38,9 +39,15 @@ export const PUT: APIRoute = async ({ request, params }) => {
 
   if (Object.keys(updates).length === 0) return json({ error: 'Nenhum campo para atualizar' }, 400);
 
-  const rows = await db.select({ id: services.id, priceCents: services.priceCents })
+  const rows = await db.select({ id: services.id, priceCents: services.priceCents, active: services.active })
     .from(services).where(and(eq(services.id, id), eq(services.tenantId, tenant.id)));
   if (rows.length === 0) return json({ error: 'Serviço não encontrado' }, 404);
+
+  // Religar conta no teto, como criar (`lib/tetos.ts`).
+  if (parsed.data.active === true && !rows[0].active) {
+    const cheio = await recusaDoTeto('servicosAtivos', tenant.id);
+    if (cheio) return json({ error: cheio }, 409);
+  }
 
   // ⚠️ Não dá para ativar serviço sem preço.
   //

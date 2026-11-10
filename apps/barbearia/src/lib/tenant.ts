@@ -34,6 +34,7 @@ import { armazemTenant } from '../db/contexto.js';
 import { tenants as tenantsTable } from '../db/schema.js';
 import { situacaoDe, noAr, type StatusDaBarbearia } from './situacao.js';
 import { TZ_PADRAO } from './timezone.js';
+import { emPrevia } from './previaDoSite.js';
 
 export interface Tenant {
   id: number;
@@ -56,10 +57,19 @@ export interface Tenant {
    * lê por `fusoDe(tenant)`, de `lib/timezone.ts` — nunca o relógio do processo.
    */
   fuso: string;
+  /**
+   * O site espera a aprovação do operador (`site_aprovado_em` nulo, migration 0020): o painel
+   * funciona, e o endereço só mostra o site na prévia (`lib/previaDoSite.ts`). Ausente é
+   * aprovado — o caso de toda barbearia que não veio do cadastro pela web.
+   */
+  emPreparacao?: boolean;
 }
 
 /** No ar AGORA: pagando, no teste ou na carência. */
 const estaNoAr = (t: Tenant | undefined | null): t is Tenant => Boolean(t) && noAr(situacaoDe(t as Tenant));
+
+/** No ar e com o site aprovado (migration 0020): o site abre para qualquer um. */
+const publico = (t: Tenant | undefined | null): t is Tenant => estaNoAr(t) && !t.emPreparacao;
 
 /**
  * A barbearia única de antes dos tenants.
@@ -106,6 +116,7 @@ export async function carregarTenants(forcar = false): Promise<void> {
     carenciaAte: tenantsTable.carenciaAte,
     encerraEm: tenantsTable.subscriptionEndsAt,
     fuso: tenantsTable.timezone,
+    siteAprovadoEm: tenantsTable.siteAprovadoEm,
   }).from(tenantsTable);
 
   const id = new Map<number, Tenant>();
@@ -123,6 +134,7 @@ export async function carregarTenants(forcar = false): Promise<void> {
       carenciaAte: l.carenciaAte ?? null,
       encerraEm: l.encerraEm ?? null,
       fuso: l.fuso,
+      emPreparacao: l.siteAprovadoEm == null,
     };
     id.set(t.id, t);
     slug.set(t.slug, t);
@@ -203,7 +215,33 @@ export function tenantPorIdMesmoForaDoAr(id: number | null | undefined): Tenant 
  * primeiro acesso depois de cada deploy, e some quando alguém vai conferir.
  */
 export function tenantDoHost(request: Request): Tenant | null {
-  return resolverHost(request.headers.get('host'));
+  const host = request.headers.get('host');
+  // O site que espera a aprovação abre só na prévia — o cookie que o link do painel deixa
+  // neste endereço (`lib/previaDoSite.ts`). Com ele, as rotas do site funcionam inteiras.
+  return resolverHost(host) ?? tenantEmPreviaDoHost(host, request);
+}
+
+/** A barbearia dona deste endereço — no ar ou não, aprovada ou não. Só para as funções daqui. */
+function donoDoEndereco(host: string | null): Tenant | null {
+  if (!host) return null;
+  const limpo = host.toLowerCase().split(':')[0].replace(/\.$/, '');
+  return porDominio.get(limpo) ?? porSlug.get(limpo.split('.')[0]) ?? null;
+}
+
+/**
+ * A barbearia deste endereço cujo site ESPERA A APROVAÇÃO do operador (migration 0020). O
+ * endereço mostra "em preparação" (`src/middleware.ts`), sem nada que a pessoa escreveu.
+ * Encerrada não entra: endereço de barbearia que saiu responde 404, como sempre.
+ */
+export function tenantEmPreparacaoDoHost(host: string | null): Tenant | null {
+  const t = donoDoEndereco(host);
+  return t?.emPreparacao && situacaoDe(t).fase !== 'cancelada' ? t : null;
+}
+
+/** A de cima, no ar, com a prévia aberta neste navegador. */
+function tenantEmPreviaDoHost(host: string | null, request: Request): Tenant | null {
+  const t = tenantEmPreparacaoDoHost(host);
+  return t && estaNoAr(t) && emPrevia(request, t.id) ? t : null;
 }
 
 /**
@@ -219,11 +257,14 @@ export function resolverHost(host: string | null): Tenant | null {
   // o aviso (`tenantSuspensoDoHost`) — nunca cai no slug igual ao primeiro pedaço. Até
   // 17/10/2026 caía: `barbeariadoze.com.br` fora do ar servia a barbearia de slug
   // `barbeariadoze`, e os clientes de uma agendavam na outra.
-  if (porDominioProprio) return estaNoAr(porDominioProprio) ? porDominioProprio : null;
+  //
+  // O site que espera a aprovação (migration 0020) também não é servido por aqui: só pela
+  // prévia, em `tenantDoHost`.
+  if (porDominioProprio) return publico(porDominioProprio) ? porDominioProprio : null;
 
   const sub = limpo.split('.')[0];
   const t = porSlug.get(sub);
-  return estaNoAr(t) ? t : null;
+  return publico(t) ? t : null;
 }
 
 /**
@@ -237,10 +278,10 @@ export function resolverHost(host: string | null): Tenant | null {
  * Encerrada não entra: endereço de barbearia que saiu responde 404, como antes.
  */
 export function tenantSuspensoDoHost(host: string | null): Tenant | null {
-  if (!host) return null;
-  const limpo = host.toLowerCase().split(':')[0].replace(/\.$/, '');
-  const t = porDominio.get(limpo) ?? porSlug.get(limpo.split('.')[0]);
-  return t && situacaoDe(t).fase === 'suspensa' ? t : null;
+  const t = donoDoEndereco(host);
+  // O aviso mostra o nome e o WhatsApp dela — o que ninguém olhou, se o site nunca foi
+  // aprovado. Esse endereço diz "em preparação" (`tenantEmPreparacaoDoHost`).
+  return t && !t.emPreparacao && situacaoDe(t).fase === 'suspensa' ? t : null;
 }
 
 /**
@@ -377,7 +418,7 @@ export function enderecoPublico(request: Request, url: URL): string {
  *
  * Cravar `https` quebraria isso: o servidor de desenvolvimento não tem TLS.
  */
-function protocoloDe(host: string): 'http' | 'https' {
+export function protocoloDe(host: string): 'http' | 'https' {
   return /^(localhost|127\.0\.0\.1|\[::1\])(:|$)/i.test(host) ? 'http' : 'https';
 }
 

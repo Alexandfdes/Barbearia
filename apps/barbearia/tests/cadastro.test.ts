@@ -446,6 +446,7 @@ describe('a rota, de ponta a ponta', () => {
       await vi.waitFor(() => expect(caixaDeSaida).toHaveLength(1));
       const [boasVindas] = caixaDeSaida;
       expect(boasVindas.para).toBe('ze@exemplo.com.br');
+      expect(boasVindas).toMatchObject({ tipo: 'seguranca', barbearia: Number(t.id) });
       // Nada digitado no formulário vai no e-mail (26/10/2026): o endereço não é
       // confirmado, e o nome da barbearia ou do dono viraria texto de golpe.
       expect(boasVindas.assunto).toMatch(/^O seu cadastro no /);
@@ -453,15 +454,72 @@ describe('a rota, de ponta a ponta', () => {
       // Nem o assunto nem o corpo afirmam "no ar": o servidor não sabe (`src/lib/noAr.ts`).
       expect(`${boasVindas.assunto}\n${boasVindas.texto}`).not.toMatch(/no ar/i);
       expect(boasVindas.texto).toMatch(/^Olá!/);
-      expect(boasVindas.texto).toContain('https://salao-jovem.fadeline.com.br');
+      // Sem o endereço do site (05/11/2026): o slug é o nome que a pessoa escolheu, e o link
+      // abre a página que ela escreveu — o e-mail vai a um endereço que ninguém confirmou.
+      expect(boasVindas.texto).not.toContain('salao-jovem');
       expect(boasVindas.texto).toContain('https://painel.fadeline.com.br/admin');
       expect(boasVindas.texto).toMatch(/\(84\) 96658-9511/);
-      expect(boasVindas.texto).toMatch(/O teste grátis vai até \d{2}\/\d{2}\./);
+      // O site espera a sua aprovação (migration 0020): o teste conta de quando ele abrir, e a
+      // resposta não diz data nenhuma — a de agora seria recontada na aprovação.
+      expect(boasVindas.texto).toMatch(/Os 7 dias de teste grátis começam quando ele abrir\./);
+      expect(boasVindas.texto).not.toMatch(/O teste grátis vai até/);
+      expect(corpo.emPreparacao).toBe(true);
+      expect(corpo.ultimoDiaDoTeste).toBeNull();
     } finally {
       if (anterior === undefined) delete process.env.CADASTRO_ABERTO;
       else process.env.CADASTRO_ABERTO = anterior;
       if (baseAntes === undefined) delete process.env.DOMINIO_BASE;
       else process.env.DOMINIO_BASE = baseAntes;
+    }
+  });
+
+  it.skipIf(!TEM_BANCO)('avisa o operador (10/11/2026): o endereço escolhido e a ficha — nada que a pessoa digitou', async () => {
+    // O site novo espera a aprovação, e o dono ouviu que ele abre em até 1 dia útil: sem este
+    // aviso, o operador só sabia do cadastro quando abria o painel (`src/lib/avisoAoOperador.ts`).
+    const antes = { aberto: process.env.CADASTRO_ABERTO, base: process.env.DOMINIO_BASE, operador: process.env.OPERADOR_EMAIL };
+    process.env.CADASTRO_ABERTO = '1';
+    process.env.DOMINIO_BASE = 'fadeline.com.br';
+    process.env.OPERADOR_EMAIL = ' Operador@Exemplo.com.br ';
+    const { caixaDeSaida, zerarOrcamentoDeEmail } = await import('../src/lib/email.js');
+    zerarOrcamentoDeEmail();
+    caixaDeSaida.length = 0;
+    try {
+      const mod = await import('../src/pages/api/cadastrar.js');
+      const cadastrar = (slug: string, telefone: string, ip: string) => mod.POST({
+        request: new Request('http://x/api/cadastrar', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ ...BASE, slug, telefone, servicos: [{ nome: 'Corte', precoCentavos: 3500, minutos: 30 }] }),
+        }),
+        clientAddress: ip,
+      } as never);
+
+      const r = await cadastrar('aviso-novo', '84966589522', '9.9.9.8');
+      expect(r.status).toBe(201);
+      const [t] = await conn`SELECT id FROM tenants WHERE slug = 'aviso-novo'`;
+      await vi.waitFor(() => expect(caixaDeSaida).toHaveLength(2));
+      const aviso = caixaDeSaida.find((e) => e.para === 'operador@exemplo.com.br');
+      expect(aviso).toMatchObject({ tipo: 'operador', barbearia: Number(t.id), assunto: 'Site novo esperando a sua aprovação' });
+      expect(aviso!.texto).toContain('O endereço escolhido: aviso-novo\n');
+      expect(aviso!.texto).toContain(`https://painel.fadeline.com.br/operador/barbearias/${t.id}`);
+      // Nada do formulário além do endereço: nem o nome da barbearia, nem o do dono, nem o
+      // WhatsApp, nem o e-mail dele, nem o endereço da rua.
+      expect(`${aviso!.assunto}\n${aviso!.texto}`).not.toMatch(/Cortes do Zé|José da Silva|96658|ze@exemplo|Flores/);
+      // O dono recebe as boas-vindas, como sempre.
+      expect(caixaDeSaida.find((e) => e.para === 'ze@exemplo.com.br')).toMatchObject({ tipo: 'seguranca' });
+
+      // Sem OPERADOR_EMAIL, o cadastro dá certo do mesmo jeito — e só o dono recebe.
+      delete process.env.OPERADOR_EMAIL;
+      caixaDeSaida.length = 0;
+      expect((await cadastrar('aviso-sem', '84966589533', '9.9.9.7')).status).toBe(201);
+      await vi.waitFor(() => expect(caixaDeSaida).toHaveLength(1));
+      await new Promise((ok) => setTimeout(ok, 50));
+      expect(caixaDeSaida.map((e) => e.para)).toEqual(['ze@exemplo.com.br']);
+    } finally {
+      for (const [k, v] of [['CADASTRO_ABERTO', antes.aberto], ['DOMINIO_BASE', antes.base], ['OPERADOR_EMAIL', antes.operador]] as const) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
     }
   });
 });

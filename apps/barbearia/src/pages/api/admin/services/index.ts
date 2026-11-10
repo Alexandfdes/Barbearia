@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '../../../../db/index.js';
 import { barberServices, barbers, services } from '../../../../db/schema.js';
 import { json } from '../../../../lib/api.js';
+import { recusaDoTeto } from '../../../../lib/tetos.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 
@@ -74,6 +75,10 @@ export const POST: APIRoute = async ({ request }) => {
   if (!parsed.success) return json({ error: parsed.error.issues[0].message }, 400);
 
   const { name, priceCents } = parsed.data;
+
+  const cheio = await recusaDoTeto('servicosAtivos', tenant.id);
+  if (cheio) return json({ error: cheio }, 409);
+
   const durationMinutes = parsed.data.durationMinutes ?? DURACAO_PADRAO_DO_SERVICO_NOVO;
   let slug = slugify(name);
 

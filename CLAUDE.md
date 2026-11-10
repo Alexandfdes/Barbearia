@@ -172,7 +172,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **Arquivo de backup só tem o nome final depois de terminar bem:** grava em `<nome>.parcial` e
   renomeia. Quem procura backup (`newestBackupAgeMs`, a tela de Sistema) olha só `.sql.gz` e
   `-fotos.tar.gz` — um processo novo que grave direto no nome final volta a fazer o interrompido
-  contar como bom (`tests/backup-interrompido.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.59).
+  contar como bom (`tests/backup-interrompido.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.59). A pasta
+  guarda também o registro do envio para fora (`envio-para-fora.ok` e `.falhou`), que a tela de Sistema
+  lê — fora desses padrões, de propósito (`docs/PENDENCIAS-ABERTAS.md` §2.68).
 - **Commit sem as linhas `Co-Authored-By` e `Claude-Session`** — decisão do dono em 16/10/2026.
   Os commits anteriores ficam como estão.
 - **CI:** `.github/workflows/testes.yml` roda a suíte com banco a cada push na `main` e na
@@ -225,9 +227,23 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   confirmação, que não leva texto digitado (`apps/barbearia/src/lib/confirmacaoDeEmail.ts`). Envio novo
   filtra `isNotNull(barbers.emailConfirmadoEm)`; caminho novo que grava e-mail volta a confirmação para nula
   quando ele muda (`docs/PENDENCIAS-ABERTAS.md` §2.64). O boot de produção confere o formato do `SMTP_URL` e o
-  login no provedor (`scripts/smtpUrl.mjs`), sem imprimir o valor (`docs/PENDENCIAS-ABERTAS.md` §2.65). Nome de barbearia ou de dono no assunto vira golpe
+  login no provedor (`scripts/smtpUrl.mjs`), sem imprimir o valor (`docs/PENDENCIAS-ABERTAS.md` §2.65). Todo
+  envio diz `barbearia` e `tipo` (`Email`, em `src/lib/email.ts`): o orçamento do dia (`EMAIL_LIMITE_DIARIO`)
+  conta por eles, e o que um visitante dispara tem limite próprio — o link do cliente remarca 3 vezes por
+  horário (`docs/PENDENCIAS-ABERTAS.md` §2.66). Nome de barbearia ou de dono no assunto vira golpe
   com o remetente do produto (`docs/PENDENCIAS-ABERTAS.md` §2.57). O `/cadastrar` é caminho do painel. O
   aviso de agendamento não leva o nome do cliente (`docs/PENDENCIAS-ABERTAS.md` §2.61).
+- **O site novo do cadastro pela web espera a aprovação do operador** (`tenants.site_aprovado_em`, migration
+  0020): o endereço diz "em preparação", sem nada digitado, e o painel funciona. `resolverHost` não serve quem
+  espera; `tenantDoHost`, só na prévia (`apps/barbearia/src/lib/previaDoSite.ts`). O cartão também espera: o teste
+  conta da aprovação, e `abrirCheckout` recusa antes dela. O prazo prometido ao dono que espera é
+  `PRAZO_DA_CONFERENCIA` (`apps/barbearia/src/lib/produto.ts` e o `config.ts` da landing), nunca escrito à mão; cada
+  cadastro avisa o operador em `OPERADOR_EMAIL`, sem texto digitado (`lib/avisoAoOperador.ts`). O padrão da coluna é
+  aprovado: caminho novo que cria barbearia escreve a coluna, como `provisionarBarbearia`
+  (`tests/aprovacao-do-site.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.70).
+- **Cada barbearia tem teto** (`apps/barbearia/src/lib/tetos.ts`): rota nova que cria barbeiro, serviço,
+  produto ou combo — ou religa barbeiro ou serviço — passa por `recusaDoTeto` antes de gravar
+  (`docs/PENDENCIAS-ABERTAS.md` §2.69).
 - **Limite de tentativa conta antes e devolve no acerto** (`devolverTentativa`): só o erro conta. E o
   limite do login por CONTA não vale no aparelho onde ESTE barbeiro já entrou depois da última troca de
   senha (`lib/aparelhoConhecido.ts`) — sem isso, qualquer pessoa trancava o dono fora; sem amarrar ao

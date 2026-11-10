@@ -245,6 +245,8 @@ describe.skipIf(!TEM_BANCO)('o aviso de agenda, pelas rotas do cliente', () => {
   it('o e-mail é o do agendamento gravado — e não leva nascimento nem o link de desmarcar', async () => {
     const r = await agendar(2, as(terca, '11:00'));
     const e = caixaDeSaida[0];
+    // A parte do orçamento de onde sai (`lib/email.ts`): a da agenda — o único que visitante dispara.
+    expect(e).toMatchObject({ tipo: 'agenda', barbearia: 1 });
     expect(e.assunto).toBe(`Agendamento novo: ${quandoCurto(as(terca, '11:00'), TZ)}`);
     expect(e.texto).toContain('Corte — R$ 40');
     expect(e.texto).toContain(`/admin/dia/${terca}`);

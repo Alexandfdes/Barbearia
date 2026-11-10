@@ -24,7 +24,7 @@
 import { sqlConn } from '../db/index.js';
 import { configDaAsaas, type AmbienteAsaas } from './asaas.js';
 import { PRECO_MENSAL } from './produto.js';
-import { ultimoDia } from './situacao.js';
+import { diaDe, ultimoDia } from './situacao.js';
 import {
   eventosQuePedemOlho, listarBarbearias, pedeOlhoSql, resumoDasFases, ultimasAcoes,
   type EventoQuePedeOlho, type LinhaDoRegistro, type Tom,
@@ -119,10 +119,18 @@ export async function numerosDoNegocio(agora: Date = new Date(), env: Ambiente =
   let pagando = 0;
   let cancelando = 0;
   const atencao: (ItemDeAtencao & { ordem: number })[] = [];
+  const esperando: (ItemDeAtencao & { ordem: number })[] = [];
   for (const b of lista) {
     const s = b.situacao;
     const telefoneDoDono = b.dono?.telefone ?? null;
     const daBarbearia = { tenantId: b.id, titulo: b.nome, href: `/operador/barbearias/${b.id}`, telefoneDoDono };
+    // O site que espera a sua aprovação vem antes de tudo — é o dono parado esperando você
+    // (migration 0020). O prazo do teste dele não conta aqui: é recontado quando você aprovar.
+    if (b.emPreparacao && s.fase !== 'cancelada') {
+      esperando.push({ ...daBarbearia, tom: 'atencao', ordem: b.criadaEm?.getTime() ?? 0,
+        texto: `O site espera a sua aprovação${b.criadaEm ? ` — cadastrou em ${diaDe(b.criadaEm, b.fuso)}` : ''}` });
+      continue;
+    }
     if (s.fase === 'ativa') {
       if (s.encerraEm) {
         cancelando++;
@@ -142,6 +150,11 @@ export async function numerosDoNegocio(agora: Date = new Date(), env: Ambiente =
     }
   }
   atencao.sort((a, b) => a.ordem - b.ordem);
+  // O que espera a aprovação vai na frente, o mais antigo primeiro — num grupo à parte (10/11/2026).
+  // Até aqui, tudo se ordenava junto: o dia do cadastro com o dia em que o teste de outra vence. Com
+  // o relógio de verdade, dava certo só porque os outros prazos estão sempre no futuro; o teste com o
+  // relógio parado passou a falhar no dia seguinte ao que foi escrito.
+  atencao.unshift(...esperando.sort((a, b) => a.ordem - b.ordem));
 
   const pedemOlho = (await eventosQuePedemOlho(100)).length;
   if (pedemOlho > 0) {

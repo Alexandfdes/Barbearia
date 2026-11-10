@@ -142,6 +142,8 @@ describe('nenhuma página pública serve barbearia sem perguntar de quem é o en
       'o Início do operador, ou a tela de entrar: olha todas as barbearias de propósito, atrás da senha dele — lib/operadorNumeros.ts',
     'src/pages/operador/barbearias/index.astro':
       'a lista de TODAS as barbearias, atrás da senha do operador — lib/operadorBarbearias.ts',
+    'src/pages/operador/barbearias/[id]/previa.astro':
+      'a prévia do site de uma barbearia, para o operador olhar antes de aprovar: a barbearia é a da ficha, não a do endereço — atrás da senha do operador (lib/previaDoSite.ts)',
     'src/pages/operador/barbearias/[id].astro':
       'a ficha da barbearia que o operador escolheu na lista, não a do endereço — atrás da senha dele',
     'src/pages/operador/cobranca.astro':

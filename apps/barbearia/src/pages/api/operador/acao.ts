@@ -6,6 +6,7 @@ export const prerender = false;
  * barbearia travada, e gravada em `acoes_do_operador` na mesma transação — ação
  * sem registro não acontece. E, desde 12/10/2026, anotar na ficha dela o que se
  * combinou com o dono: a anotação É o registro (`acao = 'anotou'`, migration 0014).
+ * Desde 05/11/2026, aprovar o site novo e trocar o e-mail do dono (migration 0020).
  *
  * A barbearia vem do CORPO, e aqui isso é certo: o operador age sobre a barbearia
  * que escolheu na lista — não existe "a barbearia desta requisição". Quem impede
@@ -17,7 +18,8 @@ import { json } from '../../../lib/api.js';
 import { getClientIp } from '../../../lib/clientIp.js';
 import { naoEncontrado, operadorAutenticado, portaoDoOperador } from '../../../lib/operador.js';
 import {
-  ANOTACAO_MAXIMA, DIAS_MAXIMOS_DE_EXTENSAO, ErroDoOperador, anotar, estenderCarencia, estenderTeste, liberarTelefones, reativar, suspender,
+  ANOTACAO_MAXIMA, DIAS_MAXIMOS_DE_EXTENSAO, ErroDoOperador, anotar, aprovarSite, estenderCarencia, estenderTeste, liberarTelefones,
+  reativar, suspender, trocarEmailDoDono,
 } from '../../../lib/operadorBarbearias.js';
 
 const barbearia = z.number().int().positive();
@@ -31,6 +33,12 @@ const corpoSchema = z.discriminatedUnion('acao', [
   // Folga de 200 sobre o máximo: quem conta os caracteres de verdade é `anotar`,
   // depois de limpar as quebras de linha — e a mensagem de lá diz o limite certo.
   z.object({ acao: z.literal('anotar'), barbearia, texto: z.string().max(ANOTACAO_MAXIMA + 200) }),
+  z.object({ acao: z.literal('aprovar-site'), barbearia }),
+  // `conferido: true` é a caixa "conferi pelo WhatsApp do login" (`trocarEmailDoDono`): sem ela, recusa.
+  z.object({
+    acao: z.literal('trocar-email-do-dono'), barbearia, barbeiro: z.number().int().positive(),
+    email: z.string().max(254), conferido: z.literal(true), motivo: z.string().max(300).optional(),
+  }),
 ]);
 
 export const POST: APIRoute = async ({ request, clientAddress }) => {
@@ -45,11 +53,15 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   catch { return json({ error: 'JSON inválido' }, 400); }
   const parsed = corpoSchema.safeParse(corpo);
   if (!parsed.success) {
-    const anotacao = (corpo as { acao?: unknown } | null)?.acao === 'anotar';
+    const pedido = corpo as { acao?: unknown; conferido?: unknown } | null;
     return json({
-      error: anotacao
+      error: pedido?.acao === 'anotar'
         ? `A anotação vai até ${ANOTACAO_MAXIMA} caracteres.`
-        : `Dados inválidos. Os dias vão de 1 a ${DIAS_MAXIMOS_DE_EXTENSAO}.`,
+        : pedido?.acao === 'trocar-email-do-dono'
+          ? pedido.conferido === true
+            ? 'Confira o e-mail novo.'
+            : 'Antes de trocar, confira pelo WhatsApp do login que é o dono — e marque a caixa.'
+          : `Dados inválidos. Os dias vão de 1 a ${DIAS_MAXIMOS_DE_EXTENSAO}.`,
     }, 400);
   }
 
@@ -62,6 +74,13 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
       console.info(`[operador] anotou em ${slug} (ip ${ip})`);
       return json({ ok: true, slug });
     }
+    if (d.acao === 'trocar-email-do-dono') {
+      const r = await trocarEmailDoDono({ tenantId: d.barbearia, barbeiroId: d.barbeiro, email: d.email, motivo: d.motivo, ip });
+      // Os endereços não vão para o log: o registro guarda os dois, mascarados.
+      console.info(`[operador] ${r.reenvio ? 'mandou de novo a confirmação do e-mail' : 'trocou o e-mail'} do dono de ${r.slug}: confirmação ${r.confirmacao}`
+        + `${r.avisouAntigo ? ', o endereço antigo avisado' : ''} (ip ${ip})`);
+      return json({ ok: true, slug: r.slug, confirmacao: r.confirmacao, avisouAntigo: r.avisouAntigo, reenvio: r.reenvio });
+    }
     if (d.acao === 'liberar-telefones') {
       const r = await liberarTelefones(d.barbearia, ip);
       console.info(`[operador] liberou os telefones de ${r.slug}: ${r.desligados.length} desligado(s) (ip ${ip})`);
@@ -70,6 +89,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     const r = d.acao === 'estender-teste' ? await estenderTeste(d.barbearia, d.dias, ip)
       : d.acao === 'estender-carencia' ? await estenderCarencia(d.barbearia, d.dias, ip)
       : d.acao === 'suspender' ? await suspender(d.barbearia, d.confirmacao, d.motivo, ip)
+      : d.acao === 'aprovar-site' ? await aprovarSite(d.barbearia, ip)
       : await reativar(d.barbearia, d.comoEra, ip);
     console.info(`[operador] ${d.acao} ${r.slug} → ${r.tela.rotulo} (${r.tela.detalhe}) (ip ${ip})`);
     return json({ ok: true, slug: r.slug, fase: r.tela });

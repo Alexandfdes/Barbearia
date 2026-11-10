@@ -85,6 +85,8 @@ interface LinhaDaBarbearia {
   timezone: string;
   /** Os Checkouts abertos por ela — só `linhaDaBarbearia` lê. */
   asaas_checkout_ids?: string[] | null;
+  /** Nulo: o site espera a aprovação do operador (migration 0020) — só `linhaDaBarbearia` lê. */
+  site_aprovado_em?: Date | string | null;
 }
 
 /**
@@ -172,7 +174,7 @@ export interface DonoDaBarbearia {
 async function linhaDaBarbearia(id: number): Promise<LinhaDaBarbearia | null> {
   const [t] = await sqlConn<LinhaDaBarbearia[]>`
     SELECT id, status, trial_ends_at, past_due_since, carencia_ate, subscription_ends_at,
-           asaas_customer_id, asaas_subscription_id, timezone, asaas_checkout_ids
+           asaas_customer_id, asaas_subscription_id, timezone, asaas_checkout_ids, site_aprovado_em
     FROM tenants WHERE id = ${id}`;
   return t ?? null;
 }
@@ -203,6 +205,14 @@ export async function abrirCheckout(o: {
   const agora = o.agora ?? new Date();
   const t = await linhaDaBarbearia(o.tenantId);
   if (!t) throw new ErroDeCobranca('Barbearia não encontrada.', 404);
+  // O site que espera a aprovação (migration 0020) ainda não cadastra cartão: os 7 dias de teste
+  // começam na aprovação (`aprovarSite`). Cadastrado antes, o cartão punha a barbearia em dia, a
+  // aprovação deixava de estender o teste, e a primeira cobrança saía no fim do teste contado do
+  // CADASTRO — às vezes com o site ainda em preparação. Achado ao escrever o termo de uso, que
+  // promete os 7 dias a partir da aprovação (06/11/2026, `docs/PENDENCIAS-ABERTAS.md` §2.70).
+  if (t.site_aprovado_em == null) {
+    throw new ErroDeCobranca('O cartão se cadastra depois que o seu site abrir: os 7 dias de teste começam nesse dia.', 409);
+  }
   const s = situacaoDaLinha(t, agora);
   if (!podeCadastrarCartao(s)) {
     throw new ErroDeCobranca(s.fase === 'ativa'

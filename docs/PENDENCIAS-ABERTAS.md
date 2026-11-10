@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-10-26.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-11-10.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -24,6 +24,13 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **10/11** | **A aprovação do site continua, com prazo e com aviso a você** — decidido por você, depois da explicação do porquê: o site novo abre **em até 1 dia útil** do cadastro, prometido nas cinco telas e e-mails que o dono vê e na landing; e cada cadastro novo manda um e-mail a você (`OPERADOR_EMAIL`), só com o endereço escolhido e o link da ficha. **E confirmadas as duas decisões da implementação de 05/11:** o teste conta da aprovação, e quem espera não recebe os avisos do teste. O passo 4 da landing deixou de dizer que o site vai ao ar na hora | `PENDENCIAS-ABERTAS.md` §2.70 |
+| **06/11** | **O cartão também espera a aprovação** — achado ao escrever o rascunho do termo de uso: com o site esperando, o dono podia cadastrar o cartão, e a primeira cobrança seguia o teste contado do cadastro, não o da aprovação, às vezes com o site ainda em preparação. Agora a rota recusa e a tela diz quando o teste começa. E o rascunho do termo e dos dois avisos de privacidade existe, com 16 perguntas para o advogado | `PENDENCIAS-ABERTAS.md` §2.70 e `PENDENCIAS-ABERTAS.md` §1.2 |
+| **05/11** | **O site novo espera a sua aprovação**, decidido por você para os primeiros meses: do cadastro pela web até você aprovar na ficha, o endereço diz "em preparação", sem nada que a pessoa escreveu, e o painel funciona inteiro — com uma prévia que só abre por um link do painel. **E o operador troca o e-mail do dono**, depois de conferir pelo WhatsApp do login: a saída de quem esqueceu a senha com o e-mail errado ou sem confirmar. ⚠️ Decidido na implementação — falta você confirmar: o teste de 7 dias conta da aprovação (✏️ *confirmado em 10/11*). Migration 0020 | `PENDENCIAS-ABERTAS.md` §2.70 |
+| **05/11** | **O que a revisão de 05/11 deixou e não pedia mais decisão:** o `www` indo para a raiz, os tetos de cada barbearia (15 na equipe, 100 serviços, 200 produtos, 50 combos — os números seus), só 7 cópias das fotos no disco, e, com a cobrança desligada, o painel e os e-mails mandando ao WhatsApp do suporte em vez de cadastrar o cartão. E o ensaio de restauração em script | `PENDENCIAS-ABERTAS.md` §2.69 e `PENDENCIAS-ABERTAS.md` §3.3 |
+| **05/11** | **A tela de Sistema diz se o backup saiu do servidor, e quanto do disco está ocupado** — antes dizia só se as variáveis existiam, e o disco não aparecia em tela nenhuma | `PENDENCIAS-ABERTAS.md` §2.68 |
+| **05/11** | **O e-mail de boas-vindas sem o endereço do site, e o "esqueci" dizendo que o e-mail tem de estar confirmado** — os dois que a revisão geral achou e não pediam decisão | `PENDENCIAS-ABERTAS.md` §2.67 |
+| **05/11** | **O dia de e-mail de todas as barbearias, gasto por qualquer um — consertado:** remarcar pelo link do cliente não tinha limite, e cada remarcação mandava dois e-mails; criar barbeiro mandava uma confirmação por barbeiro, sem limite. Agora o link remarca 3 vezes por horário em 24 horas e 10 por aparelho por hora, e o envio tem um orçamento do dia, com uma parte guardada para a senha nova e a confirmação | `PENDENCIAS-ABERTAS.md` §2.66 |
 | **03/11** | **O e-mail ligado em produção mostrou três falhas, consertadas:** o boot dizia "SMTP configurado" com o `SMTP_URL` quebrado, o envio que falhava ficava no banco ("o link acabou de sair") e a tela dizia "mandamos" sem ter mandado | `PENDENCIAS-ABERTAS.md` §2.65 |
 | **30/10** | **Nada sai para e-mail não confirmado**, menos o próprio link de confirmação, sem texto digitado: a senha nova, os avisos de agendamento, do teste, da cobrança e o de e-mail trocado esperam a pessoa abrir o link e tocar em "Confirmar". Era o que faltava antes do `CADASTRO_ABERTO` | `PENDENCIAS-ABERTAS.md` §2.64 |
 | **30/10** | **A revisão depois do deploy, consertada:** o cookie de aparelho amarrado ao barbeiro e à senha, o backup de antes só reaproveitado se inteiro e de minutos atrás, o "esqueci" sem e-mail dizendo isso sempre, o gráfico vazio do Início, os bloqueios fora da ordem, o "Próximo" desatualizado e o aviso de não salvo ao contrário. **O roteiro de testes em produção ficou para depois**, por decisão sua | `PENDENCIAS-ABERTAS.md` §2.63 |
@@ -235,6 +242,13 @@ Pergunta nova, que o teste grátis cria: **o que acontece com os dados de quem t
 não pagou?** Nome, telefone e data de nascimento de clientes de terceiro, guardados sem
 contrato vigente. Guardar para sempre é exposição; apagar cedo demais perde quem só
 esqueceu de pagar.
+
+**06/11/2026 — o rascunho existe; falta o advogado.** O termo de uso, o aviso de privacidade para quem agenda,
+o aviso para o dono e a equipe, e 16 perguntas que só o advogado responde, num documento do claude.ai — fora
+deste repositório, que é público. Escrito a partir do código, sem consulta à lei: os artigos citados estão
+marcados para conferir. Duas perguntas que não estavam aqui: o Marco Civil pede 6 meses de registro de acesso
+(IP, data e hora), e o sistema guarda só o das ações do suporte; e a barbearia atende menores, e o formulário
+pede a data de nascimento de quem é atendido. Escrevê-lo achou um defeito — o cartão antes da aprovação (§2.70).
 
 ⚠️ **27/09/2026 — o rodapé fingia que os textos existiam.** O site de toda barbearia mostrava
 "Termos de Uso" e "Políticas de Privacidade" apontando para `#`, num site que coleta nome e
@@ -596,7 +610,13 @@ uma vez só — o que mudou é que agora ela tem ferramenta, recusas e um ensaio
 
 ⚠️ **Dois achados de DADOS, que a carga não corrige** — ver §2.6.
 
-### 2.6 🔴 `[TÉCNICO]` O telefone de contato da barbearia é um número falso — conhecido desde 27/08
+### 2.6 ✅ `[TÉCNICO]` O telefone de contato da barbearia é um número falso — SEM OBJETO no produto desde 28/10/2026
+
+> ✏️ **05/11/2026 (revisão de 05/11):** este 🔴 dizia que travava a primeira venda. Não trava mais: o número
+> mora no banco do **Bayron**, que não vai ser migrado — decisão sua em 28/10, o banco dele é fictício (§0). O
+> produto não tem o número: toda barbearia nova grava o WhatsApp que o dono digita no cadastro, com o 55
+> (§2.25). Se ele vale em algum lugar, é no site antigo do Bayron, no outro repositório. O texto abaixo é o
+> registro de antes.
 
 ⚠️ **Correção de 11/09/2026: a primeira versão desta seção dizia "encontrado em
 11/09". Estava errado, e o erro importa.** Este número já estava registrado em
@@ -1545,7 +1565,15 @@ Guarda: `tests/origem.test.ts` — o que passa e o que não passa, com o caso re
 `Origin: null`, o domínio de cima e o nome que só começa igual; e o lugar da conferência no
 middleware, antes do desvio e da barbearia.
 
-### 2.31 🔴 `[TÉCNICO]` O cadastro não pode abrir no ar de hoje — conferido em 10/10/2026
+### 2.31 🔴 `[TÉCNICO]` O cadastro não pode abrir no ar de hoje — conferido em 10/10/2026, revisto em 05/11/2026
+
+> ✏️ **05/11/2026 (revisão de 05/11):** dos quatro de código, dois estão feitos — **o e-mail sai** desde
+> 03/11 (§2.65) e **o backup sai da VPS** desde 04/11 (§3.3; falta restaurar o arquivo de lá, e o ensaio
+> agora é um script). **Continuam:** o certificado dos subdomínios — o caminho está pesquisado, e com o site
+> novo esperando a sua aprovação o clique por barbearia no EasyPanel passa a caber no mesmo momento (§2.70) —
+> e a cobrança, sem a prova no sandbox; enquanto ela não liga, o painel e os e-mails mandam ao WhatsApp do
+> suporte, em vez de cadastrar o cartão (§2.69). E, fora do código, os termos. O texto abaixo é o de 10/10,
+> com os riscos de cada item.
 
 Desde 10/10 o app está no ar no EasyPanel, com o cadastro fechado: sem `CADASTRO_ABERTO`, o
 `/cadastrar` responde 404, como deve. Uma sessão de 10/10 registrou a intenção de abri-lo mesmo
@@ -2803,6 +2831,227 @@ reintroduzidos, os 13 vermelhos; o boot de verdade contra um provedor SMTP de me
 formato errado); e, no navegador contra o build, o Início passando de "Mandar o link" a "mandamos" depois
 do clique, e a Equipe com os dois estados. O estado "envio desligado" foi conferido só no código.
 
+### 2.66 ✅ `[TÉCNICO]` O dia de e-mail de todas as barbearias, gasto de fora — CONSERTADO em 05/11/2026
+
+Achado na revisão geral de 05/11 (os detalhes moram no projeto do claude.ai). O provedor dá um tanto de
+e-mails por dia para todas as barbearias juntas — o plano grátis de hoje, 300 —, e nada no app contava:
+
+- **Remarcar pelo link do cliente não tinha limite**, e cada remarcação manda e-mail ao barbeiro do horário
+  e ao dono. Qualquer pessoa ganha um link agendando uma vez no site: 20 remarcações, 40 e-mails, em menos
+  de um segundo — reproduzido. Gasto o dia, a senha nova, as confirmações e os avisos paravam para todas.
+- **Criar barbeiro com e-mail manda uma confirmação por barbeiro**, e criar barbeiro não tem limite: o da
+  confirmação (1 por minuto, 5 por dia) é por barbeiro. 25 barbeiros em 9 segundos, 25 e-mails para o mesmo
+  endereço — reproduzido.
+
+**Como ficou:**
+
+- **O link remarca 3 vezes por horário em 24 horas, e 10 vezes por aparelho por hora**
+  (`apps/barbearia/src/pages/api/appointments/by-token/[token]/reschedule.ts`). Conta antes e devolve quando
+  não remarca — horário ocupado, fora do expediente, o mesmo horário —, como o login: conferido só depois,
+  pedidos ao mesmo tempo passariam todos.
+- **O envio tem um orçamento do dia** (`enviarEmail`, em `apps/barbearia/src/lib/email.ts`). Nas últimas 24
+  horas: no máximo `EMAIL_LIMITE_DIARIO` (280 sem a variável); os avisos de agenda, até 60% disso — o resto
+  fica para a senha nova, a confirmação e os avisos do teste e da cobrança, que visitante nenhum dispara; e
+  cada barbearia, até 20% em avisos de agenda e 10% em senha e confirmação. Todo e-mail diz de que barbearia
+  é e de que tipo (`barbearia` e `tipo`, na interface `Email`): o conferidor recusa o envio novo que não
+  disser. O que não sai — envio desligado, provedor fora — não gasta.
+- **A tela de Sistema do operador** mostra o que as últimas 24 horas gastaram, por tipo, e acusa quando o
+  limite recusou algum e-mail.
+
+⚠️ **A conta fica na memória do processo**, como os limites de tentativa (`apps/barbearia/src/lib/rateLimit.ts`):
+todo deploy a zera, e num dia de deploy o app pode passar do limite do provedor — aí quem recusa é ele.
+⚠️ **O limite de 280 é o do plano grátis, não o do produto.** Com o aviso de agendamento ligado por padrão,
+cada agendamento pelo site manda até dois e-mails. Conta, não medida: 30 agendamentos por dia pelo site são
+60 e-mails, e cinco barbearias assim passam dos 300. Antes disso, o plano do provedor muda — e o
+`EMAIL_LIMITE_DIARIO` junto.
+
+**Verificado:** 119 arquivos, **1356 de 1356** contra PostgreSQL 16; o `astro check` com zero; 23 defeitos
+reintroduzidos — tirar cada limite, cada parte do orçamento, a devolução da vez e da vaga, o tipo de cada um
+dos cinco envios, o alerta do Sistema, e contar só depois de remarcar —, os 23 vermelhos.
+
+### 2.67 ✅ `[TÉCNICO]` O e-mail de boas-vindas sem o site, e o "esqueci" que prometia o que não ia sair — CONSERTADOS em 05/11/2026
+
+Os dois que a revisão geral de 05/11 achou e não pediam decisão:
+
+- **O e-mail de boas-vindas levava o endereço do site** a um e-mail que ninguém confirmou. O argumento de
+  26/10 (§2.57) era que o slug só tem letra, número e hífen — mas ele é o nome que a pessoa escolheu
+  (*suporte-fadeline-regularize-o-pix* cabe nele), e o link abre a página que ela escreveu, sob o nosso
+  domínio. Com o cadastro aberto, era um link de estranho, do nosso remetente, para qualquer endereço.
+  Agora o e-mail leva só o painel, o WhatsApp de login, o fim do teste e o link de confirmação
+  (`emailDeBoasVindas`, em `apps/barbearia/src/pages/api/cadastrar.ts`). O dono vê o endereço do site na
+  tela de fim do cadastro e no "Ver meu site" de toda tela do painel.
+- **O "esqueci" dizia *"Se este WhatsApp estiver cadastrado com um e-mail, o link […] está a caminho"*** —
+  e para e-mail não confirmado nada sai (§2.64). O dono que nunca abriu o link de confirmação esperava um
+  e-mail que não ia chegar. Agora diz *"com um e-mail confirmado"*, e a tela, antes do pedido, *"se ele já
+  estiver confirmado"* (`apps/barbearia/src/pages/api/auth/esqueci.ts` e
+  `apps/barbearia/src/pages/admin/esqueci.astro`). A resposta continua a mesma para todo número. No mesmo
+  quadro, o barbeiro da equipe era mandado a "Barbeiros", um menu que se chama Equipe.
+
+⚠️ **Continua sem saída o dono que esqueceu a senha antes de confirmar o e-mail:** a tela agora diz por que
+o link não chega, mas o painel do operador não tem ação para isso — hoje, só SQL. O que o operador pode
+fazer é decisão sua (o caminho que não fura a regra: trocar o e-mail do dono depois de conferir pelo
+WhatsApp, e o link de confirmação vai para o novo).
+
+**Verificado:** 119 arquivos, **1357 de 1357** contra PostgreSQL 16; o `astro check` com zero; 4 defeitos
+reintroduzidos — a linha do site de volta, a resposta e a tela sem "confirmado", e o menu antigo —, os 4
+vermelhos.
+
+### 2.68 ✅ `[TÉCNICO]` A tela de Sistema não sabia se o backup saiu do servidor, nem do disco — FEITO em 05/11/2026
+
+Achado na revisão geral de 05/11. Dois pontos cegos no mesmo lugar:
+
+- **"Sai do servidor: sim" queria dizer só que as `S3_*` existiam.** Uma chave apagada, um bucket
+  recusando ou o provedor fora deixavam o backup só no disco da VPS, e a falha ia para um log que ninguém
+  lê — até o dia de precisar dele.
+- **O disco não aparecia em tela nenhuma.** É o mesmo do banco, das fotos, dos backups e das imagens do
+  Docker; cheio, o banco para, e o site de todas as barbearias com ele.
+
+**Como ficou:**
+
+- **O `scripts/backup.mjs` registra cada envio para fora**, em dois arquivos na pasta dos backups:
+  `envio-para-fora.ok`, com a hora do último backup que subiu **inteiro** — o banco e as fotos —, e
+  `envio-para-fora.falhou`, com a hora e o motivo da última falha. O envio que dá certo apaga a falha. Os
+  nomes ficam fora dos padrões que a retenção apaga e que quem procura backup lê (§2.59), e são gravados em
+  `.parcial` e renomeados, como os backups. Sem as `S3_*`, nada é registrado.
+- **A tela de Sistema** (`apps/barbearia/src/lib/operadorSistema.ts`, `situacaoDoEnvio`) mostra "O último
+  envio para fora", e acusa: **problema** se o último falhou (com o motivo na linha) ou se o último certo tem
+  mais de 26 horas — a mesma janela do backup local —; **atenção** se ainda não há registro. O quadro do
+  backup segue o envio.
+- **Um quadro novo, "Disco"**: quanto está ocupado e quanto sobra, medido na pasta dos backups, como o `df`;
+  **atenção** a partir de 80%, **problema** a partir de 90%.
+
+⚠️ **Depois do deploy, a tela diz "nenhum envio registrado ainda"** até o próximo backup — o do boot, se o último
+tiver mais de 12 horas, ou o diário: os envios de antes não deixaram registro. ⚠️ **A tela só mostra quando você abre** — o monitor externo não vê nada disto.
+
+**Verificado:** 119 arquivos, **1363 de 1363** contra PostgreSQL 16; o `astro check` com zero; contra um S3 de
+mentira, o envio recusado (403, como uma chave sem permissão) registrado com o motivo e apagado quando o envio
+volta; 14 defeitos reintroduzidos, os 14 vermelhos.
+
+### 2.69 ✅ `[TÉCNICO]` O que a revisão de 05/11 deixou e não pedia mais decisão — FEITO em 05/11/2026
+
+Quatro itens da revisão geral de 05/11, com os números e os textos que você aprovou ("Todos"):
+
+- **O `www`** (`apps/barbearia/src/lib/enderecoWww.ts`). Com o certificado curinga, `www.<DOMINIO_BASE>`
+  pode chegar ao app — e virava "barbearia não encontrada". Agora vai para a raiz, que é o site de vendas,
+  com o caminho e a busca: 301 para GET e HEAD, 308 para o resto, que mantém o método. No middleware,
+  depois da conferência de origem e antes de tudo o mais.
+- **Os tetos de cada barbearia** (`apps/barbearia/src/lib/tetos.ts`): 15 pessoas ativas na equipe, 100
+  serviços ativos, 200 produtos, 50 combos. Até aqui só a galeria tinha teto, e uma conta de teste grátis
+  criava barbeiro sem fim — bcrypt no núcleo único da VPS e um e-mail de confirmação cada — e produto com
+  foto sem fim, no disco de todas. **Barbeiro e serviço contam só os ativos** (os desligados ficam no banco,
+  presos aos agendamentos de antes), e por isso o teto vale também ao RELIGAR; produto e combo contam
+  todos. A recusa diz o que fazer, e o produto recusado não deixa a foto no disco. ⚠️ A conta e a gravação
+  não são atômicas: dois pedidos ao mesmo tempo podem passar um a mais — é teto contra o excesso, não
+  contagem exata.
+- **As fotos no backup: só as 7 cópias mais novas no disco** (`BACKUP_FOTOS_LOCAIS`, `apps/barbearia/scripts/backup.mjs`).
+  Cada arquivo de fotos é a pasta inteira de todas as barbearias; com os 30 dias do banco, eram 30 cópias
+  inteiras no disco onde o banco mora — cada 1 GB de fotos, 30 GB de backup. O banco continua com os 30 dias;
+  o armazenamento de fora guarda o prazo inteiro das duas. A tela de Sistema diz quantas ficam.
+- **Sem cobrança, o caminho é o suporte** (`cobrancaLigada`, em `apps/barbearia/src/lib/assinatura.ts`). Sem
+  `ASAAS_API_KEY`, a faixa do painel, a tela de assinatura e os e-mails do teste mandavam cadastrar o cartão —
+  que não dava para cadastrar. Agora mandam ao WhatsApp do suporte, o mesmo da landing
+  (`WHATSAPP_SUPORTE`, em `apps/barbearia/src/lib/produto.ts`; `apps/barbearia/tests/whatsapp-do-suporte.test.ts`
+  o mantém igual ao de `apps/vendas/src/config.ts`). A regra de "ligada" é a da cobrança, repetida porque as
+  telas da barbearia não podem chegar a ela (`apps/barbearia/tests/cobranca-isolada.test.ts`). Com a cobrança
+  ligada, nada muda.
+
+**Verificado com o §2.70:** os números estão lá.
+
+### 2.70 ✅ `[DECISÃO]` `[TÉCNICO]` O site novo espera a sua aprovação, e o operador troca o e-mail do dono — FEITO em 05/11/2026
+
+**Decidido por você em 05/11/2026:** nos primeiros meses, o site de quem se cadastra pela web só vai ao ar
+depois que você olhar. Com o cadastro aberto e o certificado curinga, a página de um estranho iria ao ar sob o
+domínio do produto em minutos, e uma só que fosse golpe pesaria sobre o domínio inteiro — nos filtros de
+e-mail e nos alertas do navegador —, e com ele sobre o site de todo cliente (§4.16).
+
+**Como ficou** (migration 0020, `apps/barbearia/src/lib/previaDoSite.ts`):
+
+- **`tenants.site_aprovado_em`.** Nulo é esperando. ⚠️ O padrão da coluna é `now()`, de propósito: as que já
+  existem nasceram aprovadas, e o que cria barbearia fora do cadastro pela web — o `npm run db:provisionar`,
+  que é você — também. Só o `/cadastrar` grava nulo, e `apps/barbearia/tests/aprovacao-do-site.test.ts`
+  confere que ele é o único caminho do código que cria barbearia.
+- **O endereço que espera diz "em preparação"** — 503, fora da busca, e **nada que a pessoa escreveu**: nem o
+  nome, nem o WhatsApp. Por isso o aviso de "fora do ar", que mostra os dois, também não vale para quem nunca
+  foi aprovado.
+- **O painel funciona inteiro**, com uma faixa dizendo que o site abre depois da conferência, e o "Ver meu
+  site" do topo vira "Ver como está ficando".
+- **A prévia.** O link é montado na hora do clique, pelo painel do dono (`/admin/previa`) ou pela ficha do
+  operador, e vale 2 minutos; no endereço do site, vira um cookie daquele endereço, que abre o site por 8 horas
+  naquele navegador. Toda página diz "Prévia — este site ainda não está no ar", e nenhuma vai para a busca.
+  ⚠️ É a porta dos fundos da aprovação, estreita de propósito: quem quisesse mostrar o site a alguém teria de
+  mandar um link novo a cada pessoa, e cada um morre em 2 minutos. A assinatura é um HMAC com o
+  `SESSION_SECRET`; trocar o segredo fecha as prévias abertas.
+- **No painel do operador:** "Site esperando aprovação" na lista e na ficha; o site que espera vem primeiro no
+  "pede atenção" do Início; e, na ficha, "Ver como o site está" e "Aprovar e pôr no ar", registrado. Não
+  aprovar não tem botão: o que não pode ir ao ar sai pelo "Tirar do ar", com o motivo.
+- ✅ **Decidido na implementação, confirmado por você em 10/11/2026: o teste de 7 dias conta da aprovação.** Aprovar põe o
+  fim do teste no de quem se cadastrasse naquele dia — a não ser que ele já vá mais longe, porque você estendeu.
+  Sem isso, cada dia de espera seria um dia a menos de teste, com o site fora do ar. E os avisos do teste não
+  vão para quem espera: o prazo dele vai mudar.
+- **O cartão também espera** (06/11/2026, achado ao escrever o termo de uso, que promete os 7 dias a partir da
+  aprovação). Até aqui, o dono podia cadastrar o cartão com o site esperando: o Checkout pago põe a barbearia
+  em dia, a aprovação deixava de estender o teste — ela só estende quem está no teste —, e a primeira cobrança
+  saía no fim do teste contado do CADASTRO, às vezes com o site ainda "em preparação". Agora a rota do cartão
+  recusa (`abrirCheckout`, em `apps/barbearia/src/lib/cobranca.ts`), e a tela de assinatura diz que o teste
+  começa quando o site abrir, sem o botão — e não chama de "fora do ar" um site que nunca abriu. ⚠️ Fica um
+  caso: se a aprovação passar de 10 dias do cadastro (7 de teste e 3 de carência), o painel do dono fecha até
+  você aprovar, e aprovar devolve os 7 dias. Para quem você não vai aprovar, é o comportamento certo.
+- **`SITE_SEM_APROVACAO=1` desliga**, para quando os primeiros meses passarem — só para quem se cadastra
+  depois: quem já espera continua esperando você.
+
+⚠️ **O que isto muda no §2.31:** o certificado por subdomínio, adicionado à mão no EasyPanel, foi rejeitado
+em 09/10 porque o cadastro das 3 da manhã ficaria sem site até alguém clicar. Com a aprovação, o site espera
+você de qualquer jeito — o clique cabe no mesmo momento. Decisão sua.
+
+**O e-mail do dono**, na ficha: "Trocar o e-mail do dono" — a saída de quem esqueceu a senha com o e-mail errado
+ou nunca confirmado, que até aqui era SQL no console (o "esqueci" só manda para e-mail confirmado, §2.64 e
+§2.67). ⚠️ É também a porta de um golpe — quem pede pelo WhatsApp pode não ser o dono —, e o protocolo é o
+que a fecha: a ficha manda conferir pelo WhatsApp DO LOGIN, escrevendo você para aquele número, e a ação só
+vai com a caixa "Conferi pelo WhatsApp do login" marcada. Depois, o mesmo da troca pela Equipe: o e-mail novo
+nasce sem confirmar e recebe o link — sem o limite de pedidos por pessoa, que não é para o operador —; os links
+de senha nova morrem; e o antigo, se estava confirmado, recebe o aviso, que diz que foi o suporte e o que fazer
+se não foi ele que pediu. **O mesmo e-mail, ainda sem confirmar, só manda o link de novo** — o caso mais comum:
+o link de 3 dias venceu, e o dono, sem a senha, não entra para pedir outro. No registro, os dois e-mails
+mascarados. A ficha diz, agora, se o e-mail do dono é confirmado.
+
+**Verificado, com o §2.69:** 125 arquivos, **1411 de 1411** contra PostgreSQL 16; o `astro check` com zero; 59
+defeitos reintroduzidos — com os do ensaio de restauração (§3.3) —, os 59 vermelhos; a 0020 aplicada pelo `scripts/startup.mjs` num banco na 0019 com uma
+barbearia dentro, que saiu aprovada; e, contra o build, 43 conferências — o cadastro, o "em preparação" sem nada
+do que foi escrito, a prévia pelo painel e pela ficha, a troca do e-mail e a aprovação, com o site abrindo para
+todos e a faixa sumindo.
+
+**06/11/2026, o cartão:** **1413 de 1413**; o `astro check` com zero; 4 defeitos reintroduzidos, os 4 vermelhos;
+e, contra o build, com a cobrança ligada: o site que espera sem o botão e a rota respondendo 409 — e, aprovado,
+o botão de volta e a rota passando.
+
+**10/11/2026 — a aprovação continua, com prazo e com aviso a você** (decidido por você, depois de eu explicar o
+porquê; a outra opção era o site ir ao ar direto, com um filtro de palavras e você revisando depois):
+
+- **O prazo: em até 1 dia útil do cadastro.** Dito na tela de fim do cadastro, no e-mail de boas-vindas, na faixa
+  do painel, na tela de assinatura e no aviso a você — e na landing, que dizia "No ar, agendando" como se fosse
+  na hora. Mora numa constante, `PRAZO_DA_CONFERENCIA`, em `apps/barbearia/src/lib/produto.ts` e no
+  `apps/vendas/src/config.ts`; `apps/barbearia/tests/prazo-da-conferencia.test.ts` reprova se as duas divergirem
+  ou se alguém escrever o prazo à mão.
+- **O aviso a você, a cada cadastro novo pela web** (`apps/barbearia/src/lib/avisoAoOperador.ts`): um e-mail para
+  `OPERADOR_EMAIL`, com o endereço escolhido e o link da ficha — e nada do que a pessoa digitou: nem o nome da
+  barbearia, nem o do dono, nem o telefone; o assunto é fixo. ⚠️ É o golpe que o aviso poderia abrir contra você,
+  com o remetente do produto: conferir é na prévia. O endereço vem do ambiente, não de formulário, e por isso não
+  passa pela confirmação do §2.64. Sai de uma parte própria do orçamento do dia (5%, §2.66): o cadastro é
+  público, e uma enxurrada deles não leva a senha nova de ninguém. A tela de Sistema diz para onde vai — e, com
+  o cadastro aberto e sem a variável, marca o problema.
+- **O que continua igual:** o aviso é um só, na hora do cadastro. Não há lembrete se você não aprovar, e o
+  painel do dono ainda fecha 10 dias depois do cadastro sem aprovação — o caso de cima. O Início do operador
+  continua listando quem espera, o mais antigo primeiro.
+- **Achado no caminho:** o Início ordenava o site que espera junto com os prazos das outras, pela data — o
+  cadastro de hoje contra o teste que vence amanhã. Com o relógio de verdade dava certo, porque os outros prazos
+  estão sempre no futuro; o teste, com o relógio parado em 06/11, passou a falhar no dia 07. Agora quem espera
+  vai num grupo à frente (`apps/barbearia/src/lib/operadorNumeros.ts`).
+
+**Verificado, 10/11/2026:** 127 arquivos, **1428 de 1428** contra PostgreSQL 16; o `astro check` com zero nos dois
+apps; 14 defeitos reintroduzidos, os 14 vermelhos; e, contra o build, um cadastro com "Suporte Fadeline
+Regularize o Pix" no nome: o aviso a você saiu com o endereço e a ficha, sem nada do que foi digitado, e o prazo
+apareceu nas boas-vindas, na faixa do painel e na tela de assinatura — e na landing, servida pelo build dela.
+
 ---
 
 ## 3. Operação com vários clientes
@@ -2881,7 +3130,17 @@ espera este job também. ✅ **Provado no GitHub em 25/10/2026**, no push do `28
 então só tinha rodado sem Docker, sobre o build (13 conferências), porque o ambiente onde foi escrito
 não pode ligá-lo.
 
-### 3.3 🟠 `[TÉCNICO]` Backup — um só para todas as barbearias; o teste de restauração já foi feito, e sair da VPS está pronto no código desde 12/10/2026
+### 3.3 🟠 `[TÉCNICO]` Backup — um só para todas as barbearias; sai da VPS desde 04/11/2026, e o arquivo de lá nunca voltou
+
+> ✏️ **05/11/2026 (revisão de 05/11):** o envio para fora funciona em produção desde 04/11 — a nota de 10/10
+> abaixo ("no app novo em produção, não") ficou para trás —, e a tela de Sistema diz o último envio e acusa a
+> falha (§2.68). **O que falta é restaurar o arquivo de lá**, num banco à parte, uma vez: backup que nunca
+> voltou é suposição. O ensaio é um script desde 05/11, `apps/barbearia/scripts/ensaiar-restauracao.mjs` —
+> restaura o `.sql.gz` num banco vazio de `ENSAIO_DATABASE_URL` (recusa o de `DATABASE_URL`, e o que já tem
+> tabelas), confere as contagens, o RLS e a última migration, e, com `--fotos`, que cada foto que o banco cita
+> está no arquivo. Guarda: `apps/barbearia/tests/ensaiar-restauracao.test.ts`, contra um backup de verdade do
+> `backup.mjs`. ⚠️ **As fotos não ficam mais 30 dias na VPS:** só as 7 cópias mais novas (§2.69); o
+> armazenamento de fora guarda o resto.
 
 ~~O backup diário com upload off-site já funciona por instância.~~ *Corrigido em 12/10/2026 —
 era do desenho de uma instância por barbearia.* O backup roda no container do app
@@ -2923,8 +3182,10 @@ parte órfã ocupando o bucket. Medido contra um S3 local, com um arquivo de 200
 chegava a 273 MB de memória; agora, 91 MB. E o SDK passou a mandar só o checksum que a operação
 exige — o padrão da versão instalada manda um cabeçalho de checksum novo em todo envio, que
 serviço compatível com S3 pode recusar. Guarda: `apps/barbearia/tests/backup-envio.test.ts`, contra
-um S3 de mentira dentro da suíte. ⚠️ **Não conferido contra o Backblaze de verdade** — só contra
-esse e contra o moto, um S3 local que segue o protocolo da AWS.
+um S3 de mentira dentro da suíte. ~~⚠️ Não conferido contra o Backblaze de verdade — só contra
+esse e contra o moto, um S3 local que segue o protocolo da AWS.~~ ✏️ *Conferido no Backblaze em 04/11/2026:
+o banco e as fotos subiram, cada um num pedido só. O envio em partes — o dos arquivos de mais de 16 MiB —
+continua sem ter rodado contra ele. Desde 05/11, a tela de Sistema diz se cada envio deu certo (§2.68).*
 
 ⚠️ **O bucket não se limpa sozinho.** Os 30 dias de `BACKUP_RETENTION_DAYS` valem para o disco da
 VPS: o app apaga os arquivos velhos de lá, nunca os do bucket. Sem uma regra de ciclo de vida no
@@ -3280,7 +3541,11 @@ como ela estava, estender e ver o site voltar na hora, anotar, os filtros, nenhu
 —, sem erro de JavaScript; e a 0014 aplicada pelo `scripts/startup.mjs` sobre um banco parado na
 0013, como dono sem superusuário — rodar de novo não faz nada.
 
-### 3.10 🟠 `[TÉCNICO]` O app fala com o banco como superusuário — a troca pronta e ensaiada em 11/10/2026; falta rodar em produção
+### 3.10 ✅ `[TÉCNICO]` O app fala com o banco como superusuário — RODADO em produção em 28/10/2026
+
+> ✏️ **05/11/2026 (revisão de 05/11):** este 🟠 dizia "falta rodar em produção". Rodou no deploy de 28/10, e
+> desde então o app entra no banco por um usuário sem superusuário (§0). O que segue vale como está: migration
+> nova não pode pedir superusuário, e banco restaurado passa pelo `scripts/permissoes-do-app.mjs` (§3.11).
 
 Em produção, o `DATABASE_URL` do app é o superusuário que a imagem do Postgres cria. O RLS não
 muda com isso — o caminho do dono já passava por cima dele —, mas um defeito que deixasse SQL
@@ -4257,6 +4522,8 @@ rótulo de DNS válido e se já existe (as duas em `provisionarBarbearia`,
   registrado. *Antes:* o status `suspended` já sumia com o site, mas acioná-lo era abrir o `psql`.
 - O primeiro a pegar o nome de uma barbearia de verdade, que ainda nem é cliente, fica
   com ele. Não tem conserto técnico barato; tem que caber no termo de uso (§1.2).
+- ✅ **Olhar antes de ir ao ar — feito em 05/11/2026**, decidido por você para os primeiros meses: o site de
+  quem se cadastra pela web espera a sua aprovação, com o endereço dizendo "em preparação" (§2.70).
 
 ### 4.17 ✅ `[TÉCNICO]` Recuperação de senha — FEITA em 09/10/2026; falta o provedor de envio
 
@@ -4282,8 +4549,9 @@ rótulo de DNS válido e se já existe (as duas em `provisionarBarbearia`,
 - **Trocar a senha derruba as sessões abertas**, pelos três caminhos (§2.13).
 - **O e-mail aparece e se troca na tela da equipe** (`/admin/barbeiros`), com aviso para o
   dono que está sem; e a tela de assinatura diz para onde vão os avisos.
-- **Boas-vindas:** o cadastro manda o primeiro e-mail na hora, com o site, o painel, o
-  WhatsApp de login e o fim do teste. É a pista mais cedo de um e-mail digitado errado.
+- **Boas-vindas:** o cadastro manda o primeiro e-mail na hora, com o painel, o WhatsApp de
+  login e o fim do teste — e, desde 05/11/2026, sem o endereço do site (§2.67). É a pista mais
+  cedo de um e-mail digitado errado.
 - **Os avisos do teste e da cobrança** (`apps/barbearia/src/lib/avisos.ts`): 2 dias antes do
   fim do teste, no começo da carência — teste vencido ou cobrança que falhou — e quando o site
   sai do ar. Sai só o da fase de agora, um por prazo: a trava é a tabela `avisos_enviados`
@@ -4418,11 +4686,49 @@ no cadastro, a existência não.
   (`ARQUITETURA-PRODUCAO.md` §7).
 - ✅ **Restauração de backup** (§3.3) — feita em 06/09 e repetida em 11/09 contra o banco
   com os dados reais do Bayron. As fotos entraram no backup em 11/09 (§3.7), com a
-  restauração conferida por comparação de árvore.
+  restauração conferida por comparação de árvore. ⚠️ *05/11/2026:* falta a do arquivo que está FORA da
+  VPS, desde 04/11 — o ensaio é o `apps/barbearia/scripts/ensaiar-restauracao.mjs` (§3.3).
 
 ---
 
 ## 6. Ordem sugerida
+
+> ✏️ **Reescrita em 05/11/2026**, depois da revisão geral de 05/11 — a revisão mora no projeto do claude.ai,
+> porque descreve o produto em produção, e este repositório é público. A fila abaixo é a de hoje; o que vem
+> depois de "Histórico" é a ordem de setembro e outubro, como registro do que foi feito.
+
+**1. Agora, sem código.**
+
+- **As 5 conversas**, com a demo, e o primeiro teste de verdade feito por você, com o cadastro fechado: o
+  "Quero testar" da landing já leva ao seu WhatsApp, e até a Asaas o operador estende o teste. A pergunta que
+  decide se o projeto existe — R$ 100/mês vende para barbearia sem sistema? — está aberta desde 01/09 (§5).
+- **O termo de uso e o aviso de privacidade**, com um advogado (§1.2): é o que precisa existir antes de
+  guardar dado do cliente de outra pessoa. O rascunho, com as perguntas para ele, existe desde 06/11, num documento do claude.ai.
+
+**2. Antes do primeiro cliente de verdade no ar.**
+
+- O merge e o Implantar do que está na `monorepo` desde 05/11, com a migration 0020 (§2.66, §2.67,
+  §2.68, §2.69 e §2.70) — o push dos 15 commits até 06/11 já foi feito; o de 10/11 ainda não. Com o
+  `OPERADOR_EMAIL` no EasyPanel.
+- O monitor externo (§3.4).
+- O backup das 03:00 visto no armazenamento de fora, e o arquivo de lá restaurado com o
+  `apps/barbearia/scripts/ensaiar-restauracao.mjs` (§3.3).
+- O site antigo do Bayron fora do servidor do produto: ele divide a máquina com o banco de todas (os
+  detalhes estão no projeto do claude.ai).
+
+**3. Antes de abrir o cadastro** (§2.31).
+
+- A cobrança provada no sandbox (§4.14).
+- O certificado dos subdomínios — o curinga, ou o clique por barbearia na hora de aprovar (§2.70).
+- O termo na tela do cadastro (§1.2).
+- O `OPERADOR_EMAIL` configurado, e a tela de Sistema dizendo para onde o aviso de cadastro vai (§2.70).
+- Os repositórios privados e os segredos trocados.
+
+**4. Depois dos primeiros meses:** decidir se a aprovação do site novo continua (`SITE_SEM_APROVACAO`, §2.70).
+
+---
+
+**Histórico — a ordem de setembro e outubro.**
 
 ⚠️ **Reordenada de novo em 24/09/2026**, pela decisão do autoatendimento (§4.8 e
 `PLANO-PRODUTIZACAO.md` §13). A onda 2 de 15/09 — o fuso — virou a onda 3. A onda 3 de
