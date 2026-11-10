@@ -411,7 +411,7 @@ describe('a tela de sistema não mostra segredo', () => {
       await expect(email.enviarEmail({ para: 'dono@x.test', assunto: 'x', texto: 'x', barbearia: 1, tipo: 'agenda' }))
         .rejects.toBeInstanceOf(email.EmailNaoEnviado);
       const config = configuracaoNoPainel({ ...envDe(), EMAIL_LIMITE_DIARIO: '1' });
-      expect(config.email.orcamento).toEqual({ limite: 1, usados: 1, porTipo: { seguranca: 0, conta: 0, agenda: 1 }, recusados: 1 });
+      expect(config.email.orcamento).toEqual({ limite: 1, usados: 1, porTipo: { seguranca: 0, conta: 0, agenda: 1, operador: 0 }, recusados: 1 });
       const base = {
         banco: { responde: true, ms: 3, versao: '16.15', tamanho: '9 MB', usuario: 'fadeline', superusuario: false },
         migracoes: { aplicadas: 14, ultima: '0014_anotacoes_do_operador.sql', em: new Date(), noBuild: 14 },

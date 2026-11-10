@@ -28,7 +28,7 @@ afterEach(() => {
   else process.env.EMAIL_LIMITE_DIARIO = LIMITE_ANTES;
 });
 
-const mandar = (tipo: 'seguranca' | 'conta' | 'agenda', barbearia: number | null, para = 'dono@barbearia.com') =>
+const mandar = (tipo: 'seguranca' | 'conta' | 'agenda' | 'operador', barbearia: number | null, para = 'dono@barbearia.com') =>
   email.enviarEmail({ para, assunto: 'x', texto: 'x', tipo, barbearia });
 
 /** O motivo da recusa — ou `null`, se saiu. */
@@ -46,10 +46,10 @@ describe('o limite e as partes dele', () => {
     expect(email.limiteDiario({ EMAIL_LIMITE_DIARIO: '1000' })).toBe(1000);
   });
 
-  it('a agenda fica com 60%, cada barbearia com 20% de agenda e 10% de senha e confirmação', () => {
-    expect(email.partesDoOrcamento(280)).toEqual({ total: 280, agenda: 168, agendaPorBarbearia: 56, segurancaPorBarbearia: 28 });
+  it('a agenda fica com 60%, cada barbearia com 20% de agenda e 10% de senha e confirmação, e o operador com 5%', () => {
+    expect(email.partesDoOrcamento(280)).toEqual({ total: 280, agenda: 168, agendaPorBarbearia: 56, segurancaPorBarbearia: 28, operador: 14 });
     // Com um limite pequeno, cada parte ainda deixa passar um.
-    expect(email.partesDoOrcamento(1)).toEqual({ total: 1, agenda: 1, agendaPorBarbearia: 1, segurancaPorBarbearia: 1 });
+    expect(email.partesDoOrcamento(1)).toEqual({ total: 1, agenda: 1, agendaPorBarbearia: 1, segurancaPorBarbearia: 1, operador: 1 });
   });
 });
 
@@ -93,6 +93,16 @@ describe('enviarEmail, com o orçamento', () => {
     expect(await recusa(mandar('conta', 1))).toMatch(/limite do dia/);
   });
 
+  it('o aviso ao operador de cadastro novo (10/11/2026): parte própria — o cadastro é público, e uma enxurrada não leva o dia', async () => {
+    // Com 10 por dia, a parte do operador é 1, o mínimo.
+    expect(await recusa(mandar('operador', 1, 'operador@exemplo.com.br'))).toBeNull();
+    expect(await recusa(mandar('operador', 2, 'operador@exemplo.com.br'))).toMatch(/a parte dos avisos ao operador acabou: 1 em 24 horas, de 10/);
+    // O resto do dia continua: a senha nova de outra barbearia sai, e o aviso do teste também.
+    expect(await recusa(mandar('seguranca', 3))).toBeNull();
+    expect(await recusa(mandar('conta', 3))).toBeNull();
+    expect(email.usoDoOrcamento()).toMatchObject({ usados: 3, recusados: 1, porTipo: { seguranca: 1, conta: 1, agenda: 0, operador: 1 } });
+  });
+
   it('o e-mail sem forma não gasta nada', async () => {
     expect(await recusa(email.enviarEmail({ para: 'ze@gmail', assunto: 'x', texto: 'x', tipo: 'agenda', barbearia: 1 })))
       .toMatch(/sem forma de e-mail/);
@@ -102,7 +112,7 @@ describe('enviarEmail, com o orçamento', () => {
   it('cada e-mail que saiu leva a barbearia e o tipo', async () => {
     await mandar('agenda', 7);
     expect(email.caixaDeSaida[0]).toMatchObject({ barbearia: 7, tipo: 'agenda' });
-    expect(email.usoDoOrcamento().porTipo).toEqual({ seguranca: 0, conta: 0, agenda: 1 });
+    expect(email.usoDoOrcamento().porTipo).toEqual({ seguranca: 0, conta: 0, agenda: 1, operador: 0 });
   });
 
   it('24 horas depois, o dia volta', async () => {

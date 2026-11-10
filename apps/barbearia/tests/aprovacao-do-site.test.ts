@@ -168,7 +168,7 @@ describe('a prévia: o link do painel e o cookie do endereço', () => {
     const tela = readFileSync('src/pages/admin/assinatura.astro', 'utf8');
     expect(tela).toMatch(/const emPreparacao = tenant\.emPreparacao === true;/);
     expect(tela).toMatch(/const podeCartao = podeCadastrarCartao\(situacao\) && !emPreparacao;/);
-    expect(tela).toMatch(/\{emPreparacao\s*\? 'O seu site ainda não está no ar: [^']*os 7 dias de teste começam nesse dia\./);
+    expect(tela).toMatch(/\{emPreparacao\s*\? `O seu site ainda não está no ar: [^`]*os 7 dias de teste começam nesse dia\./);
     expect(tela).toMatch(/const titulo = foraDoAr && !emPreparacao \? 'O site está fora do ar' : 'Assinatura';/);
     // Controle: o cartão continua oferecido por `podeCartao`, e a explicação de sempre continua lá.
     expect(tela).toMatch(/\{!manual && podeCartao && \(/);

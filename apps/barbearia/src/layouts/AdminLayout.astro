@@ -7,6 +7,7 @@ import { situacaoDe } from '../lib/situacao.js';
 import { avisoDoPainel, cobrancaLigada, TELA_DE_ASSINATURA } from '../lib/assinatura.js';
 import { formatInTimeZone } from 'date-fns-tz';
 import { fusoDe } from '../lib/timezone.js';
+import { PRAZO_DA_CONFERENCIA } from '../lib/produto.js';
 
 const s = await getSettings();
 const barbearia = tenantAtual();
@@ -166,7 +167,7 @@ const grupos: { titulo: string; itens: { href: string; label: string; ativo: boo
         {emPreparacao && (
           <div id="aviso-em-preparacao" role="status"
             class="px-4 sm:px-6 py-2.5 text-sm flex flex-wrap items-center gap-x-4 gap-y-1 border-b bg-amber-50 border-amber-200 text-amber-950">
-            <span>O seu site ainda não está no ar: ele abre depois da nossa conferência. Monte tudo por aqui enquanto isso — os 7 dias de teste começam quando ele abrir.</span>
+            <span>O seu site ainda não está no ar: ele abre depois da nossa conferência, em até {PRAZO_DA_CONFERENCIA} do cadastro. Monte tudo por aqui enquanto isso — os 7 dias de teste começam quando ele abrir.</span>
             {enderecoDoSite && (
               <a href="/admin/previa" target="_blank" rel="noopener" class="font-semibold underline underline-offset-2 whitespace-nowrap">Ver como está ficando</a>
             )}

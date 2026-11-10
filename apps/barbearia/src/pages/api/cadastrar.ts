@@ -48,7 +48,8 @@ import { normalizarEmail } from '../../lib/email.js';
 import { pedirConfirmacao, trechoDoLink } from '../../lib/confirmacaoDeEmail.js';
 import { formatarTelefone } from '../../lib/phone.js';
 import { urlDoPainel } from '../../lib/tenant.js';
-import { NOME_PRODUTO } from '../../lib/produto.js';
+import { NOME_PRODUTO, PRAZO_DA_CONFERENCIA } from '../../lib/produto.js';
+import { avisarOperadorDoCadastro } from '../../lib/avisoAoOperador.js';
 
 export const CADASTRO_ABERTO = () => process.env.CADASTRO_ABERTO === '1';
 
@@ -217,6 +218,11 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     if (resultado !== 'enviado') console.warn(`[cadastro] o e-mail de boas-vindas não saiu: ${resultado}`);
   }
 
+  // O aviso ao operador (10/11/2026, `lib/avisoAoOperador.ts`): o site espera a aprovação, e o
+  // dono acabou de ouvir que ele abre em até `PRAZO_DA_CONFERENCIA`. Sem esperar o envio, como as
+  // boas-vindas — e só com o endereço escolhido e a ficha, nada do que foi digitado.
+  avisarOperadorDoCadastro({ tenantId: r.tenantId, slug: r.slug, emPreparacao: r.siteEmPreparacao });
+
   return new Response(JSON.stringify(corpo), {
     status: 201,
     headers: {
@@ -269,7 +275,7 @@ export function emailDeBoasVindas(d: {
       `Você entra com o seu WhatsApp, ${d.whatsapp}, e a senha que criou no cadastro.`,
       '',
       ...(d.siteEmPreparacao
-        ? ['O seu site abre depois de uma conferência nossa — o painel já funciona inteiro. Os 7 dias de teste grátis começam quando ele abrir.', '']
+        ? [`O seu site abre depois de uma conferência nossa, em até ${PRAZO_DA_CONFERENCIA} — o painel já funciona inteiro. Os 7 dias de teste grátis começam quando ele abrir.`, '']
         : d.ultimoDiaDoTeste ? [`O teste grátis vai até ${d.ultimoDiaDoTeste}. Até lá, nada é cobrado.`, ''] : []),
       'É para este e-mail que vão o link de senha nova, se você esquecer a sua, e os avisos do teste e da cobrança.',
       '',
