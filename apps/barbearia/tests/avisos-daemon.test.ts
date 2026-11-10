@@ -74,5 +74,18 @@ describe('o daemon dos avisos', () => {
     await daemon.rodarAvisos();
     await daemon.rodarAvisos();
     expect(log).toHaveBeenCalledTimes(3);
+    log.mockRestore();
+  });
+
+  it('o lembrete ao operador sai no log sempre que houver — e a rodada sem ele não escreve nada (10/11/2026)', async () => {
+    const linhas: string[] = [];
+    const log = vi.spyOn(console, 'log').mockImplementation((...a) => { linhas.push(a.join(' ')); });
+    resposta = { status: 200, corpo: { ok: true, avaliadas: 0, enviados: 0, falhas: 0, semDestinatario: 0, lembradosAoOperador: 2 } };
+    await daemon.rodarAvisos();
+    expect(linhas).toEqual(['[avisos-daemon] ✓ lembrete ao operador: 2 site(s) esperando a aprovação']);
+    resposta = { status: 200, corpo: { ok: true, avaliadas: 0, enviados: 0, falhas: 0, semDestinatario: 0, lembradosAoOperador: 0 } };
+    await daemon.rodarAvisos();
+    expect(linhas).toHaveLength(1);
+    log.mockRestore();
   });
 });
