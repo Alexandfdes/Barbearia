@@ -21,6 +21,15 @@ Consequência prática: vinho `#6b1f2a` e marinho `#1b2a5a` passam de cara no si
 barbearia (11,3:1 e 13,8:1 com branco) e reprovariam no site de vendas. Dourado
 `#c9a227` e laranja `#e8721c` são o contrário.
 
+### ⚠️ As telas do produto que moram no app da barbearia
+
+O `/cadastrar` e as páginas do termo (`/termos/uso` e `/termos/privacidade`, no layout
+`apps/barbearia/src/layouts/TextoDoTermo.astro`) estão em `apps/barbearia`, mas são do **produto**:
+quem chega nelas veio da landing, e a barbearia dele nem existe ainda. Usam a paleta do **site de
+vendas** — botão claro com texto grafite, link em verde claro —, copiada em tokens no `<style>` de
+cada uma (são dois builds de Tailwind; não dá para importar). Copiar o botão do painel para lá dá
+texto branco sobre `#16A34A`: 3,30:1, proibido.
+
 ## Site de vendas — regras duras
 
 - `#16A34A` é cor de **preenchimento e ícone, nunca de letra**. Como texto sobre claro dá
