@@ -228,6 +228,8 @@ function tarDasFotos(dest) {
  * Cria um backup consistente e apaga os antigos. Retorna o caminho criado.
  * opts.skipIfFresherThanMs: não faz nada se já existe backup mais novo que isso
  * (evita enxurrada de backups num restart-loop do container).
+ * opts.esperaDaNovaTentativaMs: quanto o envio para fora espera antes da segunda tentativa
+ * (`maybeUploadToS3`). Existe para o teste; em produção é `ESPERA_DA_NOVA_TENTATIVA_MS`.
  */
 export async function runBackup(opts = {}) {
   const url = process.env.DATABASE_URL;
@@ -296,8 +298,9 @@ export async function runBackup(opts = {}) {
     .sort((a, b) => (a.caminho === fotos ? -1 : b.caminho === fotos ? 1 : b.em - a.em));
   for (const velho of arquivosDeFotos.slice(FOTOS_LOCAIS)) { unlinkSync(velho.caminho); removed++; }
 
-  const envioDoBanco = await maybeUploadToS3(dest);
-  const envioDasFotos = fotos ? await maybeUploadToS3(fotos) : null;
+  const espera = opts.esperaDaNovaTentativaMs;
+  const envioDoBanco = await maybeUploadToS3(dest, { espera });
+  const envioDasFotos = fotos ? await maybeUploadToS3(fotos, { espera }) : null;
   registrarEnvio([[dest, envioDoBanco], ...(fotos ? [[fotos, envioDasFotos]] : [])]);
 
   return { dest, fotos, erroFotos, removed, skipped: false, uploaded: envioDoBanco === true };
@@ -430,24 +433,80 @@ function terminaComoDump(caminho) {
 export const PARTE_DO_ENVIO = 16 * 1024 * 1024;
 
 /**
+ * Quanto o envio para fora espera antes da segunda tentativa. Um minuto: o bastante para um soluço
+ * do provedor passar, e pouco para quem espera — o daemon do backup, que roda à parte do site.
+ */
+export const ESPERA_DA_NOVA_TENTATIVA_MS = 60_000;
+
+/**
  * Upload off-site opcional (S3-compatível, ex: Backblaze B2).
  * Ativa somente se S3_ENDPOINT/S3_BUCKET/S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY existirem.
  * Falha de upload NÃO derruba o backup local — loga e segue.
  *
  * Devolve `null` sem S3, `true` se subiu, e a mensagem do erro se não subiu — para o registro
  * (`registrarEnvio`).
+ *
+ * ── A SEGUNDA TENTATIVA E O DETALHE DO ERRO (10/11/2026) ─────────────────────
+ *
+ * Em 10/11/2026 o envio do backup de boot foi recusado com "The request body was too small", e os
+ * diários dos dias em volta subiram. A causa não se sabe: a mensagem não está no SDK (vem do
+ * provedor), e o log só tinha ela. Agora a falha sai com o que o SDK sabe — o código do provedor, o
+ * status HTTP, as tentativas que ele mesmo fez — e com o tamanho do arquivo e o modo do envio. E o
+ * envio tenta de novo, uma vez, depois de `ESPERA_DA_NOVA_TENTATIVA_MS`: as novas tentativas do SDK
+ * são para 5xx e falta de rede, e não repetem um 400. Se a segunda passar, o log diz — e fica
+ * sabido que a recusa é passageira. As duas falhando, o registro guarda o motivo da segunda.
+ * ⚠️ É diagnóstico, não conserto: não se sabe ainda se a segunda tentativa resolve.
  */
-async function maybeUploadToS3(filePath) {
+async function maybeUploadToS3(filePath, opcoes = {}) {
   const { S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY } = process.env;
   if (!S3_ENDPOINT || !S3_BUCKET || !S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) return null;
+  const espera = opcoes.espera ?? ESPERA_DA_NOVA_TENTATIVA_MS;
 
+  let motivo = '';
+  for (let tentativa = 1; tentativa <= 2; tentativa++) {
+    try {
+      await enviarParaS3(filePath);
+      console.log(`✓ Upload off-site: s3://${S3_BUCKET}/backups/${basename(filePath)}${tentativa > 1 ? ' — na segunda tentativa' : ''}`);
+      return true;
+    } catch (err) {
+      const detalhe = detalheDaFalha(err);
+      motivo = `${err?.message || String(err)}${detalhe ? ` [${detalhe}]` : ''}`;
+      console.error(
+        `✕ Upload off-site falhou${tentativa > 1 ? ' de novo, na segunda tentativa' : ''} (backup local preservado): ${motivo}` +
+        `\n  ${descreverArquivo(filePath)}` +
+        (tentativa === 1 ? `\n  Nova tentativa em ${Math.round(espera / 1000)} s.` : ''),
+      );
+      if (tentativa === 1) await new Promise((ok) => setTimeout(ok, espera));
+    }
+  }
+  return motivo;
+}
+
+/**
+ * O que o SDK sabe da falha, para o log: o código do provedor, o status HTTP e as tentativas que o
+ * próprio SDK fez. Vazio quando o erro não veio do SDK (o arquivo que sumiu, por exemplo). Nada de
+ * credencial: o SDK não põe a chave no erro.
+ */
+export function detalheDaFalha(err) {
+  if (!err || typeof err !== 'object') return '';
+  const partes = [];
+  const codigo = typeof err.Code === 'string' ? err.Code : (err.name && err.name !== 'Error' ? err.name : null);
+  if (codigo) partes.push(codigo);
+  const meta = err.$metadata ?? {};
+  if (meta.httpStatusCode) partes.push(`HTTP ${meta.httpStatusCode}`);
+  if (meta.attempts > 1) partes.push(`${meta.attempts} tentativas do SDK`);
+  if (meta.requestId) partes.push(`pedido ${meta.requestId}`);
+  return partes.join(', ');
+}
+
+/** "barbearia_….sql.gz: 812 KiB, num pedido só" — o tamanho e o modo, que decidem o caminho do envio. */
+function descreverArquivo(caminho) {
   try {
-    await enviarParaS3(filePath);
-    console.log(`✓ Upload off-site: s3://${S3_BUCKET}/backups/${basename(filePath)}`);
-    return true;
-  } catch (err) {
-    console.error('✕ Upload off-site falhou (backup local preservado):', err.message);
-    return err.message || String(err);
+    const bytes = statSync(caminho).size;
+    const tamanho = bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MiB` : `${Math.ceil(bytes / 1024)} KiB`;
+    return `${basename(caminho)}: ${tamanho} (${bytes} bytes), ${bytes <= PARTE_DO_ENVIO ? 'num pedido só' : 'em partes'}`;
+  } catch (erro) {
+    return `${basename(caminho)}: não deu para ler o tamanho (${erro.message})`;
   }
 }
 

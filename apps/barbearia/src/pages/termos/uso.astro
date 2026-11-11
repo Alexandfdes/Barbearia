@@ -1,0 +1,16 @@
+---
+export const prerender = false;
+
+/**
+ * O termo de uso que o dono aceita no cadastro (`src/lib/termos.ts`). Em rascunho, 404 em produção:
+ * o texto ainda não vale, e o cadastro não o pede.
+ */
+import TextoDoTermo from '../../layouts/TextoDoTermo.astro';
+import { Content } from '../../termos/uso.md';
+import { VERSAO_DOS_TERMOS, paginasDosTermosAbrem } from '../../lib/termos.js';
+
+if (!paginasDosTermosAbrem(VERSAO_DOS_TERMOS, import.meta.env.DEV)) {
+  return new Response('Not found', { status: 404 });
+}
+---
+<TextoDoTermo titulo="Termo de uso" versao={VERSAO_DOS_TERMOS}><Content /></TextoDoTermo>

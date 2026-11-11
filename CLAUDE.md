@@ -44,12 +44,13 @@ recusando dois agendamentos do mesmo barbeiro no mesmo horário. O passo 6 ("sep
 é por endereço: site e painel continuam **num app e num processo só**. O estado de cada passo:
 `docs/ESTADO-ATUAL.md` §4.
 
-⚠️ **Produção roda a `main`, que recebeu a `monorepo` em 28/10/2026** (PR #2): as migrations até a
-`0018`, o `Dockerfile` novo e o app falando com o banco por um usuário sem superusuário. O domínio é
-o do produto desde 29/10: `fadeline.com.br` é o site de vendas, `painel.fadeline.com.br` o painel e
-`<slug>.fadeline.com.br` o site de cada barbearia. **O deploy não é automático:** depois do merge na
-`main`, alguém clica em Implantar no EasyPanel (`docs/PENDENCIAS-ABERTAS.md` §3.2). Os nomes e a
-configuração do servidor moram no projeto do claude.ai, não aqui.
+⚠️ **Produção roda a `main`**, que recebe a `monorepo` por PR — a primeira vez em 28/10/2026 (PR #2). O que
+está no ar agora, e até que migration, diz o `docs/ESTADO-ATUAL.md` §1. O domínio é o do produto desde 29/10:
+`fadeline.com.br` é o site de vendas, `painel.fadeline.com.br` o painel e `<slug>.fadeline.com.br` o site de cada
+barbearia. **O deploy não é automático, e são dois:** depois do merge na `main`, alguém clica em Implantar no
+EasyPanel no serviço do app **e** no do site de vendas — em 10/11/2026 só o do app foi, e a landing ficou com o
+texto antigo (`docs/PENDENCIAS-ABERTAS.md` §3.2). Os nomes e a configuração do servidor moram no projeto do
+claude.ai, não aqui.
 
 ⚠️ **O Bayron não vai ser migrado** (decisão do dono em 28/10/2026: o banco dele é fictício). Se ele
 fechar, entra do zero, como qualquer cliente. O site antigo dele continua no outro repositório, o
@@ -179,7 +180,8 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   Os commits anteriores ficam como estão.
 - **CI:** `.github/workflows/testes.yml` roda a suíte com banco a cada push na `main` e na
   `monorepo` — e teste pulado reprova. Desde 17/10/2026, o job `imagem` constrói o Dockerfile e o
-  sobe sobre um banco na 0009, como o de produção: mexeu no Dockerfile, no CMD ou no boot, ele diz. Ele só manda no deploy depois do que o
+  sobe sobre um banco na 0009 — o de produção quando o job nasceu; produção já passou dela: mexeu no Dockerfile,
+  no CMD ou no boot, ele diz. Ele só manda no deploy depois do que o
   `docs/PENDENCIAS-ABERTAS.md` §3.8 pede.
 - **Cobrança:** `apps/barbearia/src/lib/cobranca.ts`. Sem `ASAAS_API_KEY`, desligada; sem
   `ASAAS_AMBIENTE=producao`, sandbox. Tela ou rota de barbearia não chega a ela, nem por um
@@ -199,6 +201,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
 - **JSON em SQL cru vai como `${JSON.stringify(x)}::text::jsonb`**, nunca só `::jsonb`: antes de o
   Drizzle tocar a conexão, o driver serializa de novo e o banco grava uma string — o
   `tests/jsonb-parametro.test.ts` reprova (`docs/PENDENCIAS-ABERTAS.md` §2.36).
+- **O botão da landing e o `/cadastrar` abrem pela mesma variável, em dois serviços:** `CADASTRO_ABERTO=1` no app
+  e no site de vendas (`apps/vendas/src/config.ts`). Só no site de vendas, o botão cai em "Not found"; só no app, a
+  porta funciona e ninguém a acha. Ligar e desligar é sempre nos dois.
 - **No `npm run dev`, a tela final do cadastro diz sempre "quase no ar":** o servidor de
   desenvolvimento do Astro recusa a imagem que ela pede ao endereço novo. Não é defeito — no build
   e em produção ela confere de verdade (`apps/barbearia/src/lib/noAr.ts`).
@@ -238,9 +243,15 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   espera; `tenantDoHost`, só na prévia (`apps/barbearia/src/lib/previaDoSite.ts`). O cartão também espera: o teste
   conta da aprovação, e `abrirCheckout` recusa antes dela. O prazo prometido ao dono que espera é
   `PRAZO_DA_CONFERENCIA` (`apps/barbearia/src/lib/produto.ts` e o `config.ts` da landing), nunca escrito à mão; cada
-  cadastro avisa o operador em `OPERADOR_EMAIL`, sem texto digitado (`lib/avisoAoOperador.ts`). O padrão da coluna é
+  cadastro avisa o operador em `OPERADOR_EMAIL`, sem texto digitado (`lib/avisoAoOperador.ts`), e o site que espera há
+  mais de 20 horas ganha um lembrete, uma vez (`lembrarSitesQueEsperam`, em `lib/avisos.ts`). O padrão da coluna é
   aprovado: caminho novo que cria barbearia escreve a coluna, como `provisionarBarbearia`
   (`tests/aprovacao-do-site.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.70).
+- **O termo de uso nasce desligado** (`apps/barbearia/src/lib/termos.ts`, migration 0021): com `VERSAO_DOS_TERMOS`
+  nula, o cadastro não pede aceite e `/termos/*` dá 404 em produção. Publicar é o texto final em
+  `apps/barbearia/src/termos/*.md` e a versão, no MESMO commit — a versão é o que prova qual texto a pessoa leu. Função
+  que confere o aceite recebe a versão de quem chama, sem valor padrão (`tests/termos-publicados.test.ts`;
+  `docs/PENDENCIAS-ABERTAS.md` §1.2).
 - **Cada barbearia tem teto** (`apps/barbearia/src/lib/tetos.ts`): rota nova que cria barbeiro, serviço,
   produto ou combo — ou religa barbeiro ou serviço — passa por `recusaDoTeto` antes de gravar
   (`docs/PENDENCIAS-ABERTAS.md` §2.69).
@@ -282,9 +293,12 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   `expectedMtimeMs` para não sobrescrever edição do usuário.
 - **Quando está de pé, ele não apaga arquivo nenhum — e o git apaga trava o tempo todo.**
   Use `git --no-optional-locks status`; commite com
-  `git -c core.createObject=rename -c gc.auto=0 -c maintenance.auto=false`; e mova para
-  `_to_delete/` o `.git/HEAD.lock` que todo commit deixa. Trava esquecida quebra o git do
-  Windows dele. Para gravar por cima de arquivo existente, `tar` precisa de `--overwrite`.
+  `git -c core.createObject=rename -c gc.auto=0 -c maintenance.auto=false`; e mova a trava que todo
+  commit deixa (`.git/*.lock`) para `.git/stale-<nome>-<hora>` — é o que se usa desde 26/10/2026; elas se
+  acumulam (71 em 10/11), e o dono as apaga pelo Windows de vez em quando. Trava esquecida quebra o git do
+  Windows dele. Para gravar por cima de arquivo existente, `tar` precisa de `--overwrite`. O procedimento
+  inteiro de uma entrega — a base conferida, um pacote por commit, um commit por chamada — está na skill
+  `barbearia-git` da conta do dono.
 - **A suíte não roda nesse shell:** o `node_modules` é do Windows. Nunca `npm install` por
   lá — ela roda na nuvem, sobre arquivos conferidos por sha256 com os da máquina.
 - **`cp` pode falhar em silêncio** no container (arquivos anteriores ficam somente-leitura).

@@ -1,0 +1,17 @@
+---
+export const prerender = false;
+
+/**
+ * O aviso de privacidade ao dono e à equipe, aceito junto com o termo no cadastro
+ * (`src/lib/termos.ts`). Não é o aviso a quem agenda — esse é do site de cada barbearia. Em
+ * rascunho, 404 em produção.
+ */
+import TextoDoTermo from '../../layouts/TextoDoTermo.astro';
+import { Content } from '../../termos/privacidade.md';
+import { VERSAO_DOS_TERMOS, paginasDosTermosAbrem } from '../../lib/termos.js';
+
+if (!paginasDosTermosAbrem(VERSAO_DOS_TERMOS, import.meta.env.DEV)) {
+  return new Response('Not found', { status: 404 });
+}
+---
+<TextoDoTermo titulo="Aviso de privacidade" versao={VERSAO_DOS_TERMOS}><Content /></TextoDoTermo>

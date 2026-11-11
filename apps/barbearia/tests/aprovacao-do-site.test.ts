@@ -104,6 +104,9 @@ describe('a prévia: o link do painel e o cookie do endereço', () => {
     expect(r.headers.get('cache-control')).toBe('no-store');
     const html = await r.text();
     expect(html).toContain('Este site está em preparação.');
+    // Sem prazo de minutos: a conferência leva até um dia útil (10/11/2026).
+    expect(html).toContain('Ele ainda não abriu ao público. Volte em breve.');
+    expect(html).not.toMatch(/daqui a pouco|minutos?/i);
     expect(html).toContain('<meta name="robots" content="noindex" />');
     expect(previa.paginaEmPreparacao.length).toBe(0);
     expect(previa.respostaEmPreparacao.length).toBe(1);
@@ -130,7 +133,7 @@ describe('a prévia: o link do painel e o cookie do endereço', () => {
     expect(criam).toEqual(['scripts/seed-bayron.mjs', 'src/lib/provisionarBarbearia.ts']);
     expect(readFileSync('scripts/seed-bayron.mjs', 'utf8')).toMatch(/console\.error\([^\n]*INSERT INTO tenants/);
     const prov = readFileSync('src/lib/provisionarBarbearia.ts', 'utf8');
-    expect(prov).toMatch(/INSERT INTO tenants \([^)]*\bsite_aprovado_em\)/);
+    expect(prov).toMatch(/INSERT INTO tenants \([^)]*\bsite_aprovado_em\b[^)]*\)/);
     expect(prov).toMatch(/\$\{dados\.esperaAprovacao \? null : agora\.toISOString\(\)\}/);
     expect(readFileSync('drizzle/0020_site_aprovado.sql', 'utf8'))
       .toMatch(/ADD COLUMN IF NOT EXISTS site_aprovado_em timestamptz DEFAULT now\(\)/);

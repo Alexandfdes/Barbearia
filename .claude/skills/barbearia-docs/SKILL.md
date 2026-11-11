@@ -82,3 +82,21 @@ Decisão **tomada** vai para o documento de arquitetura ou de plano.
 Decisão **que falta** vai para `PENDENCIAS-ABERTAS.md`.
 Quando um item resolve, ele **sai** do PENDENCIAS e vira parágrafo no outro — com uma
 linha na tabela `§0` registrando quando e onde foi parar.
+
+**Produção não mora em `docs/`.** O servidor, as variáveis, os endereços, as contas e os testes
+feitos no ar vão para o projeto do claude.ai: este repositório é público (`CLAUDE.md`). Em `docs/`
+fica o que o código é e o que falta decidir — o que descreve o servidor, só pelo nome do lugar onde
+mora ("no projeto do claude.ai").
+
+## O que apodrece primeiro
+
+**O resumo do topo** — o "essencial em cinco linhas" do `ESTADO-ATUAL.md`, o "o que está rodando"
+do retrato de produção, o índice de `docs/` — é o que mais se lê e o que menos se revisa. De 28/10
+a 10/11/2026, o `ESTADO-ATUAL.md` §1 disse que a produção rodava o código de 10/10; o retrato de
+produção dava o segundo fator do operador como ligado; e o índice mandava executar um roteiro de
+migração que tinha virado histórico. **A cada entrega, releia o resumo do topo** de quem você mexeu.
+
+**O que descreve produção se confere no ar, nunca no documento:** a tela de Sistema, o log do
+boot, a própria página vista de fora. Em 10/11/2026, a landing conferida de fora mostrou que o site
+de vendas não tinha recebido o Implantar — o documento dizia o contrário por omissão. Não deu para
+conferir? Escreva "não conferido no ar", com a data.

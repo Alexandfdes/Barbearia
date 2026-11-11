@@ -207,7 +207,8 @@ describe.skipIf(!TEM_BANCO)('a tarefa, contra o banco', () => {
   it('a primeira rodada manda o aviso de cada fase — para os donos ativos com e-mail, e só para eles', async () => {
     const resumo = await avisos.enviarAvisosPendentes(AGORA);
     // 2, 3, 4, 5, 6, 7 e 10 têm prazo correndo; a ativa, a manual e a encerrada nem entram.
-    expect(resumo).toEqual({ avaliadas: 7, enviados: 4, falhas: 1, semDestinatario: 1 });
+    // Nenhum site espera a aprovação (o padrão da coluna é aprovado): nenhum lembrete ao operador.
+    expect(resumo).toEqual({ avaliadas: 7, enviados: 4, falhas: 1, semDestinatario: 1, lembradosAoOperador: 0 });
 
     const recebidos = email.caixaDeSaida.map((e) => `${e.para} | ${e.assunto}`).sort();
     expect(recebidos).toEqual([
