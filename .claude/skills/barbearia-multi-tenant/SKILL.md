@@ -28,8 +28,9 @@ complicada — **apresente o trade-off e a recomendação sem questionar a premi
 | Painel (o SaaS) | `PAINEL_URL`, ou `painel.<DOMINIO_BASE>` | sessão |
 | Site de vendas | o domínio do produto | não tem tenant |
 
-O domínio do produto ainda não foi registrado, e o nome (Fadeline) é provisório: endereço
-nunca vai cravado no código — sai de `DOMINIO_BASE` e `PAINEL_URL` (`apps/barbearia/src/lib/tenant.ts`).
+O domínio do produto é `fadeline.com.br` desde 29/10/2026, e o nome continua provisório (a busca
+no INPI): endereço nunca vai cravado no código — sai de `DOMINIO_BASE` e `PAINEL_URL`
+(`apps/barbearia/src/lib/tenant.ts`). Trocar o nome não pode exigir caçar endereço no código.
 
 Um **PostgreSQL** único, com Row-Level Security por tenant.
 Desenho completo em `docs/ARQUITETURA-MULTI-TENANT-V1.md`.

@@ -59,7 +59,20 @@ nenhuma. O `tests/cobranca.test.ts` reprova desfecho "à mão" fora da lista.
 barbearias do mesmo dono: o evento ambíguo fica guardado para o operador. E nada que remove na
 Asaas — assinatura, cobrança — pode agir sobre "todas as do cliente".
 
-## 4. As armadilhas do código
+## 4. O que vem antes da cobrança
+
+- **O cartão espera a aprovação do site** (06/11/2026): `abrirCheckout` recusa com
+  `site_aprovado_em` nulo (409). O teste de 7 dias conta da aprovação; com o cartão cadastrado antes,
+  o Checkout pago punha a barbearia em dia e a primeira cobrança seguia o teste contado do CADASTRO —
+  às vezes com o site ainda "em preparação". Achado ao escrever o termo de uso, que promete os 7 dias a
+  partir da aprovação (`docs/PENDENCIAS-ABERTAS.md` §2.70).
+- **Com a cobrança desligada** (sem `ASAAS_API_KEY`, `cobrancaLigada()` em `apps/barbearia/src/lib/assinatura.ts`),
+  as telas e os e-mails mandam ao WhatsApp do suporte (`PELO_SUPORTE`, no mesmo arquivo), nunca a
+  cadastrar um cartão que não tem onde entrar (`docs/PENDENCIAS-ABERTAS.md` §2.69). Texto novo que fale de
+  pagar passa pelas duas situações. Com o cadastro aberto e a cobrança desligada, todo teste termina no
+  suporte — e o site sai do ar depois da carência, a menos que o operador estenda o teste na ficha.
+
+## 5. As armadilhas do código
 
 - **Data em SQL cru vai como texto ISO e volta como texto** (`comoData`): o Drizzle desliga a
   conversão de data do driver na conexão inteira.
@@ -72,7 +85,7 @@ Asaas — assinatura, cobrança — pode agir sobre "todas as do cliente".
 - **Nos testes, a Asaas é de mentira** — a `fetch` trocada, como em `tests/cobranca.test.ts`. Nunca
   o sandbox de verdade numa suíte.
 
-## 5. Antes de dizer que está pronto
+## 6. Antes de dizer que está pronto
 
 - [ ] O caso de dois eventos fora de ordem, e do mesmo evento repetido, está na suíte?
 - [ ] O caso que paga uma cobrança DIFERENTE da que falhou?
