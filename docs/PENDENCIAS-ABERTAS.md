@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **10/11, 23h** | **O botão da landing leva ao cadastro**, decidido por você: o cadastro abre ao público, com cada site esperando a sua aprovação — e sem a cobrança e sem o termo, aceitos como risco. ⚠️ **Falta aplicar:** conferido de fora às 23h, a landing no ar ainda leva ao WhatsApp, e o passo 4 ainda diz "No ar, agendando" — o site de vendas não recebeu o Implantar de 10/11 | `PENDENCIAS-ABERTAS.md` §2.31 e `JORNADA-DO-BARBEIRO.md` §2.1 |
 | **10/11, noite** | **O que dava para adiantar enquanto você testava em produção**, pedido por você: o lembrete a você do site que espera há mais de 20 horas; o boot avisando do cadastro aberto sem `OPERADOR_EMAIL` e do painel do operador só com a senha; a tela de assinatura sem prometer aviso a e-mail não confirmado; o topo do cadastro e a página "em preparação" sem pressa; o agendamento manual já com o barbeiro; o envio do backup com o motivo inteiro no log e uma segunda tentativa; e **o aceite do termo de uso no cadastro, pronto e desligado** até o texto do advogado (migration 0021) | `PENDENCIAS-ABERTAS.md` §2.70, `PENDENCIAS-ABERTAS.md` §1.2 e `PENDENCIAS-ABERTAS.md` §3.3 |
 | **10/11** | **A aprovação do site continua, com prazo e com aviso a você** — decidido por você, depois da explicação do porquê: o site novo abre **em até 1 dia útil** do cadastro, prometido nas cinco telas e e-mails que o dono vê e na landing; e cada cadastro novo manda um e-mail a você (`OPERADOR_EMAIL`), só com o endereço escolhido e o link da ficha. **E confirmadas as duas decisões da implementação de 05/11:** o teste conta da aprovação, e quem espera não recebe os avisos do teste. O passo 4 da landing deixou de dizer que o site vai ao ar na hora | `PENDENCIAS-ABERTAS.md` §2.70 |
 | **06/11** | **O cartão também espera a aprovação** — achado ao escrever o rascunho do termo de uso: com o site esperando, o dono podia cadastrar o cartão, e a primeira cobrança seguia o teste contado do cadastro, não o da aprovação, às vezes com o site ainda em preparação. Agora a rota recusa e a tela diz quando o teste começa. E o rascunho do termo e dos dois avisos de privacidade existe, com 16 perguntas para o advogado | `PENDENCIAS-ABERTAS.md` §2.70 e `PENDENCIAS-ABERTAS.md` §1.2 |
@@ -1583,7 +1584,32 @@ Guarda: `tests/origem.test.ts` — o que passa e o que não passa, com o caso re
 `Origin: null`, o domínio de cima e o nome que só começa igual; e o lugar da conferência no
 middleware, antes do desvio e da barbearia.
 
-### 2.31 🔴 `[TÉCNICO]` O cadastro não pode abrir no ar de hoje — conferido em 10/10/2026, revisto em 05/11/2026
+### 2.31 🔴 `[DECISÃO]` O cadastro aberto ao público — ABERTO por você em 10/11/2026, sem a cobrança e sem o termo
+
+> ✏️ **10/11/2026, 23h — a decisão mudou: o cadastro abre, e a landing leva a ele** (pedido seu: "o
+> direcionamento do cadastro na landing, em vez do WhatsApp"). O texto de 10/10, abaixo, recomendava o contrário;
+> fica como registro do porquê. A lista de 10/10, como está agora:
+>
+> | Item de 10/10 | Agora |
+> |---|---|
+> | O site sem cadeado | ⚠️ sem o curinga — mas nenhum site novo abre sem você: aprovar é também adicionar o endereço nos Domínios, com o certificado (§2.70) |
+> | Ninguém consegue pagar | ❌ continua: sem a cobrança, o painel e os e-mails mandam ao WhatsApp do suporte (§2.69). O teste conta da aprovação; depois de 7 dias de teste e 3 de carência o site sai do ar, a menos que você estenda o teste na ficha |
+> | O e-mail não sai | ✅ desde 03/11 (§2.65) |
+> | O backup não sai da VPS | ✅ desde 04/11; falta restaurar o arquivo de lá uma vez (§3.3) |
+> | O domínio | ✅ desde 29/10 |
+> | Os termos e o CNPJ | ❌ o termo existe só como rascunho, à espera do advogado; o aceite no cadastro está pronto e desligado (§1.2) |
+>
+> E dois que a lista de 10/10 não tinha: o **painel do operador entra só com a senha** — é ele que aprova o site de
+> qualquer pessoa —, e os **repositórios continuam públicos**.
+>
+> **Como se liga:** `CADASTRO_ABERTO=1` nos dois serviços. No app, já está, desde os testes de 10/11. No site de
+> vendas, falta — e o Implantar dele, que também leva a landing ao texto de 10/11 (o passo 4 com o prazo). Conferido
+> contra o build: com a variável, os quatro botões da página inicial e o da demonstração dizem "Testar 7 dias grátis"
+> e levam ao `/cadastrar`; o WhatsApp fica só em "Chame no WhatsApp", para quem tem dúvida. ⚠️ São dois lugares para
+> fechar também: fechado só no app, o botão da landing cai em "Not found".
+>
+> **O que se perde:** a conversa. O §6 planejava as 5 conversas com o cadastro fechado, para saber se R$ 100/mês
+> vende; quem se cadastra sozinho não fala com ninguém — a menos que você o chame, pelo WhatsApp que fica na ficha.
 
 > ✏️ **05/11/2026 (revisão de 05/11):** dos quatro de código, dois estão feitos — **o e-mail sai** desde
 > 03/11 (§2.65) e **o backup sai da VPS** desde 04/11 (§3.3; falta restaurar o arquivo de lá, e o ensaio
@@ -1634,9 +1660,10 @@ ninguém adicionou à mão; a cobrança de ponta a ponta no sandbox (§4.14); o 
 e DKIM, e uma senha esquecida recuperada de verdade; o backup chegando fora da VPS, e uma
 restauração dele; o domínio definitivo; os termos na tela.
 
-*Rejeitado:* abrir agora e ir consertando. No autoatendimento ninguém olha a porta: quem entrar
+*Rejeitado em 10/10:* abrir agora e ir consertando. No autoatendimento ninguém olha a porta: quem entrar
 encontra o site sem cadeado no primeiro minuto e fora do ar no 11º dia — e a primeira
-impressão de um produto novo não se refaz.
+impressão de um produto novo não se refaz. *(10/11/2026: a decisão mudou — o bloco do topo. O site sem
+cadeado deixou de acontecer com a aprovação; o fora do ar depois do teste continua, e cabe a você estender.)*
 
 ### 2.32 ✅ `[TÉCNICO]` O que o roteiro do dono achou na tela — RESOLVIDO em 10/10/2026
 
@@ -4485,6 +4512,10 @@ contagem dos dias e do botão de cancelar.
 
 ### 4.15 🟠 `[TÉCNICO]` A landing e o `/onboarding` contam a história antiga — o rascunho no código desde 12/10/2026; falta a sua voz
 
+> ✏️ **10/11/2026:** no ar desde 29/10, em `fadeline.com.br`, com o cadastro fechado — os botões no WhatsApp. Em
+> 10/11 você decidiu levá-los ao cadastro (§2.31). ⚠️ Conferido de fora às 23h: a landing no ar não recebeu o
+> Implantar de 10/11 — o passo 4 ainda diz "No ar, agendando", a frase que o site que espera a aprovação desmente.
+>
 > **12/10/2026 — o rascunho, no código**, escolhido por você (`apps/vendas/src/pages/index.astro`).
 > ⚠️ **É rascunho: o texto é a sua voz.** O site de vendas ainda não está no ar, então nada
 > disto foi publicado.
@@ -4763,9 +4794,11 @@ no cadastro, a existência não.
 
 **1. Agora, sem código.**
 
-- **As 5 conversas**, com a demo, e o primeiro teste de verdade feito por você, com o cadastro fechado: o
-  "Quero testar" da landing já leva ao seu WhatsApp, e até a Asaas o operador estende o teste. A pergunta que
-  decide se o projeto existe — R$ 100/mês vende para barbearia sem sistema? — está aberta desde 01/09 (§5).
+- **As 5 conversas**, com a demo, e o primeiro teste de verdade feito por você, ~~com o cadastro fechado: o
+  "Quero testar" da landing já leva ao seu WhatsApp~~ — ✏️ *em 10/11 o cadastro abriu e a landing passa a levar a ele
+  (§2.31): a conversa agora é você chamando quem se cadastrou, pelo WhatsApp da ficha* —, e até a Asaas o operador
+  estende o teste. A pergunta que decide se o projeto existe — R$ 100/mês vende para barbearia sem sistema? — está
+  aberta desde 01/09 (§5).
 - **O termo de uso e o aviso de privacidade**, com um advogado (§1.2): é o que precisa existir antes de
   guardar dado do cliente de outra pessoa. O rascunho, com as perguntas para ele, existe desde 06/11, num documento do claude.ai.
 
@@ -4783,7 +4816,8 @@ no cadastro, a existência não.
 - O site antigo do Bayron fora do servidor do produto: ele divide a máquina com o banco de todas (os
   detalhes estão no projeto do claude.ai).
 
-**3. Antes de abrir o cadastro** (§2.31).
+**3. Antes de abrir o cadastro** (§2.31). ✏️ *10/11/2026: o cadastro abriu antes desta lista, por decisão sua; o que
+dela falta virou risco aceito — a cobrança, o curinga, o termo e os repositórios.*
 
 - A cobrança provada no sandbox (§4.14).
 - O certificado dos subdomínios — o curinga, ou o clique por barbearia na hora de aprovar (§2.70).

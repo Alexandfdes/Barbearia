@@ -1,5 +1,11 @@
 # Fluxo completo — da página de vendas até o site da barbearia no ar
 
+> ⚠️ **Histórico desde 26/10/2026.** O caminho com montagem acabou: desde 24/09 o dono se cadastra
+> sozinho — o caminho de agora é o `JORNADA-DO-BARBEIRO.md` —, e o `/onboarding` que este documento
+> descreve saiu do site de vendas em 26/10 (`PENDENCIAS-ABERTAS.md` §2.58). Fica como registro do porquê
+> de o código ser como é. *(Aviso posto em 10/11/2026: o índice já o dava como aposentado, e o documento
+> ainda dizia que o fluxo continuava correto.)*
+>
 > Data: 2026-08-30. Revisado em 06/09/2026. Documento de referência.
 >
 > ⚠️ **Os caminhos de arquivo são anteriores ao monorepo.** Onde se lê a raiz do
