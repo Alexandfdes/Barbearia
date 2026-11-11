@@ -16,7 +16,9 @@ export const prerender = false;
  * O que ele deixar em branco entra DESLIGADO. Nenhum "R$ 0,00" vai para o ar.
  */
 import { CATALOGO_SUGERIDO } from '../lib/catalogoSugerido.js';
-import { NOME_PRODUTO } from '../lib/produto.js';
+import { NOME_PRODUTO, PRAZO_DA_CONFERENCIA } from '../lib/produto.js';
+import { aprovacaoDoSiteLigada } from '../lib/previaDoSite.js';
+import { CAMINHO_DA_PRIVACIDADE, CAMINHO_DO_TERMO, VERSAO_DOS_TERMOS } from '../lib/termos.js';
 import { DIAS_DE_TESTE } from '../lib/situacao.js';
 import { ESTADOS } from '../lib/timezone.js';
 /**
@@ -34,6 +36,11 @@ const estadosPorNome = [...ESTADOS].sort((a, b) => a.nome.localeCompare(b.nome, 
 if (process.env.CADASTRO_ABERTO !== '1') {
   return new Response('Not found', { status: 404 });
 }
+
+// O topo fala como o fim (10/11/2026): com a conferência ligada, o que nasce ao enviar é o
+// painel — o site abre depois que o operador olha (`lib/previaDoSite.ts`). O topo dizia "No fim,
+// o seu site nasce", e a tela do fim, minutos depois, que ele ainda não estava no ar.
+const comConferencia = aprovacaoDoSiteLigada();
 
 /**
  * O resto do endereço, para a prévia mostrar o endereço INTEIRO que o barbeiro
@@ -138,6 +145,11 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     .dia .nome { font-size: 14px; color: var(--ink-suave); }
     .dia.fechado .nome, .dia.fechado .ate { color: #5c6a7e; }
     .dia input[type=checkbox] { width: auto; accent-color: var(--brand); }
+    /* O aceite do termo (`lib/termos.ts`): a caixa ao lado do texto, que é o rótulo dela. */
+    .aceite { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 18px; }
+    .aceite input[type=checkbox] { width: auto; margin: 4px 0 0; accent-color: var(--brand); flex: none; }
+    .aceite label { margin: 0; font-size: 14px; color: var(--ink-suave); }
+    .aceite a { color: var(--brand-claro); }
     .ate { text-align: center; color: var(--ink-fraco); font-size: 12px; }
 
     /* ── A cor ──────────────────────────────────────────────────────────────
@@ -195,10 +207,12 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
   <main class="env">
     <h1>Criar a sua barbearia</h1>
     {/* Não promete "no ar": quem confere é a tela do fim, do navegador do dono (`lib/noAr.ts`). */}
-    <p class="sub">No fim, o seu site nasce — com os seus serviços e a sua cor.</p>
+    <p class="sub" id="o-que-nasce">{comConferencia
+      ? `No fim, o seu painel já funciona. O site, com os seus serviços e a sua cor, abre depois de uma conferência nossa, em até ${PRAZO_DA_CONFERENCIA}.`
+      : 'No fim, o seu site nasce — com os seus serviços e a sua cor.'}</p>
     {/* Antes de ele gastar cinco minutos no formulário: quem tem medo de cobrança
         desiste antes de enviar, e só a tela do fim falava do teste (roteiro de 10/10/2026). */}
-    <p class="sub" id="teste-gratis">{DIAS_DE_TESTE} dias grátis, sem cartão: ele só é pedido no fim do teste.</p>
+    <p class="sub" id="teste-gratis">{DIAS_DE_TESTE} dias grátis, sem cartão: ele só é pedido no fim do teste.{comConferencia && ' Os dias contam a partir de quando o site abrir.'}</p>
 
     <div id="erro" class="erro" hidden></div>
 
@@ -323,6 +337,16 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
         <button type="button" id="mais-servico" class="secundario">+ outro serviço</button>
       </fieldset>
 
+      {/* O aceite do termo (migration 0021, `lib/termos.ts`): só com o texto publicado. A versão vai
+          na caixa — é ela que o servidor confere contra a que vale quando o formulário chega. Os
+          links abrem numa aba nova, para o formulário preenchido não se perder. */}
+      {VERSAO_DOS_TERMOS !== null && (
+        <p class="aceite">
+          <input type="checkbox" id="aceite" required data-versao={VERSAO_DOS_TERMOS} />
+          <label for="aceite">Li e aceito o <a href={CAMINHO_DO_TERMO} target="_blank" rel="noopener">termo de uso</a> e o <a href={CAMINHO_DA_PRIVACIDADE} target="_blank" rel="noopener">aviso de privacidade</a>.</label>
+        </p>
+      )}
+
       <button id="enviar" type="submit">Criar a minha barbearia</button>
     </form>
 
@@ -396,6 +420,7 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
       telefone: 'Confira o WhatsApp, com DDD.',
       frase: 'A frase do topo passa de 200 caracteres.',
       estado: 'Escolha o estado — é por ele que os horários do site seguem o fuso certo.',
+      termos: 'Para criar a barbearia, marque que leu e aceita o termo de uso e o aviso de privacidade.',
     };
 
     /** Sugere o endereço a partir do nome, até a pessoa mexer no campo. */
@@ -628,6 +653,8 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
             horarios: ORDEM.map((d) => $(`hr-on-${d}`).checked
               ? { weekday: d, abre: $(`hr-de-${d}`).value, fecha: $(`hr-ate-${d}`).value }
               : { weekday: d, fechado: true }),
+            // A versão que a pessoa viu, só se marcou o aceite. Sem termo publicado, a caixa nem existe.
+            termos: $('aceite')?.checked ? $('aceite').dataset.versao : undefined,
           }),
         });
         const dados = await r.json().catch(() => ({}));

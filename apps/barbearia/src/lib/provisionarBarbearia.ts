@@ -112,6 +112,12 @@ export interface DadosDaBarbearia {
    * criando à mão, não — sem ele, nasce aprovado, como o padrão da coluna.
    */
   esperaAprovacao?: boolean;
+  /**
+   * A versão do termo de uso que o dono aceitou na tela (`lib/termos.ts`, migration 0021), gravada
+   * com a hora deste cadastro. Só o cadastro pela web passa, e só com o termo publicado; sem ela,
+   * as duas colunas ficam nulas — o script de linha de comando é você, e não aceita nada pela tela.
+   */
+  termosAceitos?: { versao: string } | null;
 }
 
 export interface HorarioDoCadastro {
@@ -417,11 +423,14 @@ export async function provisionarBarbearia(
     // pela rota, que usa o pool; pelo script, com conexão própria, passava.
     //
     // `site_aprovado_em` vai sempre escrito, nulo ou não: a decisão de esperar a aprovação é
-    // de quem chama (`esperaAprovacao`), e não do padrão da coluna (migration 0020).
+    // de quem chama (`esperaAprovacao`), e não do padrão da coluna (migration 0020). O aceite do
+    // termo, com a hora deste cadastro, ou nada (migration 0021).
     const [tenant] = await tx`
-      INSERT INTO tenants (slug, domain, business_name, status, trial_ends_at, timezone, site_aprovado_em)
+      INSERT INTO tenants (slug, domain, business_name, status, trial_ends_at, timezone, site_aprovado_em,
+                           termos_versao, termos_aceitos_em)
       VALUES (${slug}, ${dominio}, ${nome}, ${testeAte ? 'trial' : 'active'}, ${testeAte ? testeAte.toISOString() : null}, ${fuso},
-              ${dados.esperaAprovacao ? null : agora.toISOString()})
+              ${dados.esperaAprovacao ? null : agora.toISOString()},
+              ${dados.termosAceitos?.versao ?? null}, ${dados.termosAceitos ? agora.toISOString() : null})
       RETURNING id
     `;
 

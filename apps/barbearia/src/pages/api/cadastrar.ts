@@ -50,6 +50,7 @@ import { formatarTelefone } from '../../lib/phone.js';
 import { urlDoPainel } from '../../lib/tenant.js';
 import { NOME_PRODUTO, PRAZO_DA_CONFERENCIA } from '../../lib/produto.js';
 import { avisarOperadorDoCadastro } from '../../lib/avisoAoOperador.js';
+import { recusaDoAceite, VERSAO_DOS_TERMOS } from '../../lib/termos.js';
 
 export const CADASTRO_ABERTO = () => process.env.CADASTRO_ABERTO === '1';
 
@@ -92,6 +93,11 @@ const bodySchema = z.object({
    * `provisionarBarbearia`, a regra num lugar só — aqui só a presença.
    */
   email:     z.string().trim().min(3).max(254),
+  /**
+   * A versão do termo de uso que a pessoa viu e aceitou na tela (`lib/termos.ts`). Conferida contra
+   * a que vale agora — só quando há termo publicado; antes disso, ignorada.
+   */
+  termos:    z.string().max(40).optional(),
 });
 
 const UMA_HORA = 60 * 60 * 1000;
@@ -139,9 +145,19 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     return json({ error: 'Confira os campos.', campo: primeiro?.path?.[0] ?? null }, 400);
   }
 
+  // O aceite do termo (migration 0021): com ele publicado, sem a versão que vale agora não nasce.
+  // Antes de criar qualquer coisa — e antes de contar como cadastro feito.
+  const recusaDoTermo = recusaDoAceite(parsed.data.termos, VERSAO_DOS_TERMOS);
+  if (recusaDoTermo) return json({ error: recusaDoTermo.erro, campo: 'termos' }, recusaDoTermo.status);
+
   // O site nasce esperando a sua aprovação (migration 0020, `lib/previaDoSite.ts`) — a não ser
   // com `SITE_SEM_APROVACAO=1`. Depois do corpo, de propósito: quem decide é o servidor.
-  const r = await provisionarBarbearia(sqlConn, { ...parsed.data, esperaAprovacao: aprovacaoDoSiteLigada() });
+  const { termos: _versaoVista, ...dados } = parsed.data;
+  const r = await provisionarBarbearia(sqlConn, {
+    ...dados,
+    esperaAprovacao: aprovacaoDoSiteLigada(),
+    termosAceitos: VERSAO_DOS_TERMOS === null ? null : { versao: VERSAO_DOS_TERMOS },
+  });
 
   if (!r.ok) {
     return json({ error: r.erro, campo: r.campo }, r.conflito ? 409 : 400);

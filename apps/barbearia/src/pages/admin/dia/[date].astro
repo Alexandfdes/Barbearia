@@ -140,6 +140,13 @@ const allBarbers = session.role === 'admin'
   ? (await db.select({ id: barbers.id, name: barbers.name }).from(barbers).where(and(eq(barbers.active, true), eq(barbers.tenantId, tenant.id))))
   : [];
 
+// O agendamento manual já vem com o barbeiro: o único da casa, ou o da agenda filtrada — e só se
+// ele estiver entre os ativos. O filtro de quem foi desligado (um link antigo) volta ao "Selecione",
+// em vez de o navegador escolher em silêncio o primeiro da lista (10/11/2026).
+const barbeiroDoManual = allBarbers.length === 1
+  ? allBarbers[0].id
+  : (allBarbers.find(b => b.id === filterBarberId)?.id ?? null);
+
 // Map id→nome de TODOS os barbeiros (ativos + inativos), pra mostrar quem modificou
 // mesmo que tenha sido um barbeiro hoje desativado
 const barberNameById = new Map<number, string>(
@@ -742,9 +749,9 @@ const clientData: DadosDaAgenda = {
         <div>
           <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Barbeiro</label>
           <select id="m-barber" class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50">
-            <option value="">Selecione</option>
+            {barbeiroDoManual === null && <option value="">Selecione</option>}
             {allBarbers.map(b => (
-              <option value={String(b.id)}>{b.name.split(' ')[0]}</option>
+              <option value={String(b.id)} selected={barbeiroDoManual === b.id}>{b.name.split(' ')[0]}</option>
             ))}
           </select>
         </div>

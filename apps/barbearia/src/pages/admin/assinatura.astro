@@ -46,7 +46,7 @@ const fuso = fusoDe(tenant);
 const situacao = situacaoDe(tenant);
 const foraDoAr = situacao.fase === 'suspensa';
 
-const barberRow = (await db.select({ id: barbers.id, name: barbers.name, email: barbers.email })
+const barberRow = (await db.select({ id: barbers.id, name: barbers.name, email: barbers.email, emailConfirmadoEm: barbers.emailConfirmadoEm })
   .from(barbers).where(and(eq(barbers.id, session.barberId), eq(barbers.tenantId, tenant.id))))[0];
 if (!barberRow) return Astro.redirect('/admin/login');
 
@@ -134,12 +134,17 @@ const titulo = foraDoAr && !emPreparacao ? 'O site está fora do ar' : 'Assinatu
         ? `O seu site ainda não está no ar: ele abre depois da nossa conferência, em até ${PRAZO_DA_CONFERENCIA} do cadastro, e os 7 dias de teste começam nesse dia. Até lá, nada é cobrado.`
         : explicacaoDaSituacao(situacao, fuso, new Date(), cobrancaLigada)}</p>
       {/* Para onde vão os avisos por e-mail (`lib/avisos.ts`) — o dono precisa saber, e
-          o e-mail digitado errado no cadastro só aparece aqui ou no aviso que não chega. */}
+          o e-mail digitado errado no cadastro só aparece aqui ou no aviso que não chega.
+          Os avisos só leem e-mail confirmado: sem isso, a tela prometia um aviso que nunca sai
+          (10/11/2026). A confirmação se pede no Início, que sabe se o link já foi mandado. */}
       {dono && (
         <p id="email-dos-avisos" class="text-xs text-slate-500 mt-2">
-          {barberRow.email
-            ? <>Os avisos do teste e da cobrança vão para <strong class="font-medium text-slate-700">{barberRow.email}</strong>.</>
-            : <>Você está sem e-mail cadastrado: os avisos do teste e da cobrança não chegam até você.</>}
+          {!barberRow.email
+            ? <>Você está sem e-mail cadastrado: os avisos do teste e da cobrança não chegam até você.</>
+            : barberRow.emailConfirmadoEm
+              ? <>Os avisos do teste e da cobrança vão para <strong class="font-medium text-slate-700">{barberRow.email}</strong>.</>
+              : <>Os avisos do teste e da cobrança vão para <strong class="font-medium text-slate-700">{barberRow.email}</strong> só depois que você confirmar esse e-mail: até lá, nenhum chega.</>}
+          {!foraDoAr && barberRow.email && !barberRow.emailConfirmadoEm && <>{' '}<a href="/admin#confirmar-email" class="underline underline-offset-2">Confirmar no Início</a> ·</>}
           {!foraDoAr && <>{' '}<a href="/admin/barbeiros" class="underline underline-offset-2">{barberRow.email ? 'Trocar' : 'Cadastrar o e-mail'}</a></>}
         </p>
       )}

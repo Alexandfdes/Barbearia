@@ -28,6 +28,7 @@
  * `Origin` dele. Não há como explorar sem um XSS antes — é a segunda parede.
  */
 import { ehEnderecoDoPainel, urlDoPainel } from './tenant.js';
+import { CAMINHO_DA_PRIVACIDADE, CAMINHO_DO_TERMO } from './termos.js';
 
 type Ambiente = Record<string, string | undefined>;
 
@@ -35,12 +36,15 @@ type Ambiente = Record<string, string | undefined>;
  * As telas e as rotas do painel do dono — as de entrar inclusive, e o CADASTRO
  * (26/10/2026): ele abre sessão de dono, e feito no endereço de uma barbearia o
  * cookie nascia ali — aquele navegador passava a ver a barbearia nova no site da
- * outra, e o "você já está no painel" era falso.
+ * outra, e o "você já está no painel" era falso. E o termo de uso e o aviso de
+ * privacidade que o cadastro pede (10/11/2026, `lib/termos.ts`): são do produto, não
+ * da barbearia do endereço.
  */
 export function ehCaminhoDoPainel(caminho: string): boolean {
   return caminho === '/admin' || caminho.startsWith('/admin/')
     || caminho.startsWith('/api/admin/') || caminho.startsWith('/api/auth/')
-    || caminho === '/cadastrar' || caminho === '/api/cadastrar';
+    || caminho === '/cadastrar' || caminho === '/api/cadastrar'
+    || caminho === CAMINHO_DO_TERMO || caminho === CAMINHO_DA_PRIVACIDADE;
 }
 
 /** `null`: segue. Senão, a resposta que leva ao painel — ou o 404 da API no endereço errado. */

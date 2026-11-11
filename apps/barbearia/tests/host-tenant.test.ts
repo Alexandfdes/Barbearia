@@ -124,6 +124,12 @@ describe('nenhuma página pública serve barbearia sem perguntar de quem é o en
       'cria a barbearia: roda ANTES de existir host para perguntar. Nasce fechada por CADASTRO_ABERTO',
     'src/pages/cadastrar.astro':
       'a tela do cadastro; mesma razão da rota acima',
+    // O termo de uso e o aviso de privacidade que o cadastro pede (10/11/2026, lib/termos.ts):
+    // texto do produto, igual para todos, sem consulta nenhuma ao banco.
+    'src/pages/termos/uso.astro':
+      'o termo de uso do produto, lido de src/termos/uso.md: não é de barbearia nenhuma, e não consulta o banco',
+    'src/pages/termos/privacidade.astro':
+      'o aviso de privacidade ao dono e à equipe, de src/termos/privacidade.md: idem',
     'src/pages/api/auth/esqueci.ts':
       'a senha nova começa como o login: acha o barbeiro pelo telefone ANTES de saber a barbearia',
     'src/pages/api/auth/nova-senha.ts':

@@ -60,7 +60,7 @@ flowchart TD
 
 | Passo | O que é | Hoje |
 |---|---|---|
-| 1 | Chega na landing e aperta o botão | ⚠️ o botão principal leva ao WhatsApp |
+| 1 | Chega na landing e aperta o botão | ⚠️ no ar, ainda leva ao WhatsApp (conferido em 10/11, 23h); decidido em 10/11 levar ao `/cadastrar` — falta a variável no site de vendas (`PENDENCIAS-ABERTAS.md` §2.31) |
 | 2 | Cria a conta: nome, endereço do site, WhatsApp, e-mail, senha | ⚠️ existe; falta o termo aceito |
 | 3 | Horário, serviços e preços | ✅ |
 | 4 | Escolhe a cor e a frase do topo, vendo a prévia | ✅ desde 08/10 — um layout só, por decisão |
@@ -87,7 +87,18 @@ prazo.
 
 **O que ele vê.** A página de vendas: o que recebe, o preço e um botão.
 
-**Hoje:**
+**10/11/2026 — o que está no ar, e o que foi decidido:**
+
+- **No ar** (conferido de fora em 10/11, às 23h), os botões que vendem dizem *"Quero testar"* e abrem o
+  **WhatsApp**; o passo 4 do "Como funciona" ainda diz *"No ar, agendando"* — o site de vendas não recebeu o
+  Implantar de 10/11, que traz o prazo da conferência.
+- **Decidido por você em 10/11:** o botão leva ao cadastro (`PENDENCIAS-ABERTAS.md` §2.31). O código já faz isso
+  com `CADASTRO_ABERTO=1` no site de vendas (`apps/vendas/src/config.ts`): os quatro botões da página inicial e o
+  da demonstração viram *"Testar 7 dias grátis"*, levando a `URL_CADASTRO`, e o WhatsApp fica só no *"Chame no
+  WhatsApp"*, para dúvida — conferido contra o build. Falta a variável e o Implantar do site de vendas.
+- Embaixo do botão do topo: *"Sem cartão para começar: ele só é pedido no fim do teste."*
+
+**Em 27/09/2026** *(as linhas citadas são as daquele dia)*:
 
 - Os botões que vendem — o do cabeçalho, o do topo e o do preço — abrem o **WhatsApp**
   (`apps/vendas/src/pages/index.astro:7-8`, usados em `index.astro:68`, `index.astro:100`
@@ -129,20 +140,24 @@ plano anual. O texto é rascunho: a voz é a do dono.
 ### 2.2 Passo 2 — Ele cria a conta
 
 **O que ele vê.** O `/cadastrar`, com a marca do produto e não a da barbearia, que ainda não
-existe (`apps/barbearia/src/pages/cadastrar.astro:55-61`). Embaixo do título, *"No fim, o seu
-site nasce — com os seus serviços e a sua cor."* (`cadastrar.astro:198`), e logo abaixo *"7
-dias grátis, sem cartão: ele só é pedido no fim do teste."* (`cadastrar.astro:201`). A
-primeira era *"Leva dois minutos"* até 08/10, quando deixou de ser verdade com o bloco da
-marca maior, e *"o seu site já está no ar"* até 10/10, sem ninguém conferir (§2.8). A segunda
-entrou em 10/10: até então o teste e o cartão só apareciam na tela do fim, e quem tem medo de
-cobrança pode desistir antes de enviar (`PENDENCIAS-ABERTAS.md` §2.32). Uma página só, em cinco
-blocos (`cadastrar.astro:205-327`):
+existe (a paleta do site de vendas, no `<style>` de `apps/barbearia/src/pages/cadastrar.astro`).
+Embaixo do título, *"No fim, o seu painel já funciona. O site, com os seus serviços e a sua cor,
+abre depois de uma conferência nossa, em até 1 dia útil."* (`#o-que-nasce`), e logo abaixo *"7
+dias grátis, sem cartão: ele só é pedido no fim do teste. Os dias contam a partir de quando o site
+abrir."* (`#teste-gratis`) — *no código desde 10/11 à noite; no ar, depois do próximo Implantar.* A primeira era *"Leva dois minutos"* até 08/10, quando deixou de ser
+verdade com o bloco da marca maior; *"o seu site já está no ar"* até 10/10, sem ninguém conferir
+(§2.8); e *"No fim, o seu site nasce"* até 10/11, quando o site passou a esperar a aprovação e a
+tela do fim já dizia outra coisa (`PENDENCIAS-ABERTAS.md` §2.70) — essa volta só com a aprovação
+desligada. A segunda entrou em 10/10: até então o teste e o cartão só apareciam na tela do fim, e
+quem tem medo de cobrança pode desistir antes de enviar (`PENDENCIAS-ABERTAS.md` §2.32). Uma página
+só, em cinco blocos (o `<form id="form">`):
 
 - **A barbearia:** nome, **endereço do site** com a prévia de como vai ficar, rua, cidade e
   **o estado**, obrigatório desde 12/10 — é dele que sai o fuso dos horários do site, e o dono
-  troca em Configurações (`cadastrar.astro:219-232`, `PENDENCIAS-ABERTAS.md` §2.1).
+  troca em Configurações (o bloco "A barbearia" de `cadastrar.astro`, com o `<select id="estado">`;
+  `PENDENCIAS-ABERTAS.md` §2.1).
 - **Você:** o nome dele, **o WhatsApp** — que é o login e o contato do site ao mesmo tempo
-  (`cadastrar.astro:240-241`) —, **o e-mail**, obrigatório desde 08/10 (`cadastrar.astro:244-245`),
+  (`#telefone`, com a dica que diz isso) —, **o e-mail**, obrigatório desde 08/10 (`#email`),
   e a senha.
 - **Sua marca:** a frase do topo e a cor, com a prévia do topo do site — o passo 4 —, o
   Instagram e *"Como você descreveria a sua barbearia?"*. Tudo opcional.
@@ -168,7 +183,9 @@ tinham andado — agora cita a função, como a skill de documentos manda para s
 
 - **O termo de uso e a privacidade, aceitos aqui**, com a versão aceita gravada junto da
   barbearia (`PENDENCIAS-ABERTAS.md` §1.2). Sem ninguém no caminho, esta tela é o único
-  lugar onde ele lê o combinado — inclusive quando o cartão vai ser cobrado.
+  lugar onde ele lê o combinado — inclusive quando o cartão vai ser cobrado. *10/11/2026: a caixa,
+  a conferência na rota e a gravação existem, desligadas até o texto final do advogado
+  (`apps/barbearia/src/lib/termos.ts`); falta o texto.*
 - ~~**Endereços reservados**~~ — ✅ feito em 08/10/2026, na tabela acima
   (`PENDENCIAS-ABERTAS.md` §4.16).
 - **Dizer que o endereço é para sempre.** O painel não tem como trocá-lo — a rota que grava
@@ -185,14 +202,17 @@ tinham andado — agora cita a função, como a skill de documentos manda para s
   até existir o provedor de envio.
 - **Um WhatsApp para duas coisas.** Quem entra com o número pessoal e quer o da loja no
   site não tem como separar. O provisionador aceita um segundo número (`telefoneDono`,
-  `apps/barbearia/src/lib/provisionarBarbearia.ts:65`), mas nem a tela nem a rota do
-  cadastro o recebem (`apps/barbearia/src/pages/api/cadastrar.ts:62-88`).
+  `provisionarBarbearia`, em `apps/barbearia/src/lib/provisionarBarbearia.ts`), mas nem a tela nem a rota do
+  cadastro o recebem (o `bodySchema` de `apps/barbearia/src/pages/api/cadastrar.ts` não tem o campo).
 - ~~**Não pedimos e-mail**~~ — ✅ pedimos desde 08/10/2026, e desde 09/10 ele é usado: a
   senha nova, os avisos e o e-mail de boas-vindas (`PENDENCIAS-ABERTAS.md` §4.17).
 - **E-mail digitado errado continua difícil de perceber.** A forma é conferida, a existência
   não: `ze@gmial.com` passa. Desde 09/10 há duas pistas — o e-mail de boas-vindas, que não
   chega, e o e-mail à vista no painel, na tela da equipe e na de assinatura, onde se corrige.
-  A confirmação por link, recomendada aqui antes, não foi feita (`PENDENCIAS-ABERTAS.md` §4.17).
+  ~~A confirmação por link, recomendada aqui antes, não foi feita (`PENDENCIAS-ABERTAS.md` §4.17).~~
+  ✅ *Feita em 30/10/2026: nada sai para e-mail não confirmado (`PENDENCIAS-ABERTAS.md` §2.64). E desde
+  10/11 a tela de assinatura diz que os avisos do teste só chegam depois de confirmar, com o caminho
+  para a caixa do Início — antes dizia que iam para o e-mail, confirmado ou não.*
 
 ### 2.3 Passo 3 — Horário, serviços e preços
 
@@ -201,7 +221,7 @@ tinham andado — agora cita a função, como a skill de documentos manda para s
 esperando o preço dele (`apps/barbearia/src/lib/catalogoSugerido.ts:57`).
 
 **Hoje: ✅.** O que ficar sem preço entra desligado: nenhum "R$ 0,00" vai para o ar
-(`apps/barbearia/src/pages/cadastrar.astro:8-16`). E o horário não é enfeite: é dele que
+(o cabeçalho de `apps/barbearia/src/pages/cadastrar.astro`). E o horário não é enfeite: é dele que
 saem as vagas do site.
 
 **O que pode dar errado:**
@@ -227,11 +247,13 @@ saem as vagas do site.
 > `PENDENCIAS-ABERTAS.md` §4.13). As três miniaturas de layout que este passo descrevia
 > saíram do lançamento. E o cartão não vem mais logo depois: foi para o fim do teste.
 
-**O que ele vê.** No bloco "Sua marca" (`apps/barbearia/src/pages/cadastrar.astro:254-288`):
+**O que ele vê.** No bloco "Sua marca" de `apps/barbearia/src/pages/cadastrar.astro`:
 a frase do topo; oito cores prontas e uma "outra", livre
 (`apps/barbearia/src/lib/coresDoCadastro.ts:18-27`); e embaixo, **a prévia do topo do site
 dele** — o nome, a frase e o botão "Agendar horário" na cor escolhida, sobre o fundo do site
-(`cadastrar.astro:270-277`). Sem frase, a prévia mostra o nome, que é o que o site mostra.
+(o `<div class="previa">` do mesmo bloco). Sem frase, a prévia mostra o nome, que é o que o site mostra.
+*(10/11/2026: as referências desta passagem e da anterior eram por linha, e tinham andado — agora citam o
+elemento, como a skill `barbearia-docs` manda para seção viva.)*
 
 **Hoje: ✅, desde 08/10/2026.**
 

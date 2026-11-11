@@ -33,14 +33,15 @@
  * tarefa que não vem de requisição de ninguém. `tests/rls.test.ts` mantém a lista
  * de quem pode fechada.
  */
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, lte, notInArray } from 'drizzle-orm';
 import { dbDono } from '../db/index.js';
 import { avisosEnviados, barbers, tenants } from '../db/schema.js';
-import { diasAte, situacaoDe, type Situacao } from './situacao.js';
+import { diaDe, diasAte, situacaoDe, type Situacao } from './situacao.js';
 import { cobrancaLigada, explicacaoDaSituacao, TELA_DE_ASSINATURA } from './assinatura.js';
-import { enviarEmail, transporteDeEmail } from './email.js';
+import { enviarEmail, transporteDeEmail, type Email } from './email.js';
 import { urlDoPainel } from './tenant.js';
-import { linkDoSuporte, NOME_PRODUTO } from './produto.js';
+import { linkDoSuporte, NOME_PRODUTO, PRAZO_DA_CONFERENCIA } from './produto.js';
+import { emailDoOperador, fichaNoPainel } from './avisoAoOperador.js';
 
 export type TipoDeAviso = 'teste-acabando' | 'teste-acabou' | 'cobranca-falhou' | 'fora-do-ar';
 
@@ -144,6 +145,8 @@ export interface ResumoDosAvisos {
   falhas: number;
   /** Aviso devido, e nenhum dono ativo com e-mail para receber. */
   semDestinatario: number;
+  /** Sites lembrados ao operador nesta rodada (`lembrarSitesQueEsperam`). */
+  lembradosAoOperador: number;
 }
 
 /**
@@ -160,7 +163,7 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
     throw new Error('PAINEL_URL e DOMINIO_BASE vazios: os avisos sairiam com o link do painel quebrado.');
   }
 
-  const resumo: ResumoDosAvisos = { avaliadas: 0, enviados: 0, falhas: 0, semDestinatario: 0 };
+  const resumo: ResumoDosAvisos = { avaliadas: 0, enviados: 0, falhas: 0, semDestinatario: 0, lembradosAoOperador: 0 };
 
   // Pagando em dia, encerrada e tirada do ar à mão não têm prazo correndo. Nem o site que
   // espera a sua aprovação (migration 0020): o teste dele é recontado quando ele abrir
@@ -227,5 +230,123 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
     }
   }
 
+  resumo.lembradosAoOperador = await lembrarSitesQueEsperam(agora);
   return resumo;
+}
+
+// ── O lembrete ao operador ─────────────────────────────────────────────────────
+
+/**
+ * Quantas horas o site espera a aprovação antes do lembrete ao operador (decisão do dono em
+ * 10/11/2026). O dono ouviu `PRAZO_DA_CONFERENCIA`; 20 horas corridas deixam folga antes do fim de
+ * um dia, e no fim de semana o lembrete chega antes do prazo — nunca depois.
+ */
+export const HORAS_ATE_O_LEMBRETE = 20;
+/** O tipo na trava de `avisos_enviados`, com o cadastro como `referencia`: um lembrete por site. */
+export const TIPO_DO_LEMBRETE = 'operador-site-esperando';
+
+/** O endereço do site como o cadastro grava (`provisionarBarbearia`). Fora disso, não vai para o e-mail. */
+const FORMA_DO_ENDERECO = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/**
+ * O e-mail do lembrete. ⚠️ Recebe só o que o sistema monta: o endereço (do formato do cadastro),
+ * a hora do cadastro e o link da ficha — nada digitado, como o aviso de cadastro novo
+ * (`lib/avisoAoOperador.ts`). O assunto só muda com a quantidade.
+ */
+export function textoDoLembrete(
+  sites: { slug: string; criadaEm: Date; fuso: string; ficha: string }[],
+  agora: Date = new Date(),
+): { assunto: string; texto: string } {
+  const um = sites.length === 1;
+  const linhas = sites.flatMap((x) => {
+    const horas = Math.floor((agora.getTime() - x.criadaEm.getTime()) / (60 * 60 * 1000));
+    const endereco = FORMA_DO_ENDERECO.test(x.slug) ? x.slug : '(endereço fora do formato — veja na ficha)';
+    return [
+      `- ${endereco}: cadastrou em ${diaDe(x.criadaEm, x.fuso, "dd/MM 'às' HH:mm")}, há ${horas} horas`,
+      `  ${x.ficha || 'abra o painel do operador, em Barbearias'}`,
+    ];
+  });
+  return {
+    assunto: um
+      ? `Site esperando a sua aprovação há mais de ${HORAS_ATE_O_LEMBRETE} horas`
+      : `${sites.length} sites esperando a sua aprovação há mais de ${HORAS_ATE_O_LEMBRETE} horas`,
+    texto: [
+      um
+        ? `O dono ouviu que o site abre em até ${PRAZO_DA_CONFERENCIA}, e ele ainda espera a sua aprovação:`
+        : `Os donos ouviram que o site abre em até ${PRAZO_DA_CONFERENCIA}, e estes ainda esperam a sua aprovação:`,
+      '',
+      ...linhas,
+      '',
+      'Na ficha, "Ver como o site está" abre a prévia. Até você aprovar, o endereço mostra "em preparação".',
+      '',
+      `Este é o único lembrete de cada site: depois dele, ${um ? 'ele continua' : 'eles continuam'} no Início do operador, o mais antigo primeiro.`,
+      '',
+      'Este e-mail não traz o nome nem o texto que a pessoa digitou, de propósito: é na prévia que se confere.',
+      '',
+      `— ${NOME_PRODUTO}`,
+    ].join('\n'),
+  };
+}
+
+/**
+ * Lembra o operador dos sites que esperam a aprovação há mais de `HORAS_ATE_O_LEMBRETE` horas —
+ * um e-mail por rodada, com todos os que passaram da hora, e um lembrete por site, nunca mais
+ * (decisão do dono em 10/11/2026, `docs/PENDENCIAS-ABERTAS.md` §2.70).
+ *
+ * O aviso de cadastro novo sai na hora do cadastro (`avisarOperadorDoCadastro`); este é para o dia
+ * em que ele se perdeu na caixa de entrada. Sem o `OPERADOR_EMAIL`, nada é reservado: o lembrete
+ * sai na primeira rodada depois de a variável entrar. Barbearia encerrada ou tirada do ar à mão não
+ * entra — alguém já olhou para ela.
+ *
+ * A trava é a mesma dos avisos do dono, `avisos_enviados`, com a hora do cadastro como prazo; a
+ * reserva vem antes do envio e é desfeita se o envio falha. Devolve quantos sites foram lembrados.
+ * Nunca lança por falha de envio: o resto da tarefa já rodou.
+ */
+export async function lembrarSitesQueEsperam(
+  agora: Date = new Date(),
+  opcoes: { env?: Record<string, string | undefined>; enviar?: (e: Email) => Promise<unknown> } = {},
+): Promise<number> {
+  const env = opcoes.env ?? process.env;
+  const para = emailDoOperador(env);
+  if (!para) return 0;
+
+  const limite = new Date(agora.getTime() - HORAS_ATE_O_LEMBRETE * 60 * 60 * 1000);
+  const esperando = await dbDono
+    .select({ id: tenants.id, slug: tenants.slug, criadaEm: tenants.createdAt, fuso: tenants.timezone })
+    .from(tenants)
+    .where(and(
+      isNull(tenants.siteAprovadoEm),
+      notInArray(tenants.status, ['cancelled', 'suspended']),
+      lte(tenants.createdAt, limite),
+    ))
+    .orderBy(asc(tenants.createdAt), asc(tenants.id));
+
+  const reservados: typeof esperando = [];
+  const reservas: { id: number; tenantId: number }[] = [];
+  for (const site of esperando) {
+    const [reserva] = await dbDono.insert(avisosEnviados)
+      .values({ tenantId: site.id, tipo: TIPO_DO_LEMBRETE, referencia: site.criadaEm, enviadoEm: agora })
+      .onConflictDoNothing()
+      .returning({ id: avisosEnviados.id });
+    if (!reserva) continue; // já foi lembrado
+    reservados.push(site);
+    reservas.push({ id: reserva.id, tenantId: site.id });
+  }
+  if (reservados.length === 0) return 0;
+
+  try {
+    const conteudo = textoDoLembrete(
+      reservados.map((x) => ({ slug: x.slug, criadaEm: x.criadaEm, fuso: x.fuso, ficha: fichaNoPainel(x.id, env) })),
+      agora,
+    );
+    // Um e-mail só, de vários sites: sai da parte do operador, sem barbearia (`lib/email.ts`).
+    await (opcoes.enviar ?? enviarEmail)({ para, ...conteudo, barbearia: null, tipo: 'operador' });
+    return reservados.length;
+  } catch (erro) {
+    for (const r of reservas) {
+      await dbDono.delete(avisosEnviados).where(and(eq(avisosEnviados.id, r.id), eq(avisosEnviados.tenantId, r.tenantId)));
+    }
+    console.error(`[avisos] o lembrete ao operador de ${reservados.length} site(s) esperando não saiu —`, erro instanceof Error ? erro.message : erro);
+    return 0;
+  }
 }

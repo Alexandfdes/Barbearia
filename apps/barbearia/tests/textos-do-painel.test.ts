@@ -47,6 +47,30 @@ describe('o rodapé do site', () => {
   });
 });
 
+describe('o agendamento manual já vem com o barbeiro, como a venda (10/11/2026)', () => {
+  // Achado no ensaio do roteiro: na barbearia de uma pessoa só, o campo vinha em "Selecione", e o
+  // horário só aparecia depois de o dono escolher a si mesmo. A venda avulsa já vinha escolhida.
+  const dia = soCodigo(readFileSync('src/pages/admin/dia/[date].astro', 'utf8'));
+  const manual = dia.slice(dia.indexOf('<select id="m-barber"'), dia.indexOf('</select>', dia.indexOf('<select id="m-barber"')));
+
+  it('um barbeiro só, ou a agenda filtrada por um: ele vem escolhido, e o "Selecione" some', () => {
+    expect(dia).toMatch(/const barbeiroDoManual = allBarbers\.length === 1\s*\? allBarbers\[0\]\.id\s*: \(allBarbers\.find\(b => b\.id === filterBarberId\)\?\.id \?\? null\);/);
+    expect(manual).toMatch(/\{barbeiroDoManual === null && <option value="">Selecione<\/option>\}/);
+    expect(manual).toMatch(/selected=\{barbeiroDoManual === b\.id\}/);
+  });
+
+  it('o filtro de um barbeiro desligado não escolhe ninguém em silêncio: o "Selecione" volta', () => {
+    // Com `?barber=` de quem saiu da lista dos ativos, nenhuma opção vem marcada; sem o "Selecione",
+    // o navegador marcaria a primeira, e o horário iria para outro barbeiro sem ninguém ver.
+    expect(manual).not.toMatch(/filterBarberId === null && <option/);
+    expect(dia).not.toMatch(/const barbeiroDoManual = [^;]*\?\? filterBarberId/);
+  });
+
+  it('controle: a venda avulsa continua escolhendo o da agenda', () => {
+    expect(dia).toMatch(/<select id="sale-barber"[\s\S]*?selected=\{filterBarberId === b\.id\}/);
+  });
+});
+
 describe('a agenda do dia concorda o plural', () => {
   const agenda = readFileSync('src/pages/admin/dia/[date].astro', 'utf8');
 

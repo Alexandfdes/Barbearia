@@ -54,6 +54,13 @@ export const tenants = pgTable('tenants', {
    * pela web grava nulo; o padrão é aprovado.
    */
   siteAprovadoEm: timestamp('site_aprovado_em', { withTimezone: true }).defaultNow(),
+  /**
+   * A versão do termo de uso aceita no cadastro pela web, e quando (migration 0021,
+   * `lib/termos.ts`). Nulas juntas: não aceitou nada pela tela — o normal enquanto o texto final
+   * não existe, e o de quem você cria à mão.
+   */
+  termosVersao: text('termos_versao'),
+  termosAceitosEm: timestamp('termos_aceitos_em', { withTimezone: true }),
 });
 
 /**
