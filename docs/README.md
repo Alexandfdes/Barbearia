@@ -1,6 +1,9 @@
 # Documentação do Fadeline
 
-> Índice de tudo que existe em `docs/`. Atualizado: 26/10/2026.
+> Índice de tudo que existe em `docs/`. Atualizado: 10/11/2026.
+>
+> O que descreve a **produção** — o servidor, as variáveis, os testes feitos no ar — mora no projeto do
+> claude.ai, não aqui: este repositório é público.
 >
 > **Se você está chegando agora ou voltando depois de um tempo, leia
 > `ESTADO-ATUAL.md` primeiro.** Ele diz onde o código está e qual é o próximo
@@ -16,7 +19,6 @@
 | **`ESTADO-ATUAL.md`** | Onde o código está hoje e o que está pela metade. A fila do que fazer é a do `PENDENCIAS-ABERTAS.md` §6 — o `ESTADO-ATUAL.md` §9 é registro de 06/09 |
 | **`PENDENCIAS-ABERTAS.md`** | O que ainda **não** foi decidido, por prioridade |
 | **`COMO-FUNCIONA.md`** | O produto inteiro em português claro, sem termo técnico |
-| **`ROTEIRO-MIGRACAO-PRODUCAO.md`** | 🔴 **Ainda não executado.** A ordem, comando por comando, para pôr o Postgres no ar para o Bayron — com as conferências e o caminho de volta |
 
 ## Negócio
 
@@ -24,8 +26,7 @@
 |---|---|---|
 | `PRECIFICACAO.md` | ✅ vigente | Preço, margem por cliente, concorrentes verificados |
 | `PLANO-PRODUTIZACAO.md` | ⚠️ parcialmente substituído | Posicionamento e público-alvo. **A escolha de arquitetura foi revertida** — ver `ARQUITETURA-MULTI-TENANT-V1.md` |
-| `FLUXO-COMPLETO.md` | ⚠️ vai ser aposentado | O caminho antigo, com montagem, da venda até o site no ar — vale enquanto o `/onboarding` existir. O que o substitui é o `JORNADA-DO-BARBEIRO.md` |
-| `JORNADA-DO-BARBEIRO.md` | ⚠️ desenho, implementado em parte | O caminho do barbeiro no autoatendimento, da landing ao site no ar: o que ele vê, o que existe no código, o que falta e em que ordem construir |
+| `JORNADA-DO-BARBEIRO.md` | ⚠️ roteiro vivo | O caminho do barbeiro no autoatendimento: o estado de cada passo está na tabela do topo dele |
 
 ## Arquitetura
 
@@ -57,6 +58,8 @@ Servem para entender por que o código é como é.
 | Documento | Status |
 |---|---|
 | `CONTEXTO-AGENDAMENTO.md` | 📦 histórico — apesar do nome, **não** é o estado atual |
+| `FLUXO-COMPLETO.md` | 📦 histórico desde 26/10/2026 — o caminho com montagem; o `/onboarding` que ele descrevia saiu (`PENDENCIAS-ABERTAS.md` §2.58) |
+| `ROTEIRO-MIGRACAO-PRODUCAO.md` | 📦 histórico desde 28/10/2026 — o Bayron não vai ser migrado: o banco dele é fictício |
 | `AGENDAR-V1.md` | 📦 implantado e em produção |
 | `PLANO-A-TOKEN-V2.md` | 📦 implantado |
 | `PLANO-HORARIOS-TRABALHO.md` | 📦 implantado |
