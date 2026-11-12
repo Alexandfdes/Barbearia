@@ -180,7 +180,7 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   (`apps/barbearia/src/lib/avisoDoBackup.ts`, na tarefa dos avisos), que lê o disco por `lib/backupNoDisco.ts` —
   nunca por `lib/operadorSistema.ts`, que chega à Asaas (`tests/cobranca-isolada.test.ts`;
   `docs/PENDENCIAS-ABERTAS.md` §3.3). O envio recusado se diagnostica com `node scripts/diagnosticar-envio.mjs`, no
-  Console — pelo mesmo `enviarParaS3`, com o cliente de `clienteDoS3`.
+  Console — pelo mesmo `enviarParaS3`, com o cliente de `clienteDoS3`; `S3_SO_IPV4=1` força o backup por IPv4.
 - **Commit sem as linhas `Co-Authored-By` e `Claude-Session`** — decisão do dono em 16/10/2026.
   Os commits anteriores ficam como estão.
 - **CI:** `.github/workflows/testes.yml` roda a suíte com banco a cada push na `main` e na

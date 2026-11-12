@@ -24,7 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
-| **11/11** | **O backup que não sobe para fora vira e-mail a você, um por dia, enquanto durar** — achado no deploy de 11/11: o envio era recusado desde a tarde de 10/11, e só o log sabia. E o diagnóstico da recusa, num comando só, para o Console do servidor | `PENDENCIAS-ABERTAS.md` §3.3 |
+| **11/11** | **O backup que não sobe para fora vira e-mail a você, um por dia, enquanto durar** — achado no deploy de 11/11: o envio era recusado desde a tarde de 10/11, e só o log sabia. E o diagnóstico da recusa, num comando só, para o Console do servidor, com a saída do IPv6 pronta (`S3_SO_IPV4`) | `PENDENCIAS-ABERTAS.md` §3.3 |
 | **10/11, 23h** | **O botão da landing leva ao cadastro**, decidido por você: o cadastro abre ao público, com cada site esperando a sua aprovação — e sem a cobrança e sem o termo, aceitos como risco. ⚠️ **Falta aplicar:** conferido de fora às 23h, a landing no ar ainda leva ao WhatsApp, e o passo 4 ainda diz "No ar, agendando" — o site de vendas não recebeu o Implantar de 10/11 | `PENDENCIAS-ABERTAS.md` §2.31 e `JORNADA-DO-BARBEIRO.md` §2.1 |
 | **10/11, noite** | **O que dava para adiantar enquanto você testava em produção**, pedido por você: o lembrete a você do site que espera há mais de 20 horas; o boot avisando do cadastro aberto sem `OPERADOR_EMAIL` e do painel do operador só com a senha; a tela de assinatura sem prometer aviso a e-mail não confirmado; o topo do cadastro e a página "em preparação" sem pressa; o agendamento manual já com o barbeiro; o envio do backup com o motivo inteiro no log e uma segunda tentativa; e **o aceite do termo de uso no cadastro, pronto e desligado** até o texto do advogado (migration 0021) | `PENDENCIAS-ABERTAS.md` §2.70, `PENDENCIAS-ABERTAS.md` §1.2 e `PENDENCIAS-ABERTAS.md` §3.3 |
 | **10/11** | **A aprovação do site continua, com prazo e com aviso a você** — decidido por você, depois da explicação do porquê: o site novo abre **em até 1 dia útil** do cadastro, prometido nas cinco telas e e-mails que o dono vê e na landing; e cada cadastro novo manda um e-mail a você (`OPERADOR_EMAIL`), só com o endereço escolhido e o link da ficha. **E confirmadas as duas decisões da implementação de 05/11:** o teste conta da aprovação, e quem espera não recebe os avisos do teste. O passo 4 da landing deixou de dizer que o site vai ao ar na hora | `PENDENCIAS-ABERTAS.md` §2.70 |
@@ -3288,6 +3288,14 @@ registros do envio não mudam. ⚠️ **Achado no caminho:** no SDK desta versã
 aviso quando estoura — o pedido continua esperando; é o `throwOnRequestTimeout: true` que o faz desistir. O backup não
 tem prazo nenhum: um envio pendurado prende o daemon do backup até o provedor responder. Guarda:
 `apps/barbearia/tests/diagnosticar-envio.test.ts`.
+
+✅ **E a saída do IPv6, pronta antes do diagnóstico** (11/11/2026): `S3_SO_IPV4=1` faz o backup conectar só por IPv4
+(`opcoesDoClienteDoS3`, em `apps/barbearia/scripts/backup.mjs`; explicada no `apps/barbearia/.env.example`). Se a
+leitura do diagnóstico disser que, com IPv4 forçado, o que tinha falhado subiu, é salvar a variável no ambiente do
+app — sem deploy — e rodar o backup à mão para conferir. O diagnóstico não segue a variável: ele mede os dois
+caminhos, cada um com o seu cliente, e diz na primeira linha como o backup de verdade conecta. Se a leitura apontar
+para o tamanho do pacote, o conserto é na rede do servidor, não no código — o passo a passo mora no projeto do
+claude.ai, porque descreve o servidor. Guarda: `apps/barbearia/tests/backup-envio.test.ts`.
 
 ✅ **E a falha agora chega a você** (11/11/2026): a tarefa de hora em hora dos avisos manda um e-mail por dia ao
 `OPERADOR_EMAIL` enquanto o envio falhar ou parar (`apps/barbearia/src/lib/avisoDoBackup.ts`), com a hora, o motivo
