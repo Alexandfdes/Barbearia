@@ -102,7 +102,8 @@ export function leituraDoDiagnostico(envios, comIpv4 = []) {
   if (comIpv4.length > 0) {
     const subiramComIpv4 = comIpv4.filter((e) => e.ok).length;
     linhas.push(subiramComIpv4 === comIpv4.length
-      ? 'Com IPv4 forçado, os que tinham falhado subiram: aponta para o caminho do IPv6 — o conserto seria o envio usar só IPv4.'
+      ? 'Com IPv4 forçado, os que tinham falhado subiram: aponta para o caminho do IPv6 — o conserto é `S3_SO_IPV4=1` '
+        + 'no Environment do app, e depois `node scripts/backup.mjs` para conferir.'
       : subiramComIpv4 === 0
         ? 'Com IPv4 forçado, falharam igual: não é o IPv6.'
         : 'Com IPv4 forçado, uns subiram e outros não: rode de novo para ver se o padrão se repete.');
@@ -161,6 +162,8 @@ export async function diagnosticarEnvio({
   const host = nomeDoArmazenamento(env.S3_ENDPOINT);
   const rotulo = agora.toISOString().replace(/\.\d+Z$/, 'Z').replace(/:/g, '-');
   escrever(`Diagnóstico do envio para fora — ${agora.toISOString()} (UTC) — Node ${process.version}`);
+  escrever(`O backup de verdade conecta ${env.S3_SO_IPV4?.trim() === '1' ? 'só por IPv4 (S3_SO_IPV4=1)' : 'pelo caminho que o Node escolher (sem S3_SO_IPV4)'}; `
+    + 'o diagnóstico mede os dois caminhos.');
   escrever('Leva de segundos a uns 5 minutos: cada envio que falhar pode esperar até '
     + `${segundos(prazoMs)}. Deixe o Console aberto até a "Leitura".`);
 
