@@ -24,7 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
-| **11/11** | **O backup que não sobe para fora vira e-mail a você, um por dia, enquanto durar** — achado no deploy de 11/11: o envio era recusado desde a tarde de 10/11, e só o log sabia | `PENDENCIAS-ABERTAS.md` §3.3 |
+| **11/11** | **O backup que não sobe para fora vira e-mail a você, um por dia, enquanto durar** — achado no deploy de 11/11: o envio era recusado desde a tarde de 10/11, e só o log sabia. E o diagnóstico da recusa, num comando só, para o Console do servidor | `PENDENCIAS-ABERTAS.md` §3.3 |
 | **10/11, 23h** | **O botão da landing leva ao cadastro**, decidido por você: o cadastro abre ao público, com cada site esperando a sua aprovação — e sem a cobrança e sem o termo, aceitos como risco. ⚠️ **Falta aplicar:** conferido de fora às 23h, a landing no ar ainda leva ao WhatsApp, e o passo 4 ainda diz "No ar, agendando" — o site de vendas não recebeu o Implantar de 10/11 | `PENDENCIAS-ABERTAS.md` §2.31 e `JORNADA-DO-BARBEIRO.md` §2.1 |
 | **10/11, noite** | **O que dava para adiantar enquanto você testava em produção**, pedido por você: o lembrete a você do site que espera há mais de 20 horas; o boot avisando do cadastro aberto sem `OPERADOR_EMAIL` e do painel do operador só com a senha; a tela de assinatura sem prometer aviso a e-mail não confirmado; o topo do cadastro e a página "em preparação" sem pressa; o agendamento manual já com o barbeiro; o envio do backup com o motivo inteiro no log e uma segunda tentativa; e **o aceite do termo de uso no cadastro, pronto e desligado** até o texto do advogado (migration 0021) | `PENDENCIAS-ABERTAS.md` §2.70, `PENDENCIAS-ABERTAS.md` §1.2 e `PENDENCIAS-ABERTAS.md` §3.3 |
 | **10/11** | **A aprovação do site continua, com prazo e com aviso a você** — decidido por você, depois da explicação do porquê: o site novo abre **em até 1 dia útil** do cadastro, prometido nas cinco telas e e-mails que o dono vê e na landing; e cada cadastro novo manda um e-mail a você (`OPERADOR_EMAIL`), só com o endereço escolhido e o link da ficha. **E confirmadas as duas decisões da implementação de 05/11:** o teste conta da aprovação, e quem espera não recebe os avisos do teste. O passo 4 da landing deixou de dizer que o site vai ao ar na hora | `PENDENCIAS-ABERTAS.md` §2.70 |
@@ -3276,6 +3276,18 @@ cima) e sem pedaços. O último envio certo foi o diário de 10/11, no container
 do primeiro container criado depois. **Hipótese, não confirmada:** a rede dos containers novos — tamanho de pacote
 no caminho ou IPv6. Falta o teste que separa: um envio de poucos bytes e um de 2 KB, no console do servidor. Se os
 dois falharem, é com o suporte do provedor, com os ids dos pedidos.
+
+✅ **O teste que separa virou um comando** (11/11/2026, à noite): `node scripts/diagnosticar-envio.mjs`, no Console do
+servidor — que não aceita colar. Ele mostra as interfaces do container com o MTU, os endereços que o DNS dá ao
+armazenamento, envios de bytes aleatórios de 16 bytes a 12 KB com o tempo de cada um, os que falharem de novo com
+IPv4 forçado, e uma leitura: "até X sobe, a partir de Y não" aponta para o tamanho do pacote; nenhum subindo, para o
+provedor; IPv4 resolvendo, para o IPv6; a recusa que demora, para pacotes perdidos no caminho. Cada envio passa pelo
+mesmo `enviarParaS3` do backup, com o cliente de `clienteDoS3` (`apps/barbearia/scripts/backup.mjs`) — só com um prazo
+e uma tentativa por pedido. Os arquivos vão para `backups/diagnostico-…` (a regra de 30 dias os apaga), e os
+registros do envio não mudam. ⚠️ **Achado no caminho:** no SDK desta versão, o `requestTimeout` sozinho só escreve um
+aviso quando estoura — o pedido continua esperando; é o `throwOnRequestTimeout: true` que o faz desistir. O backup não
+tem prazo nenhum: um envio pendurado prende o daemon do backup até o provedor responder. Guarda:
+`apps/barbearia/tests/diagnosticar-envio.test.ts`.
 
 ✅ **E a falha agora chega a você** (11/11/2026): a tarefa de hora em hora dos avisos manda um e-mail por dia ao
 `OPERADOR_EMAIL` enquanto o envio falhar ou parar (`apps/barbearia/src/lib/avisoDoBackup.ts`), com a hora, o motivo
