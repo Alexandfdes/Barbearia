@@ -175,7 +175,12 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   `-fotos.tar.gz` — um processo novo que grave direto no nome final volta a fazer o interrompido
   contar como bom (`tests/backup-interrompido.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.59). A pasta
   guarda também o registro do envio para fora (`envio-para-fora.ok` e `.falhou`), que a tela de Sistema
-  lê — fora desses padrões, de propósito (`docs/PENDENCIAS-ABERTAS.md` §2.68).
+  lê, e a trava do aviso dele (`envio-para-fora.avisado`) — fora desses padrões, de propósito
+  (`docs/PENDENCIAS-ABERTAS.md` §2.68). O envio que falha ou para vira um e-mail por dia ao `OPERADOR_EMAIL`
+  (`apps/barbearia/src/lib/avisoDoBackup.ts`, na tarefa dos avisos), que lê o disco por `lib/backupNoDisco.ts` —
+  nunca por `lib/operadorSistema.ts`, que chega à Asaas (`tests/cobranca-isolada.test.ts`;
+  `docs/PENDENCIAS-ABERTAS.md` §3.3). O envio recusado se diagnostica com `node scripts/diagnosticar-envio.mjs`, no
+  Console — pelo mesmo `enviarParaS3`, com o cliente de `clienteDoS3`; `S3_SO_IPV4=1` força o backup por IPv4.
 - **Commit sem as linhas `Co-Authored-By` e `Claude-Session`** — decisão do dono em 16/10/2026.
   Os commits anteriores ficam como estão.
 - **CI:** `.github/workflows/testes.yml` roda a suíte com banco a cada push na `main` e na

@@ -1,7 +1,7 @@
 # Estado atual do código — comece por aqui
 
 > Registro vivo de **onde o código está**, para quem chega ao projeto ou volta
-> depois de um tempo. Atualizado: 10/11/2026 (§8).
+> depois de um tempo. Atualizado: 12/11/2026 (§8).
 >
 > Companheiro de `PENDENCIAS-ABERTAS.md` (o que ainda não foi **decidido**).
 > Este documento é sobre o que já foi **feito** e o que está pela metade.
@@ -23,10 +23,10 @@
    (decisão de 28/10: o banco dele é fictício) — o site antigo dele é do outro repositório, o
    `Alexandfdes/Barbearia-Bayron`, em SQLite.
 3. A `main` recebe a `monorepo` por PR, e é dela que o EasyPanel constrói — com o clique em Implantar, que não
-   é automático, e o app e o site de vendas têm um Implantar cada (`PENDENCIAS-ABERTAS.md` §3.2). O último do app foi
-   o de 10/11/2026, com a migration 0020; o do site de vendas ficou para trás — conferido de fora às 23h, a landing
-   ainda tem o texto de antes de 10/11. O que veio depois, na mesma noite, está só na `monorepo` (§8). *(Corrigido em 10/11/2026: estas duas linhas diziam que
-   o app novo estava no ar com o código de 10/10 e que a `main` tinha parado no PR #1 — o estado de 16/10.)*
+   é automático, e o app e o site de vendas têm um Implantar cada (`PENDENCIAS-ABERTAS.md` §3.2). Os últimos foram os
+   de 11/11/2026: o do app com a migration 0021, e o do site de vendas com o botão da landing levando ao cadastro
+   (conferido de fora). O que veio depois está só na `monorepo` (§8). *(Corrigido em 10/11/2026: estas duas linhas
+   diziam que o app novo estava no ar com o código de 10/10 e que a `main` tinha parado no PR #1 — o estado de 16/10.)*
 4. O site do Bayron está **no ar** e não foi afetado por nada disto.
 5. Antes de mexer, leia as quatro skills em `.claude/skills/` — são regras que já
    custaram erro aqui.
@@ -366,6 +366,8 @@ dono não reparou vira o preço no site dele.
 
 | Quando | O quê |
 |---|---|
+| 12/11 | **O CEP preenche o endereço, no cadastro e em Configurações** (`PENDENCIAS-ABERTAS.md` §2.71), pedido pelo dono: no oitavo número, a rua vem com a vírgula e o cursor para o número, e a cidade e o estado junto; o CEP não fica guardado. A busca sai do navegador direto para o ViaCEP, com a BrasilAPI de reserva — sem rota no servidor. ⚠️ Nunca conferido contra os serviços de verdade: o primeiro CEP digitado no `npm run dev` é a conferência. **Verificado:** 134 arquivos, **1544 de 1544** contra PostgreSQL 16; `astro check` com zero; 28 defeitos reintroduzidos, os 28 vermelhos — 1 só depois de o teste ganhar o caso que faltava; e contra o build, num navegador, com os dois serviços interceptados |
+| 11/11, noite | **O aviso ao operador do backup que não sobe para fora do servidor** (`PENDENCIAS-ABERTAS.md` §3.3): o envio para o armazenamento de fora era recusado desde a tarde de 10/11, e a falha passou mais de um dia num log que ninguém lê. Agora, a tarefa de hora em hora manda um e-mail por dia ao `OPERADOR_EMAIL` enquanto o envio falhar ou parar — a mesma regra da tela de Sistema, que saiu de `lib/operadorSistema.ts` para `lib/backupNoDisco.ts`: a tela conversa com a Asaas, e a tarefa não pode chegar à cobrança. E **o diagnóstico do envio num comando** (`scripts/diagnosticar-envio.mjs`): a rede do container, o DNS do armazenamento, envios de tamanhos crescentes com o tempo de cada um e os que falharem de novo com IPv4 forçado, pelo mesmo `enviarParaS3` do backup; e `S3_SO_IPV4=1`, o envio só por IPv4, pronto para o caso de o diagnóstico apontar o IPv6. E **o roteiro de produção ensaiado contra o build**, num navegador: o §1 (inclusive as fotos numa barbearia nova, na pasta dela, e uma barbearia sem ver as da outra), o §4 a §7 e o §9.1 a §9.3 — nenhum defeito. **Verificado:** 133 arquivos, **1507 de 1507** contra PostgreSQL 16; `astro check` com zero; 36 defeitos reintroduzidos, os 36 vermelhos — 5 só depois de o teste ficar mais forte; e os casos do aviso no fuso do processo em UTC, Tóquio e Manaus |
 | 10/11, 23h | **O cadastro abre ao público, e a landing passa a levar a ele** — decidido pelo dono, com a cobrança e o termo ainda faltando (`PENDENCIAS-ABERTAS.md` §2.31). É configuração, não código: `CADASTRO_ABERTO=1` também no site de vendas, conferido contra o build. ⚠️ **Conferido de fora às 23h: ainda não aplicado** — os botões da landing no ar abrem o WhatsApp, e o passo 4 ainda diz "No ar, agendando": o site de vendas não recebeu o Implantar de 10/11. E os documentos e as skills revistos: o índice de `docs/` ainda mandava executar o roteiro de migração do Bayron, o `CLAUDE.md` dava a produção na migration 0018, e a jornada citava linhas que tinham andado |
 | 10/11, noite | **O que dava para adiantar enquanto o dono testava em produção** (`PENDENCIAS-ABERTAS.md` §2.70): o lembrete ao operador do site que espera há mais de 20 horas, na tarefa de hora em hora; o boot dizendo do cadastro aberto sem `OPERADOR_EMAIL` e do painel do operador só com a senha; a assinatura sem prometer aviso a e-mail não confirmado; o topo do cadastro e o "em preparação" sem pressa; o agendamento manual já com o barbeiro. E o envio do backup com o motivo inteiro no log e uma segunda tentativa (`PENDENCIAS-ABERTAS.md` §3.3), e **o aceite do termo de uso no cadastro, pronto e desligado** até o texto do advogado (`PENDENCIAS-ABERTAS.md` §1.2, migration 0021). **Verificado:** 131 arquivos, **1475 de 1475** contra PostgreSQL 16, e 1461 de 1461 sem o termo; `astro check` com zero nos dois apps; 50 defeitos reintroduzidos, os 50 vermelhos; a 0021 pelo `scripts/startup.mjs` num banco na 0020 com dados; e contra o build, num navegador |
 | 10/11 | **A aprovação do site continua, com prazo e com aviso** (`PENDENCIAS-ABERTAS.md` §2.70), decidido pelo dono: o site novo abre em até 1 dia útil do cadastro — dito nas telas e e-mails que o dono vê e na landing, por uma constante só (`PRAZO_DA_CONFERENCIA`) —, e cada cadastro novo manda um e-mail ao operador (`OPERADOR_EMAIL`), só com o endereço escolhido e o link da ficha, numa parte própria do orçamento de e-mail. Confirmados o teste contado da aprovação e os avisos que não vão para quem espera. E o Início do operador põe quem espera num grupo à frente — o teste, com o relógio parado, falhava desde 07/11. **Verificado:** 127 arquivos, **1428 de 1428** contra PostgreSQL 16; `astro check` com zero nos dois apps; 14 defeitos reintroduzidos, os 14 vermelhos; e contra o build dos dois apps |

@@ -9,7 +9,12 @@ export interface Campo {
   id: string;
   label: string;
   hint?: string;
-  tipo?: 'text' | 'textarea' | 'number' | 'fuso';
+  /**
+   * `cep` (12/11/2026): o campo que só preenche a rua e a cidade (`lib/cep.ts`). SEM
+   * `data-campo`, de propósito — não vai no Salvar, não conta como mudança não salva e não
+   * entra no rascunho que sobrevive ao envio da logo. A linha embaixo diz o que a busca achou.
+   */
+  tipo?: 'text' | 'textarea' | 'number' | 'fuso' | 'cep';
   placeholder?: string;
 }
 
@@ -49,6 +54,19 @@ const CAMPO = 'w-full bg-slate-50 border border-slate-200 rounded px-3 py-2 text
               {opcoesDeFuso.map((o) => <option value={o.id} selected={o.id === fusoAtual}>{o.texto}</option>)}
             </select>
             <p id="fuso-agora" class="text-[11px] text-slate-500 mt-1.5" aria-live="polite"></p>
+          </>
+        ) : campo.tipo === 'cep' ? (
+          <>
+            <input
+              id={campo.id}
+              type="text"
+              inputmode="numeric"
+              autocomplete="postal-code"
+              maxlength="9"
+              placeholder={campo.placeholder}
+              class:list={[CAMPO, 'placeholder:text-slate-300 max-w-40']}
+            />
+            <p id={`${campo.id}-aviso`} class="text-xs text-slate-600 mt-1.5" aria-live="polite"></p>
           </>
         ) : campo.tipo === 'textarea' ? (
           <textarea

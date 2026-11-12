@@ -84,6 +84,8 @@ const secoes: (Secao & { aba: AbaDoFormulario })[] = [
     previaDoMapa: true,
     aba: 'contato',
     campos: [
+      // Só preenche a rua e a cidade, e não fica salvo (12/11/2026, `lib/cep.ts`).
+      { id: 'cep', label: 'CEP', tipo: 'cep', placeholder: '00000-000', hint: 'Só para preencher a rua e a cidade: o CEP não fica salvo nem aparece no site.' },
       { id: 'addressStreet', label: 'Rua e número', placeholder: 'R. Exemplo, 123' },
       { id: 'addressCity', label: 'Cidade/UF', hint: 'Escreva no formato Cidade/UF — o site divide os dois para o Google.', placeholder: 'Mossoró/RN' },
       { id: 'fuso', label: 'Fuso horário', tipo: 'fuso', hint: 'Todo horário do site, da agenda e dos e-mails segue este fuso. Ele veio do estado no cadastro; troque se a sua cidade está numa ponta de estado com outro fuso.' },
@@ -333,6 +335,7 @@ const comuns = { valor, opcoesDeFuso, fusoAtual, mapaAgora };
   // aparece aqui ser exatamente o que vai para o site — sem lógica duplicada.
   import { derivarAccent, ACCENT_PADRAO } from '../../lib/accent.js';
   import { sugestoesDaLogo } from '../../lib/coresDaLogo.js';
+  import { ligarBuscaDoCep } from '../../lib/cep.js';
   import { embedDoMapa } from '../../lib/mapa.js';
 
   // O fuso dos horários: a hora de agora no fuso escolhido, para o dono conferir
@@ -370,6 +373,21 @@ const comuns = { valor, opcoesDeFuso, fusoAtual, mapaAgora };
     campo?.addEventListener('input', () => {
       clearTimeout(esperaDoMapa);
       esperaDoMapa = setTimeout(atualizarPrevia, 800);
+    });
+  }
+
+  // O CEP preenche a rua e a cidade (12/11/2026, `lib/cep.ts`). O `input` que a busca dispara
+  // nos dois campos é o que acende o "Alterações não salvas" e leva a prévia do mapa junto.
+  const campoDoCep = document.getElementById('cep') as HTMLInputElement | null;
+  const avisoDoCep = document.getElementById('cep-aviso');
+  const [ruaDoSite, cidadeDoSite] = camposDoMapa;
+  if (campoDoCep && avisoDoCep && ruaDoSite && cidadeDoSite) {
+    ligarBuscaDoCep({
+      cep: campoDoCep, aviso: avisoDoCep, rua: ruaDoSite,
+      cidade: ({ cidade, uf }) => {
+        cidadeDoSite.value = `${cidade}/${uf}`;
+        cidadeDoSite.dispatchEvent(new Event('input', { bubbles: true }));
+      },
     });
   }
 
