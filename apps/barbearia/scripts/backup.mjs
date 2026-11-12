@@ -533,25 +533,17 @@ function descreverArquivo(caminho) {
  * pedido é assinado com o SHA-256 do corpo. *Não conferido contra o Backblaze de
  * verdade — conferido contra um S3 local (`tests/backup-envio.test.ts`).*
  *
- * `opcoes.parte` existe para o teste; em produção é sempre `PARTE_DO_ENVIO`.
+ * `opcoes.parte` existe para o teste; em produção é sempre `PARTE_DO_ENVIO`. `opcoes.cliente` é do
+ * diagnóstico (`scripts/diagnosticar-envio.mjs`): o prazo de cada pedido, o IPv4 forçado e uma tentativa só.
  */
 export async function enviarParaS3(caminho, opcoes = {}) {
   const env = opcoes.env ?? process.env;
   const parte = opcoes.parte ?? PARTE_DO_ENVIO;
   const {
-    S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand,
+    PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand,
     CompleteMultipartUploadCommand, AbortMultipartUploadCommand,
   } = await import('@aws-sdk/client-s3');
-  // Backblaze mostra o endpoint sem esquema; o SDK exige URL completa.
-  const endpoint = /^https?:\/\//.test(env.S3_ENDPOINT) ? env.S3_ENDPOINT : `https://${env.S3_ENDPOINT}`;
-  const client = new S3Client({
-    endpoint,
-    region: env.S3_REGION ?? 'us-east-1',
-    credentials: { accessKeyId: env.S3_ACCESS_KEY_ID, secretAccessKey: env.S3_SECRET_ACCESS_KEY },
-    forcePathStyle: true,
-    requestChecksumCalculation: 'WHEN_REQUIRED',
-    responseChecksumValidation: 'WHEN_REQUIRED',
-  });
+  const client = await clienteDoS3(env, opcoes.cliente);
   const Bucket = env.S3_BUCKET;
   const Key = `backups/${basename(caminho)}`;
   const ContentType = 'application/gzip';
@@ -600,6 +592,28 @@ export async function enviarParaS3(caminho, opcoes = {}) {
   } finally {
     client.destroy();
   }
+}
+
+/**
+ * O cliente do S3 do envio para fora — um só, para o backup e para o diagnóstico
+ * (`scripts/diagnosticar-envio.mjs`, 11/11/2026): diagnosticar com outra configuração seria
+ * diagnosticar outra coisa. Só o diagnóstico passa `requestHandler` (as opções do `NodeHttpHandler` do
+ * SDK) e `maxAttempts`; o resto não muda por fora.
+ */
+export async function clienteDoS3(env = process.env, { requestHandler, maxAttempts } = {}) {
+  const { S3Client } = await import('@aws-sdk/client-s3');
+  // Backblaze mostra o endpoint sem esquema; o SDK exige URL completa.
+  const endpoint = /^https?:\/\//.test(env.S3_ENDPOINT) ? env.S3_ENDPOINT : `https://${env.S3_ENDPOINT}`;
+  return new S3Client({
+    ...(requestHandler ? { requestHandler } : {}),
+    ...(maxAttempts ? { maxAttempts } : {}),
+    endpoint,
+    region: env.S3_REGION ?? 'us-east-1',
+    credentials: { accessKeyId: env.S3_ACCESS_KEY_ID, secretAccessKey: env.S3_SECRET_ACCESS_KEY },
+    forcePathStyle: true,
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
+  });
 }
 
 /** Lê do arquivo até encher `buffer` ou o arquivo acabar; devolve quantos bytes leu. */
