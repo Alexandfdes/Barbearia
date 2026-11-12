@@ -64,6 +64,10 @@ export async function rodarAvisos() {
     if (corpo.lembradosAoOperador > 0) {
       console.log(`[avisos-daemon] ✓ lembrete ao operador: ${corpo.lembradosAoOperador} site(s) esperando a aprovação`);
     }
+    // O aviso do backup que não sobe para fora (11/11/2026, `src/lib/avisoDoBackup.ts`): no máximo um por dia.
+    if (corpo.avisoDoBackup === true) {
+      console.log('[avisos-daemon] ✓ aviso ao operador: o backup não está subindo para fora do servidor');
+    }
     return true;
   } catch (erro) {
     return falhou(`[avisos-daemon] ✕ a tarefa não respondeu: ${erro instanceof Error ? erro.message : erro}`);
