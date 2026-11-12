@@ -145,6 +145,36 @@ afterEach(() => {
   rmSync(pasta, { recursive: true, force: true });
 });
 
+describe('o envio só por IPv4 — S3_SO_IPV4 (11/11/2026)', () => {
+  type Agentes = { requestHandler?: { httpAgent?: { options: { family?: number; keepAlive?: boolean } }; httpsAgent?: { options: { family?: number; keepAlive?: boolean } } } };
+
+  it('sem a variável, o cliente é o de sempre: o SDK escolhe o caminho', () => {
+    const o = backup.opcoesDoClienteDoS3(envDoS3()) as Agentes & Record<string, unknown>;
+    expect(o.requestHandler).toBeUndefined();
+    expect(o).toMatchObject({ forcePathStyle: true, requestChecksumCalculation: 'WHEN_REQUIRED', responseChecksumValidation: 'WHEN_REQUIRED' });
+  });
+
+  it('com S3_SO_IPV4=1, as duas conexões só por IPv4 — e o envio sobe', async () => {
+    const env = { ...envDoS3(), S3_SO_IPV4: '1' };
+    const o = backup.opcoesDoClienteDoS3(env) as Agentes;
+    expect(o.requestHandler?.httpsAgent?.options).toMatchObject({ family: 4, keepAlive: true });
+    expect(o.requestHandler?.httpAgent?.options).toMatchObject({ family: 4, keepAlive: true });
+    // Outro valor não liga: a variável é 1 ou nada.
+    expect((backup.opcoesDoClienteDoS3({ ...envDoS3(), S3_SO_IPV4: 'sim' }) as Agentes).requestHandler).toBeUndefined();
+    const arquivo = join(pasta, 'barbearia_2026-11-12-03-00-00.sql.gz');
+    writeFileSync(arquivo, randomBytes(4096));
+    expect(await backup.enviarParaS3(arquivo, { env })).toEqual({ partes: 1, bytes: 4096 });
+    expect(s3.pedidos.map((p) => p.metodo)).toEqual(['PUT']);
+  });
+
+  it('o diagnóstico passa o seu cliente, e ele vale mais que a variável — para medir os dois caminhos', () => {
+    const doDiagnostico = { requestTimeout: 30_000 };
+    const o = backup.opcoesDoClienteDoS3({ ...envDoS3(), S3_SO_IPV4: '1' }, { requestHandler: doDiagnostico, maxAttempts: 1 }) as Record<string, unknown>;
+    expect(o.requestHandler).toBe(doDiagnostico);
+    expect(o.maxAttempts).toBe(1);
+  });
+});
+
 describe('o envio para fora da VPS', () => {
   it('a parte respeita o mínimo do S3 — 5 MiB, menos a última', () => {
     expect(backup.PARTE_DO_ENVIO).toBeGreaterThanOrEqual(5 * MiB);

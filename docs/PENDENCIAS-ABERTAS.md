@@ -24,6 +24,8 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **12/11** | **O CEP preenche o endereço**, pedido por você: no cadastro e em Configurações, a rua, a cidade e o estado vêm do CEP, e o CEP não fica guardado. A busca é do navegador, no ViaCEP e na BrasilAPI — ⚠️ falta conferir contra os serviços de verdade, no primeiro CEP digitado | `PENDENCIAS-ABERTAS.md` §2.71 |
+| **11/11** | **O backup que não sobe para fora vira e-mail a você, um por dia, enquanto durar** — achado no deploy de 11/11: o envio era recusado desde a tarde de 10/11, e só o log sabia. E o diagnóstico da recusa, num comando só, para o Console do servidor, com a saída do IPv6 pronta (`S3_SO_IPV4`) | `PENDENCIAS-ABERTAS.md` §3.3 |
 | **10/11, 23h** | **O botão da landing leva ao cadastro**, decidido por você: o cadastro abre ao público, com cada site esperando a sua aprovação — e sem a cobrança e sem o termo, aceitos como risco. ⚠️ **Falta aplicar:** conferido de fora às 23h, a landing no ar ainda leva ao WhatsApp, e o passo 4 ainda diz "No ar, agendando" — o site de vendas não recebeu o Implantar de 10/11 | `PENDENCIAS-ABERTAS.md` §2.31 e `JORNADA-DO-BARBEIRO.md` §2.1 |
 | **10/11, noite** | **O que dava para adiantar enquanto você testava em produção**, pedido por você: o lembrete a você do site que espera há mais de 20 horas; o boot avisando do cadastro aberto sem `OPERADOR_EMAIL` e do painel do operador só com a senha; a tela de assinatura sem prometer aviso a e-mail não confirmado; o topo do cadastro e a página "em preparação" sem pressa; o agendamento manual já com o barbeiro; o envio do backup com o motivo inteiro no log e uma segunda tentativa; e **o aceite do termo de uso no cadastro, pronto e desligado** até o texto do advogado (migration 0021) | `PENDENCIAS-ABERTAS.md` §2.70, `PENDENCIAS-ABERTAS.md` §1.2 e `PENDENCIAS-ABERTAS.md` §3.3 |
 | **10/11** | **A aprovação do site continua, com prazo e com aviso a você** — decidido por você, depois da explicação do porquê: o site novo abre **em até 1 dia útil** do cadastro, prometido nas cinco telas e e-mails que o dono vê e na landing; e cada cadastro novo manda um e-mail a você (`OPERADOR_EMAIL`), só com o endereço escolhido e o link da ficha. **E confirmadas as duas decisões da implementação de 05/11:** o teste conta da aprovação, e quem espera não recebe os avisos do teste. O passo 4 da landing deixou de dizer que o site vai ao ar na hora | `PENDENCIAS-ABERTAS.md` §2.70 |
@@ -268,6 +270,10 @@ código (`apps/barbearia/src/lib/termos.ts`, migration 0021):
   anterior, quando o texto mudar —; a ficha do operador mostrar o aceite; e o aviso de privacidade a quem agenda,
   no site de cada barbearia, que é outro texto e outro endereço. Nenhum guarda o IP de quem aceitou: é uma das
   perguntas do advogado (o Marco Civil, acima).
+
+**12/11/2026 — o CEP, para o aviso ao dono e à equipe.** O CEP digitado no cadastro e em Configurações vai do
+navegador de quem digita ao ViaCEP e, se ele falhar, à BrasilAPI — com o IP da pessoa. Não passa pelo servidor
+nem fica guardado (`PENDENCIAS-ABERTAS.md` §2.71). O aviso tem de dizer.
 
 ⚠️ **27/09/2026 — o rodapé fingia que os textos existiam.** O site de toda barbearia mostrava
 "Termos de Uso" e "Políticas de Privacidade" apontando para `#`, num site que coleta nome e
@@ -3133,6 +3139,54 @@ depois do backup — e de novo, sem erro; e, contra o build, num navegador: o to
 aceite, as páginas do termo em 404 e desviadas para o painel, o "em preparação" sem pressa, a linha da assinatura
 com o link para o Início, e o agendamento manual com o barbeiro escolhido e 20 horários só de escolher o serviço.
 
+
+### 2.71 ✅ `[TÉCNICO]` O CEP preenche o endereço, no cadastro e em Configurações — FEITO em 12/11/2026
+
+**Pedido por você em 12/11/2026**, com as duas escolhas: nas duas telas, e só preencher — o CEP não fica
+guardado em lugar nenhum.
+
+**Como ficou** (`apps/barbearia/src/lib/cep.ts`):
+
+- **O campo CEP vem antes de "Rua e número"**, no `/cadastrar` e no bloco Endereço de Configurações. No oitavo
+  número, a busca sai sozinha; a rua vem com a vírgula — `Rua das Flores, ` — e o cursor no fim, para o número;
+  a cidade e o estado vêm junto (no cadastro, o seletor; em Configurações, "Cidade/UF"). O cursor só vai para a
+  rua se a pessoa ainda está no CEP: o Tab até ela selecionaria o texto todo, e o número apagaria a rua.
+- **A rua que já está lá:** fica, se começa pela rua do CEP seguida de vírgula, número ou traço — o mesmo CEP
+  digitado de novo, ou o navegador preenchendo CEP e rua juntos. Outra rua sai: trocar o CEP é dizer que o
+  endereço é outro. O CEP de cidade inteira, que não tem rua, só preenche a cidade.
+- **O bairro não entra:** o campo é "Rua e número", e é assim que o site mostra. A rua de nome repetido na
+  cidade é o caso da conferência do ponto no mapa (§2.33).
+- **Nunca trava:** "não achei" e "não respondeu" mandam escrever à mão, e Enter no CEP não envia o cadastro
+  pela metade.
+- **O CEP não vai no envio do cadastro e, em Configurações, não tem `data-campo`** — fica fora do Salvar, do
+  "Alterações não salvas" e do rascunho que sobrevive ao envio da logo.
+
+**De onde vem o endereço:** o navegador pergunta ao ViaCEP e, se ele falhar ou não conhecer o CEP, à BrasilAPI.
+**Rejeitado:** a rota `/api/cep/<cep>` no nosso servidor, o primeiro plano — seria um repasse aberto, e o
+bloqueio por abuso cairia sobre o IP do servidor, para todos os clientes; e a rede de saída dele estava sob
+suspeita (§3.3). **O que custa:** o IP de quem digita chega aos dois serviços, junto com o CEP — o aviso de
+privacidade final tem de dizer (§1.2).
+
+⚠️ **Nunca conferido contra os serviços de verdade.** Daqui da nuvem eles não respondem: o formato das respostas
+é o que os dois documentam, e o ensaio interceptou os pedidos. **O primeiro CEP digitado no seu `npm run dev` é a
+conferência** — se a tela disser "não respondeu" com a internet funcionando, o console do navegador (F12) diz
+se foi o formato ou o bloqueio entre sites.
+
+⚠️ **Se o painel ganhar uma `Content-Security-Policy`**, o `connect-src` dela tem de aceitar os dois endereços;
+`apps/barbearia/tests/cep.test.ts` reprova a que esquecer.
+
+⚠️ **Achado de passagem, não consertado:** o cadastro aceita a rua com até 200 caracteres e a cidade com até 120
+(`apps/barbearia/src/pages/api/cadastrar.ts`), e Configurações, 150 e 80 (`apps/barbearia/src/pages/api/admin/settings.ts`).
+Quem se cadastrar com um endereço maior que isso não salva Configurações — nenhum campo — até encurtar, e o
+aviso vem em inglês, a mensagem padrão do validador. Raro: endereço de verdade não chega perto.
+
+**Verificado em 12/11/2026:** 134 arquivos, **1544 de 1544** contra PostgreSQL 16; o `astro check` com zero; 28
+defeitos reintroduzidos, os 28 vermelhos — um só depois de o teste ganhar o caso que faltava (o "não conheço" do
+ViaCEP em texto, com a BrasilAPI fora); e, contra o build, num navegador, com os dois serviços interceptados: a
+máscara tecla a tecla, o cursor no fim da rua, o estado trocando para AC, o Enter sem envio (e o controle: Enter
+na cidade tenta enviar), o cadastro enviado sem o CEP e com o endereço preenchido, e em Configurações o
+"Alterações não salvas", a prévia do mapa acompanhando e o Salvar sem o CEP — e nenhum pedido aos serviços com
+a página de origem.
 ---
 
 ## 3. Operação com vários clientes
@@ -3211,7 +3265,7 @@ espera este job também. ✅ **Provado no GitHub em 25/10/2026**, no push do `28
 então só tinha rodado sem Docker, sobre o build (13 conferências), porque o ambiente onde foi escrito
 não pode ligá-lo.
 
-### 3.3 🟠 `[TÉCNICO]` Backup — um só para todas as barbearias; sai da VPS desde 04/11/2026, e o arquivo de lá nunca voltou
+### 3.3 🔴 `[TÉCNICO]` Backup — um só para todas as barbearias; saiu da VPS de 04 a 10/11/2026 — desde a tarde de 10/11, o envio é recusado —, e o arquivo de lá nunca voltou
 
 > ✏️ **05/11/2026 (revisão de 05/11):** o envio para fora funciona em produção desde 04/11 — a nota de 10/10
 > abaixo ("no app novo em produção, não") ficou para trás —, e a tela de Sistema diz o último envio e acusa a
@@ -3265,6 +3319,42 @@ envio tenta de novo, uma vez, um minuto depois. Medido contra o S3 de mentira: o
 não um 400 — a segunda tentativa é nossa. Se ela passar, o log diz "na segunda tentativa", e fica sabido que a
 recusa é passageira; as duas falhando, o registro da tela de Sistema guarda o motivo da segunda. A espera é do
 daemon do backup, à parte do site: o boot não espera nada.
+
+✏️ **11/11/2026 — o diagnóstico chegou, e não é passageiro.** Rodado à mão no servidor, com o código novo: **4 de 4
+recusados**, o arquivo do banco (12 KB) e o das fotos (49 KB), cada um com a segunda tentativa, todos com
+`IncompleteBody`, HTTP 400 e o id do pedido — o provedor diz que **chegaram menos bytes que os anunciados**. O
+diário das 03:00 de 11/11 também falhou, os dois arquivos: desde a tarde de 10/11, nada sobe. Conferido aqui, com as
+mesmas versões do SDK: o pedido sai com o corpo inteiro, sem `Expect: 100-continue` (que o SDK só põe de 2 MiB para
+cima) e sem pedaços. O último envio certo foi o diário de 10/11, no container de antes; o primeiro recusado, no boot
+do primeiro container criado depois. **Hipótese, não confirmada:** a rede dos containers novos — tamanho de pacote
+no caminho ou IPv6. Falta o teste que separa: um envio de poucos bytes e um de 2 KB, no console do servidor. Se os
+dois falharem, é com o suporte do provedor, com os ids dos pedidos.
+
+✅ **O teste que separa virou um comando** (11/11/2026, à noite): `node scripts/diagnosticar-envio.mjs`, no Console do
+servidor — que não aceita colar. Ele mostra as interfaces do container com o MTU, os endereços que o DNS dá ao
+armazenamento, envios de bytes aleatórios de 16 bytes a 12 KB com o tempo de cada um, os que falharem de novo com
+IPv4 forçado, e uma leitura: "até X sobe, a partir de Y não" aponta para o tamanho do pacote; nenhum subindo, para o
+provedor; IPv4 resolvendo, para o IPv6; a recusa que demora, para pacotes perdidos no caminho. Cada envio passa pelo
+mesmo `enviarParaS3` do backup, com o cliente de `clienteDoS3` (`apps/barbearia/scripts/backup.mjs`) — só com um prazo
+e uma tentativa por pedido. Os arquivos vão para `backups/diagnostico-…` (a regra de 30 dias os apaga), e os
+registros do envio não mudam. ⚠️ **Achado no caminho:** no SDK desta versão, o `requestTimeout` sozinho só escreve um
+aviso quando estoura — o pedido continua esperando; é o `throwOnRequestTimeout: true` que o faz desistir. O backup não
+tem prazo nenhum: um envio pendurado prende o daemon do backup até o provedor responder. Guarda:
+`apps/barbearia/tests/diagnosticar-envio.test.ts`.
+
+✅ **E a saída do IPv6, pronta antes do diagnóstico** (11/11/2026): `S3_SO_IPV4=1` faz o backup conectar só por IPv4
+(`opcoesDoClienteDoS3`, em `apps/barbearia/scripts/backup.mjs`; explicada no `apps/barbearia/.env.example`). Se a
+leitura do diagnóstico disser que, com IPv4 forçado, o que tinha falhado subiu, é salvar a variável no ambiente do
+app — sem deploy — e rodar o backup à mão para conferir. O diagnóstico não segue a variável: ele mede os dois
+caminhos, cada um com o seu cliente, e diz na primeira linha como o backup de verdade conecta. Se a leitura apontar
+para o tamanho do pacote, o conserto é na rede do servidor, não no código — o passo a passo mora no projeto do
+claude.ai, porque descreve o servidor. Guarda: `apps/barbearia/tests/backup-envio.test.ts`.
+
+✅ **E a falha agora chega a você** (11/11/2026): a tarefa de hora em hora dos avisos manda um e-mail por dia ao
+`OPERADOR_EMAIL` enquanto o envio falhar ou parar (`apps/barbearia/src/lib/avisoDoBackup.ts`), com a hora, o motivo
+e o último envio certo — a mesma regra da tela de Sistema (`situacaoDoEnvio`, agora em
+`apps/barbearia/src/lib/backupNoDisco.ts`). A trava do "um por dia" é um arquivo na pasta dos backups,
+`envio-para-fora.avisado`; sem ela gravada, nada sai. Guarda: `apps/barbearia/tests/aviso-do-backup.test.ts`.
 
 ✅ **Feito no mesmo dia, escolhido por você:** o envio vai em partes, com uma parte de 16 MiB na
 memória por vez, e o arquivo de até 16 MiB num pedido só (`enviarParaS3`, em

@@ -152,8 +152,9 @@ desligada. A segunda entrou em 10/10: até então o teste e o cartão só aparec
 quem tem medo de cobrança pode desistir antes de enviar (`PENDENCIAS-ABERTAS.md` §2.32). Uma página
 só, em cinco blocos (o `<form id="form">`):
 
-- **A barbearia:** nome, **endereço do site** com a prévia de como vai ficar, rua, cidade e
-  **o estado**, obrigatório desde 12/10 — é dele que sai o fuso dos horários do site, e o dono
+- **A barbearia:** nome, **endereço do site** com a prévia de como vai ficar, **o CEP** — opcional,
+  desde 12/11: preenche a rua, a cidade e o estado, e não fica guardado (`PENDENCIAS-ABERTAS.md` §2.71) —,
+  rua, cidade e **o estado**, obrigatório desde 12/10 — é dele que sai o fuso dos horários do site, e o dono
   troca em Configurações (o bloco "A barbearia" de `cadastrar.astro`, com o `<select id="estado">`;
   `PENDENCIAS-ABERTAS.md` §2.1).
 - **Você:** o nome dele, **o WhatsApp** — que é o login e o contato do site ao mesmo tempo

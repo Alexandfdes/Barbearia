@@ -55,6 +55,8 @@
  */
 import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { open } from 'node:fs/promises';
+import { Agent as AgenteHttp } from 'node:http';
+import { Agent as AgenteHttps } from 'node:https';
 import { basename, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createGunzip, createGzip } from 'node:zlib';
@@ -533,25 +535,17 @@ function descreverArquivo(caminho) {
  * pedido é assinado com o SHA-256 do corpo. *Não conferido contra o Backblaze de
  * verdade — conferido contra um S3 local (`tests/backup-envio.test.ts`).*
  *
- * `opcoes.parte` existe para o teste; em produção é sempre `PARTE_DO_ENVIO`.
+ * `opcoes.parte` existe para o teste; em produção é sempre `PARTE_DO_ENVIO`. `opcoes.cliente` é do
+ * diagnóstico (`scripts/diagnosticar-envio.mjs`): o prazo de cada pedido, o IPv4 forçado e uma tentativa só.
  */
 export async function enviarParaS3(caminho, opcoes = {}) {
   const env = opcoes.env ?? process.env;
   const parte = opcoes.parte ?? PARTE_DO_ENVIO;
   const {
-    S3Client, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand,
+    PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand,
     CompleteMultipartUploadCommand, AbortMultipartUploadCommand,
   } = await import('@aws-sdk/client-s3');
-  // Backblaze mostra o endpoint sem esquema; o SDK exige URL completa.
-  const endpoint = /^https?:\/\//.test(env.S3_ENDPOINT) ? env.S3_ENDPOINT : `https://${env.S3_ENDPOINT}`;
-  const client = new S3Client({
-    endpoint,
-    region: env.S3_REGION ?? 'us-east-1',
-    credentials: { accessKeyId: env.S3_ACCESS_KEY_ID, secretAccessKey: env.S3_SECRET_ACCESS_KEY },
-    forcePathStyle: true,
-    requestChecksumCalculation: 'WHEN_REQUIRED',
-    responseChecksumValidation: 'WHEN_REQUIRED',
-  });
+  const client = await clienteDoS3(env, opcoes.cliente);
   const Bucket = env.S3_BUCKET;
   const Key = `backups/${basename(caminho)}`;
   const ContentType = 'application/gzip';
@@ -600,6 +594,41 @@ export async function enviarParaS3(caminho, opcoes = {}) {
   } finally {
     client.destroy();
   }
+}
+
+/**
+ * As opções do cliente do S3 do envio para fora — uma regra só, para o backup e para o diagnóstico
+ * (`scripts/diagnosticar-envio.mjs`, 11/11/2026): diagnosticar com outra configuração seria
+ * diagnosticar outra coisa. Só o diagnóstico passa `requestHandler` (as opções do `NodeHttpHandler` do
+ * SDK) e `maxAttempts`; o resto não muda por fora.
+ *
+ * `S3_SO_IPV4=1` faz o backup conectar só por IPv4 (11/11/2026): é a saída pronta para o dia em que o
+ * diagnóstico disser que o caminho do IPv6 perde pacotes — salvar a variável no EasyPanel, sem deploy.
+ * O diagnóstico não a segue: ele mede os dois caminhos, cada um com o seu cliente.
+ */
+export function opcoesDoClienteDoS3(env = process.env, { requestHandler, maxAttempts } = {}) {
+  // Backblaze mostra o endpoint sem esquema; o SDK exige URL completa.
+  const endpoint = /^https?:\/\//.test(env.S3_ENDPOINT) ? env.S3_ENDPOINT : `https://${env.S3_ENDPOINT}`;
+  const soIpv4 = env.S3_SO_IPV4?.trim() === '1';
+  const handler = requestHandler ?? (soIpv4
+    ? { httpAgent: new AgenteHttp({ family: 4, keepAlive: true }), httpsAgent: new AgenteHttps({ family: 4, keepAlive: true }) }
+    : undefined);
+  return {
+    ...(handler ? { requestHandler: handler } : {}),
+    ...(maxAttempts ? { maxAttempts } : {}),
+    endpoint,
+    region: env.S3_REGION ?? 'us-east-1',
+    credentials: { accessKeyId: env.S3_ACCESS_KEY_ID, secretAccessKey: env.S3_SECRET_ACCESS_KEY },
+    forcePathStyle: true,
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
+  };
+}
+
+/** O cliente do S3 do envio para fora, com as opções de `opcoesDoClienteDoS3`. */
+export async function clienteDoS3(env = process.env, opcoes = {}) {
+  const { S3Client } = await import('@aws-sdk/client-s3');
+  return new S3Client(opcoesDoClienteDoS3(env, opcoes));
 }
 
 /** Lê do arquivo até encher `buffer` ou o arquivo acabar; devolve quantos bytes leu. */

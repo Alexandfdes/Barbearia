@@ -110,6 +110,10 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     .local { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     input:disabled { opacity: .45; }
     .dica { font-size: 11px; color: var(--ink-fraco); margin-top: 4px; }
+    /* O CEP tem 9 caracteres: o campo largo parecia pedir o endereço inteiro. */
+    input.cep { max-width: 170px; }
+    /* O que a busca achou, ou o que fazer: é para ler, mais forte que a dica. */
+    .aviso-do-cep { font-size: 12px; color: var(--ink-suave); }
     .linha { display: grid; grid-template-columns: 1fr 108px 92px; gap: 8px; align-items: end; }
     .linha label { margin-top: 10px; }
     @media (max-width: 520px) { .linha { grid-template-columns: 1fr 1fr; } .linha .nome { grid-column: 1 / -1; } }
@@ -226,6 +230,12 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
         <input id="slug" required maxlength="63" placeholder="barbearia-do-ze" />
         <p class="dica">Vai ficar <code><span id="previa">barbearia-do-ze</span>{restoDoEndereco}</code>. Só minúsculas, números e hífen.
           <strong>Escolha com calma: o endereço não muda depois</strong> — é o link que você vai mandar para os clientes.</p>
+
+        {/* O CEP só preenche a rua, a cidade e o estado: não vai no envio (`lib/cep.ts`, 12/11/2026). */}
+        <label for="cep">CEP</label>
+        <input id="cep" class="cep" inputmode="numeric" autocomplete="postal-code" maxlength="9" placeholder="00000-000" />
+        <p class="dica">Opcional. Com ele, a rua, a cidade e o estado vêm sozinhos.</p>
+        <p id="cep-aviso" class="dica aviso-do-cep" aria-live="polite"></p>
 
         <label for="endereco">Rua e número</label>
         <input id="endereco" required maxlength="200" placeholder="R. das Flores, 42" />
@@ -358,6 +368,7 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     // derivação que o servidor usa ao gravar — o que aparece aqui é o que vai
     // para o site, sem lógica duplicada.
     import { derivarAccent, ACCENT_PADRAO } from '../lib/accent.js';
+    import { ligarBuscaDoCep } from '../lib/cep.js';
     import { esperarNoAr } from '../lib/noAr.js';
     import { PRAZO_DA_CONFERENCIA } from '../lib/produto.js';
 
@@ -432,6 +443,22 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
       if (slugTocado) return;
       $('slug').value = aSlug($('nome').value);
       $('previa').textContent = $('slug').value || 'seuendereco';
+    });
+
+    /* ── O CEP preenche o endereço (12/11/2026) ─────────────────────────────
+       A rua, a cidade e o estado; o número é dele. O CEP não vai no envio:
+       só ajuda a preencher (`lib/cep.ts`). O estado vem só se é um da lista. */
+    ligarBuscaDoCep({
+      cep: $<HTMLInputElement>('cep'), aviso: $<HTMLElement>('cep-aviso'), rua: $<HTMLInputElement>('endereco'),
+      cidade: ({ cidade, uf }) => {
+        $('cidade').value = cidade;
+        $('cidade').dispatchEvent(new Event('input', { bubbles: true }));
+        const estado = $<HTMLSelectElement>('estado');
+        if ([...estado.options].some((o) => o.value === uf)) {
+          estado.value = uf;
+          estado.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      },
     });
 
     /* ── A semana ────────────────────────────────────────────────────────────
