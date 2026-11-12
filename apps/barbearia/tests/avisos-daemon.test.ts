@@ -88,4 +88,20 @@ describe('o daemon dos avisos', () => {
     expect(linhas).toHaveLength(1);
     log.mockRestore();
   });
+
+  it('o aviso do backup que não sobe sai no log quando sai o e-mail — e só então (11/11/2026)', async () => {
+    const linhas: string[] = [];
+    const log = vi.spyOn(console, 'log').mockImplementation((...a) => { linhas.push(a.join(' ')); });
+    const base = { ok: true, avaliadas: 0, enviados: 0, falhas: 0, semDestinatario: 0, lembradosAoOperador: 0 };
+    resposta = { status: 200, corpo: { ...base, avisoDoBackup: true } };
+    await daemon.rodarAvisos();
+    expect(linhas).toEqual(['[avisos-daemon] ✓ aviso ao operador: o backup não está subindo para fora do servidor']);
+    // A rodada seguinte, no mesmo dia, não manda — e não escreve. Nem a tarefa de antes do campo.
+    resposta = { status: 200, corpo: { ...base, avisoDoBackup: false } };
+    await daemon.rodarAvisos();
+    resposta = { status: 200, corpo: base };
+    await daemon.rodarAvisos();
+    expect(linhas).toHaveLength(1);
+    log.mockRestore();
+  });
 });

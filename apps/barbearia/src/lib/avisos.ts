@@ -42,6 +42,7 @@ import { enviarEmail, transporteDeEmail, type Email } from './email.js';
 import { urlDoPainel } from './tenant.js';
 import { linkDoSuporte, NOME_PRODUTO, PRAZO_DA_CONFERENCIA } from './produto.js';
 import { emailDoOperador, fichaNoPainel } from './avisoAoOperador.js';
+import { avisarBackupQueNaoSobe } from './avisoDoBackup.js';
 
 export type TipoDeAviso = 'teste-acabando' | 'teste-acabou' | 'cobranca-falhou' | 'fora-do-ar';
 
@@ -147,6 +148,8 @@ export interface ResumoDosAvisos {
   semDestinatario: number;
   /** Sites lembrados ao operador nesta rodada (`lembrarSitesQueEsperam`). */
   lembradosAoOperador: number;
+  /** O operador recebeu nesta rodada o aviso do backup que não sobe para fora (`lib/avisoDoBackup.ts`). */
+  avisoDoBackup: boolean;
 }
 
 /**
@@ -163,7 +166,9 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
     throw new Error('PAINEL_URL e DOMINIO_BASE vazios: os avisos sairiam com o link do painel quebrado.');
   }
 
-  const resumo: ResumoDosAvisos = { avaliadas: 0, enviados: 0, falhas: 0, semDestinatario: 0, lembradosAoOperador: 0 };
+  const resumo: ResumoDosAvisos = {
+    avaliadas: 0, enviados: 0, falhas: 0, semDestinatario: 0, lembradosAoOperador: 0, avisoDoBackup: false,
+  };
 
   // Pagando em dia, encerrada e tirada do ar à mão não têm prazo correndo. Nem o site que
   // espera a sua aprovação (migration 0020): o teste dele é recontado quando ele abrir
@@ -231,6 +236,8 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
   }
 
   resumo.lembradosAoOperador = await lembrarSitesQueEsperam(agora);
+  // O backup que não sobe para fora do servidor (11/11/2026): um e-mail por dia ao operador, enquanto durar.
+  resumo.avisoDoBackup = await avisarBackupQueNaoSobe(agora);
   return resumo;
 }
 
