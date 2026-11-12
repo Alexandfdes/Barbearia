@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **12/11** | **O CEP preenche o endereço**, pedido por você: no cadastro e em Configurações, a rua, a cidade e o estado vêm do CEP, e o CEP não fica guardado. A busca é do navegador, no ViaCEP e na BrasilAPI — ⚠️ falta conferir contra os serviços de verdade, no primeiro CEP digitado | `PENDENCIAS-ABERTAS.md` §2.71 |
 | **11/11** | **O backup que não sobe para fora vira e-mail a você, um por dia, enquanto durar** — achado no deploy de 11/11: o envio era recusado desde a tarde de 10/11, e só o log sabia. E o diagnóstico da recusa, num comando só, para o Console do servidor, com a saída do IPv6 pronta (`S3_SO_IPV4`) | `PENDENCIAS-ABERTAS.md` §3.3 |
 | **10/11, 23h** | **O botão da landing leva ao cadastro**, decidido por você: o cadastro abre ao público, com cada site esperando a sua aprovação — e sem a cobrança e sem o termo, aceitos como risco. ⚠️ **Falta aplicar:** conferido de fora às 23h, a landing no ar ainda leva ao WhatsApp, e o passo 4 ainda diz "No ar, agendando" — o site de vendas não recebeu o Implantar de 10/11 | `PENDENCIAS-ABERTAS.md` §2.31 e `JORNADA-DO-BARBEIRO.md` §2.1 |
 | **10/11, noite** | **O que dava para adiantar enquanto você testava em produção**, pedido por você: o lembrete a você do site que espera há mais de 20 horas; o boot avisando do cadastro aberto sem `OPERADOR_EMAIL` e do painel do operador só com a senha; a tela de assinatura sem prometer aviso a e-mail não confirmado; o topo do cadastro e a página "em preparação" sem pressa; o agendamento manual já com o barbeiro; o envio do backup com o motivo inteiro no log e uma segunda tentativa; e **o aceite do termo de uso no cadastro, pronto e desligado** até o texto do advogado (migration 0021) | `PENDENCIAS-ABERTAS.md` §2.70, `PENDENCIAS-ABERTAS.md` §1.2 e `PENDENCIAS-ABERTAS.md` §3.3 |
@@ -269,6 +270,10 @@ código (`apps/barbearia/src/lib/termos.ts`, migration 0021):
   anterior, quando o texto mudar —; a ficha do operador mostrar o aceite; e o aviso de privacidade a quem agenda,
   no site de cada barbearia, que é outro texto e outro endereço. Nenhum guarda o IP de quem aceitou: é uma das
   perguntas do advogado (o Marco Civil, acima).
+
+**12/11/2026 — o CEP, para o aviso ao dono e à equipe.** O CEP digitado no cadastro e em Configurações vai do
+navegador de quem digita ao ViaCEP e, se ele falhar, à BrasilAPI — com o IP da pessoa. Não passa pelo servidor
+nem fica guardado (`PENDENCIAS-ABERTAS.md` §2.71). O aviso tem de dizer.
 
 ⚠️ **27/09/2026 — o rodapé fingia que os textos existiam.** O site de toda barbearia mostrava
 "Termos de Uso" e "Políticas de Privacidade" apontando para `#`, num site que coleta nome e
@@ -3134,6 +3139,54 @@ depois do backup — e de novo, sem erro; e, contra o build, num navegador: o to
 aceite, as páginas do termo em 404 e desviadas para o painel, o "em preparação" sem pressa, a linha da assinatura
 com o link para o Início, e o agendamento manual com o barbeiro escolhido e 20 horários só de escolher o serviço.
 
+
+### 2.71 ✅ `[TÉCNICO]` O CEP preenche o endereço, no cadastro e em Configurações — FEITO em 12/11/2026
+
+**Pedido por você em 12/11/2026**, com as duas escolhas: nas duas telas, e só preencher — o CEP não fica
+guardado em lugar nenhum.
+
+**Como ficou** (`apps/barbearia/src/lib/cep.ts`):
+
+- **O campo CEP vem antes de "Rua e número"**, no `/cadastrar` e no bloco Endereço de Configurações. No oitavo
+  número, a busca sai sozinha; a rua vem com a vírgula — `Rua das Flores, ` — e o cursor no fim, para o número;
+  a cidade e o estado vêm junto (no cadastro, o seletor; em Configurações, "Cidade/UF"). O cursor só vai para a
+  rua se a pessoa ainda está no CEP: o Tab até ela selecionaria o texto todo, e o número apagaria a rua.
+- **A rua que já está lá:** fica, se começa pela rua do CEP seguida de vírgula, número ou traço — o mesmo CEP
+  digitado de novo, ou o navegador preenchendo CEP e rua juntos. Outra rua sai: trocar o CEP é dizer que o
+  endereço é outro. O CEP de cidade inteira, que não tem rua, só preenche a cidade.
+- **O bairro não entra:** o campo é "Rua e número", e é assim que o site mostra. A rua de nome repetido na
+  cidade é o caso da conferência do ponto no mapa (§2.33).
+- **Nunca trava:** "não achei" e "não respondeu" mandam escrever à mão, e Enter no CEP não envia o cadastro
+  pela metade.
+- **O CEP não vai no envio do cadastro e, em Configurações, não tem `data-campo`** — fica fora do Salvar, do
+  "Alterações não salvas" e do rascunho que sobrevive ao envio da logo.
+
+**De onde vem o endereço:** o navegador pergunta ao ViaCEP e, se ele falhar ou não conhecer o CEP, à BrasilAPI.
+**Rejeitado:** a rota `/api/cep/<cep>` no nosso servidor, o primeiro plano — seria um repasse aberto, e o
+bloqueio por abuso cairia sobre o IP do servidor, para todos os clientes; e a rede de saída dele estava sob
+suspeita (§3.3). **O que custa:** o IP de quem digita chega aos dois serviços, junto com o CEP — o aviso de
+privacidade final tem de dizer (§1.2).
+
+⚠️ **Nunca conferido contra os serviços de verdade.** Daqui da nuvem eles não respondem: o formato das respostas
+é o que os dois documentam, e o ensaio interceptou os pedidos. **O primeiro CEP digitado no seu `npm run dev` é a
+conferência** — se a tela disser "não respondeu" com a internet funcionando, o console do navegador (F12) diz
+se foi o formato ou o bloqueio entre sites.
+
+⚠️ **Se o painel ganhar uma `Content-Security-Policy`**, o `connect-src` dela tem de aceitar os dois endereços;
+`apps/barbearia/tests/cep.test.ts` reprova a que esquecer.
+
+⚠️ **Achado de passagem, não consertado:** o cadastro aceita a rua com até 200 caracteres e a cidade com até 120
+(`apps/barbearia/src/pages/api/cadastrar.ts`), e Configurações, 150 e 80 (`apps/barbearia/src/pages/api/admin/settings.ts`).
+Quem se cadastrar com um endereço maior que isso não salva Configurações — nenhum campo — até encurtar, e o
+aviso vem em inglês, a mensagem padrão do validador. Raro: endereço de verdade não chega perto.
+
+**Verificado em 12/11/2026:** 134 arquivos, **1544 de 1544** contra PostgreSQL 16; o `astro check` com zero; 28
+defeitos reintroduzidos, os 28 vermelhos — um só depois de o teste ganhar o caso que faltava (o "não conheço" do
+ViaCEP em texto, com a BrasilAPI fora); e, contra o build, num navegador, com os dois serviços interceptados: a
+máscara tecla a tecla, o cursor no fim da rua, o estado trocando para AC, o Enter sem envio (e o controle: Enter
+na cidade tenta enviar), o cadastro enviado sem o CEP e com o endereço preenchido, e em Configurações o
+"Alterações não salvas", a prévia do mapa acompanhando e o Salvar sem o CEP — e nenhum pedido aos serviços com
+a página de origem.
 ---
 
 ## 3. Operação com vários clientes
