@@ -152,6 +152,14 @@ describe('o diagnóstico contra um armazenamento que recusa acima de um tamanho'
     expect(texto).not.toContain('IPv4 forçado');
   }, 60_000);
 
+  it('a tela diz como o backup de verdade conecta — com ou sem S3_SO_IPV4', async () => {
+    const sem = await rodar({ tamanhos: [16] });
+    expect(sem.texto).toContain('O backup de verdade conecta pelo caminho que o Node escolher (sem S3_SO_IPV4)');
+    const linhas: string[] = [];
+    await diag.diagnosticarEnvio({ env: ambiente({ S3_SO_IPV4: '1' }), escrever: (l: string) => linhas.push(l), tamanhos: [16], prazoMs: 5000 });
+    expect(linhas.join('\n')).toContain('O backup de verdade conecta só por IPv4 (S3_SO_IPV4=1)');
+  }, 60_000);
+
   it('a tela diz a rede e o armazenamento, e nunca a chave nem o segredo', async () => {
     s3.limite = 1300;
     const { texto, linhas } = await rodar();
@@ -200,7 +208,7 @@ describe('a leitura', () => {
 
   it('IPv4 que resolve aponta o IPv6; sem limite de tamanho, diz que a recusa vai e volta', () => {
     expect(diag.leituraDoDiagnostico([e(16, true), e(1400, false)], [e(1400, true)]))
-      .toContain('Com IPv4 forçado, os que tinham falhado subiram: aponta para o caminho do IPv6 — o conserto seria o envio usar só IPv4.');
+      .toContain('Com IPv4 forçado, os que tinham falhado subiram: aponta para o caminho do IPv6 — o conserto é `S3_SO_IPV4=1` no Environment do app, e depois `node scripts/backup.mjs` para conferir.');
     expect(diag.leituraDoDiagnostico([e(16, false), e(600, true)]).join(' ')).toMatch(/a recusa vai e volta/);
   });
 
