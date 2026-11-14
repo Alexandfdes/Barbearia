@@ -3167,10 +3167,11 @@ bloqueio por abuso cairia sobre o IP do servidor, para todos os clientes; e a re
 suspeita (§3.3). **O que custa:** o IP de quem digita chega aos dois serviços, junto com o CEP — o aviso de
 privacidade final tem de dizer (§1.2).
 
-⚠️ **Nunca conferido contra os serviços de verdade.** Daqui da nuvem eles não respondem: o formato das respostas
-é o que os dois documentam, e o ensaio interceptou os pedidos. **O primeiro CEP digitado no seu `npm run dev` é a
-conferência** — se a tela disser "não respondeu" com a internet funcionando, o console do navegador (F12) diz
-se foi o formato ou o bloqueio entre sites.
+⚠️ **No ar desde o deploy de 12 a 14/11 — e nunca conferido contra os serviços de verdade.** Visto de fora em 14/11:
+o campo está no cadastro. Mas daqui da nuvem os dois serviços não respondem: o formato das respostas é o que eles
+documentam, e o ensaio interceptou os pedidos. **O primeiro CEP digitado no ar é a conferência** — se a tela disser
+"não respondeu" com a internet funcionando, o console do navegador (F12) diz se foi o formato ou o bloqueio entre
+sites.
 
 ⚠️ **Se o painel ganhar uma `Content-Security-Policy`**, o `connect-src` dela tem de aceitar os dois endereços;
 `apps/barbearia/tests/cep.test.ts` reprova a que esquecer.
@@ -3378,6 +3379,10 @@ claude.ai, porque descreve o servidor. Guarda: `apps/barbearia/tests/backup-envi
 e o último envio certo — a mesma regra da tela de Sistema (`situacaoDoEnvio`, agora em
 `apps/barbearia/src/lib/backupNoDisco.ts`). A trava do "um por dia" é um arquivo na pasta dos backups,
 `envio-para-fora.avisado`; sem ela gravada, nada sai. Guarda: `apps/barbearia/tests/aviso-do-backup.test.ts`.
+
+✏️ **14/11/2026 — os três no ar.** O aviso por e-mail, o diagnóstico e o `S3_SO_IPV4` entraram no deploy de 12 a 14/11
+(visto de fora em 14/11). Daqui não se sabe se o e-mail chegou nem se o diagnóstico já rodou: o print dele, inteiro
+até a "Leitura", é o que decide o conserto.
 
 ✅ **Feito no mesmo dia, escolhido por você:** o envio vai em partes, com uma parte de 16 MiB na
 memória por vez, e o arquivo de até 16 MiB num pedido só (`enviarParaS3`, em
