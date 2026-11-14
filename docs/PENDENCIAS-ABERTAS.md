@@ -24,7 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
-| **12/11** | **O CEP preenche o endereço**, pedido por você: no cadastro e em Configurações, a rua, a cidade e o estado vêm do CEP, e o CEP não fica guardado. A busca é do navegador, no ViaCEP e na BrasilAPI — ⚠️ falta conferir contra os serviços de verdade, no primeiro CEP digitado | `PENDENCIAS-ABERTAS.md` §2.71 |
+| **12/11** | **O CEP preenche o endereço**, pedido por você: no cadastro e em Configurações, a rua, a cidade e o estado vêm do CEP, e o CEP não fica guardado. A busca é do navegador, no ViaCEP e na BrasilAPI — ⚠️ falta conferir contra os serviços de verdade, no primeiro CEP digitado. **E o que o cadastro grava passou a caber em Configurações:** em seis campos ele aceitava mais, e quem passasse não salvava nada lá, com o aviso em inglês — o nome curto, o mais provável | `PENDENCIAS-ABERTAS.md` §2.71 |
 | **11/11** | **O backup que não sobe para fora vira e-mail a você, um por dia, enquanto durar** — achado no deploy de 11/11: o envio era recusado desde a tarde de 10/11, e só o log sabia. E o diagnóstico da recusa, num comando só, para o Console do servidor, com a saída do IPv6 pronta (`S3_SO_IPV4`) | `PENDENCIAS-ABERTAS.md` §3.3 |
 | **10/11, 23h** | **O botão da landing leva ao cadastro**, decidido por você: o cadastro abre ao público, com cada site esperando a sua aprovação — e sem a cobrança e sem o termo, aceitos como risco. ⚠️ **Falta aplicar:** conferido de fora às 23h, a landing no ar ainda leva ao WhatsApp, e o passo 4 ainda diz "No ar, agendando" — o site de vendas não recebeu o Implantar de 10/11 | `PENDENCIAS-ABERTAS.md` §2.31 e `JORNADA-DO-BARBEIRO.md` §2.1 |
 | **10/11, noite** | **O que dava para adiantar enquanto você testava em produção**, pedido por você: o lembrete a você do site que espera há mais de 20 horas; o boot avisando do cadastro aberto sem `OPERADOR_EMAIL` e do painel do operador só com a senha; a tela de assinatura sem prometer aviso a e-mail não confirmado; o topo do cadastro e a página "em preparação" sem pressa; o agendamento manual já com o barbeiro; o envio do backup com o motivo inteiro no log e uma segunda tentativa; e **o aceite do termo de uso no cadastro, pronto e desligado** até o texto do advogado (migration 0021) | `PENDENCIAS-ABERTAS.md` §2.70, `PENDENCIAS-ABERTAS.md` §1.2 e `PENDENCIAS-ABERTAS.md` §3.3 |
@@ -3175,12 +3175,35 @@ se foi o formato ou o bloqueio entre sites.
 ⚠️ **Se o painel ganhar uma `Content-Security-Policy`**, o `connect-src` dela tem de aceitar os dois endereços;
 `apps/barbearia/tests/cep.test.ts` reprova a que esquecer.
 
-⚠️ **Achado de passagem, não consertado:** o cadastro aceita a rua com até 200 caracteres e a cidade com até 120
-(`apps/barbearia/src/pages/api/cadastrar.ts`), e Configurações, 150 e 80 (`apps/barbearia/src/pages/api/admin/settings.ts`).
-Quem se cadastrar com um endereço maior que isso não salva Configurações — nenhum campo — até encurtar, e o
-aviso vem em inglês, a mensagem padrão do validador. Raro: endereço de verdade não chega perto.
+✅ **Achado de passagem — consertado no mesmo dia, e era maior do que parecia.** O cadastro aceitava mais do que
+Configurações em seis campos, não dois: o nome (120 contra 100), **o nome curto (sem teto contra 40)**, a rua (200
+contra 150), a cidade (120 contra 80, com o "/UF"), o "sobre" (1000 contra 600) e o @ do Instagram (sem teto contra
+60). Quem passasse não salvava **nenhum** campo de Configurações até achar e encurtar aquele — o Salvar manda todos —,
+e o aviso vinha em inglês, a mensagem padrão do validador: *"Too big: expected string to have <=40 characters"*. O
+nome curto era o provável: ele sai do nome inteiro, menos o "Barbearia do", e um nome de 41 letras sem esse prefixo
+nascia sem caber.
 
-**Verificado em 12/11/2026:** 134 arquivos, **1544 de 1544** contra PostgreSQL 16; o `astro check` com zero; 28
+- **`LIMITES_DO_CADASTRO`** (`apps/barbearia/src/lib/provisionarBarbearia.ts`), os números de Configurações, valem
+  para o cadastro pela web e para o script: o que passa é recusado antes de tocar o banco, dizendo o campo. O
+  `maxlength` de cada campo do `/cadastrar` é o mesmo — a cidade, 77, porque ganha "/UF" no fim.
+- **O nome curto nasce cortado** na última palavra que cabe nos 40, sem pendurar vírgula nem "e" no fim.
+- **Todo teto de Configurações fala português** (`apps/barbearia/src/pages/api/admin/settings.ts`): "O nome curto
+  passa de 40 caracteres", ao lado do Salvar, com o campo marcado. O campo de Configurações continua sem `maxlength`:
+  o teto aparece ao salvar, não ao digitar.
+- **E no celular, a cidade e o estado um embaixo do outro:** lado a lado, o seletor cortava "Rio Grande do N…".
+
+`apps/barbearia/tests/cadastro-cabe-em-configuracoes.test.ts` confere os números dos três lugares contra os de
+Configurações, e cadastra pela rota com cada campo no limite — o nome com 100 letras sem o prefixo, a rua com 150, a
+cidade com 77 mais "/RN", o "sobre" com 600, a frase com 200, o @ com 60 vindo da URL do perfil — e salva
+Configurações com o que nasceu, sem mexer em nada: 200. Antes do conserto, o nome curto nascia com 93.
+
+**Verificado em 12/11/2026, os limites:** 135 arquivos, **1559 de 1559** contra PostgreSQL 16; o `astro check` com
+zero; 18 defeitos reintroduzidos, os 18 vermelhos — e o caso com banco, sozinho, vermelho com o corte do nome curto
+desfeito; e, contra o build, num navegador: a cidade e o estado empilhados a 390 px, com o estado inteiro, e lado a
+lado no computador; a rua parando nos 150; e em Configurações, o nome curto de 41 recusado em português, com o campo
+marcado.
+
+**Verificado em 12/11/2026, o CEP:** 134 arquivos, **1544 de 1544** contra PostgreSQL 16; o `astro check` com zero; 28
 defeitos reintroduzidos, os 28 vermelhos — um só depois de o teste ganhar o caso que faltava (o "não conheço" do
 ViaCEP em texto, com a BrasilAPI fora); e, contra o build, num navegador, com os dois serviços interceptados: a
 máscara tecla a tecla, o cursor no fim da rua, o estado trocando para AC, o Enter sem envio (e o controle: Enter
