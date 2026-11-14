@@ -161,7 +161,8 @@ export interface BarbeariaCriada {
 export interface RecusaDeProvisionamento {
   ok: false;
   /** Qual campo recusou, para a tela poder apontar o erro no lugar certo. */
-  campo: 'slug' | 'nome' | 'dono' | 'telefone' | 'telefone-dono' | 'endereco' | 'cidade' | 'estado' | 'senha' | 'cor' | 'servicos' | 'horarios' | 'email' | 'frase';
+  campo: 'slug' | 'nome' | 'curto' | 'dono' | 'telefone' | 'telefone-dono' | 'endereco' | 'cidade' | 'estado' | 'senha' | 'cor'
+    | 'servicos' | 'horarios' | 'email' | 'frase' | 'sobre' | 'instagram';
   erro: string;
   /** `true` quando o problema é colisão com algo que já existe (HTTP 409). */
   conflito?: boolean;
@@ -175,15 +176,49 @@ export function soDigitos(t: string): string {
 }
 
 /**
+ * O tamanho de cada campo que o cadastro grava em `settings` — o MESMO que Configurações aceita
+ * (`pages/api/admin/settings.ts`). Até 12/11/2026 o cadastro aceitava mais: o nome com 120, a rua
+ * com 200, a cidade com 120, o "sobre" com 1000, o @ do Instagram e o nome curto sem teto. Quem
+ * passasse não salvava NADA em Configurações até achar e encurtar o campo — o Salvar manda todos —,
+ * e o aviso vinha em inglês (`docs/PENDENCIAS-ABERTAS.md` §2.71).
+ * `tests/cadastro-cabe-em-configuracoes.test.ts` cadastra com cada campo no limite e salva
+ * Configurações sem mexer em nada; e confere estes números contra os de lá e contra o
+ * `maxlength` de cada campo do `/cadastrar`.
+ */
+export const LIMITES_DO_CADASTRO = {
+  nome: 100,
+  curto: 40,
+  endereco: 150,
+  /** "Cidade/UF", como fica guardada — a cidade digitada mais a barra e a sigla. */
+  cidade: 80,
+  sobre: 600,
+  frase: 200,
+  /** O @, com a arroba. O Instagram mesmo não passa de 30; o limite é o de Configurações. */
+  instagram: 60,
+} as const;
+
+/**
  * O nome curto vai no topo e no rodapé, em maiúsculas e com espaçamento largo:
  * "BARBEARIA CORTES DO ZÉ" estoura a barra. Sem um curto explícito, tiramos o
- * prefixo genérico e ficamos com a parte que identifica a barbearia.
+ * prefixo genérico e ficamos com a parte que identifica a barbearia — cortada na
+ * última palavra que cabe nos 40 de Configurações (12/11/2026): sem o corte, o nome
+ * de 41 letras nascia aqui e não se salvava mais lá.
  */
 export function curtoPadrao(nome: string): string {
   const semPrefixo = nome
     .replace(/^\s*(barbearia|barber\s*shop|salão|salao)\s+(do\s+|da\s+|de\s+)?/i, '')
     .trim();
-  return semPrefixo || nome;
+  const curto = semPrefixo || nome.trim();
+  const teto = LIMITES_DO_CADASTRO.curto;
+  if (curto.length <= teto) return curto;
+  const ateOTeto = curto.slice(0, teto + 1);
+  const espaco = ateOTeto.lastIndexOf(' ');
+  // Uma palavra só, mais comprida que o teto: corta no teto mesmo.
+  const cortado = espaco > 0 ? ateOTeto.slice(0, espaco) : curto.slice(0, teto);
+  // Sem pendurar pontuação nem ligação no fim: "Barba, Cabelo e" vira "Barba, Cabelo".
+  const semPonta = (t: string) => t.replace(/[\s,;:.\u2013\u2014-]+$/, '');
+  const limpo = semPonta(semPonta(cortado).replace(/\s+(e|de|do|da|dos|das|&)$/i, ''));
+  return limpo || curto.slice(0, teto).trim();
 }
 
 /** Mesma regra do `api/admin/services/catalogo-sugerido.ts`. */
@@ -305,8 +340,40 @@ export async function provisionarBarbearia(
   }
 
   const frase = (dados.frase ?? '').trim() || null;
-  if (frase && frase.length > 200) {
-    return { ok: false, campo: 'frase', erro: 'A frase do topo passa de 200 caracteres.' };
+  if (frase && frase.length > LIMITES_DO_CADASTRO.frase) {
+    return { ok: false, campo: 'frase', erro: `A frase do topo passa de ${LIMITES_DO_CADASTRO.frase} caracteres.` };
+  }
+
+  // `@fulano`, `instagram.com/fulano` e a URL inteira chegam aqui. Guardamos as
+  // duas formas porque o site usa o arroba no texto e a URL no link.
+  const arroba = (dados.instagram ?? '').trim()
+    .replace(/^(https?:\/\/)?(www\.)?instagram\.com\//i, '')
+    .replace(/^@/, '').replace(/\/.*$/, '').trim();
+  const instagramHandle = arroba ? `@${arroba}` : null;
+  const instagramUrl = arroba ? `https://instagram.com/${arroba}` : null;
+  const sobre = (dados.sobre ?? '').trim() || null;
+
+  // O que nasce aqui tem de caber em Configurações (`LIMITES_DO_CADASTRO`) — antes de tocar o banco.
+  const L = LIMITES_DO_CADASTRO;
+  if (nome.length > L.nome) {
+    return { ok: false, campo: 'nome', erro: `O nome da barbearia passa de ${L.nome} caracteres.` };
+  }
+  if (curto.length > L.curto) {
+    return { ok: false, campo: 'curto', erro: `O nome curto passa de ${L.curto} caracteres — é ele que vai no topo do site.` };
+  }
+  if (endereco.length > L.endereco) {
+    return { ok: false, campo: 'endereco', erro: `A rua e o número passam de ${L.endereco} caracteres.` };
+  }
+  if (cidadeDoSite.length > L.cidade) {
+    // Com o estado à parte, a cidade ganha "/UF" no fim: sobram 77 para ela.
+    const tetoDaCidade = L.cidade - (cidadeDoSite.length - cidade.length);
+    return { ok: false, campo: 'cidade', erro: `A cidade passa de ${tetoDaCidade} caracteres.` };
+  }
+  if (sobre && sobre.length > L.sobre) {
+    return { ok: false, campo: 'sobre', erro: `O texto sobre a barbearia passa de ${L.sobre} caracteres.` };
+  }
+  if (instagramHandle && instagramHandle.length > L.instagram) {
+    return { ok: false, campo: 'instagram', erro: 'Confira o Instagram: escreva só o @ da barbearia.' };
   }
 
   if (dados.cor && !isHex(dados.cor)) {
@@ -380,15 +447,6 @@ export async function provisionarBarbearia(
       erro: 'Este WhatsApp já é o login de outro barbeiro.',
     };
   }
-
-  // `@fulano`, `instagram.com/fulano` e a URL inteira chegam aqui. Guardamos as
-  // duas formas porque o site usa o arroba no texto e a URL no link.
-  const arroba = (dados.instagram ?? '').trim()
-    .replace(/^(https?:\/\/)?(www\.)?instagram\.com\//i, '')
-    .replace(/^@/, '').replace(/\/.*$/, '').trim();
-  const instagramHandle = arroba ? `@${arroba}` : null;
-  const instagramUrl = arroba ? `https://instagram.com/${arroba}` : null;
-  const sobre = (dados.sobre ?? '').trim() || null;
 
   const accent = dados.cor ? derivarAccent(dados.cor) : ACCENT_PADRAO;
 

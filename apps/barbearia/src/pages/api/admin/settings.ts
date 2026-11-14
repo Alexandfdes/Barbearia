@@ -14,42 +14,53 @@ import { ehFusoDoBrasil, fusoDe } from '../../../lib/timezone.js';
 import { definirFusoDaBarbearia } from '../../../lib/fusoDaBarbearia.js';
 import { FORMA_DA_NOTA } from '../../../lib/avaliacao.js';
 
+/**
+ * O teto de um campo de texto, dito em português. Sem a mensagem, o zod responde "Too big:
+ * expected string to have <=40 characters" — e é isso que o dono lia ao lado do Salvar
+ * (achado em 12/11/2026, `docs/PENDENCIAS-ABERTAS.md` §2.71). `o` é o campo como a tela o chama,
+ * com o artigo: "O nome curto passa de 40 caracteres".
+ */
+const ate = (max: number, o: string) => z.string().max(max, `${o} passa de ${max} caracteres`);
+
 /** URL opcional: ou vazia, ou começando com http(s). Evita salvar "instagram.com/x"
  *  sem protocolo, que vira link relativo e quebra dentro do próprio site. */
-const urlOuVazio = (max: number) =>
-  z.string().max(max).refine(
+const urlOuVazio = (max: number, o: string) =>
+  ate(max, o).refine(
     (v) => v === '' || /^https?:\/\//.test(v),
     { message: 'O endereço precisa começar com http:// ou https://' }
   );
 
 const horarioSchema = z.object({
-  label:  z.string().min(1, 'O rótulo do horário não pode ficar vazio').max(60),
-  hours:  z.string().min(1, 'O horário não pode ficar vazio').max(60),
+  label:  z.string().min(1, 'O rótulo do horário não pode ficar vazio').max(60, 'O rótulo do horário passa de 60 caracteres'),
+  hours:  z.string().min(1, 'O horário não pode ficar vazio').max(60, 'O horário passa de 60 caracteres'),
   closed: z.boolean(),
 });
 
 const updateSchema = z.object({
-  businessName:    z.string().min(2, 'O nome da barbearia precisa ter ao menos 2 caracteres').max(100),
-  shortName:       z.string().min(1, 'O nome curto não pode ficar vazio').max(40),
-  tagline:         z.string().max(200),
-  heroSubtitle:    z.string().max(400),
-  aboutText:       z.string().max(600),
+  businessName:    z.string().min(2, 'O nome da barbearia precisa ter ao menos 2 caracteres').max(100, 'O nome da barbearia passa de 100 caracteres'),
+  shortName:       z.string().min(1, 'O nome curto não pode ficar vazio').max(40, 'O nome curto passa de 40 caracteres'),
+  tagline:         ate(200, 'A frase do topo'),
+  heroSubtitle:    ate(400, 'O texto abaixo da frase'),
+  aboutText:       ate(600, 'O texto sobre a barbearia'),
   // Só dígitos, no formato do wa.me: DDI + DDD + número.
   whatsappNumber:  z.string().regex(/^\d{10,15}$/, 'O WhatsApp deve ter só dígitos, com DDI e DDD (ex: 5584999999999)'),
-  whatsappDisplay: z.string().max(40),
-  instagramUrl:    urlOuVazio(300),
-  instagramHandle: z.string().max(60),
-  addressStreet:   z.string().min(2, 'Informe a rua e o número').max(150),
-  addressCity:     z.string().min(2, 'Informe a cidade e o estado').max(80),
-  mapsUrl:         urlOuVazio(600),
-  mapsEmbedQuery:  z.string().max(200),
+  whatsappDisplay: ate(40, 'O WhatsApp como aparece escrito'),
+  instagramUrl:    urlOuVazio(300, 'O link do Instagram'),
+  instagramHandle: ate(60, 'A arroba do Instagram'),
+  addressStreet:   z.string().min(2, 'Informe a rua e o número').max(150, 'A rua e o número passam de 150 caracteres'),
+  addressCity:     z.string().min(2, 'Informe a cidade e o estado').max(80, 'A cidade e o estado passam de 80 caracteres'),
+  mapsUrl:         urlOuVazio(600, 'O link "traçar rota"'),
+  mapsEmbedQuery:  ate(200, 'A busca do mapa embutido'),
   businessHours:   z.array(horarioSchema).max(10, 'No máximo 10 linhas de horário'),
-  seoTitle:        z.string().max(200),
-  seoDescription:  z.string().max(300),
-  googleReviewsUrl: urlOuVazio(600),
+  seoTitle:        ate(200, 'O título da página'),
+  seoDescription:  ate(300, 'A descrição'),
+  googleReviewsUrl: urlOuVazio(600, 'O link das avaliações'),
   googleRating:    z.string().regex(FORMA_DA_NOTA, 'A nota deve ser um número de 0 a 5 (ex: 4.8)'),
-  googleReviewCount: z.number().int().min(0).max(1_000_000),
-  productsSectionTitle: z.string().min(1, 'O título da seção de produtos não pode ficar vazio').max(60),
+  googleReviewCount: z.number('A quantidade de avaliações tem de ser um número')
+    .int('A quantidade de avaliações é um número inteiro')
+    .min(0, 'A quantidade de avaliações não pode ser negativa')
+    .max(1_000_000, 'A quantidade de avaliações passa de 1.000.000'),
+  productsSectionTitle: z.string().min(1, 'O título da seção de produtos não pode ficar vazio').max(60, 'O título da seção de produtos passa de 60 caracteres'),
   // Cor de marca escolhida no painel. Só ela é aceita: `accentHover` e
   // `accentLight` NÃO vêm do cliente — são derivadas aqui (ver D5.2). Assim o
   // banco nunca guarda um trio inconsistente ou que reprove em contraste.
