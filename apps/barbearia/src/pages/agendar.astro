@@ -74,7 +74,7 @@ const whatsappUrl = waUrl('Olá! Vim pelo site e gostaria de agendar um horário
 
 <script>
 import { reais } from '../lib/dinheiro';
-import { applyDiscountPct, comboValeNaData, diasDoCombo, type ComboProduct } from '../lib/combo';
+import { applyDiscountPct, comboValeNaData, descontoNoHorario, diasDoCombo, nomeDoDia, rotuloDaFaixa, type ComboProduct, type PromocaoNoHorario } from '../lib/combo';
 import { passosDoAgendamento, rotuloDoPasso, type Passo } from '../lib/agendamento';
 // ⚠️ Todo nome que vai para o `innerHTML` passa por `esc`: serviço, barbeiro,
 // produto e combo são texto livre do painel (`lib/html.ts`). Até 09/10/2026 o
@@ -96,6 +96,9 @@ const comboId = comboParam && /^\d+$/.test(comboParam) ? parseInt(comboParam, 10
 const comboMode = comboId !== null;
 let comboData: any = null;   // combo carregado de /api/combos (serviço, produto, desconto, dias)
 let comboPct = 0;            // desconto do combo (%), o que o dono definiu
+// As promoções em horário ocioso do combo (`lib/promocoesDaBarbearia.ts`): o desconto do
+// horário escolhido é o maior entre o do combo e o da promoção — a mesma conta do servidor.
+let comboPromos: Omit<PromocaoNoHorario, 'id'>[] = [];
 let selProduct: ComboProduct | null = null;
 
 let services: Service[] = [];
@@ -234,6 +237,7 @@ async function initStep1() {
         comboData = (list as any[]).find(c => c.id === comboId) ?? null;
         if (comboData) {
           comboPct = comboData.discountPct;
+          comboPromos = Array.isArray(comboData.promocoes) ? comboData.promocoes : [];
           selService = services.find(s => s.id === comboData.serviceId) ?? null;
           selProduct = { slug: comboData.productSlug, name: comboData.productName, priceCents: comboData.productCents };
         }
@@ -339,6 +343,10 @@ function renderStep1Combo() {
   // O calendário só abre os dias do combo; aqui o cliente fica sabendo antes.
   const dias = comboData.weekdays === 127 ? '' : `
         <p class="text-xs text-neutral-400">Dias do combo: <span class="text-neutral-200">${esc(diasDoCombo(comboData.weekdays))}</span></p>`;
+  // A promoção do horário: o cliente fica sabendo antes de escolher o dia e a hora.
+  const promosQueMudam = comboPromos.filter((p) => p.descontoPct > comboPct);
+  const promos = promosQueMudam.length === 0 ? '' : promosQueMudam.map((p) => `
+        <p class="text-xs text-teal-light/80">Promoção: ${esc(nomeDoDia(p.diaDaSemana))}, das ${esc(rotuloDaFaixa(p.inicioMin, p.fimMin))} — ${p.descontoPct}% OFF no combo</p>`).join('');
 
   wizard.innerHTML = `
     <div class="animate-fade-in">
@@ -366,7 +374,7 @@ function renderStep1Combo() {
             <span class="text-neutral-600 line-through ml-2 text-sm">${fmt(fullCents)}</span>
           </div>
         </div>
-        <p class="text-xs text-teal-light/80 text-right">Você economiza ${fmt(economiaCents)} (${comboPct}% OFF)</p>${dias}
+        <p class="text-xs text-teal-light/80 text-right">Você economiza ${fmt(economiaCents)} (${comboPct}% OFF)</p>${dias}${promos}
       </div>
 
       <button data-action="combo-continue"
@@ -537,7 +545,9 @@ function renderSlots() {
     const cls = active
       ? 'px-4 py-3 bg-teal/20 border border-teal rounded-md text-sm font-semibold text-teal-light cursor-pointer transition-all'
       : 'px-4 py-3 bg-dark-card border border-white/10 hover:border-teal/40 hover:bg-teal/5 hover:text-teal-light rounded-md text-sm font-medium text-neutral-400 cursor-pointer transition-all duration-200';
-    return `<button data-action="select-slot" data-value="${s.utc}" data-time="${s.time}" class="${cls}">${s.time}</button>`;
+    const pctDaPromo = comboMode ? descontoNoHorario(comboPct, comboPromos, selDate, s.time) : 0;
+    const selo = pctDaPromo > comboPct ? `<span class="block text-[10px] font-semibold text-teal-light">${pctDaPromo}% OFF</span>` : '';
+    return `<button data-action="select-slot" data-value="${s.utc}" data-time="${s.time}" class="${cls}">${s.time}${selo}</button>`;
   }).join('');
 
   slotsArea.innerHTML = `<div class="grid grid-cols-4 sm:grid-cols-6 gap-2">${btns}</div>`;
@@ -573,8 +583,10 @@ function renderStep4() {
 
   // Combo: preços com desconto e linha do produto a retirar.
   const isCombo    = comboMode && !!selProduct;
-  const svcCents   = isCombo ? applyDiscountPct(selService.priceCents, comboPct) : selService.priceCents;
-  const prodCents  = isCombo ? applyDiscountPct(selProduct!.priceCents, comboPct) : 0;
+  // O desconto do horário escolhido: o do combo, ou o da promoção, se for maior.
+  const pctDoHorario = isCombo ? descontoNoHorario(comboPct, comboPromos, selDate, selSlot.time) : 0;
+  const svcCents   = isCombo ? applyDiscountPct(selService.priceCents, pctDoHorario) : selService.priceCents;
+  const prodCents  = isCombo ? applyDiscountPct(selProduct!.priceCents, pctDoHorario) : 0;
   const totalCents = svcCents + prodCents;
 
   // ⚠️ Até 09/10/2026 a linha do combo dizia "Combo Boris" — o combo do Bayron — em
@@ -587,7 +599,7 @@ function renderStep4() {
         </div>
         <div class="flex justify-between gap-3 text-xs">
           <span class="text-teal-light/80">${esc(comboData?.name ?? 'Combo')}</span>
-          <span class="text-teal-light/80 whitespace-nowrap">${comboPct}% OFF aplicado</span>
+          <span class="text-teal-light/80 whitespace-nowrap">${pctDoHorario}% OFF aplicado${pctDoHorario > comboPct ? ' (promoção do horário)' : ''}</span>
         </div>` : '';
 
   wizard.innerHTML = `

@@ -10,7 +10,8 @@ import { combos, products } from '../../../db/schema.js';
 import { json } from '../../../lib/api.js';
 import { bookAppointment } from '../../../lib/bookAppointment.js';
 import { avisarMudancaNaAgenda } from '../../../lib/avisoDeAgenda.js';
-import { comboValeNaData } from '../../../lib/combo.js';
+import { comboValeNaData, promocaoDoHorario } from '../../../lib/combo.js';
+import { promocoesAtivasDosCombos } from '../../../lib/promocoesDaBarbearia.js';
 import { checkRateLimit } from '../../../lib/rateLimit.js';
 import { getClientIp } from '../../../lib/clientIp.js';
 import { tenantDoHost } from '../../../lib/tenant.js';
@@ -73,6 +74,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   let combo: { productSlug: string; discountPct: number } | null = null;
   let diasDoCombo: number | null = null;
   let effectiveServiceId = serviceId;
+  let promocaoId: number | null = null;
   if (parsed.data.comboId) {
     const c = await first(db
       .select({ serviceId: combos.serviceId, productId: combos.productId, discountPct: combos.discountPct, weekdays: combos.weekdays })
@@ -119,6 +121,19 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     return json({ error: 'Este combo não vale neste dia da semana' }, 400);
   }
 
+  // A promoção do horário ocioso (`lib/promocoesDaBarbearia.ts`): vale a que cobre o INÍCIO do
+  // horário, no fuso da barbearia — a mesma conta que o `/agendar` mostra (`descontoNoHorario`).
+  // Não soma com o desconto do combo: vale o maior. Promoção nova não muda agendamento feito:
+  // o preço é gravado aqui, e não se recalcula.
+  if (combo && parsed.data.comboId) {
+    const promos = (await promocoesAtivasDosCombos(tenant.id, [parsed.data.comboId])).get(parsed.data.comboId) ?? [];
+    const promo = promocaoDoHorario(promos, formatInTimeZone(startsAt, fuso, 'yyyy-MM-dd'), formatInTimeZone(startsAt, fuso, 'HH:mm'));
+    if (promo && promo.descontoPct > combo.discountPct) {
+      combo = { ...combo, discountPct: promo.descontoPct };
+      promocaoId = promo.id;
+    }
+  }
+
   try {
     const result = await bookAppointment({
       tenant,
@@ -131,6 +146,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
       createdBy: 'customer',
       idempotencyKey: idempotencyKey ?? null,
       combo,
+      promocaoId,
     });
     if (!result.ok) return json({ error: result.error }, result.httpStatus);
     // O barbeiro e o dono ficam sabendo, por e-mail — decidido em 11/10/2026

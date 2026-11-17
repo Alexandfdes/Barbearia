@@ -8,6 +8,8 @@ import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { saveProductImage, apagarFotoProduto } from '../../../../lib/uploads.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
+import { custoDoCampo } from '../../../../lib/promocoes.js';
+import { desativarPromocoesAfetadas } from '../../../../lib/promocoesDaBarbearia.js';
 
 // PATCH — edita campos do produto (multipart/form-data). slug é estável (não muda).
 export const PATCH: APIRoute = async ({ request, params }) => {
@@ -43,6 +45,12 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     }
     updates.priceCents = Math.round(priceReais * 100);
   }
+  // Só quando o campo veio: o Ocultar/Ativar manda só `active`, e não pode apagar o custo.
+  if (form.has('cost')) {
+    const custo = custoDoCampo(String(form.get('cost') ?? ''));
+    if (!custo.ok) return json({ error: custo.erro }, 400);
+    updates.costCents = custo.centavos;
+  }
   if (form.has('active')) {
     updates.active = String(form.get('active')) !== 'false';
   }
@@ -59,6 +67,11 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   if (Object.keys(updates).length === 0) return json({ error: 'Nada para atualizar' }, 400);
 
   await db.update(products).set(updates).where(and(eq(products.id, id), eq(products.tenantId, tenant.id)));
+  // Mudou o que entra no desconto máximo: as promoções ativas deixam de valer (`lib/promocoesDaBarbearia.ts`).
+  if ((updates.priceCents !== undefined && updates.priceCents !== current.priceCents)
+      || (updates.costCents !== undefined && updates.costCents !== current.costCents)) {
+    await desativarPromocoesAfetadas(tenant.id, { productId: id });
+  }
   if (oldImageToRemove) await apagarFotoProduto(oldImageToRemove, tenant);
 
   return json({ ok: true });

@@ -7,6 +7,7 @@ import { combos, services, products } from '../../../db/schema.js';
 import { json } from '../../../lib/api.js';
 import { applyDiscountPct } from '../../../lib/combo.js';
 import { tenantDoHost } from '../../../lib/tenant.js';
+import { promocoesAtivasDosCombos } from '../../../lib/promocoesDaBarbearia.js';
 
 // Lista pública dos combos ATIVOS (com serviço e produto também ativos), já com
 // preços calculados. A landing filtra pelo dia da semana via `weekdays` (bitmask).
@@ -36,6 +37,10 @@ export const GET: APIRoute = async ({ request }) => {
     .where(and(eq(combos.active, true), eq(services.active, true), eq(products.active, true), eq(combos.tenantId, tenant.id)))
     .orderBy(combos.sortOrder, combos.id);
 
+  // As promoções em horário ocioso de cada combo: só o dia, a faixa e o desconto — nunca o
+  // custo (`lib/promocoesDaBarbearia.ts`). O `/agendar` mostra o preço do horário escolhido.
+  const promocoes = await promocoesAtivasDosCombos(tenant.id, rows.map((r) => r.id));
+
   const out = rows.map(r => {
     const svcD = applyDiscountPct(r.serviceCents, r.discountPct);
     const prodD = applyDiscountPct(r.productCents, r.discountPct);
@@ -55,6 +60,7 @@ export const GET: APIRoute = async ({ request }) => {
       productDiscountedCents: prodD,
       totalFullCents:        r.serviceCents + r.productCents,
       totalDiscountedCents:  svcD + prodD,
+      promocoes: (promocoes.get(r.id) ?? []).map(({ diaDaSemana, inicioMin, fimMin, descontoPct }) => ({ diaDaSemana, inicioMin, fimMin, descontoPct })),
     };
   });
 

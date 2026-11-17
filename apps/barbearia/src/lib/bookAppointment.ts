@@ -51,6 +51,12 @@ export interface BookParams {
    */
   combo?:            { productSlug: string; discountPct: number } | null;
   /**
+   * A promoção do horário ocioso que deu o desconto do combo (`lib/promocoesDaBarbearia.ts`) —
+   * quem chama já pôs o desconto dela em `combo.discountPct`. Fica gravada no agendamento:
+   * o link do cliente não leva o desconto para fora da faixa ao remarcar.
+   */
+  promocaoId?:       number | null;
+  /**
    * De quem é este agendamento. Vem do resolvedor (`tenantAtual()`), NUNCA do
    * corpo da requisição — ver a skill `barbearia-multi-tenant`.
    */
@@ -144,6 +150,7 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
   // Combo do dia: valida o produto e calcula preços com o desconto do combo
   // no servidor (cliente nunca envia valor). O produto vira item da comanda.
   const combo = params.combo ?? null;
+  const promocaoId = combo ? params.promocaoId ?? null : null;
   let finalPriceCents = priceCents;
   let comboItem: { name: string; priceCents: number } | null = null;
   let notes: string | null = null;
@@ -160,7 +167,7 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
     }
     finalPriceCents = applyDiscountPct(priceCents, pct);
     comboItem = { name: product.name, priceCents: applyDiscountPct(product.priceCents, pct) };
-    notes = `${MARCA_DO_COMBO} — produto para retirar na barbearia: ${product.name}. ${pct}% OFF aplicado (serviço + produto).`;
+    notes = `${MARCA_DO_COMBO} — produto para retirar na barbearia: ${product.name}. ${pct}% OFF aplicado (serviço + produto)${promocaoId ? ', pela promoção do horário' : ''}.`;
   }
 
   const endsAt  = addMinutes(startsAt, durationMinutes);
@@ -244,10 +251,10 @@ export async function bookAppointment(params: BookParams): Promise<BookResult> {
         INSERT INTO appointments
           (tenant_id, barber_id, service_id, customer_name, customer_phone, customer_birthdate,
            starts_at, ends_at, duration_minutes, price_cents,
-           manage_token, created_by, idempotency_key, notes)
+           manage_token, created_by, idempotency_key, notes, promocao_id)
         VALUES (${tenant.id}, ${barberId}, ${serviceId}, ${customerName}, ${customerPhone},
                 ${customerBirthdate}, ${startsAtIso}, ${endsAtIso}, ${durationMinutes},
-                ${finalPriceCents}, ${manageToken}, ${createdBy}, ${idempotencyKey}, ${notes})
+                ${finalPriceCents}, ${manageToken}, ${createdBy}, ${idempotencyKey}, ${notes}, ${promocaoId})
         RETURNING id
       `));
       const id = inserido!.id;

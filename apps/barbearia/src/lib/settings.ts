@@ -22,6 +22,7 @@ import { settings as settingsTable } from '../db/schema.js';
 import { tenantAtual, type Tenant } from './tenant.js';
 import { waPhone } from './whatsapp.js';
 import { ACCENT_PADRAO } from './accent.js';
+import { CLIENTES_NOVOS, clientesNovosValido } from './promocoes.js';
 
 export interface BusinessHour {
   label: string;
@@ -57,6 +58,8 @@ export interface Settings {
   googleRating: string;
   googleReviewCount: number;
   productsSectionTitle: string;
+  /** O `g` do desconto máximo das promoções: quantos clientes novos uma promoção traz (2 a 6). */
+  promoClientesNovos: number;
 }
 
 /**
@@ -99,6 +102,7 @@ export const TEMPLATE_DEFAULTS: Settings = {
   googleRating: '',
   googleReviewCount: 0,
   productsSectionTitle: 'Produtos',
+  promoClientesNovos: CLIENTES_NOVOS.padrao,
 };
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -179,6 +183,7 @@ export async function getSettings(tenant: Tenant = tenantAtual()): Promise<Setti
     googleRating: row.googleRating ?? '',
     googleReviewCount: row.googleReviewCount ?? 0,
     productsSectionTitle: row.productsSectionTitle,
+    promoClientesNovos: clientesNovosValido(row.promoClientesNovos),
   };
 
   cache.set(tenant.id, montado);

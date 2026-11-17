@@ -8,6 +8,8 @@ import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { db } from '../../../../../db/index.js';
 import { appointments, barbers, workingHours } from '../../../../../db/schema.js';
 import { MARCA_DO_COMBO } from '../../../../../lib/bookAppointment.js';
+import { nomeDoDia, promocaoDoHorario, rotuloDaFaixa } from '../../../../../lib/combo.js';
+import { promocaoPorId } from '../../../../../lib/promocoesDaBarbearia.js';
 import { RECUSA_DEPOIS_DO_INICIO, horarioJaComecou } from '../../../../../lib/linkDoCliente.js';
 import { diaDaSemana } from '../../../../../lib/calendario.js';
 import { json } from '../../../../../lib/api.js';
@@ -72,6 +74,7 @@ export const POST: APIRoute = async ({ params, request, clientAddress }) => {
       status:          appointments.status,
       startsAt:        appointments.startsAt,
       notes:           appointments.notes,
+      promocaoId:      appointments.promocaoId,
     })
     .from(appointments)
     .where(and(eq(appointments.manageToken, token), eq(appointments.tenantId, tenant.id)));
@@ -100,6 +103,18 @@ export const POST: APIRoute = async ({ params, request, clientAddress }) => {
     const diaDeAntes = diaDaSemana(formatInTimeZone(new Date(appt.startsAt), fuso, 'yyyy-MM-dd'));
     if (diaDaSemana(newDateStr) !== diaDeAntes) {
       return json({ error: 'O combo do dia vale só no mesmo dia da semana. Remarque para outro dia igual, ou desmarque e agende de novo.' }, 400);
+    }
+  }
+
+  // O desconto da promoção do horário ocioso vale só na faixa dela (`lib/promocoesDaBarbearia.ts`):
+  // remarcar para fora levaria o preço de horário vazio para um horário cheio. A faixa é a da
+  // promoção com que o horário foi marcado — ativa ou não: o cliente pagou por ela. Se ela não existe
+  // mais (o combo foi apagado, e as promoções com ele), vale só a regra do combo, acima: o mesmo dia.
+  if (appt.promocaoId != null) {
+    const promo = await promocaoPorId(tenant.id, appt.promocaoId);
+    if (promo && !promocaoDoHorario([promo], newDateStr, formatInTimeZone(newStart, fuso, 'HH:mm'))) {
+      const faixa = ` (${nomeDoDia(promo.diaDaSemana)}, das ${rotuloDaFaixa(promo.inicioMin, promo.fimMin)})`;
+      return json({ error: `O desconto da promoção vale só no horário dela${faixa}. Remarque dentro dessa faixa, ou desmarque e agende de novo.` }, 400);
     }
   }
 

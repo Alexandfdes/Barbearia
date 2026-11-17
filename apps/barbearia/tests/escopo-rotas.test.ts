@@ -25,7 +25,7 @@ const TABELAS = [
   'barbers', 'services', 'products', 'appointments', 'appointmentItems',
   'barberServices', 'workingHours', 'timeOff', 'productSales', 'reservations',
   'combos', 'settings', 'galleryImages', 'redefinicoesDeSenha', 'avisosEnviados',
-  'webhookEvents', 'acoesDoOperador', 'confirmacoesDeEmail',
+  'webhookEvents', 'acoesDoOperador', 'confirmacoesDeEmail', 'promocoes',
   'appointment_items', 'barber_services', 'working_hours', 'time_off', 'product_sales',
   'gallery_images', 'redefinicoes_de_senha', 'avisos_enviados', 'webhook_events',
   'acoes_do_operador', 'confirmacoes_de_email',
@@ -219,7 +219,7 @@ const TABELAS_DRIZZLE = [
   'barbers', 'services', 'products', 'appointments', 'appointmentItems',
   'barberServices', 'workingHours', 'timeOff', 'productSales', 'reservations',
   'combos', 'settings', 'galleryImages', 'redefinicoesDeSenha', 'avisosEnviados',
-  'webhookEvents', 'acoesDoOperador', 'confirmacoesDeEmail',
+  'webhookEvents', 'acoesDoOperador', 'confirmacoesDeEmail', 'promocoes',
   // apelidos de importação (`import { services as servicesTable }`)
   'servicesTable', 'settingsTable',
 ];

@@ -8,6 +8,7 @@ import { json } from '../../../../lib/api.js';
 import { getSession } from '../../../../lib/session.js';
 import { saveProductImage, apagarFotoProduto } from '../../../../lib/uploads.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
+import { desativarPromocoesAfetadas } from '../../../../lib/promocoesDaBarbearia.js';
 
 // PATCH — edita o combo (multipart/form-data).
 export const PATCH: APIRoute = async ({ request, params }) => {
@@ -72,6 +73,11 @@ export const PATCH: APIRoute = async ({ request, params }) => {
   if (Object.keys(updates).length === 0) return json({ error: 'Nada para atualizar' }, 400);
 
   await db.update(combos).set(updates).where(and(eq(combos.id, id), eq(combos.tenantId, tenant.id)));
+  // Mudou o que entra no desconto máximo: as promoções ativas deixam de valer (`lib/promocoesDaBarbearia.ts`).
+  if ((updates.serviceId !== undefined && updates.serviceId !== current.serviceId)
+      || (updates.productId !== undefined && updates.productId !== current.productId)) {
+    await desativarPromocoesAfetadas(tenant.id, { comboId: id });
+  }
   if (oldImageToRemove) await apagarFotoProduto(oldImageToRemove, tenant);
 
   return json({ ok: true });
