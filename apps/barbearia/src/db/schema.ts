@@ -262,6 +262,11 @@ export const appointments = pgTable('appointments', {
   lastModifiedAt:   text('last_modified_at'),
   /** Chave de idempotência pra evitar duplo booking */
   idempotencyKey:   text('idempotency_key'),
+  /**
+   * A promoção que deu o desconto (`promocoes.id`, migration 0022). Nulo: nenhuma. Sem FK,
+   * de propósito: a promoção some com o combo, e o preço gravado continua.
+   */
+  promocaoId:       integer('promocao_id'),
 }, (table) => [
   index('appt_barber_date_idx').on(table.barberId, table.startsAt),
   index('appt_phone_idx').on(table.customerPhone),
@@ -310,6 +315,11 @@ export const products = pgTable('products', {
   name: text('name').notNull(),
   shortDesc: text('short_desc'),
   priceCents: integer('price_cents').notNull(),
+  /**
+   * Quanto o produto custa à barbearia, em centavos (migration 0022). Nulo: não informado,
+   * e a promoção do combo com ele fica bloqueada. Só o dono vê — nunca em rota pública.
+   */
+  costCents: integer('cost_cents'),
   image: text('image'),
   active: boolean('active').notNull().default(true),
   sortOrder: integer('sort_order').notNull().default(0),
@@ -337,6 +347,25 @@ export const combos = pgTable('combos', {
 }, (table) => [
   index('combos_active_idx').on(table.active),
 ]);
+
+// Promoções de combo em horário ocioso (migration 0022, `src/lib/promocoesDaBarbearia.ts`).
+// Um combo, num dia da semana e numa faixa de horário — em minutos desde a meia-noite, no
+// fuso da barbearia. Desativar grava `desativadaEm`; ativar de novo cria outra linha. O banco
+// recusa duas ATIVAS no mesmo combo, dia e faixa (`promocoes_uma_ativa_por_faixa`).
+export const promocoes = pgTable('promocoes', {
+  tenantId: integer('tenant_id').notNull().references(() => tenants.id),
+  id: serial('id').primaryKey(),
+  comboId: integer('combo_id').notNull(),
+  diaDaSemana: integer('dia_da_semana').notNull(),
+  inicioMin: integer('inicio_min').notNull(),
+  fimMin: integer('fim_min').notNull(),
+  descontoPct: integer('desconto_pct').notNull(),
+  ativa: boolean('ativa').notNull().default(false),
+  ativadaPor: integer('ativada_por'),
+  ativadaEm: timestamp('ativada_em', { withTimezone: true }),
+  desativadaEm: timestamp('desativada_em', { withTimezone: true }),
+  criadaEm: timestamp('criada_em', { withTimezone: true }).notNull().defaultNow(),
+});
 
 // Reservas de produto — cliente reserva pelo site pra retirar na barbearia
 // (sem serviço). O barbeiro vê a lista no admin e marca como retirado (vira
@@ -427,6 +456,11 @@ export const settings = pgTable('settings', {
    * pergunta de novo. Nulo é "nunca conferiu".
    */
   mapaConferido: text('mapa_conferido'),
+  /**
+   * Quantos clientes novos a barbearia supõe que uma promoção traz a um horário — o `g` do
+   * desconto máximo (`src/lib/promocoes.ts`, migration 0022). De 2 a 6, padrão 4.
+   */
+  promoClientesNovos: integer('promo_clientes_novos').notNull().default(4),
 }, (t) => [
   unique('settings_tenant_uq').on(t.tenantId),
 ]);

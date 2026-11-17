@@ -13,6 +13,7 @@ import { tenantDaSessao } from '../../../lib/tenant.js';
 import { ehFusoDoBrasil, fusoDe } from '../../../lib/timezone.js';
 import { definirFusoDaBarbearia } from '../../../lib/fusoDaBarbearia.js';
 import { FORMA_DA_NOTA } from '../../../lib/avaliacao.js';
+import { CLIENTES_NOVOS } from '../../../lib/promocoes.js';
 
 /**
  * O teto de um campo de texto, dito em português. Sem a mensagem, o zod responde "Too big:
@@ -61,6 +62,12 @@ const updateSchema = z.object({
     .min(0, 'A quantidade de avaliações não pode ser negativa')
     .max(1_000_000, 'A quantidade de avaliações passa de 1.000.000'),
   productsSectionTitle: z.string().min(1, 'O título da seção de produtos não pode ficar vazio').max(60, 'O título da seção de produtos passa de 60 caracteres'),
+  // O g das promoções em horário ocioso (migration 0022): quantos clientes novos uma promoção
+  // traz. Grava-se pela aba Promoções de /admin/combos, não por Configurações.
+  promoClientesNovos: z.number('Os clientes novos têm de ser um número')
+    .int('Os clientes novos são um número inteiro')
+    .min(CLIENTES_NOVOS.minimo, `Os clientes novos vão de ${CLIENTES_NOVOS.minimo} a ${CLIENTES_NOVOS.maximo}`)
+    .max(CLIENTES_NOVOS.maximo, `Os clientes novos vão de ${CLIENTES_NOVOS.minimo} a ${CLIENTES_NOVOS.maximo}`),
   // Cor de marca escolhida no painel. Só ela é aceita: `accentHover` e
   // `accentLight` NÃO vêm do cliente — são derivadas aqui (ver D5.2). Assim o
   // banco nunca guarda um trio inconsistente ou que reprove em contraste.

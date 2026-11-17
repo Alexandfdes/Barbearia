@@ -9,6 +9,7 @@ import { recusaDoTeto } from '../../../../lib/tetos.js';
 import { getSession } from '../../../../lib/session.js';
 import { saveProductImage } from '../../../../lib/uploads.js';
 import { tenantDaSessao, type Tenant } from '../../../../lib/tenant.js';
+import { custoDoCampo } from '../../../../lib/promocoes.js';
 
 function slugify(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -32,7 +33,8 @@ export const GET: APIRoute = async ({ request }) => {
   const rows = await db.select().from(products)
     .where(eq(products.tenantId, tenant.id))
     .orderBy(products.sortOrder, products.id);
-  return json(rows);
+  // O custo (migration 0022) é só do dono, e esta rota responde a qualquer barbeiro logado.
+  return json(rows.map(({ costCents: _custo, ...produto }) => produto));
 };
 
 // POST — cria produto (multipart/form-data, com upload opcional de imagem).
@@ -57,6 +59,9 @@ export const POST: APIRoute = async ({ request }) => {
   }
   const priceCents = Math.round(priceReais * 100);
 
+  const custo = custoDoCampo(String(form.get('cost') ?? ''));
+  if (!custo.ok) return json({ error: custo.erro }, 400);
+
   const active = String(form.get('active') ?? 'true') !== 'false';
 
   // O teto (`lib/tetos.ts`) antes de gravar a foto: recusar depois deixaria o arquivo no disco.
@@ -78,7 +83,7 @@ export const POST: APIRoute = async ({ request }) => {
     const slug = await uniqueSlug(slugify(name), tenant);
 
     const result = await db.insert(products).values({ tenantId: tenant.id,
-      slug, name, shortDesc, priceCents, image, active, sortOrder: nextSort,
+      slug, name, shortDesc, priceCents, costCents: custo.centavos, image, active, sortOrder: nextSort,
     }).returning({ id: products.id });
 
     return json({ ok: true, id: result[0].id, slug }, 201);
