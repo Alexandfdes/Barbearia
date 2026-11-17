@@ -282,7 +282,9 @@ describe('a semana que o dono preenche', () => {
       expect(cfg.instagram_url, digitado).toBe('https://instagram.com/vintage');
       expect(cfg.about_text).toBe('Corte clássico.');
     }
-  });
+  // Quatro voltas de TRUNCATE em cascata + cadastro. Medido em 17/11/2026, no Windows: ~0,7 s cada
+  // TRUNCATE, e o caso entre 4,8 e 6,1 s — os 5 s padrão do vitest o faziam falhar uma vez sim, outra não.
+  }, 20_000);
 });
 
 describe('o que o cadastro passou a pedir em 08/10/2026', () => {
