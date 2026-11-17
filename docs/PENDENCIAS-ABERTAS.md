@@ -1,6 +1,6 @@
 # Pendências em aberto
 
-> Registro vivo do que ainda **não** está definido. Atualizado: 2026-11-10.
+> Registro vivo do que ainda **não** está definido. Atualizado: 2026-11-17.
 > Companheiro de `PLANO-PRODUTIZACAO.md` (o que foi decidido no negócio) e
 > `ARQUITETURA-PRODUTO-V1.md` (o que foi decidido na engenharia).
 >
@@ -24,6 +24,7 @@
 | **01/09** | Concorrentes **só oferecem subdomínio deles** — o diferencial está confirmado | `PRECIFICACAO.md` §3 |
 | **01/09** | VPS **já comprada**; premissa de que as 10 instâncias cabem, ainda não medida | `ARQUITETURA-PRODUCAO.md` §7 |
 | **11/09** | **Construir primeiro.** Domínio (§0 abaixo), contrato (§1.2) e política de suporte (§1.4) ficam para depois de o produto estar usável. Não deixaram de travar a primeira venda — mudou a ordem do trabalho, não o prazo | `PLANO-PRODUTIZACAO.md` §12 |
+| **17/11** | **Promoções em horários vazios**, pedido por você: o painel mostra os horários ociosos de cada combo com o desconto máximo que mantém o lucro, e você ativa — nada sozinho. Na branch `promocoes-horarios-ociosos`, sem push. ⚠️ Cinco escolhas da implementação esperam a sua confirmação, a começar por P ser o preço cheio | `PENDENCIAS-ABERTAS.md` §2.72 |
 | **12/11** | **O CEP preenche o endereço**, pedido por você: no cadastro e em Configurações, a rua, a cidade e o estado vêm do CEP, e o CEP não fica guardado. A busca é do navegador, no ViaCEP e na BrasilAPI — ⚠️ falta conferir contra os serviços de verdade, no primeiro CEP digitado. **E o que o cadastro grava passou a caber em Configurações:** em seis campos ele aceitava mais, e quem passasse não salvava nada lá, com o aviso em inglês — o nome curto, o mais provável | `PENDENCIAS-ABERTAS.md` §2.71 |
 | **11/11** | **O backup que não sobe para fora vira e-mail a você, um por dia, enquanto durar** — achado no deploy de 11/11: o envio era recusado desde a tarde de 10/11, e só o log sabia. E o diagnóstico da recusa, num comando só, para o Console do servidor, com a saída do IPv6 pronta (`S3_SO_IPV4`) | `PENDENCIAS-ABERTAS.md` §3.3 |
 | **10/11, 23h** | **O botão da landing leva ao cadastro**, decidido por você: o cadastro abre ao público, com cada site esperando a sua aprovação — e sem a cobrança e sem o termo, aceitos como risco. ⚠️ **Falta aplicar:** conferido de fora às 23h, a landing no ar ainda leva ao WhatsApp, e o passo 4 ainda diz "No ar, agendando" — o site de vendas não recebeu o Implantar de 10/11 | `PENDENCIAS-ABERTAS.md` §2.31 e `JORNADA-DO-BARBEIRO.md` §2.1 |
@@ -3211,6 +3212,124 @@ máscara tecla a tecla, o cursor no fim da rua, o estado trocando para AC, o Ent
 na cidade tenta enviar), o cadastro enviado sem o CEP e com o endereço preenchido, e em Configurações o
 "Alterações não salvas", a prévia do mapa acompanhando e o Salvar sem o CEP — e nenhum pedido aos serviços com
 a página de origem.
+
+### 2.72 🟡 `[DECISÃO]` `[TÉCNICO]` Promoções em horários vazios — FEITO em 17/11/2026, na branch `promocoes-horarios-ociosos`; cinco escolhas esperam a sua confirmação
+
+**Pedido por você em 17/11/2026.** A barbearia tem horários vazios, e uma promoção num deles só compensa se trouxer
+cliente novo bastante para cobrir o desconto dado a quem já viria pagando o preço cheio. O painel calcula o
+**desconto máximo** que mantém o lucro e mostra ao dono; o dono escolhe e ativa. **Nada se ativa sozinho.**
+
+    d_max = g / (x + g) × (P − v) / P
+
+x é quem já viria naquele horário (a média do histórico), g quem a promoção traz (a sua premissa), P o preço cheio do
+combo e v o custo do produto. Sai de comparar o lucro sem promoção, x·(P − v), com o lucro com ela,
+(x + g)·(P·(1 − d) − v).
+
+**Como ficou** (`apps/barbearia/src/lib/promocoes.ts`, `apps/barbearia/src/lib/promocoesDaBarbearia.ts`, migration 0022):
+
+- **A aba Promoções em `/admin/combos`**, só do dono: os horários vazios de cada combo, com a ocupação, a média de
+  atendimentos, o preço cheio e o desconto máximo; um campo que não passa do limite; e a prévia do que o cliente paga —
+  "de" é sempre o preço do sistema, nunca um número digitado (o risco de propaganda enganosa, CDC art. 37). Ativar pede
+  confirmação na tela **e** no pedido (`confirmacao: true`); sem ela, 400. Desativar grava a hora e deixa a linha.
+- **O servidor refaz a conta ao ativar:** fora das sugestões de agora, acima do limite ou no desconto que o combo já dá,
+  recusa. Duas ativações ao mesmo tempo na mesma faixa, o banco recusa a segunda (`promocoes_uma_ativa_por_faixa`).
+- **No agendamento**, a promoção que cobre o INÍCIO do horário, no fuso da barbearia, dá o desconto — pela mesma regra de
+  preço do combo (`applyDiscountPct`, item por item). O agendamento grava o preço e a promoção (`appointments.promocao_id`):
+  promoção nova não muda horário marcado, e o link do cliente não leva o desconto para fora da faixa ao remarcar.
+- **O `/agendar`** mostra a promoção no resumo do combo, o selo de desconto em cada horário da faixa e o preço do
+  horário escolhido — a mesma função do servidor (`descontoNoHorario`, em `apps/barbearia/src/lib/combo.ts`).
+- **O custo do produto** (`products.cost_cents`) entra em Produtos, opcional e só do dono. Sem ele, a promoção dos combos
+  com aquele produto fica bloqueada, com o aviso dizendo qual produto. Nunca vai para rota do site, e o GET de produtos do
+  painel, que responde a qualquer barbeiro logado, deixou de mandar a coluna.
+- **A conta, só com inteiros:** x é uma média, e entra como fração (A atendidos em S semanas). O limite do campo é o
+  inteiro **de baixo** — o de cima passaria do lucro —, e a tela mostra o décimo ("28,6%").
+- **Mudou o que entra na conta, a promoção ativa sai:** trocar o serviço ou o produto do combo, o preço do serviço, ou o
+  preço ou o custo do produto desativa as promoções ativas daquele combo (`desativarPromocoesAfetadas`). O limite
+  confirmado foi calculado com os valores de antes; com os novos, a promoção venderia abaixo do lucro sem ninguém ter
+  confirmado. A sugestão volta, com a conta nova. Ocultar ou mostrar o produto não mexe em nada. *Achado na revisão de
+  17/11/2026, antes da entrega.*
+- **Combo apagado leva as promoções** (a chave estrangeira apaga em cascata). O agendamento feito com uma delas guarda
+  o preço, e o link do cliente remarca no mesmo dia da semana, a regra do combo. *Também achado na revisão: até o
+  conserto, o link recusava qualquer horário.*
+- **A ocupação é a conta do relatório:** `computeOccupancy` e a soma por dia da semana e faixa, que saiu de dentro de
+  `apps/barbearia/src/pages/admin/relatorios.astro` para `somarPorDiaDaSemanaEFaixa` (`apps/barbearia/src/lib/occupancy.ts`).
+  O relatório mostra o mesmo de antes.
+
+**As premissas do pedido, conferidas no código antes de começar:**
+
+- **O custo do produto não existia** — criado, como o pedido mandava, anulável.
+- **O agendamento se liga ao cliente só pelo telefone**, sem id de cliente. A conta não precisa de mais: x conta
+  atendimentos, não pessoas.
+- **Os extras da comanda** são `appointment_items` (`service_id` nulo para produto); o valor do atendimento soma os itens
+  na conclusão (`apps/barbearia/src/lib/valorDoAtendimento.ts`). A promoção grava o preço do mesmo jeito que o combo, e
+  nada nessa regra mudou.
+- ⚠️ **`original_price_cents` não existe** — o pedido dizia que os serviços tinham. O único "de/por" é um texto escrito à
+  mão no site do Bayron (`Services.astro`); a coluna estava só num plano de `ARQUITETURA-PRODUTO-V1.md`, nunca aplicado.
+  Importa para a Fase 2.
+- **"Mossoró, `America/Fortaleza`"** vale para uma barbearia; o código usa o fuso de cada uma (`fusoDe`), como todo o resto.
+
+**Decidido pelo padrão do pedido** — vale até você dizer outra coisa:
+
+1. **Não empilha com o desconto do combo:** vale o maior.
+2. **Ocioso é abaixo de 30% de ocupação na faixa.** As faixas são as do relatório: manhã (9h–13h), tarde (13h–17h) e fim do
+   dia (17h–20h).
+3. **x é a média de atendimentos concluídos no mesmo dia da semana e faixa, nas últimas 8 semanas;** com menos de 4
+   semanas com dado, a sugestão não aparece.
+4. **g = 4, configurável de 2 a 6** — na própria aba Promoções, gravado em `settings.promo_clientes_novos`.
+
+**Decidido na implementação — ⚠️ falta você confirmar:**
+
+1. **P é o preço CHEIO** (serviço + produto, sem desconto nenhum), mesmo no dia em que o combo já dá o dele. É o lado
+   seguro: quem já viria pagaria menos que P, e o limite exato seria maior que o mostrado, nunca menor. Rejeitado: P com o
+   desconto do combo, que dá um limite maior, mas mistura duas réguas no "vale o maior".
+2. **A promoção vale nos dias em que o combo vale** (`combos.weekdays`). Rejeitado, por agora: promoção abrir o combo num
+   dia em que ele não vale — mexeria no calendário do `/agendar`.
+3. **Sem barbeiro:** a ocupação e x somam os barbeiros que fazem o serviço do combo, e a promoção vale com qualquer um
+   deles. O pedido fala em "ocupação do barbeiro"; com um barbeiro só é a mesma coisa. Rejeitado, por agora: promoção por
+   barbeiro, que a tabela do pedido não tinha.
+4. **"Semana com dado" é o dia da semana em que a barbearia concluiu algum atendimento** (qualquer faixa). Dia sem nenhum
+   é dia fechado, ou de antes de usar o sistema — e não entra na média. Rejeitado: semana com atendimento NA FAIXA, que
+   esconderia justamente os horários mais vazios (x = 0 nunca apareceria).
+5. **Vale pelo início do atendimento:** começou dentro da faixa, ganha o desconto. Encaixes fora da grade de 30 minutos
+   seguem a mesma regra.
+
+**Fora desta entrega, de propósito:**
+
+- 🟡 **Medir g de verdade** — comparar os horários com promoção com os parecidos sem. `appointments.promocao_id` já guarda
+  qual promoção trouxe cada agendamento, para quando for feito.
+- 🟡 **Fase 2: combo de serviço + serviço.** Não há entidade para isso, e `original_price_cents` não existe (acima). Precisa
+  de modelagem aprovada antes.
+- 🟡 **O agendamento manual do painel não tem combo**, então também não tem promoção — como hoje.
+- 🟡 **O site da barbearia** (o "Promoção do Dia" da página inicial, `ComboBoris.astro`) continua mostrando só o combo do
+  dia; a promoção aparece no `/agendar`.
+
+⚠️ **Não está no ar, nem na `monorepo`:** está na branch `promocoes-horarios-ociosos`, sem push. A migration 0022 só roda
+no `npm run dev` da sua máquina depois de trocar para essa branch e reiniciar.
+
+**Verificado em 17/11/2026, no Windows, contra um PostgreSQL 16 descartável** (o Docker estava desligado):
+
+- **A suíte:** 1616 casos — 1590 passam, 11 pulados e 15 falham, **as mesmas 15 de antes da mudança**, na árvore sem
+  nada dela: as 12 de backup e restauração (`pg_dump` e `tar` no Windows), as 2 de `apps/barbearia/tests/cobranca-isolada.test.ts`
+  (o separador `\` do Windows) e as 3 de `apps/barbearia/tests/aprovacao-do-site.test.ts`. ⚠️ **Estas três são defeito do
+  teste, e vão falhar também no CI:** ele cria a barbearia com o teste grátis acabando em "06/11 + 3 dias", fixo, e o
+  resolvedor lê o relógio de verdade — desde mais ou menos 12/11 ela conta como fora do ar. É a regra 7 de provar o teste;
+  não foi mexido aqui.
+- **Os casos novos:** 57 (`apps/barbearia/tests/promocoes.test.ts`, sem banco, e `apps/barbearia/tests/promocoes-banco.test.ts`),
+  iguais com o processo em `TZ=UTC` e em `TZ=America/Fortaleza`. A tabela do pedido bate em décimos de ponto.
+- **22 defeitos reintroduzidos, 20 vermelhos.** Os 2 que ficaram verdes são equivalentes: o filtro da barbearia tirado de
+  um lugar onde a mesma consulta já filtra por outro caminho — tirar os três filtros juntos fica vermelho, o que obrigou o
+  teste a ganhar um caso (o produto sem custo da outra barbearia aparecia no aviso desta).
+- **O `astro check`:** zero erro e zero aviso nos dois apps; os 13 *hints* são os de antes.
+- **A migration 0022 pelo caminho de verdade** (`scripts/startup.mjs`), num banco à parte: aplicou, e o boot conferiu o
+  papel do app e a rede de RLS de toda tabela de barbearia.
+- **No navegador, contra esse banco:** a aba Promoções abrindo pelo `#promocoes`; o limite de 72% (a tarde com x = 1), a
+  recusa de 95% em português, a prévia mudando ao digitar; a confirmação por cima da lateral; a promoção indo para as ativas;
+  o aviso do produto sem custo; e no `/agendar`, a linha da promoção no resumo, o selo "25% OFF" das 13:00 às 16:30 (e não
+  às 17:00) e o total de R$ 75 no último passo — sem erro no console. O envio do agendamento não foi feito pela tela; o preço
+  gravado está provado pela rota, no teste com banco.
+- **Revisão independente** (três revisores, cada achado verificado por um quarto): dois defeitos reais, consertados acima.
+- ⚠️ **Achado de passagem:** `apps/barbearia/tests/cadastro.test.ts`, o caso do Instagram (quatro voltas de `TRUNCATE` em
+  cascata), ficava entre 4,8 e 6,1 s no Windows — a tabela nova entra na cascata. Ganhou prazo de 20 s.
 ---
 
 ## 3. Operação com vários clientes
