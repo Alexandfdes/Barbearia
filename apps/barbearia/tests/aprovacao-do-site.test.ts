@@ -34,7 +34,11 @@ const TEM_BANCO = Boolean(process.env.DATABASE_URL);
 if (TEM_BANCO) exigirBancoDeTeste(process.env.DATABASE_URL);
 process.env.SESSION_SECRET ??= 'segredo-de-teste-com-mais-de-32-caracteres-ok';
 
-const AGORA = new Date('2026-11-06T15:00:00Z');
+// O "agora" do teste é o de quando ele roda, no minuto. Até 18/11/2026 era 06/11 cravado, mas o
+// resolvedor de endereço (`situacaoDe`) e a prévia leem o relógio de verdade: o teste da
+// "esperando" (06/11 + 3 dias) vencia em 09/11, e três casos falharam daí em diante sem ninguém
+// mexer no código. Todo prazo deste arquivo é relativo a AGORA.
+const AGORA = new Date(Math.floor(Date.now() / 60_000) * 60_000);
 const DIA = 24 * 60 * 60 * 1000;
 const ENV = { SESSION_SECRET: 'um-segredo-de-teste-com-mais-de-32-caracteres', NODE_ENV: 'production' };
 const SITE = 'https://nova.fadeline.com.br';
