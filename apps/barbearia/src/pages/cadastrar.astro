@@ -108,6 +108,9 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     input:focus, textarea:focus, select:focus { outline: 2px solid var(--brand-claro); outline-offset: 1px;
                                   border-color: var(--brand-claro); }
     .local { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    /* No celular, a cidade e o estado um embaixo do outro: lado a lado, o seletor cortava
+       "Rio Grande do N…" (visto em 12/11/2026, a 390 px). */
+    @media (max-width: 520px) { .local { grid-template-columns: 1fr; gap: 0; } }
     input:disabled { opacity: .45; }
     .dica { font-size: 11px; color: var(--ink-fraco); margin-top: 4px; }
     /* O CEP tem 9 caracteres: o campo largo parecia pedir o endereço inteiro. */
@@ -221,10 +224,12 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
     <div id="erro" class="erro" hidden></div>
 
     <form id="form">
+      {/* Os `maxlength` do nome, da rua, da cidade, da frase e do "sobre" são os de `LIMITES_DO_CADASTRO`
+          (`lib/provisionarBarbearia.ts`) — os de Configurações. A cidade, 3 a menos: ganha "/UF" no fim. */}
       <fieldset>
         <legend>A barbearia</legend>
         <label for="nome">Nome da barbearia</label>
-        <input id="nome" required maxlength="120" placeholder="Barbearia do Zé" />
+        <input id="nome" required maxlength="100" placeholder="Barbearia do Zé" />
 
         <label for="slug">Endereço do site</label>
         <input id="slug" required maxlength="63" placeholder="barbearia-do-ze" />
@@ -238,12 +243,12 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
         <p id="cep-aviso" class="dica aviso-do-cep" aria-live="polite"></p>
 
         <label for="endereco">Rua e número</label>
-        <input id="endereco" required maxlength="200" placeholder="R. das Flores, 42" />
+        <input id="endereco" required maxlength="150" placeholder="R. das Flores, 42" />
 
         <div class="local">
           <div>
             <label for="cidade">Cidade</label>
-            <input id="cidade" required maxlength="120" placeholder="Mossoró" />
+            <input id="cidade" required maxlength="77" placeholder="Mossoró" />
           </div>
           <div>
             <label for="estado">Estado</label>
@@ -306,7 +311,7 @@ const restoDoEndereco = process.env.DOMINIO_BASE?.trim() ? `.${process.env.DOMIN
         <p class="dica">Opcional. Vira o link do site — pode colar a URL inteira.</p>
 
         <label for="sobre">Como você descreveria a sua barbearia?</label>
-        <textarea id="sobre" rows="3" maxlength="1000"
+        <textarea id="sobre" rows="3" maxlength="600"
           placeholder="Escreva do seu jeito, sem se preocupar com português."></textarea>
         <p class="dica">Opcional. É o texto que o cliente lê antes de marcar.</p>
       </fieldset>

@@ -9,6 +9,7 @@ import { json } from '../../../../lib/api.js';
 import { recusaDoTeto } from '../../../../lib/tetos.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
+import { desativarPromocoesAfetadas } from '../../../../lib/promocoesDaBarbearia.js';
 
 const updateSchema = z.object({
   name:       z.string().min(2).max(100).optional(),
@@ -61,6 +62,10 @@ export const PUT: APIRoute = async ({ request, params }) => {
   }
 
   await db.update(services).set(updates).where(and(eq(services.id, id), eq(services.tenantId, tenant.id)));
+  // Mudou o que entra no desconto máximo: as promoções ativas deixam de valer (`lib/promocoesDaBarbearia.ts`).
+  if (parsed.data.priceCents !== undefined && parsed.data.priceCents !== rows[0].priceCents) {
+    await desativarPromocoesAfetadas(tenant.id, { serviceId: id });
+  }
   return json({ ok: true });
 };
 

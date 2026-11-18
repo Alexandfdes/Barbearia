@@ -7,6 +7,12 @@ import { db } from '../../db/index.js';
 import { barbers, combos, services, products } from '../../db/schema.js';
 import { and, eq } from 'drizzle-orm';
 import { tenantDaSessao } from '../../lib/tenant.js';
+import { fusoDe } from '../../lib/timezone.js';
+import { formatInTimeZone } from 'date-fns-tz';
+import { painelDePromocoes } from '../../lib/promocoesDaBarbearia.js';
+import { nomeDoDia, precoDoCombo, rotuloDaFaixa } from '../../lib/combo.js';
+import { reais } from '../../lib/dinheiro.js';
+import { CLIENTES_NOVOS, textoDoPorcento } from '../../lib/promocoes.js';
 
 const session = await getSession(Astro.request);
 if (!session) return Astro.redirect('/admin/login');
@@ -37,11 +43,48 @@ function weekdayLabels(mask: number): string {
   const days = WD_SHORT.filter((_, i) => mask & (1 << i));
   return days.length === 7 ? 'Todos os dias' : (days.length ? days.join(', ') : 'Nenhum dia');
 }
+
+// A aba Promoções (17/11/2026, `lib/promocoesDaBarbearia.ts`): os horários ociosos com o
+// desconto máximo que mantém o lucro, e as promoções ativas. Nada se ativa sozinho.
+const fuso = fusoDe(tenant);
+const promo = await painelDePromocoes(tenant);
+// Um cartão por combo, uma linha por horário vazio (18/11/2026): com um cartão inteiro por
+// dia × faixa, o mesmo combo se repetia seis, doze vezes, e o preço cheio junto. Dentro do
+// combo, de segunda a domingo e da manhã à noite; as bloqueadas no fim.
+const ordemDoDia = (d: number) => (d + 6) % 7;
+const gruposDeSugestoes = [...promo.sugestoes.reduce((m, s) => {
+  const g = m.get(s.comboId) ?? [];
+  g.push(s);
+  return m.set(s.comboId, g);
+}, new Map<number, typeof promo.sugestoes>()).values()].map((linhas) =>
+  linhas.sort((a, b) =>
+    Number(a.bloqueio !== null) - Number(b.bloqueio !== null)
+    || ordemDoDia(a.diaDaSemana) - ordemDoDia(b.diaDaSemana)
+    || a.faixa.inicioMin - b.faixa.inicioMin));
+const quando = (d: Date | null) => (d ? formatInTimeZone(d, fuso, 'dd/MM/yyyy') : '');
+const media = (decimos: number) => textoDoPorcento(decimos).replace('%', '');
+const opcoesDeClientesNovos = Array.from(
+  { length: CLIENTES_NOVOS.maximo - CLIENTES_NOVOS.minimo + 1 }, (_, i) => CLIENTES_NOVOS.minimo + i,
+);
 ---
 
 <AdminLayout title="Combos" barberName={barberRow.name} role={session.role}>
   <div class="max-w-3xl mx-auto px-4 py-6 space-y-6 pb-24">
 
+    <div class="border-b border-slate-200">
+      <div role="tablist" aria-label="Combos e promoções" class="flex overflow-x-auto">
+        <button type="button" role="tab" id="aba-combos" aria-controls="combos" aria-selected="true" tabindex="0" data-aba="combos"
+                class="shrink-0 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-colors aria-selected:border-teal aria-selected:text-teal focus-visible:outline-none focus-visible:bg-teal/10">
+          Combos
+        </button>
+        <button type="button" role="tab" id="aba-promocoes" aria-controls="promocoes" aria-selected="false" tabindex="-1" data-aba="promocoes"
+                class="shrink-0 px-3 sm:px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-colors aria-selected:border-teal aria-selected:text-teal focus-visible:outline-none focus-visible:bg-teal/10">
+          Promoções{promo.ativas.length > 0 ? ` (${promo.ativas.length} ativa${promo.ativas.length === 1 ? '' : 's'})` : ''}
+        </button>
+      </div>
+    </div>
+
+    <div role="tabpanel" id="combos" aria-labelledby="aba-combos" class="space-y-6">
     <div class="flex items-center justify-between gap-3">
       <div>
         <h1 class="text-lg font-medium text-slate-900">Combos do dia</h1>
@@ -93,6 +136,177 @@ function weekdayLabels(mask: number): string {
           </div>
         </div>
       ))}
+    </div>
+    </div>
+
+    <div role="tabpanel" id="promocoes" aria-labelledby="aba-promocoes" class="space-y-6" hidden>
+      <div>
+        <h2 class="text-lg font-medium text-slate-900">Promoções em horários vazios</h2>
+        <p class="text-sm text-slate-500 mt-1">
+          Os horários dos combos que ficaram vazios nas últimas 8 semanas, com o maior desconto que ainda mantém
+          o seu lucro. Você escolhe o desconto e ativa — nada entra no site sozinho.
+        </p>
+      </div>
+
+      <div class="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+        <label for="clientes-novos" class="block text-xs text-slate-500 uppercase tracking-widest">Clientes novos que uma promoção traz</label>
+        <div class="flex items-center gap-2">
+          <select id="clientes-novos" class="bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50 tabular-nums">
+            {opcoesDeClientesNovos.map((n) => (
+              <option value={String(n)} selected={n === promo.clientesNovos}>{n} por semana, no horário</option>
+            ))}
+          </select>
+          <button id="salvar-clientes-novos" type="button" class="px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest text-xs rounded transition-colors disabled:opacity-50">Salvar</button>
+        </div>
+        <p class="text-[11px] text-slate-500">
+          É uma estimativa sua: quanto mais clientes novos, maior o desconto que o painel aceita. Na dúvida, fique no {CLIENTES_NOVOS.padrao}.
+        </p>
+        <p id="clientes-novos-status" role="status" class="text-xs text-slate-600"></p>
+      </div>
+
+      {promo.produtosSemCusto.length > 0 && (
+        <div class="bg-amber-50 border border-amber-500/20 rounded-lg p-3 text-xs text-amber-700/90">
+          Sem o custo do produto não dá para saber o desconto que mantém o lucro. Informe o custo de
+          {' '}{promo.produtosSemCusto.map((p) => `"${p.nome}"`).join(', ')}{' '}
+          em <a href="/admin/produtos" class="underline font-medium">Produtos</a>.
+        </div>
+      )}
+
+      <section aria-labelledby="titulo-ativas" class="space-y-2">
+        <h3 id="titulo-ativas" class="text-sm font-medium text-slate-800">Ativas</h3>
+        {promo.ativas.length === 0 && (
+          <p class="text-sm text-slate-500">Nenhuma promoção ativa.</p>
+        )}
+        {promo.ativas.map((a) => (
+          <div class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3"
+               data-promocao={String(a.id)} data-nome={a.comboNome} data-desconto={String(a.descontoPct)}
+               data-quando={`${nomeDoDia(a.diaDaSemana)}, das ${rotuloDaFaixa(a.inicioMin, a.fimMin)}`}>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <p class="text-sm font-medium text-slate-900 truncate">{a.comboNome}</p>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-teal/15 text-teal shrink-0">{a.descontoPct}% OFF</span>
+              </div>
+              <p class="text-xs text-slate-600">{nomeDoDia(a.diaDaSemana)}, das {rotuloDaFaixa(a.inicioMin, a.fimMin)}</p>
+              {a.servicoCents + a.produtoCents > 0 && (
+                <p class="text-xs text-slate-500 tabular-nums">
+                  De {reais(a.servicoCents + a.produtoCents)} por {reais(precoDoCombo(a.servicoCents, a.produtoCents, a.descontoPct))}
+                </p>
+              )}
+              <p class="text-[10px] text-slate-500 mt-0.5">
+                Ativada{a.ativadaPorNome ? ` por ${a.ativadaPorNome}` : ''}{a.ativadaEm ? ` em ${quando(a.ativadaEm)}` : ''}
+              </p>
+            </div>
+            <button type="button" data-acao="desativar" class="shrink-0 text-[11px] px-2.5 py-1 rounded border border-red-500/20 hover:bg-red-500/10 text-red-600 transition-colors">Desativar</button>
+          </div>
+        ))}
+      </section>
+
+      <section aria-labelledby="titulo-sugestoes" class="space-y-2">
+        <h3 id="titulo-sugestoes" class="text-sm font-medium text-slate-800">Horários vazios</h3>
+        {promo.sugestoes.length === 0 && (
+          <div class="bg-white border border-slate-200 rounded-lg p-4 text-sm text-slate-500 space-y-1">
+            <p>Nenhum horário de combo abaixo de 30% de ocupação agora.</p>
+            {promo.diasSemHistorico > 0 && (
+              <p class="text-xs">
+                Alguns dias ainda não entram na conta: são precisas pelo menos 4 semanas com atendimento concluído naquele dia.
+              </p>
+            )}
+          </div>
+        )}
+        {gruposDeSugestoes.map((linhas) => {
+          const c = linhas[0];
+          const semCusto = linhas.every((s) => s.bloqueio === 'sem-custo');
+          return (
+          <div class="bg-white border border-slate-200 rounded-lg">
+            <div class="p-4 border-b border-slate-200">
+              <p class="text-sm font-medium text-slate-900">{c.comboNome}</p>
+              <p class="text-xs text-slate-500 tabular-nums">
+                Preço cheio: {reais(c.precoCheioCents)}
+                {c.comboPct > 0 && ` · o combo já dá ${c.comboPct}% (${reais(precoDoCombo(c.servicoCents, c.produtoCents, c.comboPct))})`}
+              </p>
+              {semCusto && (
+                <p class="text-xs text-amber-700 mt-1">
+                  Informe o custo de "{c.produtoNome}" em <a href="/admin/produtos" class="underline">Produtos</a> para ver o desconto máximo.
+                </p>
+              )}
+            </div>
+            {!semCusto && (
+            <ul class="divide-y divide-slate-100">
+              {linhas.map((s) => {
+                const quando = `${nomeDoDia(s.diaDaSemana)} ${s.faixa.rotulo}, das ${rotuloDaFaixa(s.faixa.inicioMin, s.faixa.fimMin)}`;
+                const idCampo = `desconto-${s.comboId}-${s.diaDaSemana}-${s.faixa.chave}`;
+                return (
+                <li class="px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1"
+                    data-sugestao
+                    data-combo={String(s.comboId)} data-dia={String(s.diaDaSemana)} data-faixa={s.faixa.chave}
+                    data-limite={String(s.limitePct ?? 0)} data-combo-pct={String(s.comboPct)}
+                    data-servico={String(s.servicoCents)} data-produto={String(s.produtoCents)}
+                    data-nome={s.comboNome} data-quando={quando}>
+                  <div class="flex-1 min-w-[12rem]">
+                    <p class="text-sm text-slate-800 first-letter:uppercase">{nomeDoDia(s.diaDaSemana)} {s.faixa.rotulo} <span class="text-xs text-slate-500">· {rotuloDaFaixa(s.faixa.inicioMin, s.faixa.fimMin)}</span></p>
+                    <p class="text-xs text-slate-500"
+                       title={`Em média ${media(s.mediaDecimos)} atendimento(s) por semana nesse horário, em ${s.semanas} semanas com atendimento`}>
+                      Ocupação de {s.ocupacaoPct}%
+                      {s.bloqueio === null && s.limiteDecimos !== null && <> · máximo que mantém o lucro: <strong class="tabular-nums text-slate-700">{textoDoPorcento(s.limiteDecimos)}</strong></>}
+                      {s.bloqueio === 'sem-espaco' && s.limiteDecimos !== null && ` · o máximo que mantém o lucro (${textoDoPorcento(s.limiteDecimos)}) não passa do que o combo já dá`}
+                    </p>
+                  </div>
+                  {s.bloqueio === null && s.limitePct !== null && (
+                    <div class="flex items-center gap-2">
+                      <label for={idCampo} class="sr-only">Desconto em %, {quando}</label>
+                      <input id={idCampo} data-campo-desconto type="number"
+                             min={String(s.comboPct + 1)} max={String(s.limitePct)} step="1" value={String(s.limitePct)}
+                             class="w-20 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 text-sm text-slate-800 focus:outline-none focus:border-teal/50 tabular-nums" />
+                      <span class="text-sm text-slate-500" aria-hidden="true">%</span>
+                      <button type="button" data-acao="ativar" class="px-3 py-1.5 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest text-[11px] rounded transition-colors">Ativar…</button>
+                    </div>
+                  )}
+                  {s.bloqueio === null && (
+                    <>
+                      <p data-previa class="w-full text-xs text-slate-600 tabular-nums" aria-live="polite"></p>
+                      <p data-erro class="hidden w-full text-xs text-red-600" role="alert"></p>
+                    </>
+                  )}
+                </li>
+                );
+              })}
+            </ul>
+            )}
+          </div>
+          );
+        })}
+      </section>
+    </div>
+
+    <!-- Confirmação de desativar promoção -->
+    <div id="confirmar-desativar" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4"
+         role="dialog" aria-modal="true" aria-labelledby="confirmar-desativar-titulo">
+      <div class="absolute inset-0 bg-black/70" data-fechar-desativar></div>
+      <div class="relative bg-white border border-slate-200 rounded-lg shadow-2xl max-w-sm w-full p-6">
+        <p id="confirmar-desativar-titulo" class="text-base font-medium text-slate-900 mb-2">Desativar a promoção?</p>
+        <p id="confirmar-desativar-texto" class="text-sm text-slate-600 mb-2 leading-relaxed"></p>
+        <p class="text-xs text-slate-500 mb-5">O horário volta ao preço do combo para os agendamentos novos. Os já marcados continuam com o preço que tinham.</p>
+        <p id="confirmar-desativar-erro" class="hidden text-xs text-red-600 mb-3" role="alert"></p>
+        <div class="flex gap-2 justify-end">
+          <button type="button" data-fechar-desativar class="px-4 py-2 rounded text-sm font-medium text-slate-700 border border-slate-200 hover:bg-slate-100 transition-colors">Voltar</button>
+          <button type="button" id="confirmar-desativar-ok" class="px-4 py-2 rounded text-sm font-bold text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50">Desativar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirmação de ativar promoção -->
+    <div id="confirmar-promocao" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div class="absolute inset-0 bg-black/70" data-fechar-confirmacao></div>
+      <div class="relative bg-white border border-slate-200 rounded-lg shadow-2xl max-w-sm w-full p-6">
+        <p class="text-base font-medium text-slate-900 mb-2">Ativar a promoção?</p>
+        <p id="confirmar-promocao-texto" class="text-sm text-slate-600 mb-2 leading-relaxed"></p>
+        <p class="text-xs text-slate-500 mb-5">Vale para os agendamentos novos pelo site. Os já marcados continuam com o preço que tinham.</p>
+        <p id="confirmar-promocao-erro" class="hidden text-xs text-red-600 mb-3" role="alert"></p>
+        <div class="flex gap-2 justify-end">
+          <button type="button" data-fechar-confirmacao class="px-4 py-2 rounded text-sm font-medium text-slate-700 border border-slate-200 hover:bg-slate-100 transition-colors">Voltar</button>
+          <button type="button" id="confirmar-promocao-ok" class="px-4 py-2 rounded text-sm font-bold text-white bg-teal hover:bg-teal-hover transition-colors disabled:opacity-50">Ativar promoção</button>
+        </div>
+      </div>
     </div>
 
     <!-- Modal add/editar -->
@@ -251,5 +465,208 @@ function weekdayLabels(mask: number): string {
       errEl.textContent = 'Erro de conexão'; errEl.classList.remove('hidden');
     }
     saveBtn.disabled = false; saveBtn.textContent = 'Salvar';
+  });
+</script>
+
+<script>
+  // As abas (o mesmo desenho de Configurações) e a aba Promoções — `lib/promocoesDaBarbearia.ts`.
+  import { precoDoCombo } from '../../lib/combo';
+  import { reais } from '../../lib/dinheiro';
+
+  const abas = Array.from(document.querySelectorAll<HTMLElement>('[role="tab"][data-aba]'));
+  function abrirAba(id: string, foco = false) {
+    for (const aba of abas) {
+      const ativa = aba.dataset.aba === id;
+      aba.setAttribute('aria-selected', ativa ? 'true' : 'false');
+      aba.tabIndex = ativa ? 0 : -1;
+      const painel = document.getElementById(aba.getAttribute('aria-controls') ?? '');
+      if (painel) painel.hidden = !ativa;
+      if (ativa && foco) aba.focus();
+    }
+  }
+  function irParaOEndereco() {
+    const id = location.hash.slice(1);
+    if (abas.some((a) => a.dataset.aba === id)) abrirAba(id);
+  }
+  abas.forEach((aba, i) => {
+    aba.addEventListener('click', () => {
+      abrirAba(aba.dataset.aba!);
+      history.replaceState(null, '', `#${aba.dataset.aba}`);
+    });
+    aba.addEventListener('keydown', (e) => {
+      const alvo = e.key === 'ArrowRight' ? abas[(i + 1) % abas.length]
+        : e.key === 'ArrowLeft' ? abas[(i - 1 + abas.length) % abas.length]
+        : e.key === 'Home' ? abas[0]
+        : e.key === 'End' ? abas[abas.length - 1]
+        : null;
+      if (!alvo) return;
+      e.preventDefault();
+      abrirAba(alvo.dataset.aba!, true);
+      history.replaceState(null, '', `#${alvo.dataset.aba}`);
+    });
+  });
+  irParaOEndereco();
+  window.addEventListener('hashchange', irParaOEndereco);
+
+  // ── O g: clientes novos que uma promoção traz ───────────────────────────────
+  const seletorG = document.getElementById('clientes-novos') as HTMLSelectElement | null;
+  const salvarG = document.getElementById('salvar-clientes-novos') as HTMLButtonElement | null;
+  const statusG = document.getElementById('clientes-novos-status');
+  salvarG?.addEventListener('click', async () => {
+    if (!seletorG || !statusG) return;
+    salvarG.disabled = true;
+    statusG.textContent = 'Salvando…';
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ promoClientesNovos: Number(seletorG.value) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        // Os limites mudam com o g: a lista se refaz.
+        location.hash = 'promocoes';
+        location.reload();
+        return;
+      }
+      statusG.textContent = data.error ?? 'Não deu para salvar. Tente de novo.';
+    } catch {
+      statusG.textContent = 'Erro de conexão. Tente de novo.';
+    }
+    salvarG.disabled = false;
+  });
+
+  // ── Desativar ────────────────────────────────────────────────────────────────
+  // A janela da tela, não o confirm() do navegador (18/11/2026, pedido do dono).
+  const janelaDesativar = document.getElementById('confirmar-desativar') as HTMLElement;
+  const textoDesativar = document.getElementById('confirmar-desativar-texto') as HTMLElement;
+  const erroDesativar = document.getElementById('confirmar-desativar-erro') as HTMLElement;
+  const okDesativar = document.getElementById('confirmar-desativar-ok') as HTMLButtonElement;
+  let aDesativar: string | null = null;
+  let voltarFocoPara: HTMLElement | null = null;
+
+  function fecharDesativar() {
+    janelaDesativar.classList.add('hidden');
+    aDesativar = null;
+    voltarFocoPara?.focus();
+  }
+  janelaDesativar.querySelectorAll('[data-fechar-desativar]').forEach((b) => b.addEventListener('click', fecharDesativar));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !janelaDesativar.classList.contains('hidden')) fecharDesativar();
+  });
+
+  document.querySelectorAll<HTMLElement>('[data-promocao]').forEach((el) => {
+    const botao = el.querySelector<HTMLElement>('[data-acao="desativar"]');
+    botao?.addEventListener('click', () => {
+      aDesativar = el.dataset.promocao ?? null;
+      voltarFocoPara = botao;
+      textoDesativar.textContent = `${el.dataset.nome}, ${el.dataset.quando ?? ''}, ${el.dataset.desconto ?? ''}% OFF.`;
+      erroDesativar.classList.add('hidden');
+      okDesativar.disabled = false;
+      janelaDesativar.classList.remove('hidden');
+      okDesativar.focus();
+    });
+  });
+
+  okDesativar.addEventListener('click', async () => {
+    if (!aDesativar) return;
+    okDesativar.disabled = true;
+    try {
+      const res = await fetch(`/api/admin/promocoes/${aDesativar}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ativa: false }),
+      });
+      if (res.ok) { location.hash = 'promocoes'; location.reload(); return; }
+      const data = await res.json().catch(() => ({}));
+      erroDesativar.textContent = data.error ?? 'Não deu para desativar. Atualize a tela.';
+    } catch {
+      erroDesativar.textContent = 'Erro de conexão. Tente de novo.';
+    }
+    erroDesativar.classList.remove('hidden');
+    okDesativar.disabled = false;
+  });
+
+  // ── Ativar: o desconto, a prévia do preço e a confirmação ───────────────────
+  const confirmacao = document.getElementById('confirmar-promocao') as HTMLElement;
+  const textoDaConfirmacao = document.getElementById('confirmar-promocao-texto') as HTMLElement;
+  const erroDaConfirmacao = document.getElementById('confirmar-promocao-erro') as HTMLElement;
+  const okDaConfirmacao = document.getElementById('confirmar-promocao-ok') as HTMLButtonElement;
+  let pedido: { comboId: number; diaDaSemana: number; faixa: string; descontoPct: number } | null = null;
+
+  function fecharConfirmacao() {
+    confirmacao.classList.add('hidden');
+    pedido = null;
+  }
+  confirmacao.querySelectorAll('[data-fechar-confirmacao]').forEach((b) => b.addEventListener('click', fecharConfirmacao));
+
+  document.querySelectorAll<HTMLElement>('[data-sugestao]').forEach((el) => {
+    const campo = el.querySelector<HTMLInputElement>('[data-campo-desconto]');
+    const previa = el.querySelector<HTMLElement>('[data-previa]');
+    const erro = el.querySelector<HTMLElement>('[data-erro]');
+    if (!campo || !previa || !erro) return;
+    const limite = Number(el.dataset.limite);
+    const comboPct = Number(el.dataset.comboPct);
+    const servico = Number(el.dataset.servico);
+    const produto = Number(el.dataset.produto);
+    const cheio = servico + produto;
+
+    // O que o dono digitou, se cabe: inteiro, acima do desconto do combo, até o limite.
+    const lido = (): { pct: number } | { erro: string } => {
+      const pct = Number(campo.value);
+      if (!Number.isInteger(pct)) return { erro: 'Use um número inteiro.' };
+      if (pct > limite) return { erro: `O limite deste horário é ${limite}%. Mais que isso, a promoção dá prejuízo.` };
+      if (pct <= comboPct) return { erro: `O combo já dá ${comboPct}% nesse dia: a promoção precisa passar disso.` };
+      return { pct };
+    };
+    const mostrar = () => {
+      const r = lido();
+      if ('erro' in r) {
+        previa.textContent = '';
+        erro.textContent = r.erro;
+        erro.classList.remove('hidden');
+        return;
+      }
+      erro.classList.add('hidden');
+      previa.textContent = `O cliente paga ${reais(precoDoCombo(servico, produto, r.pct))} — de ${reais(cheio)}, o preço cheio.`;
+    };
+    // A prévia aparece quando o dono mexe no campo — aberta em toda linha, a lista virava texto.
+    campo.addEventListener('input', mostrar);
+
+    el.querySelector('[data-acao="ativar"]')?.addEventListener('click', () => {
+      const r = lido();
+      if ('erro' in r) { mostrar(); campo.focus(); return; }
+      pedido = {
+        comboId: Number(el.dataset.combo),
+        diaDaSemana: Number(el.dataset.dia),
+        faixa: el.dataset.faixa ?? '',
+        descontoPct: r.pct,
+      };
+      textoDaConfirmacao.textContent =
+        `${el.dataset.nome}, ${el.dataset.quando}: ${r.pct}% OFF. O cliente paga ${reais(precoDoCombo(servico, produto, r.pct))}, de ${reais(cheio)}.`;
+      erroDaConfirmacao.classList.add('hidden');
+      okDaConfirmacao.disabled = false;
+      confirmacao.classList.remove('hidden');
+      okDaConfirmacao.focus();
+    });
+  });
+
+  okDaConfirmacao.addEventListener('click', async () => {
+    if (!pedido) return;
+    okDaConfirmacao.disabled = true;
+    try {
+      const res = await fetch('/api/admin/promocoes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...pedido, confirmacao: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) { location.hash = 'promocoes'; location.reload(); return; }
+      erroDaConfirmacao.textContent = data.error ?? 'Não deu para ativar. Atualize a tela.';
+    } catch {
+      erroDaConfirmacao.textContent = 'Erro de conexão. Tente de novo.';
+    }
+    erroDaConfirmacao.classList.remove('hidden');
+    okDaConfirmacao.disabled = false;
   });
 </script>

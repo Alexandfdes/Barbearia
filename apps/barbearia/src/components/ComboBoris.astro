@@ -38,8 +38,10 @@ const fuso = fusoDe(tenantAtual());
 
       listEl.innerHTML = items.map((c) => {
         const photo = c.image
-          ? `<div class="hidden md:block relative md:min-h-full md:order-1">
-               <img src="${esc(c.image)}" alt="${esc(c.name)}" loading="lazy" class="w-full h-full object-cover" />
+          // A foto acompanha a altura do texto, recortada (absolute): solta na grade, uma foto
+          // vertical esticava o cartão até a altura dela (visto pelo dono em 18/11/2026).
+          ? `<div class="hidden md:block relative min-h-[280px] md:order-1">
+               <img src="${esc(c.image)}" alt="${esc(c.name)}" loading="lazy" class="absolute inset-0 w-full h-full object-cover" />
                <div class="absolute inset-0 bg-gradient-to-l from-neutral-950/40 to-transparent"></div>
              </div>`
           : "";

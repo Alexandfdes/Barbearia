@@ -145,6 +145,32 @@ export function computeOccupancy(params: Params): DayBandOccupancy[] {
   return out;
 }
 
+export interface FaixaDaSemana {
+  weekday: number;
+  bandKey: string;
+  bandLabel: string;
+  /** Minutos disponíveis, somados em todos os dias medidos desse dia da semana. */
+  avail: number;
+  /** Minutos ocupados, somados do mesmo jeito. */
+  booked: number;
+}
+
+/**
+ * A ocupação de cada dia da semana × faixa, somada em todos os dias medidos — o "terça à
+ * tarde" do relatório e das promoções em horário ocioso. Uma conta só: até 17/11/2026 ela
+ * morava dentro de `pages/admin/relatorios.astro`. Na ordem em que aparecem em `occ`.
+ */
+export function somarPorDiaDaSemanaEFaixa(occ: DayBandOccupancy[]): FaixaDaSemana[] {
+  const soma = new Map<string, FaixaDaSemana>();
+  for (const o of occ) {
+    const key = `${o.weekday}-${o.bandKey}`;
+    const a = soma.get(key) ?? { weekday: o.weekday, bandKey: o.bandKey, bandLabel: o.bandLabel, avail: 0, booked: 0 };
+    a.avail += o.availableMin; a.booked += o.bookedMin;
+    soma.set(key, a);
+  }
+  return [...soma.values()];
+}
+
 /**
  * Escolhe a faixa mais vazia que valha uma promoção:
  * pelo menos `minAvailableMin` disponíveis e pelo menos `minFreePct`% livre.
