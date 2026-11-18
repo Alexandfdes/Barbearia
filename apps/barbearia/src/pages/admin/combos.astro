@@ -48,8 +48,19 @@ function weekdayLabels(mask: number): string {
 // desconto máximo que mantém o lucro, e as promoções ativas. Nada se ativa sozinho.
 const fuso = fusoDe(tenant);
 const promo = await painelDePromocoes(tenant);
-const sugestoesAbertas = promo.sugestoes.filter((s) => s.bloqueio === null);
-const sugestoesBloqueadas = promo.sugestoes.filter((s) => s.bloqueio !== null);
+// Um cartão por combo, uma linha por horário vazio (18/11/2026): com um cartão inteiro por
+// dia × faixa, o mesmo combo se repetia seis, doze vezes, e o preço cheio junto. Dentro do
+// combo, de segunda a domingo e da manhã à noite; as bloqueadas no fim.
+const ordemDoDia = (d: number) => (d + 6) % 7;
+const gruposDeSugestoes = [...promo.sugestoes.reduce((m, s) => {
+  const g = m.get(s.comboId) ?? [];
+  g.push(s);
+  return m.set(s.comboId, g);
+}, new Map<number, typeof promo.sugestoes>()).values()].map((linhas) =>
+  linhas.sort((a, b) =>
+    Number(a.bloqueio !== null) - Number(b.bloqueio !== null)
+    || ordemDoDia(a.diaDaSemana) - ordemDoDia(b.diaDaSemana)
+    || a.faixa.inicioMin - b.faixa.inicioMin));
 const quando = (d: Date | null) => (d ? formatInTimeZone(d, fuso, 'dd/MM/yyyy') : '');
 const media = (decimos: number) => textoDoPorcento(decimos).replace('%', '');
 const opcoesDeClientesNovos = Array.from(
@@ -168,7 +179,8 @@ const opcoesDeClientesNovos = Array.from(
         )}
         {promo.ativas.map((a) => (
           <div class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3"
-               data-promocao={String(a.id)} data-nome={a.comboNome}>
+               data-promocao={String(a.id)} data-nome={a.comboNome} data-desconto={String(a.descontoPct)}
+               data-quando={`${nomeDoDia(a.diaDaSemana)}, das ${rotuloDaFaixa(a.inicioMin, a.fimMin)}`}>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2">
                 <p class="text-sm font-medium text-slate-900 truncate">{a.comboNome}</p>
@@ -201,57 +213,85 @@ const opcoesDeClientesNovos = Array.from(
             )}
           </div>
         )}
-        {[...sugestoesAbertas, ...sugestoesBloqueadas].map((s) => (
-          <div class="bg-white border border-slate-200 rounded-lg p-4 space-y-2"
-               data-sugestao
-               data-combo={String(s.comboId)} data-dia={String(s.diaDaSemana)} data-faixa={s.faixa.chave}
-               data-limite={String(s.limitePct ?? 0)} data-combo-pct={String(s.comboPct)}
-               data-servico={String(s.servicoCents)} data-produto={String(s.produtoCents)}
-               data-nome={s.comboNome}
-               data-quando={`${nomeDoDia(s.diaDaSemana)} ${s.faixa.rotulo}, das ${rotuloDaFaixa(s.faixa.inicioMin, s.faixa.fimMin)}`}>
-            <div>
-              <p class="text-sm font-medium text-slate-900">{s.comboNome}</p>
-              <p class="text-xs text-slate-600">{nomeDoDia(s.diaDaSemana)} {s.faixa.rotulo}, das {rotuloDaFaixa(s.faixa.inicioMin, s.faixa.fimMin)}</p>
-            </div>
-            <p class="text-xs text-slate-500">
-              Ocupação de {s.ocupacaoPct}% · em média {media(s.mediaDecimos)} atendimento(s) por semana nesse horário
-              ({s.semanas} semanas com atendimento)
-            </p>
-            <p class="text-xs text-slate-500 tabular-nums">
-              Preço cheio: {reais(s.precoCheioCents)}
-              {s.comboPct > 0 && ` · o combo já dá ${s.comboPct}% nesse dia (${reais(precoDoCombo(s.servicoCents, s.produtoCents, s.comboPct))})`}
-            </p>
-            {s.bloqueio === 'sem-custo' && (
-              <p class="text-xs text-amber-700">
-                Informe o custo de "{s.produtoNome}" em <a href="/admin/produtos" class="underline">Produtos</a> para ver o desconto máximo.
+        {gruposDeSugestoes.map((linhas) => {
+          const c = linhas[0];
+          const semCusto = linhas.every((s) => s.bloqueio === 'sem-custo');
+          return (
+          <div class="bg-white border border-slate-200 rounded-lg">
+            <div class="p-4 border-b border-slate-200">
+              <p class="text-sm font-medium text-slate-900">{c.comboNome}</p>
+              <p class="text-xs text-slate-500 tabular-nums">
+                Preço cheio: {reais(c.precoCheioCents)}
+                {c.comboPct > 0 && ` · o combo já dá ${c.comboPct}% (${reais(precoDoCombo(c.servicoCents, c.produtoCents, c.comboPct))})`}
               </p>
-            )}
-            {s.bloqueio === 'sem-espaco' && s.limiteDecimos !== null && (
-              <p class="text-xs text-slate-600">
-                O desconto que mantém o lucro aqui é {textoDoPorcento(s.limiteDecimos)} — não passa do que o combo já dá. Uma promoção não mudaria o preço.
-              </p>
-            )}
-            {s.bloqueio === null && s.limiteDecimos !== null && s.limitePct !== null && (
-              <div class="space-y-2">
-                <p class="text-sm text-slate-800">
-                  Desconto máximo que mantém o lucro: <strong class="tabular-nums">{textoDoPorcento(s.limiteDecimos)}</strong>
+              {semCusto && (
+                <p class="text-xs text-amber-700 mt-1">
+                  Informe o custo de "{c.produtoNome}" em <a href="/admin/produtos" class="underline">Produtos</a> para ver o desconto máximo.
                 </p>
-                <div class="flex flex-wrap items-end gap-2">
-                  <div>
-                    <label for={`desconto-${s.comboId}-${s.diaDaSemana}-${s.faixa.chave}`} class="block text-[11px] text-slate-500 uppercase tracking-widest mb-1">Desconto (%)</label>
-                    <input id={`desconto-${s.comboId}-${s.diaDaSemana}-${s.faixa.chave}`} data-campo-desconto type="number"
-                           min={String(s.comboPct + 1)} max={String(s.limitePct)} step="1" value={String(s.limitePct)}
-                           class="w-24 bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50 tabular-nums" />
+              )}
+            </div>
+            {!semCusto && (
+            <ul class="divide-y divide-slate-100">
+              {linhas.map((s) => {
+                const quando = `${nomeDoDia(s.diaDaSemana)} ${s.faixa.rotulo}, das ${rotuloDaFaixa(s.faixa.inicioMin, s.faixa.fimMin)}`;
+                const idCampo = `desconto-${s.comboId}-${s.diaDaSemana}-${s.faixa.chave}`;
+                return (
+                <li class="px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1"
+                    data-sugestao
+                    data-combo={String(s.comboId)} data-dia={String(s.diaDaSemana)} data-faixa={s.faixa.chave}
+                    data-limite={String(s.limitePct ?? 0)} data-combo-pct={String(s.comboPct)}
+                    data-servico={String(s.servicoCents)} data-produto={String(s.produtoCents)}
+                    data-nome={s.comboNome} data-quando={quando}>
+                  <div class="flex-1 min-w-[12rem]">
+                    <p class="text-sm text-slate-800 first-letter:uppercase">{nomeDoDia(s.diaDaSemana)} {s.faixa.rotulo} <span class="text-xs text-slate-500">· {rotuloDaFaixa(s.faixa.inicioMin, s.faixa.fimMin)}</span></p>
+                    <p class="text-xs text-slate-500"
+                       title={`Em média ${media(s.mediaDecimos)} atendimento(s) por semana nesse horário, em ${s.semanas} semanas com atendimento`}>
+                      Ocupação de {s.ocupacaoPct}%
+                      {s.bloqueio === null && s.limiteDecimos !== null && <> · máximo que mantém o lucro: <strong class="tabular-nums text-slate-700">{textoDoPorcento(s.limiteDecimos)}</strong></>}
+                      {s.bloqueio === 'sem-espaco' && s.limiteDecimos !== null && ` · o máximo que mantém o lucro (${textoDoPorcento(s.limiteDecimos)}) não passa do que o combo já dá`}
+                    </p>
                   </div>
-                  <button type="button" data-acao="ativar" class="px-4 py-2 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest text-xs rounded transition-colors">Ativar…</button>
-                </div>
-                <p data-previa class="text-xs text-slate-600 tabular-nums" aria-live="polite"></p>
-                <p data-erro class="hidden text-xs text-red-600" role="alert"></p>
-              </div>
+                  {s.bloqueio === null && s.limitePct !== null && (
+                    <div class="flex items-center gap-2">
+                      <label for={idCampo} class="sr-only">Desconto em %, {quando}</label>
+                      <input id={idCampo} data-campo-desconto type="number"
+                             min={String(s.comboPct + 1)} max={String(s.limitePct)} step="1" value={String(s.limitePct)}
+                             class="w-20 bg-slate-100 border border-slate-200 rounded px-2 py-1.5 text-sm text-slate-800 focus:outline-none focus:border-teal/50 tabular-nums" />
+                      <span class="text-sm text-slate-500" aria-hidden="true">%</span>
+                      <button type="button" data-acao="ativar" class="px-3 py-1.5 bg-teal hover:bg-teal-hover text-white font-bold uppercase tracking-widest text-[11px] rounded transition-colors">Ativar…</button>
+                    </div>
+                  )}
+                  {s.bloqueio === null && (
+                    <>
+                      <p data-previa class="w-full text-xs text-slate-600 tabular-nums" aria-live="polite"></p>
+                      <p data-erro class="hidden w-full text-xs text-red-600" role="alert"></p>
+                    </>
+                  )}
+                </li>
+                );
+              })}
+            </ul>
             )}
           </div>
-        ))}
+          );
+        })}
       </section>
+    </div>
+
+    <!-- Confirmação de desativar promoção -->
+    <div id="confirmar-desativar" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4"
+         role="dialog" aria-modal="true" aria-labelledby="confirmar-desativar-titulo">
+      <div class="absolute inset-0 bg-black/70" data-fechar-desativar></div>
+      <div class="relative bg-white border border-slate-200 rounded-lg shadow-2xl max-w-sm w-full p-6">
+        <p id="confirmar-desativar-titulo" class="text-base font-medium text-slate-900 mb-2">Desativar a promoção?</p>
+        <p id="confirmar-desativar-texto" class="text-sm text-slate-600 mb-2 leading-relaxed"></p>
+        <p class="text-xs text-slate-500 mb-5">O horário volta ao preço do combo para os agendamentos novos. Os já marcados continuam com o preço que tinham.</p>
+        <p id="confirmar-desativar-erro" class="hidden text-xs text-red-600 mb-3" role="alert"></p>
+        <div class="flex gap-2 justify-end">
+          <button type="button" data-fechar-desativar class="px-4 py-2 rounded text-sm font-medium text-slate-700 border border-slate-200 hover:bg-slate-100 transition-colors">Voltar</button>
+          <button type="button" id="confirmar-desativar-ok" class="px-4 py-2 rounded text-sm font-bold text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50">Desativar</button>
+        </div>
+      </div>
     </div>
 
     <!-- Confirmação de ativar promoção -->
@@ -497,18 +537,54 @@ const opcoesDeClientesNovos = Array.from(
   });
 
   // ── Desativar ────────────────────────────────────────────────────────────────
+  // A janela da tela, não o confirm() do navegador (18/11/2026, pedido do dono).
+  const janelaDesativar = document.getElementById('confirmar-desativar') as HTMLElement;
+  const textoDesativar = document.getElementById('confirmar-desativar-texto') as HTMLElement;
+  const erroDesativar = document.getElementById('confirmar-desativar-erro') as HTMLElement;
+  const okDesativar = document.getElementById('confirmar-desativar-ok') as HTMLButtonElement;
+  let aDesativar: string | null = null;
+  let voltarFocoPara: HTMLElement | null = null;
+
+  function fecharDesativar() {
+    janelaDesativar.classList.add('hidden');
+    aDesativar = null;
+    voltarFocoPara?.focus();
+  }
+  janelaDesativar.querySelectorAll('[data-fechar-desativar]').forEach((b) => b.addEventListener('click', fecharDesativar));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !janelaDesativar.classList.contains('hidden')) fecharDesativar();
+  });
+
   document.querySelectorAll<HTMLElement>('[data-promocao]').forEach((el) => {
-    el.querySelector('[data-acao="desativar"]')?.addEventListener('click', async () => {
-      if (!confirm(`Desativar a promoção de "${el.dataset.nome}"? Os agendamentos já feitos continuam com o preço que tinham.`)) return;
-      const res = await fetch(`/api/admin/promocoes/${el.dataset.promocao}`, {
+    const botao = el.querySelector<HTMLElement>('[data-acao="desativar"]');
+    botao?.addEventListener('click', () => {
+      aDesativar = el.dataset.promocao ?? null;
+      voltarFocoPara = botao;
+      textoDesativar.textContent = `${el.dataset.nome}, ${el.dataset.quando ?? ''}, ${el.dataset.desconto ?? ''}% OFF.`;
+      erroDesativar.classList.add('hidden');
+      okDesativar.disabled = false;
+      janelaDesativar.classList.remove('hidden');
+      okDesativar.focus();
+    });
+  });
+
+  okDesativar.addEventListener('click', async () => {
+    if (!aDesativar) return;
+    okDesativar.disabled = true;
+    try {
+      const res = await fetch(`/api/admin/promocoes/${aDesativar}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ativa: false }),
       });
       if (res.ok) { location.hash = 'promocoes'; location.reload(); return; }
       const data = await res.json().catch(() => ({}));
-      alert(data.error ?? 'Não deu para desativar. Atualize a tela.');
-    });
+      erroDesativar.textContent = data.error ?? 'Não deu para desativar. Atualize a tela.';
+    } catch {
+      erroDesativar.textContent = 'Erro de conexão. Tente de novo.';
+    }
+    erroDesativar.classList.remove('hidden');
+    okDesativar.disabled = false;
   });
 
   // ── Ativar: o desconto, a prévia do preço e a confirmação ───────────────────
@@ -554,8 +630,8 @@ const opcoesDeClientesNovos = Array.from(
       erro.classList.add('hidden');
       previa.textContent = `O cliente paga ${reais(precoDoCombo(servico, produto, r.pct))} — de ${reais(cheio)}, o preço cheio.`;
     };
+    // A prévia aparece quando o dono mexe no campo — aberta em toda linha, a lista virava texto.
     campo.addEventListener('input', mostrar);
-    mostrar();
 
     el.querySelector('[data-acao="ativar"]')?.addEventListener('click', () => {
       const r = lido();
