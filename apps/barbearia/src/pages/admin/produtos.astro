@@ -49,7 +49,8 @@ const reais = (c: number) => (c / 100).toFixed(2);
       {list.map(p => (
         <div class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-3"
              data-id={String(p.id)} data-name={p.name} data-desc={p.shortDesc ?? ''}
-             data-price={reais(p.priceCents)} data-active={String(p.active)} data-image={p.image ?? ''}>
+             data-price={reais(p.priceCents)} data-cost={p.costCents == null ? '' : reais(p.costCents)}
+             data-active={String(p.active)} data-image={p.image ?? ''}>
           <div class="w-14 h-14 shrink-0 rounded-md overflow-hidden bg-slate-100 border border-slate-200">
             {p.image
               ? <img src={p.image} alt={p.name} class="w-full h-full object-cover" />
@@ -62,6 +63,7 @@ const reais = (c: number) => (c / 100).toFixed(2);
             </div>
             <p class="text-xs text-slate-500 truncate">{p.shortDesc}</p>
             <p class="text-sm font-semibold text-teal tabular-nums mt-0.5">{brl(p.priceCents)}</p>
+            <p class="text-[11px] text-slate-500 tabular-nums">{p.costCents == null ? 'Custo não informado' : `Custo ${brl(p.costCents)}`}</p>
           </div>
           <div class="flex flex-col gap-1.5 shrink-0">
             <button data-action="edit" class="text-[11px] px-2.5 py-1 rounded border border-slate-200 hover:border-teal/30 text-slate-700 hover:text-teal transition-colors">Editar</button>
@@ -96,6 +98,11 @@ const reais = (c: number) => (c / 100).toFixed(2);
           <input id="f-price" type="number" min="0" step="0.01" class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50 tabular-nums" />
         </div>
         <div>
+          <label for="f-cost" class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Custo (R$) — opcional</label>
+          <input id="f-cost" type="number" min="0" step="0.01" aria-describedby="f-cost-ajuda" class="w-full bg-slate-100 border border-slate-200 rounded px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-teal/50 tabular-nums" />
+          <p id="f-cost-ajuda" class="text-[11px] text-slate-500 mt-1">Quanto o produto custa para você. Só você vê. Sem ele, o painel não calcula a promoção dos combos com este produto.</p>
+        </div>
+        <div>
           <label class="block text-xs text-slate-500 uppercase tracking-widest mb-1.5">Foto</label>
           <div class="flex items-center gap-3">
             <img id="f-preview" class="hidden w-14 h-14 rounded-md object-cover border border-slate-200" />
@@ -121,24 +128,25 @@ const reais = (c: number) => (c / 100).toFixed(2);
   const fName   = document.getElementById('f-name') as HTMLInputElement;
   const fDesc   = document.getElementById('f-desc') as HTMLTextAreaElement;
   const fPrice  = document.getElementById('f-price') as HTMLInputElement;
+  const fCost   = document.getElementById('f-cost') as HTMLInputElement;
   const fImage  = document.getElementById('f-image') as HTMLInputElement;
   const fActive = document.getElementById('f-active') as HTMLInputElement;
   const fPrev   = document.getElementById('f-preview') as HTMLImageElement;
   const errEl   = document.getElementById('modal-error') as HTMLElement;
   const saveBtn = document.getElementById('f-save') as HTMLButtonElement;
 
-  function openModal(edit?: { id: string; name: string; desc: string; price: string; active: boolean; image: string }) {
+  function openModal(edit?: { id: string; name: string; desc: string; price: string; cost: string; active: boolean; image: string }) {
     errEl.classList.add('hidden'); errEl.textContent = '';
     fImage.value = '';
     if (edit) {
       title.textContent = 'Editar produto';
       fId.value = edit.id; fName.value = edit.name; fDesc.value = edit.desc;
-      fPrice.value = edit.price; fActive.checked = edit.active;
+      fPrice.value = edit.price; fCost.value = edit.cost; fActive.checked = edit.active;
       if (edit.image) { fPrev.src = edit.image; fPrev.classList.remove('hidden'); }
       else fPrev.classList.add('hidden');
     } else {
       title.textContent = 'Novo produto';
-      fId.value = ''; fName.value = ''; fDesc.value = ''; fPrice.value = ''; fActive.checked = true;
+      fId.value = ''; fName.value = ''; fDesc.value = ''; fPrice.value = ''; fCost.value = ''; fActive.checked = true;
       fPrev.classList.add('hidden');
     }
     modal.classList.remove('hidden');
@@ -159,7 +167,7 @@ const reais = (c: number) => (c / 100).toFixed(2);
     const id = el.dataset.id!;
     el.querySelector('[data-action="edit"]')?.addEventListener('click', () => openModal({
       id, name: el.dataset.name ?? '', desc: el.dataset.desc ?? '',
-      price: el.dataset.price ?? '', active: el.dataset.active === 'true', image: el.dataset.image ?? '',
+      price: el.dataset.price ?? '', cost: el.dataset.cost ?? '', active: el.dataset.active === 'true', image: el.dataset.image ?? '',
     }));
     el.querySelector('[data-action="toggle"]')?.addEventListener('click', async () => {
       const fd = new FormData(); fd.set('active', el.dataset.active === 'true' ? 'false' : 'true');
@@ -184,6 +192,8 @@ const reais = (c: number) => (c / 100).toFixed(2);
     fd.set('name', name);
     fd.set('shortDesc', fDesc.value.trim());
     fd.set('price', price);
+    // Vazio apaga o custo: "não informado" (a promoção do combo volta a ficar bloqueada).
+    fd.set('cost', fCost.value.trim());
     fd.set('active', fActive.checked ? 'true' : 'false');
     if (fImage.files?.[0]) fd.set('image', fImage.files[0]);
 

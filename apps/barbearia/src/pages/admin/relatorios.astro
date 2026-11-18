@@ -8,7 +8,7 @@ import { db } from '../../db/index.js';
 import { appointments, appointmentItems, barbers, services, workingHours, timeOff, productSales } from '../../db/schema.js';
 import { and, gte, lt, eq, ne, or, isNull } from 'drizzle-orm';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
-import { computeOccupancy } from '../../lib/occupancy.js';
+import { computeOccupancy, somarPorDiaDaSemanaEFaixa } from '../../lib/occupancy.js';
 import { tenantDaSessao } from '../../lib/tenant.js';
 import { ehOBayron } from '../../lib/bayron.js';
 import { getSettings } from '../../lib/settings.js';
@@ -254,14 +254,7 @@ for (const o of occ) { totalAvail += o.availableMin; totalBooked += o.bookedMin;
 const ocupacaoPct = totalAvail > 0 ? Math.round((totalBooked / totalAvail) * 100) : 0;
 
 // Faixa (dia da semana × período) historicamente mais vazia
-const aggBand = new Map<string, { weekday: number; bandKey: string; bandLabel: string; avail: number; booked: number }>();
-for (const o of occ) {
-  const key = `${o.weekday}-${o.bandKey}`;
-  const a = aggBand.get(key) ?? { weekday: o.weekday, bandKey: o.bandKey, bandLabel: o.bandLabel, avail: 0, booked: 0 };
-  a.avail += o.availableMin; a.booked += o.bookedMin;
-  aggBand.set(key, a);
-}
-const bandRank = [...aggBand.values()]
+const bandRank = somarPorDiaDaSemanaEFaixa(occ)
   .filter(a => a.avail >= 120)
   .map(a => ({ ...a, freePct: Math.round(100 * (1 - a.booked / a.avail)) }))
   .sort((a, b) => b.freePct - a.freePct);

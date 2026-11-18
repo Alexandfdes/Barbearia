@@ -147,6 +147,11 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   que mostre um ou outro usa a regra, não a sua conta — cada tela fazia a sua, e a linha da agenda
   dizia R$ 50 onde a receita contava R$ 80. Para o cliente, `totalParaOCliente`: o combo conta
   desde o agendamento (`tests/valor-do-atendimento.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.43).
+- **O que o cadastro grava cabe em Configurações:** `LIMITES_DO_CADASTRO`
+  (`apps/barbearia/src/lib/provisionarBarbearia.ts`) são os tetos de `apps/barbearia/src/pages/api/admin/settings.ts` e os
+  `maxlength` do `/cadastrar`. Passar num lugar só travava o Salvar inteiro de Configurações. Campo novo que o cadastro
+  grava entra nos três, e todo teto de lá leva a frase em português — sem ela, o zod responde em inglês
+  (`tests/cadastro-cabe-em-configuracoes.test.ts`; `docs/PENDENCIAS-ABERTAS.md` §2.71).
 - **Configurações é em abas:** campo novo entra num bloco de `secoes` (com `aba` e `ancora`) de
   `apps/barbearia/src/pages/admin/configuracoes.astro`, e link para ele usa
   `/admin/configuracoes#<ancora>` — a tela abre a aba certa (`tests/configuracoes-em-abas.test.ts`;

@@ -1,7 +1,7 @@
 # Estado atual do código — comece por aqui
 
 > Registro vivo de **onde o código está**, para quem chega ao projeto ou volta
-> depois de um tempo. Atualizado: 12/11/2026 (§8).
+> depois de um tempo. Atualizado: 14/11/2026 (§1 e §8).
 >
 > Companheiro de `PENDENCIAS-ABERTAS.md` (o que ainda não foi **decidido**).
 > Este documento é sobre o que já foi **feito** e o que está pela metade.
@@ -23,15 +23,17 @@
    (decisão de 28/10: o banco dele é fictício) — o site antigo dele é do outro repositório, o
    `Alexandfdes/Barbearia-Bayron`, em SQLite.
 3. A `main` recebe a `monorepo` por PR, e é dela que o EasyPanel constrói — com o clique em Implantar, que não
-   é automático, e o app e o site de vendas têm um Implantar cada (`PENDENCIAS-ABERTAS.md` §3.2). Os últimos foram os
-   de 11/11/2026: o do app com a migration 0021, e o do site de vendas com o botão da landing levando ao cadastro
-   (conferido de fora). O que veio depois está só na `monorepo` (§8). *(Corrigido em 10/11/2026: estas duas linhas
+   é automático, e o app e o site de vendas têm um Implantar cada (`PENDENCIAS-ABERTAS.md` §3.2). O último do app foi
+   entre 12 e 14/11/2026, com o que estava pronto até 12/11 — o aviso do backup, o diagnóstico do envio, o
+   `S3_SO_IPV4` e o CEP —, sem migration nova: continua a 0021 (visto de fora em 14/11, pelo campo CEP no cadastro; o
+   dia exato, daqui não se sabe). O do site de vendas foi em 11/11, com o botão da landing levando ao cadastro. O que
+   veio depois — os limites do cadastro, de 12/11 — está só na `monorepo` (§8). *(Corrigido em 10/11/2026: estas duas linhas
    diziam que o app novo estava no ar com o código de 10/10 e que a `main` tinha parado no PR #1 — o estado de 16/10.)*
 4. O site do Bayron está **no ar** e não foi afetado por nada disto.
 5. Antes de mexer, leia as quatro skills em `.claude/skills/` — são regras que já
    custaram erro aqui.
 
-**O próximo passo concreto está no `PENDENCIAS-ABERTAS.md` §6** — o de hoje é seu: o push, o merge e o Implantar do que ficou pronto em 10/11 à noite, com a migration 0021 (`PENDENCIAS-ABERTAS.md` §3.2).
+**O próximo passo concreto está no `PENDENCIAS-ABERTAS.md` §6** — o de agora é seu, no ar: o print do diagnóstico do envio do backup, rodado no Console do servidor (`PENDENCIAS-ABERTAS.md` §3.3), e o primeiro CEP de verdade (`PENDENCIAS-ABERTAS.md` §2.71). Depois, o push, o merge e o Implantar dos limites do cadastro (`PENDENCIAS-ABERTAS.md` §3.2). *(Até 14/11 esta linha mandava fazer o deploy de 11/11, feito naquele dia.)*
 
 ## 2. Como o repositório está organizado
 
@@ -366,6 +368,8 @@ dono não reparou vira o preço no site dele.
 
 | Quando | O quê |
 |---|---|
+| 17/11 | **Promoções em horários vazios** (`PENDENCIAS-ABERTAS.md` §2.72), pedido pelo dono — na branch `promocoes-horarios-ociosos`, **não** na `monorepo` e sem push. A aba Promoções de `/admin/combos` mostra, por combo, dia e faixa ociosa (abaixo de 30% nas últimas 8 semanas), o desconto máximo que mantém o lucro, g/(x + g) × (P − v)/P, só com inteiros; o dono ativa com confirmação, e o agendamento grava o preço e a promoção. Migration 0022: o custo do produto, o g da barbearia, a tabela `promocoes` e `appointments.promocao_id`. **Verificado:** 1616 casos, 1590 passam e as mesmas 15 falhas de antes da mudança (todas de ambiente ou do relógio, `PENDENCIAS-ABERTAS.md` §2.72); 57 casos novos; 22 defeitos reintroduzidos, 20 vermelhos e 2 equivalentes; `astro check` com zero; e no navegador, contra um banco à parte. ⚠️ `apps/barbearia/tests/aprovacao-do-site.test.ts` falha desde ~12/11 por relógio — anterior a esta entrega |
+| 12/11, madrugada | **O que o cadastro grava cabe em Configurações** (`PENDENCIAS-ABERTAS.md` §2.71), achado fazendo o CEP: em seis campos o cadastro aceitava mais — o nome, o nome curto, a rua, a cidade, o "sobre" e o @ —, e quem passasse não salvava nada em Configurações, com o aviso em inglês. Agora `LIMITES_DO_CADASTRO` (`apps/barbearia/src/lib/provisionarBarbearia.ts`) são os de lá, para a web e para o script; o nome curto nasce cortado na última palavra que cabe; todo teto de Configurações fala português; e, no celular, a cidade e o estado empilhados. **Verificado:** 135 arquivos, **1559 de 1559** contra PostgreSQL 16; `astro check` com zero; 18 defeitos reintroduzidos, os 18 vermelhos; e contra o build, num navegador |
 | 12/11 | **O CEP preenche o endereço, no cadastro e em Configurações** (`PENDENCIAS-ABERTAS.md` §2.71), pedido pelo dono: no oitavo número, a rua vem com a vírgula e o cursor para o número, e a cidade e o estado junto; o CEP não fica guardado. A busca sai do navegador direto para o ViaCEP, com a BrasilAPI de reserva — sem rota no servidor. ⚠️ Nunca conferido contra os serviços de verdade: o primeiro CEP digitado no `npm run dev` é a conferência. **Verificado:** 134 arquivos, **1544 de 1544** contra PostgreSQL 16; `astro check` com zero; 28 defeitos reintroduzidos, os 28 vermelhos — 1 só depois de o teste ganhar o caso que faltava; e contra o build, num navegador, com os dois serviços interceptados |
 | 11/11, noite | **O aviso ao operador do backup que não sobe para fora do servidor** (`PENDENCIAS-ABERTAS.md` §3.3): o envio para o armazenamento de fora era recusado desde a tarde de 10/11, e a falha passou mais de um dia num log que ninguém lê. Agora, a tarefa de hora em hora manda um e-mail por dia ao `OPERADOR_EMAIL` enquanto o envio falhar ou parar — a mesma regra da tela de Sistema, que saiu de `lib/operadorSistema.ts` para `lib/backupNoDisco.ts`: a tela conversa com a Asaas, e a tarefa não pode chegar à cobrança. E **o diagnóstico do envio num comando** (`scripts/diagnosticar-envio.mjs`): a rede do container, o DNS do armazenamento, envios de tamanhos crescentes com o tempo de cada um e os que falharem de novo com IPv4 forçado, pelo mesmo `enviarParaS3` do backup; e `S3_SO_IPV4=1`, o envio só por IPv4, pronto para o caso de o diagnóstico apontar o IPv6. E **o roteiro de produção ensaiado contra o build**, num navegador: o §1 (inclusive as fotos numa barbearia nova, na pasta dela, e uma barbearia sem ver as da outra), o §4 a §7 e o §9.1 a §9.3 — nenhum defeito. **Verificado:** 133 arquivos, **1507 de 1507** contra PostgreSQL 16; `astro check` com zero; 36 defeitos reintroduzidos, os 36 vermelhos — 5 só depois de o teste ficar mais forte; e os casos do aviso no fuso do processo em UTC, Tóquio e Manaus |
 | 10/11, 23h | **O cadastro abre ao público, e a landing passa a levar a ele** — decidido pelo dono, com a cobrança e o termo ainda faltando (`PENDENCIAS-ABERTAS.md` §2.31). É configuração, não código: `CADASTRO_ABERTO=1` também no site de vendas, conferido contra o build. ⚠️ **Conferido de fora às 23h: ainda não aplicado** — os botões da landing no ar abrem o WhatsApp, e o passo 4 ainda diz "No ar, agendando": o site de vendas não recebeu o Implantar de 10/11. E os documentos e as skills revistos: o índice de `docs/` ainda mandava executar o roteiro de migração do Bayron, o `CLAUDE.md` dava a produção na migration 0018, e a jornada citava linhas que tinham andado |
