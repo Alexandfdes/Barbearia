@@ -1,7 +1,7 @@
 # Estado atual do código — comece por aqui
 
 > Registro vivo de **onde o código está**, para quem chega ao projeto ou volta
-> depois de um tempo. Atualizado: 14/11/2026 (§1 e §8).
+> depois de um tempo. Atualizado: 18/11/2026 (§1).
 >
 > Companheiro de `PENDENCIAS-ABERTAS.md` (o que ainda não foi **decidido**).
 > Este documento é sobre o que já foi **feito** e o que está pela metade.
@@ -24,16 +24,17 @@
    `Alexandfdes/Barbearia-Bayron`, em SQLite.
 3. A `main` recebe a `monorepo` por PR, e é dela que o EasyPanel constrói — com o clique em Implantar, que não
    é automático, e o app e o site de vendas têm um Implantar cada (`PENDENCIAS-ABERTAS.md` §3.2). O último do app foi
-   entre 12 e 14/11/2026, com o que estava pronto até 12/11 — o aviso do backup, o diagnóstico do envio, o
-   `S3_SO_IPV4` e o CEP —, sem migration nova: continua a 0021 (visto de fora em 14/11, pelo campo CEP no cadastro; o
-   dia exato, daqui não se sabe). O do site de vendas foi em 11/11, com o botão da landing levando ao cadastro. O que
-   veio depois — os limites do cadastro, de 12/11 — está só na `monorepo` (§8). *(Corrigido em 10/11/2026: estas duas linhas
+   em **18/11/2026, às 20:55**, com o PR #8 (commit `1a6a306`): as promoções em horários vazios, os limites do
+   cadastro e a foto do combo — e a **migration 0022**, com o backup tirado antes dela (visto no log do boot, mostrado
+   pelo dono; e de fora, às 21h: `/api/admin/promocoes` passou de 404 a 401, como as outras rotas do painel). A
+   `monorepo` está igual à `main` desde então. O do site de vendas foi em 11/11, com o botão da landing levando ao
+   cadastro; o PR #8 não mexeu em `apps/vendas`. *(Corrigido em 10/11/2026: estas duas linhas
    diziam que o app novo estava no ar com o código de 10/10 e que a `main` tinha parado no PR #1 — o estado de 16/10.)*
 4. O site do Bayron está **no ar** e não foi afetado por nada disto.
 5. Antes de mexer, leia as quatro skills em `.claude/skills/` — são regras que já
    custaram erro aqui.
 
-**O próximo passo concreto está no `PENDENCIAS-ABERTAS.md` §6** — o de agora é seu, no ar: o print do diagnóstico do envio do backup, rodado no Console do servidor (`PENDENCIAS-ABERTAS.md` §3.3), e o primeiro CEP de verdade (`PENDENCIAS-ABERTAS.md` §2.71). Depois, o push, o merge e o Implantar dos limites do cadastro (`PENDENCIAS-ABERTAS.md` §3.2). *(Até 14/11 esta linha mandava fazer o deploy de 11/11, feito naquele dia.)*
+**O próximo passo concreto está no `PENDENCIAS-ABERTAS.md` §6** — o de agora é seu, no ar: o print do diagnóstico do envio do backup, rodado no Console do servidor (`PENDENCIAS-ABERTAS.md` §3.3), e o primeiro CEP de verdade (`PENDENCIAS-ABERTAS.md` §2.71) — o envio do backup para fora continuava recusado no boot de 18/11 (`IncompleteBody`, HTTP 400). E as cinco decisões das promoções (`PENDENCIAS-ABERTAS.md` §2.72). *(Até 18/11 esta linha mandava fazer o push, o merge e o Implantar dos limites do cadastro, feitos naquele dia com o PR #8.)*
 
 ## 2. Como o repositório está organizado
 
