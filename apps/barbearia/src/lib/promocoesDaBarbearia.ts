@@ -23,7 +23,7 @@ import { and, eq, gt, gte, inArray, lt, ne } from 'drizzle-orm';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { db } from '../db/index.js';
 import {
-  appointments, barbers, barberServices, combos, products, promocoes, services, timeOff, workingHours,
+  appointments, barbers, barberServices, combos, products, promocoes, services, settings, timeOff, workingHours,
 } from '../db/schema.js';
 import type { Tenant } from './tenant.js';
 import { fusoDe } from './timezone.js';
@@ -339,6 +339,13 @@ export async function ativarPromocao(
       ativadaPor: quemAtiva,
       ativadaEm: agora,
     }).returning({ id: promocoes.id });
+    // A conta foi feita antes do INSERT, sem trava (19/11/2026): se o preço, o custo, o combo ou os
+    // clientes novos mudaram nesse meio-tempo, a desativação que a mudança dispara não achou esta
+    // promoção — ela ainda não existia. Relidos agora, depois de gravada: diferiu, ela sai na hora.
+    if (!(await mesmosValores(tenant.id, s, painel.clientesNovos))) {
+      await desativarPromocao(tenant.id, nova.id, agora);
+      return { ok: false, status: 409, erro: 'O preço, o custo ou o combo mudou enquanto a promoção era ativada. Atualize a tela e confira o limite novo.' };
+    }
     return { ok: true, id: nova.id };
   } catch (err) {
     if (violouUnico(err, 'promocoes_uma_ativa_por_faixa')) {
@@ -346,6 +353,29 @@ export async function ativarPromocao(
     }
     throw err;
   }
+}
+
+/** Os valores que entraram no limite de `s` continuam os do banco — lidos dele, sem o cache das configurações. */
+async function mesmosValores(tenantId: number, s: SugestaoDePromocao, clientesNovos: number): Promise<boolean> {
+  const [agora] = await db
+    .select({
+      servicoCents: services.priceCents, produtoCents: products.priceCents, custoCents: products.costCents,
+      produtoId: products.id, descontoPct: combos.discountPct, weekdays: combos.weekdays, ativo: combos.active,
+    })
+    .from(combos)
+    .innerJoin(services, and(eq(services.id, combos.serviceId), eq(services.tenantId, tenantId)))
+    .innerJoin(products, and(eq(products.id, combos.productId), eq(products.tenantId, tenantId)))
+    .where(and(eq(combos.id, s.comboId), eq(combos.tenantId, tenantId)));
+  const [cfg] = await db.select({ g: settings.promoClientesNovos }).from(settings).where(eq(settings.tenantId, tenantId));
+  return Boolean(agora && cfg)
+    && agora.ativo
+    && agora.servicoCents === s.servicoCents
+    && agora.produtoCents === s.produtoCents
+    && agora.produtoId === s.produtoId
+    && agora.custoCents === s.custoCents
+    && agora.descontoPct === s.comboPct
+    && (agora.weekdays & (1 << s.diaDaSemana)) !== 0
+    && cfg.g === clientesNovos;
 }
 
 /**
@@ -370,9 +400,18 @@ export async function desativarPromocao(tenantId: number, id: number, agora: Dat
  */
 export async function desativarPromocoesAfetadas(
   tenantId: number,
-  pelo: { comboId: number } | { serviceId: number } | { productId: number },
+  pelo: { comboId: number } | { serviceId: number } | { productId: number } | { todas: true },
   agora: Date = new Date(),
 ): Promise<number> {
+  // `todas`: o que mudou vale para a barbearia inteira — os clientes novos (g) que o dono estima
+  // (19/11/2026). Com um g menor, o limite de cada promoção ativa é menor.
+  if ('todas' in pelo) {
+    const feitas = await db.update(promocoes)
+      .set({ ativa: false, desativadaEm: agora })
+      .where(and(eq(promocoes.tenantId, tenantId), eq(promocoes.ativa, true)))
+      .returning({ id: promocoes.id });
+    return feitas.length;
+  }
   const ids = 'comboId' in pelo
     ? [pelo.comboId]
     : (await db.select({ id: combos.id }).from(combos).where(and(
