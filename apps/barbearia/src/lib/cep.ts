@@ -176,7 +176,20 @@ export async function buscarCep(texto: string, opcoes: OpcoesDaBusca = {}): Prom
 
 // ── A rua no campo ───────────────────────────────────────────────────────────
 
-/** Para comparar rua com rua: sem acento, sem maiúscula, um espaço só. */
+/**
+ * As abreviações do tipo de logradouro, por extenso — "R. das Flores" é a "Rua das Flores" do CEP. Sem
+ * isto, quem tinha "R. das Flores, 42" em Configurações e digitava o CEP perdia o 42 (19/11/2026).
+ */
+const TIPOS_ABREVIADOS: Record<string, string> = {
+  r: 'rua', av: 'avenida', tv: 'travessa', trav: 'travessa', al: 'alameda', pca: 'praca', pc: 'praca',
+  rod: 'rodovia', est: 'estrada', lgo: 'largo', lg: 'largo', vl: 'vila',
+};
+
+/** O tipo abreviado do começo, por extenso: "r. das flores" → "rua das flores". */
+const porExtenso = (t: string) =>
+  t.replace(/^([a-z]+)(?:\.\s*|\s+)/, (inteiro, tipo: string) => (TIPOS_ABREVIADOS[tipo] ? `${TIPOS_ABREVIADOS[tipo]} ` : inteiro));
+
+/** Para comparar rua com rua: sem acento, sem maiúscula, um espaço só — e o tipo por extenso, em `ruaNoCampo`. */
 const comparavel = (t: string) =>
   t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
@@ -196,8 +209,8 @@ const comparavel = (t: string) =>
 export function ruaNoCampo(atual: string, achada: string): string | null {
   const rua = achada.trim();
   if (!rua) return null;
-  const a = comparavel(atual);
-  const r = comparavel(rua);
+  const a = porExtenso(comparavel(atual));
+  const r = porExtenso(comparavel(rua));
   if (a.startsWith(r) && /^\s*[^\s\p{L}]/u.test(a.slice(r.length))) return null;
   return `${rua}, `;
 }
@@ -228,6 +241,18 @@ export interface CampoDeTexto {
   dispatchEvent?(evento: Event): boolean;
   focus?(): void;
   setSelectionRange?(inicio: number, fim: number): void;
+  /** Onde está o cursor — o `<input>` tem; sem ele, a máscara não o devolve ao lugar. */
+  selectionStart?: number | null;
+}
+
+/** A posição, em `texto`, logo depois do `n`-ésimo número — para o cursor voltar ao lugar depois da máscara. */
+export function posicaoDepoisDosNumeros(texto: string, n: number): number {
+  if (n <= 0) return 0;
+  let vistos = 0;
+  for (let i = 0; i < texto.length; i++) {
+    if (/\d/.test(texto[i]) && ++vistos === n) return i + 1;
+  }
+  return texto.length;
 }
 
 export interface LigacaoDoCep {
@@ -264,7 +289,17 @@ export function ligarBuscaDoCep({ cep, aviso, rua, cidade, buscar = (c, sinal) =
 
   cep.addEventListener('input', () => {
     const escrito = mascaraDoCep(cep.value);
-    if (escrito !== cep.value) cep.value = escrito;
+    if (escrito !== cep.value) {
+      // Regravar o campo joga o cursor para o fim: quem corrigia um número no meio do CEP digitava o
+      // próximo no lugar errado (19/11/2026). Ele volta para depois dos mesmos números de antes.
+      const cursor = typeof cep.selectionStart === 'number' ? cep.selectionStart : null;
+      const numerosAntes = cursor === null ? null : cep.value.slice(0, cursor).replace(/\D/g, '').length;
+      cep.value = escrito;
+      if (numerosAntes !== null) {
+        const p = posicaoDepoisDosNumeros(escrito, numerosAntes);
+        cep.setSelectionRange?.(p, p);
+      }
+    }
     emCurso?.abort();
     emCurso = null;
     const digitos = digitosDoCep(escrito);
