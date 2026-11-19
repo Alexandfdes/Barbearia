@@ -34,7 +34,7 @@
 5. Antes de mexer, leia as quatro skills em `.claude/skills/` — são regras que já
    custaram erro aqui.
 
-**O próximo passo concreto está no `PENDENCIAS-ABERTAS.md` §6** — o de agora é seu, no ar: o print do diagnóstico do envio do backup, rodado no Console do servidor (`PENDENCIAS-ABERTAS.md` §3.3), e o primeiro CEP de verdade (`PENDENCIAS-ABERTAS.md` §2.71) — o envio do backup para fora continuava recusado no boot de 18/11 (`IncompleteBody`, HTTP 400). E as cinco decisões das promoções (`PENDENCIAS-ABERTAS.md` §2.72). *(Até 18/11 esta linha mandava fazer o push, o merge e o Implantar dos limites do cadastro, feitos naquele dia com o PR #8.)*
+**O próximo passo concreto está no `PENDENCIAS-ABERTAS.md` §6** — o de agora é seu: o primeiro CEP de verdade (`PENDENCIAS-ABERTAS.md` §2.71), as cinco decisões das promoções (`PENDENCIAS-ABERTAS.md` §2.72) e restaurar uma vez o backup de fora (`PENDENCIAS-ABERTAS.md` §3.3) — o envio para fora voltou em 19/11, com a chave nova do Backblaze. *(Até 19/11 esta linha pedia o diagnóstico do envio, feito naquela madrugada; até 18/11, o push, o merge e o Implantar dos limites do cadastro.)*
 
 ## 2. Como o repositório está organizado
 
