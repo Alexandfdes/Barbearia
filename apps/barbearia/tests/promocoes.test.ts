@@ -7,6 +7,7 @@
 // Roda igual com o processo em UTC e em Fortaleza — o horário de cada caso vem com o fuso
 // escrito, nunca do relógio de quem roda.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   clientesNovosValido, custoDoCampo, descontoMaximo, emDecimosDePorcento, faixaOciosa,
   limiteDoCampo, porcentoInteiroAte, textoDoPorcento,
@@ -176,5 +177,27 @@ describe('o dia e a hora são os da barbearia — com o processo em qualquer fus
     expect(dias.every((d) => diaDaSemana(d) === 2)).toBe(true);
     expect(diasDaSemanaAnteriores(terca, 1)[0]).toBe(somarDias(terca, -1));
     expect(diasDaSemanaAnteriores(terca, 3)[0]).toBe(somarDias(terca, -6));
+  });
+});
+
+describe('as janelas de confirmação da aba Promoções (19/11/2026)', () => {
+  // A de ativar não se anunciava como janela, não fechava com Esc e não devolvia o foco — a de
+  // desativar fazia as três. A tela não abre aqui sem barbearia com histórico: conferido no fonte.
+  const fonte = readFileSync('src/pages/admin/combos.astro', 'utf8');
+
+  it('as duas se anunciam como janela, com o título', () => {
+    for (const id of ['confirmar-promocao', 'confirmar-desativar']) {
+      const abre = new RegExp(`<div id="${id}"[^>]*>`).exec(fonte)?.[0] ?? '';
+      expect(abre, id).toMatch(/role="dialog"/);
+      expect(abre, id).toMatch(/aria-modal="true"/);
+      expect(abre, id).toMatch(new RegExp(`aria-labelledby="${id}-titulo"`));
+      expect(fonte, id).toMatch(new RegExp(`id="${id}-titulo"`));
+    }
+  });
+
+  it('a de ativar fecha com Esc e devolve o foco ao botão de onde veio', () => {
+    expect(fonte).toMatch(/e\.key === 'Escape' && !confirmacao\.classList\.contains\('hidden'\)\) fecharConfirmacao\(\)/);
+    expect(fonte).toMatch(/function fecharConfirmacao\(\) \{[^}]*voltarDaConfirmacao\?\.focus\(\);/);
+    expect(fonte).toMatch(/voltarDaConfirmacao = botaoAtivar;/);
   });
 });

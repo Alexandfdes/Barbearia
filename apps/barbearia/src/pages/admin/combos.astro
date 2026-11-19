@@ -295,10 +295,11 @@ const opcoesDeClientesNovos = Array.from(
     </div>
 
     <!-- Confirmação de ativar promoção -->
-    <div id="confirmar-promocao" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4">
+    <div id="confirmar-promocao" class="hidden fixed inset-0 z-50 flex items-center justify-center px-4"
+         role="dialog" aria-modal="true" aria-labelledby="confirmar-promocao-titulo">
       <div class="absolute inset-0 bg-black/70" data-fechar-confirmacao></div>
       <div class="relative bg-white border border-slate-200 rounded-lg shadow-2xl max-w-sm w-full p-6">
-        <p class="text-base font-medium text-slate-900 mb-2">Ativar a promoção?</p>
+        <p id="confirmar-promocao-titulo" class="text-base font-medium text-slate-900 mb-2">Ativar a promoção?</p>
         <p id="confirmar-promocao-texto" class="text-sm text-slate-600 mb-2 leading-relaxed"></p>
         <p class="text-xs text-slate-500 mb-5">Vale para os agendamentos novos pelo site. Os já marcados continuam com o preço que tinham.</p>
         <p id="confirmar-promocao-erro" class="hidden text-xs text-red-600 mb-3" role="alert"></p>
@@ -594,11 +595,17 @@ const opcoesDeClientesNovos = Array.from(
   const okDaConfirmacao = document.getElementById('confirmar-promocao-ok') as HTMLButtonElement;
   let pedido: { comboId: number; diaDaSemana: number; faixa: string; descontoPct: number } | null = null;
 
+  // Como a janela de desativar (19/11/2026): fecha com Esc e devolve o foco ao "Ativar…" de onde veio.
+  let voltarDaConfirmacao: HTMLElement | null = null;
   function fecharConfirmacao() {
     confirmacao.classList.add('hidden');
     pedido = null;
+    voltarDaConfirmacao?.focus();
   }
   confirmacao.querySelectorAll('[data-fechar-confirmacao]').forEach((b) => b.addEventListener('click', fecharConfirmacao));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !confirmacao.classList.contains('hidden')) fecharConfirmacao();
+  });
 
   document.querySelectorAll<HTMLElement>('[data-sugestao]').forEach((el) => {
     const campo = el.querySelector<HTMLInputElement>('[data-campo-desconto]');
@@ -633,7 +640,9 @@ const opcoesDeClientesNovos = Array.from(
     // A prévia aparece quando o dono mexe no campo — aberta em toda linha, a lista virava texto.
     campo.addEventListener('input', mostrar);
 
-    el.querySelector('[data-acao="ativar"]')?.addEventListener('click', () => {
+    const botaoAtivar = el.querySelector<HTMLElement>('[data-acao="ativar"]');
+    botaoAtivar?.addEventListener('click', () => {
+      voltarDaConfirmacao = botaoAtivar;
       const r = lido();
       if ('erro' in r) { mostrar(); campo.focus(); return; }
       pedido = {
