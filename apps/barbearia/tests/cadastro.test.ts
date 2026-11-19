@@ -273,7 +273,9 @@ describe('a semana que o dono preenche', () => {
   it.skipIf(!TEM_BANCO)('o Instagram entra nas duas formas que o site usa', async () => {
     // Os dois últimos: o link do "Compartilhar" do Instagram, com o rastreio (19/11/2026).
     for (const digitado of ['@vintage', 'vintage', 'https://instagram.com/vintage', 'instagram.com/vintage/',
-      'https://www.instagram.com/vintage?igsh=MWZ3bG1ra2V3', 'instagram.com/vintage#perfil']) {
+      'https://www.instagram.com/vintage?igsh=MWZ3bG1ra2V3', 'instagram.com/vintage#perfil',
+      // E o do celular e o que abre o aplicativo (19/11/2026): viravam "@https:".
+      'https://m.instagram.com/vintage', 'https://www.instagram.com/_u/vintage']) {
       await conn`TRUNCATE working_hours, barber_services, services, settings, barbers, tenants RESTART IDENTITY CASCADE`;
       const r = await provisionarBarbearia(conn, { ...BASE, instagram: digitado, sobre: '  Corte clássico.  ' });
       expect(r.ok, digitado).toBe(true);
@@ -325,6 +327,13 @@ describe('o que o cadastro passou a pedir em 08/10/2026', () => {
       const r = await provisionarBarbearia(semBanco, { ...BASE, email: ruim });
       expect(r.ok, ruim).toBe(false);
       if (!r.ok) expect(r.campo).toBe('email');
+    }
+  });
+
+  it('RECUSA o Instagram que a limpeza não entende, antes de tocar o banco — nada de "@https:" no site (19/11/2026)', async () => {
+    for (const ruim of ['https://instagr.am/vintage', 'facebook.com/vintage', 'vintage barbearia', 'https:']) {
+      const r = await provisionarBarbearia(semBanco, { ...BASE, instagram: ruim });
+      expect(r, ruim).toMatchObject({ ok: false, campo: 'instagram' });
     }
   });
 
