@@ -12,6 +12,8 @@
  *
  *  - as interfaces do container, com o MTU de cada uma e os endereços;
  *  - os endereços que o DNS dá ao armazenamento, IPv4 e IPv6;
+ *  - a chave, num pedido sem corpo (19/11/2026): se ela não assina, o diagnóstico para e diz — era essa a
+ *    causa de 10 a 18/11, e os envios a escondiam atrás de "corpo pequeno demais";
  *  - envios de bytes aleatórios, do menor ao maior, com o tempo de cada um: um limite de tamanho aparece
  *    como "até X sobe, a partir de Y não"; e a recusa que demora é o armazenamento esperando bytes que
  *    não chegaram;
@@ -31,7 +33,16 @@ import { Agent as AgenteHttp } from 'node:http';
 import { Agent as AgenteHttps } from 'node:https';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { detalheDaFalha, enviarParaS3 } from './backup.mjs';
+import { conferirChave, detalheDaFalha, enviarParaS3 } from './backup.mjs';
+
+/**
+ * A leitura quando a chave não assina (19/11/2026): até um pedido sem corpo foi recusado. De 10 a 18/11 o
+ * diagnóstico só mandava arquivos e concluiu "mande ao suporte do armazenamento" — era a chave.
+ */
+export const LEITURA_DA_CHAVE = 'A chave não assina: até um pedido sem corpo nenhum foi recusado, então não é tamanho nem rede. '
+  + 'Gere uma chave nova no armazenamento (no Backblaze, "Add a New Application Key", só do bucket dos backups, de leitura e '
+  + 'escrita) e troque S3_ACCESS_KEY_ID e S3_SECRET_ACCESS_KEY no Environment do app, sem espaço nas pontas. Depois, rode '
+  + 'este diagnóstico de novo.';
 
 /** Do menor ao maior: abaixo e acima de um pacote (uns 1.400 bytes de corpo, com os cabeçalhos) e o tamanho do backup. */
 export const TAMANHOS = [16, 600, 1200, 1400, 1600, 3000, 12_000];
@@ -183,6 +194,18 @@ export async function diagnosticarEnvio({
     escrever(`  o DNS não respondeu: ${erro?.message || erro}`);
   }
 
+  // A chave primeiro, num pedido sem corpo: se ela não assina, nenhum envio diz mais nada.
+  escrever('');
+  escrever('A chave, num pedido sem corpo (listar o bucket):');
+  const chave = await conferirChave(env, clienteDoDiagnostico(prazoMs));
+  escrever(chave.ok ? '  ✓ a chave assina' : `  ✕ ${chave.motivo}`);
+  if (!chave.ok && chave.chave) {
+    escrever('');
+    escrever('Leitura:');
+    escrever(`  ${LEITURA_DA_CHAVE}`);
+    return { interfaces, ips, chave, envios: [], comIpv4: [] };
+  }
+
   const pasta = mkdtempSync(join(tmpdir(), 'diagnostico-do-envio-'));
   const envios = [];
   const comIpv4 = [];
@@ -212,7 +235,7 @@ export async function diagnosticarEnvio({
   escrever('');
   escrever('Leitura:');
   for (const linha of leituraDoDiagnostico(envios, comIpv4)) escrever(`  ${linha}`);
-  return { interfaces, ips, envios, comIpv4 };
+  return { interfaces, ips, chave, envios, comIpv4 };
 }
 
 // Execução direta via CLI

@@ -24,6 +24,8 @@ const s3 = {
   atrasoDaRecusaMs: 0,
   /** Acima do limite: `recusa` (400 IncompleteBody), `erro` (500, que o SDK repete) ou `calado` (não responde). */
   modo: 'recusa' as 'recusa' | 'erro' | 'calado',
+  /** `assinatura`: TODO pedido, sem corpo também, volta 403 SignatureDoesNotMatch — a chave de 10 a 18/11. `soEscrita`: a listagem volta AccessDenied. */
+  chave: 'boa' as 'boa' | 'assinatura' | 'soEscrita',
   pedidos: [] as { metodo: string; caminho: string; bytes: number }[],
   objetos: new Map<string, Buffer>(),
 };
@@ -44,6 +46,17 @@ beforeAll(async () => {
       const corpo = Buffer.concat(partes);
       const caminho = new URL(req.url ?? '/', 'http://s3.teste').pathname;
       s3.pedidos.push({ metodo: req.method ?? '', caminho, bytes: corpo.length });
+      const erro = (status: number, codigo: string, msg: string) => {
+        res.writeHead(status, { 'content-type': 'application/xml' });
+        res.end(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>${codigo}</Code><Message>${msg}</Message></Error>`);
+      };
+      if (s3.chave === 'assinatura') return erro(403, 'SignatureDoesNotMatch', 'Signature validation failed');
+      if (req.method === 'GET') {
+        if (s3.chave === 'soEscrita') return erro(403, 'AccessDenied', 'not entitled');
+        res.writeHead(200, { 'content-type': 'application/xml' });
+        res.end('<?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Name>backups-teste</Name><KeyCount>0</KeyCount><IsTruncated>false</IsTruncated></ListBucketResult>');
+        return;
+      }
       if (corpo.length > s3.limite && s3.modo === 'calado') return;
       if (corpo.length > s3.limite && s3.modo === 'erro') {
         res.writeHead(500, { 'content-type': 'application/xml' });
@@ -74,8 +87,11 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  s3.limite = Infinity; s3.atrasoDaRecusaMs = 0; s3.modo = 'recusa'; s3.pedidos = []; s3.objetos.clear();
+  s3.limite = Infinity; s3.atrasoDaRecusaMs = 0; s3.modo = 'recusa'; s3.chave = 'boa'; s3.pedidos = []; s3.objetos.clear();
 });
+
+/** Só os envios (PUT): a conferência da chave, um GET sem corpo, vem antes deles. */
+const envios = () => s3.pedidos.filter((p) => p.metodo === 'PUT');
 
 async function rodar(extra: Record<string, unknown> = {}) {
   const linhas: string[] = [];
@@ -96,7 +112,7 @@ describe('o diagnóstico contra um armazenamento que recusa acima de um tamanho'
     // O motivo de cada recusa vem como o do backup: a mensagem, o código, o HTTP e o número do pedido.
     expect(texto).toMatch(/1400 bytes\s+✕ [\d,]+ s — The request body was too small \[IncompleteBody, HTTP 400, pedido pedido1400\]/);
     // Uma tentativa só: sem as novas tentativas do SDK, 7 envios e 3 de novo com IPv4 são 10 pedidos.
-    expect(s3.pedidos).toHaveLength(10);
+    expect(envios()).toHaveLength(10);
     // O que subiu chegou inteiro, aleatório e no lugar combinado.
     const chaves = [...s3.objetos.keys()].sort();
     expect(chaves).toEqual(['16', '1200', '600'].map((b) => `/backups-teste/backups/diagnostico-2026-11-12T13-00-00Z-${b}.bin`).sort());
@@ -111,7 +127,7 @@ describe('o diagnóstico contra um armazenamento que recusa acima de um tamanho'
     expect(r!.comIpv4.map((e: { bytes: number }) => e.bytes)).toEqual([1400, 1600, 3000]);
     expect(texto).toContain('Os que falharam, de novo com IPv4 forçado:');
     expect(texto).toContain('Com IPv4 forçado, falharam igual: não é o IPv6.');
-    expect(s3.pedidos.slice(7).map((p) => p.caminho)).toEqual(
+    expect(envios().slice(7).map((p) => p.caminho)).toEqual(
       [1400, 1600, 3000].map((b) => `/backups-teste/backups/diagnostico-2026-11-12T13-00-00Z-ipv4-${b}.bin`),
     );
   }, 60_000);
@@ -130,7 +146,7 @@ describe('o diagnóstico contra um armazenamento que recusa acima de um tamanho'
     const { r } = await rodar();
     expect(r!.envios.filter((e: { ok: boolean }) => !e.ok)).toHaveLength(4);
     // 7 envios e 3 de novo com IPv4, um pedido cada: com as novas tentativas do SDK seriam 7 + 2 × 4 + 2 × 3.
-    expect(s3.pedidos).toHaveLength(10);
+    expect(envios()).toHaveLength(10);
   }, 60_000);
 
   it('o pedido sem resposta acaba no prazo, e não trava o diagnóstico', async () => {
@@ -193,6 +209,55 @@ describe('o diagnóstico contra um armazenamento que recusa acima de um tamanho'
   });
 });
 
+describe('a chave, num pedido sem corpo (19/11/2026)', () => {
+  it('a chave que não assina: para antes dos envios e diz que é a chave — não manda ao suporte', async () => {
+    s3.chave = 'assinatura';
+    const { r, texto, linhas } = await rodar();
+    expect(texto).toContain('A chave, num pedido sem corpo (listar o bucket):');
+    expect(texto).toMatch(/✕ Signature validation failed \[SignatureDoesNotMatch, HTTP 403/);
+    expect(texto).toContain('A chave não assina: até um pedido sem corpo nenhum foi recusado');
+    expect(texto).not.toContain('suporte');
+    expect(r!.envios).toEqual([]);
+    expect(envios()).toEqual([]); // nenhum arquivo de teste mandado
+    expect(s3.pedidos.map((p) => [p.metodo, p.bytes])).toEqual([['GET', 0]]);
+    expect(linhas.at(-1)).toContain('rode este diagnóstico de novo');
+    expect(texto).not.toContain(SEGREDO);
+  }, 60_000);
+
+  it('a chave boa: "assina", e os envios seguem como antes', async () => {
+    const { r, texto } = await rodar({ tamanhos: [16] });
+    expect(texto).toContain('✓ a chave assina');
+    expect(r!.chave).toEqual({ ok: true });
+    expect(r!.envios).toHaveLength(1);
+    expect(s3.pedidos[0]).toMatchObject({ metodo: 'GET', bytes: 0 });
+  }, 60_000);
+
+  it('a chave só de escrita não lista, mas envia: não é "a chave não assina" — e os envios seguem', async () => {
+    s3.chave = 'soEscrita';
+    const { r, texto } = await rodar({ tamanhos: [16] });
+    expect(r!.chave).toMatchObject({ ok: false, chave: false });
+    expect(texto).not.toContain('A chave não assina');
+    expect(r!.envios.map((e: { ok: boolean }) => e.ok)).toEqual([true]);
+  }, 60_000);
+});
+
+describe('o cliente sem o espaço das pontas (19/11/2026)', () => {
+  it('a chave, o segredo, o endpoint e o bucket colados com espaço ou quebra de linha saem limpos', async () => {
+    const { opcoesDoClienteDoS3 } = await import('../scripts/backup.mjs');
+    const o = opcoesDoClienteDoS3({
+      S3_ENDPOINT: '  s3.us-east-005.backblazeb2.com\n', S3_ACCESS_KEY_ID: ' 005abc \n', S3_SECRET_ACCESS_KEY: '\tK005segredo \r\n',
+    }) as { endpoint: string; credentials: { accessKeyId: string; secretAccessKey: string } };
+    expect(o.endpoint).toBe('https://s3.us-east-005.backblazeb2.com');
+    expect(o.credentials).toEqual({ accessKeyId: '005abc', secretAccessKey: 'K005segredo' });
+  });
+
+  it('o envio com o bucket colado com espaço vai ao bucket certo', async () => {
+    const { r } = await rodar({ tamanhos: [16], env: ambiente({ S3_BUCKET: ' backups-teste \n' }) });
+    expect(r!.envios[0].ok).toBe(true);
+    expect([...s3.objetos.keys()]).toEqual(['/backups-teste/backups/diagnostico-2026-11-12T13-00-00Z-16.bin']);
+  }, 60_000);
+});
+
 describe('a leitura', () => {
   const e = (bytes: number, ok: boolean, ms = 300) => ({ bytes, ok, ms, motivo: ok ? undefined : 'x' });
 
@@ -247,7 +312,8 @@ describe('a leitura', () => {
     const fonte = readFileSync('scripts/diagnosticar-envio.mjs', 'utf8');
     expect(fonte).toMatch(/cliente: clienteDoDiagnostico\(prazoMs\)/);
     expect(fonte).toMatch(/const cliente = clienteDoDiagnostico\(prazoMs, \{ ipv4: true \}\);/);
-    expect(fonte).toMatch(/import \{ detalheDaFalha, enviarParaS3 \} from '\.\/backup\.mjs';/);
+    expect(fonte).toMatch(/import \{ conferirChave, detalheDaFalha, enviarParaS3 \} from '\.\/backup\.mjs';/);
+    expect(fonte).toMatch(/const chave = await conferirChave\(env, clienteDoDiagnostico\(prazoMs\)\);/);
     expect(fonte).not.toMatch(/new S3Client|@aws-sdk\/client-s3/);
   });
 });
