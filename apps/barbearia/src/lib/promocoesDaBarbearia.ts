@@ -402,11 +402,13 @@ export async function desativarPromocoesAfetadas(
   tenantId: number,
   pelo: { comboId: number } | { serviceId: number } | { productId: number } | { todas: true },
   agora: Date = new Date(),
+  /** A transação de quem chama, para a desativação desfazer junto com a mudança (`api/admin/settings.ts`). */
+  banco: Pick<typeof db, 'select' | 'update'> = db,
 ): Promise<number> {
   // `todas`: o que mudou vale para a barbearia inteira — os clientes novos (g) que o dono estima
   // (19/11/2026). Com um g menor, o limite de cada promoção ativa é menor.
   if ('todas' in pelo) {
-    const feitas = await db.update(promocoes)
+    const feitas = await banco.update(promocoes)
       .set({ ativa: false, desativadaEm: agora })
       .where(and(eq(promocoes.tenantId, tenantId), eq(promocoes.ativa, true)))
       .returning({ id: promocoes.id });
@@ -414,12 +416,12 @@ export async function desativarPromocoesAfetadas(
   }
   const ids = 'comboId' in pelo
     ? [pelo.comboId]
-    : (await db.select({ id: combos.id }).from(combos).where(and(
+    : (await banco.select({ id: combos.id }).from(combos).where(and(
         eq(combos.tenantId, tenantId),
         'serviceId' in pelo ? eq(combos.serviceId, pelo.serviceId) : eq(combos.productId, pelo.productId),
       ))).map((c) => c.id);
   if (ids.length === 0) return 0;
-  const feitas = await db.update(promocoes)
+  const feitas = await banco.update(promocoes)
     .set({ ativa: false, desativadaEm: agora })
     .where(and(eq(promocoes.tenantId, tenantId), eq(promocoes.ativa, true), inArray(promocoes.comboId, ids)))
     .returning({ id: promocoes.id });

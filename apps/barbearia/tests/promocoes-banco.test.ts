@@ -12,7 +12,7 @@
 //    das duas faixas se trocariam.
 //
 // Precisa de Postgres. Sem DATABASE_URL a suíte é pulada.
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import postgres from 'postgres';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { exigirBancoDeTeste } from './guardaBanco.js';
@@ -602,6 +602,31 @@ describe.skipIf(!TEM_BANCO)('mudou o que entra na conta: a promoção ativa deix
     expect(await ativa(id)).toBe(false);
     expect(await ativa(deDois.id)).toBe(true);
     expect(await g(4)).toBe(200);
+  });
+
+  it('menos clientes novos com a desativação falhando: nada fica gravado pela metade, e a tela e o banco concordam', async () => {
+    await sql`UPDATE settings SET promo_clientes_novos = 4 WHERE tenant_id = 1`;
+    await noPainel(um, cookies.donaUm, rotas.configuracoes.PATCH, 'PATCH', { promoClientesNovos: 4 }); // o cache com 4
+    const id = await promocaoAtiva();
+    await sql`CREATE FUNCTION recusar_desativar() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'o banco caiu'; END $$`;
+    await sql`CREATE TRIGGER recusar_desativar BEFORE UPDATE ON promocoes FOR EACH ROW EXECUTE FUNCTION recusar_desativar()`;
+    const erro = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let r: Awaited<ReturnType<typeof noPainel>>;
+    try {
+      r = await noPainel(um, cookies.donaUm, rotas.configuracoes.PATCH, 'PATCH', { promoClientesNovos: 2 });
+    } finally {
+      erro.mockRestore();
+      await sql`DROP TRIGGER recusar_desativar ON promocoes`;
+      await sql`DROP FUNCTION recusar_desativar()`;
+    }
+    expect(r.status).toBe(500);
+    // O g menor não ficou: a transação desfez. Salvar de novo pega a promoção.
+    expect((await sql`SELECT promo_clientes_novos AS g FROM settings WHERE tenant_id = 1`)[0].g).toBe(4);
+    expect(await ativa(id)).toBe(true);
+    expect((await noPainel(um, cookies.donaUm, rotas.promocoes.GET, 'GET')).corpo.clientesNovos).toBe(4);
+    expect((await noPainel(um, cookies.donaUm, rotas.configuracoes.PATCH, 'PATCH', { promoClientesNovos: 2 })).status).toBe(200);
+    expect(await ativa(id)).toBe(false);
+    expect((await noPainel(um, cookies.donaUm, rotas.configuracoes.PATCH, 'PATCH', { promoClientesNovos: 4 })).status).toBe(200);
   });
 
   it('o custo mudou enquanto a promoção era ativada: ela sai na hora, com 409 — a conta era a de antes', async () => {
