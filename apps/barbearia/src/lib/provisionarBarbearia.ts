@@ -348,7 +348,9 @@ export async function provisionarBarbearia(
   // duas formas porque o site usa o arroba no texto e a URL no link.
   const arroba = (dados.instagram ?? '').trim()
     .replace(/^(https?:\/\/)?(www\.)?instagram\.com\//i, '')
-    .replace(/^@/, '').replace(/\/.*$/, '').trim();
+    // O "Compartilhar" do Instagram copia `instagram.com/fulano?igsh=…`: corta também no `?` e no `#`
+    // (19/11/2026) — antes, o site mostrava "@fulano?igsh=…" e o link levava o rastreio.
+    .replace(/^@/, '').replace(/[/?#].*$/, '').trim();
   const instagramHandle = arroba ? `@${arroba}` : null;
   const instagramUrl = arroba ? `https://instagram.com/${arroba}` : null;
   const sobre = (dados.sobre ?? '').trim() || null;
