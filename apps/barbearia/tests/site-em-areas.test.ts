@@ -24,7 +24,9 @@ const normal = (c: string) => c.split(sep).join('/');
  * e, no documento inteiro (o layout), só o `<body>`: o `<head>` não aparece na tela.
  */
 function desenho(texto: string): string {
-  const m = /^---\n[\s\S]*?\n---\n?/.exec(texto);
+  // \r?\n: no Windows, com core.autocrlf, o checkout grava as páginas com CRLF — e o cabeçalho passava por texto
+  // fora de área (19/11/2026, depois do pull do PR #8 no agendar.astro).
+  const m = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n)?/.exec(texto);
   let t = m ? texto.slice(m[0].length) : texto;
   const corpo = /<body\b[^>]*>([\s\S]*)<\/body>/.exec(t);
   if (corpo) t = corpo[1];
