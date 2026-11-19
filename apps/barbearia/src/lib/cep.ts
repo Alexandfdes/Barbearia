@@ -211,7 +211,9 @@ export function ruaNoCampo(atual: string, achada: string): string | null {
   if (!rua) return null;
   const a = porExtenso(comparavel(atual));
   const r = porExtenso(comparavel(rua));
-  if (a.startsWith(r) && /^\s*[^\s\p{L}]/u.test(a.slice(r.length))) return null;
+  // O resto não pode começar por número colado: "Rua 10, 42" não é a "Rua 1" do CEP (19/11/2026).
+  const resto = a.slice(r.length);
+  if (a.startsWith(r) && !/^\d/.test(resto) && /^\s*[^\s\p{L}]/u.test(resto)) return null;
   return `${rua}, `;
 }
 
@@ -237,7 +239,7 @@ export function avisoDoCep(r: ResultadoDoCep, trocouARua: boolean): string {
 /** O que a ligação usa de um campo. Um `<input>` serve; nos testes, um objeto simples. */
 export interface CampoDeTexto {
   value: string;
-  addEventListener(tipo: string, ouvinte: (evento: { key?: string; preventDefault?: () => void }) => void): void;
+  addEventListener(tipo: string, ouvinte: (evento: { key?: string; inputType?: string; preventDefault?: () => void }) => void): void;
   dispatchEvent?(evento: Event): boolean;
   focus?(): void;
   setSelectionRange?(inicio: number, fim: number): void;
@@ -287,8 +289,11 @@ export function ligarBuscaDoCep({ cep, aviso, rua, cidade, buscar = (c, sinal) =
   // Enter no CEP não envia o cadastro pela metade: a busca já saiu sozinha.
   cep.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault?.(); });
 
-  cep.addEventListener('input', () => {
+  let ultimo = cep.value;
+  cep.addEventListener('input', (evento) => {
+    const antes = ultimo;
     const escrito = mascaraDoCep(cep.value);
+    ultimo = escrito;
     if (escrito !== cep.value) {
       // Regravar o campo joga o cursor para o fim: quem corrigia um número no meio do CEP digitava o
       // próximo no lugar errado (19/11/2026). Ele volta para depois dos mesmos números de antes.
@@ -296,7 +301,10 @@ export function ligarBuscaDoCep({ cep, aviso, rua, cidade, buscar = (c, sinal) =
       const numerosAntes = cursor === null ? null : cep.value.slice(0, cursor).replace(/\D/g, '').length;
       cep.value = escrito;
       if (numerosAntes !== null) {
-        const p = posicaoDepoisDosNumeros(escrito, numerosAntes);
+        let p = posicaoDepoisDosNumeros(escrito, numerosAntes);
+        // O Delete que só apagou o traço: ele volta, e o cursor ficava antes dele — o Delete seguinte
+        // apagava o traço de novo, para sempre. Vai para depois do traço (19/11/2026).
+        if (escrito === antes && evento?.inputType === 'deleteContentForward' && escrito[p] === '-') p += 1;
         cep.setSelectionRange?.(p, p);
       }
     }

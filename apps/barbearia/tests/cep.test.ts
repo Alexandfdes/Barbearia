@@ -226,6 +226,13 @@ describe('a rua no campo "Rua e número"', () => {
     expect(ruaNoCampo('Ruazinha das Flores, 1', 'Rua das Flores')).toBe('Rua das Flores, ');
   });
 
+  it('rua de número: "Rua 10" não é a "Rua 1" do CEP — e "Rua 1, 42" é (19/11/2026)', () => {
+    expect(ruaNoCampo('Rua 10, 42', 'Rua 1')).toBe('Rua 1, ');
+    expect(ruaNoCampo('R. 10, 42', 'Rua 1')).toBe('Rua 1, ');
+    expect(ruaNoCampo('Rua 1, 42', 'Rua 1')).toBeNull();
+    expect(ruaNoCampo('Rua 1 - 42', 'Rua 1')).toBeNull();
+  });
+
   it('CEP de cidade inteira: a rua é de quem digita', () => {
     expect(ruaNoCampo('Rua que ele escreveu, 5', '')).toBeNull();
     expect(ruaNoCampo('', '')).toBeNull();
@@ -251,7 +258,7 @@ describe('o que a tela diz', () => {
 
 // ── A ligação com a tela, com campos de mentira ──────────────────────────────
 
-type Evento = { key?: string; preventDefault?: () => void };
+type Evento = { key?: string; inputType?: string; preventDefault?: () => void };
 
 function campo(valor = '') {
   const ouvintes = new Map<string, ((e: Evento) => void)[]>();
@@ -307,6 +314,20 @@ describe('a ligação com a tela', () => {
     c.value = '596001'; c.selectionStart = 6; c.emitir('input');
     expect(c.value).toBe('59600-1');
     expect(c.selecao).toEqual([7, 7]);
+  });
+
+  it('o Delete no traço não prende o cursor: ele passa para depois do traço; o Backspace fica antes (19/11/2026)', () => {
+    const t = tela();
+    const c = t.cep as typeof t.cep & { selectionStart?: number };
+    c.digitar('12345-678');
+    // Delete com o cursor antes do traço: o navegador apaga o traço, cursor em 5.
+    c.value = '12345678'; c.selectionStart = 5; c.emitir('input', { inputType: 'deleteContentForward' });
+    expect(c.value).toBe('12345-678');
+    expect(c.selecao).toEqual([6, 6]);
+    // Backspace com o cursor depois do traço: o mesmo texto some, e o cursor fica antes — o próximo apaga o 5.
+    c.value = '12345678'; c.selectionStart = 5; c.emitir('input', { inputType: 'deleteContentBackward' });
+    expect(c.value).toBe('12345-678');
+    expect(c.selecao).toEqual([5, 5]);
   });
 
   it('o cursor depois do n-ésimo número', () => {
