@@ -546,7 +546,7 @@ export async function enviarParaS3(caminho, opcoes = {}) {
     CompleteMultipartUploadCommand, AbortMultipartUploadCommand,
   } = await import('@aws-sdk/client-s3');
   const client = await clienteDoS3(env, opcoes.cliente);
-  const Bucket = env.S3_BUCKET;
+  const Bucket = String(env.S3_BUCKET ?? '').trim();
   const Key = `backups/${basename(caminho)}`;
   const ContentType = 'application/gzip';
 
@@ -608,7 +608,8 @@ export async function enviarParaS3(caminho, opcoes = {}) {
  */
 export function opcoesDoClienteDoS3(env = process.env, { requestHandler, maxAttempts } = {}) {
   // Backblaze mostra o endpoint sem esquema; o SDK exige URL completa.
-  const endpoint = /^https?:\/\//.test(env.S3_ENDPOINT) ? env.S3_ENDPOINT : `https://${env.S3_ENDPOINT}`;
+  const bruto = String(env.S3_ENDPOINT ?? '').trim();
+  const endpoint = /^https?:\/\//.test(bruto) ? bruto : `https://${bruto}`;
   const soIpv4 = env.S3_SO_IPV4?.trim() === '1';
   const handler = requestHandler ?? (soIpv4
     ? { httpAgent: new AgenteHttp({ family: 4, keepAlive: true }), httpsAgent: new AgenteHttps({ family: 4, keepAlive: true }) }
@@ -618,11 +619,42 @@ export function opcoesDoClienteDoS3(env = process.env, { requestHandler, maxAtte
     ...(maxAttempts ? { maxAttempts } : {}),
     endpoint,
     region: env.S3_REGION ?? 'us-east-1',
-    credentials: { accessKeyId: env.S3_ACCESS_KEY_ID, secretAccessKey: env.S3_SECRET_ACCESS_KEY },
+    // Sem o espaço ou a quebra de linha das pontas (19/11/2026): colado assim no Environment, o segredo não
+    // assina, e o armazenamento responde com o que achar primeiro — "corpo pequeno demais", "assinatura
+    // inválida" —, o que custou nove dias de envio recusado (`PENDENCIAS-ABERTAS.md` §3.3). Chave de verdade
+    // não tem espaço.
+    credentials: { accessKeyId: String(env.S3_ACCESS_KEY_ID ?? '').trim(), secretAccessKey: String(env.S3_SECRET_ACCESS_KEY ?? '').trim() },
     forcePathStyle: true,
     requestChecksumCalculation: 'WHEN_REQUIRED',
     responseChecksumValidation: 'WHEN_REQUIRED',
   };
+}
+
+/** Os códigos com que o armazenamento diz que a chave não vale: a assinatura não confere, ou a chave não existe. */
+export const CHAVE_RECUSADA = new Set(['SignatureDoesNotMatch', 'InvalidAccessKeyId', 'InvalidToken']);
+
+/**
+ * Um pedido SEM corpo com a chave do envio — listar um arquivo do bucket —, para separar a chave do resto
+ * (19/11/2026). De 10 a 18/11 o envio foi recusado com "The request body was too small", e o diagnóstico só
+ * mandava arquivos: a recusa parecia do tamanho ou da rede, e era a chave, que não assinava. Sem corpo não há
+ * tamanho nem pacote: se isto falhar com `CHAVE_RECUSADA`, é a chave.
+ *
+ * Devolve `{ ok: true }`, ou `{ ok: false, chave, motivo }` — `chave` diz se a recusa é da chave. Uma chave só
+ * de escrita não lista (`AccessDenied`) e envia normalmente: não é `chave`.
+ */
+export async function conferirChave(env = process.env, opcoesDoCliente = {}) {
+  const { ListObjectsV2Command } = await import('@aws-sdk/client-s3');
+  const client = await clienteDoS3(env, opcoesDoCliente);
+  try {
+    await client.send(new ListObjectsV2Command({ Bucket: String(env.S3_BUCKET ?? '').trim(), MaxKeys: 1 }));
+    return { ok: true };
+  } catch (err) {
+    const detalhe = detalheDaFalha(err);
+    const codigo = typeof err?.Code === 'string' ? err.Code : err?.name;
+    return { ok: false, chave: CHAVE_RECUSADA.has(codigo), motivo: `${err?.message || String(err)}${detalhe ? ` [${detalhe}]` : ''}` };
+  } finally {
+    client.destroy();
+  }
 }
 
 /** O cliente do S3 do envio para fora, com as opções de `opcoesDoClienteDoS3`. */

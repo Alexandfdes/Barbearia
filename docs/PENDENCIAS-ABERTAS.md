@@ -3424,6 +3424,12 @@ não pode ligá-lo.
 > antiga (depois de conferir que nada mais a usa) e os `backups/diagnostico-*.bin` dos dois diagnósticos. Ainda
 > falta, como antes, **restaurar o arquivo de lá** uma vez (a nota de 05/11, abaixo).
 >
+> **E para não voltar a enganar (19/11, no código, sobe no próximo deploy):** o `diagnosticar-envio.mjs` confere a chave
+> primeiro, num pedido sem corpo (`conferirChave`, em `apps/barbearia/scripts/backup.mjs`), e, se ela não assina, para
+> ali e diz para trocar a chave — antes, mandava ao suporte do armazenamento. E o cliente do envio tira o espaço e a
+> quebra de linha das pontas da chave, do segredo, do endereço e do bucket, colados assim no Environment. Guarda:
+> `apps/barbearia/tests/diagnosticar-envio.test.ts`, com 5 defeitos reintroduzidos, os 5 vermelhos.
+>
 > *(Até 19/11 este título dizia "desde a tarde de 10/11, o envio é recusado", com 🔴.)*
 
 > ✏️ **05/11/2026 (revisão de 05/11):** o envio para fora funciona em produção desde 04/11 — a nota de 10/10
