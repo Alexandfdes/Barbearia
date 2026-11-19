@@ -34,21 +34,30 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 
   const now = new Date().toISOString();
 
+  // A condição `pending` vai no próprio UPDATE (19/11/2026), não só na leitura acima: dois cliques,
+  // ou o dono e o barbeiro ao mesmo tempo, passavam os dois — a venda entrava em dobro no faturamento,
+  // e o cancelar que corria junto deixava a reserva cancelada com a venda lançada (`CLAUDE.md`).
+  const jaFeita = () => json({ error: 'Esta reserva já foi retirada ou cancelada. Atualize a tela.' }, 409);
+  const pendente = and(eq(reservations.id, id), eq(reservations.tenantId, tenant.id), eq(reservations.status, 'pending'));
+
   if (action === 'cancel') {
-    await db.update(reservations)
+    const feitas = await db.update(reservations)
       .set({ status: 'cancelled', handledById: session.barberId, handledAt: now })
-      .where(and(eq(reservations.id, id), eq(reservations.tenantId, tenant.id)));
-    return json({ ok: true });
+      .where(pendente)
+      .returning({ id: reservations.id });
+    return feitas.length > 0 ? json({ ok: true }) : jaFeita();
   }
 
   // fulfill — atômico: marca retirada + registra a venda no faturamento.
   // ⚠️ O `await` NÃO É DECORAÇÃO. Sem ele a rota responde ok:true antes de a
   // transação terminar: se ela falhar, o erro vira rejeição não tratada e a tela
   // do barbeiro já disse "pronto" sobre algo que não foi gravado.
-  await db.transaction(async (tx) => {
-    await tx.update(reservations)
+  const marcou = await db.transaction(async (tx) => {
+    const feitas = await tx.update(reservations)
       .set({ status: 'fulfilled', handledById: session.barberId, handledAt: now })
-      .where(and(eq(reservations.id, id), eq(reservations.tenantId, tenant.id)));
+      .where(pendente)
+      .returning({ id: reservations.id });
+    if (feitas.length === 0) return false; // outro pedido chegou antes: nada de venda
     await tx.insert(productSales).values({ tenantId: tenant.id,
       barberId:    session.barberId,
       name:        r.productName,
@@ -57,7 +66,8 @@ export const PATCH: APIRoute = async ({ request, params }) => {
       soldAt:      now,
       createdById: session.barberId,
     });
+    return true;
   });
 
-  return json({ ok: true });
+  return marcou ? json({ ok: true }) : jaFeita();
 };
