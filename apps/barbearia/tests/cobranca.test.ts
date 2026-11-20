@@ -881,6 +881,46 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
     expect(situacaoDe({ status: 'active', encerraEm: depois.subscription_ends_at, fuso: TZ })).toMatchObject({ fase: 'ativa' });
   });
 
+  it('cancelou DEVENDO e assina de novo: a primeira cobrança é hoje, não no fim da carência — senão o ciclo se repetia sem nunca pagar (19/11/2026)', async () => {
+    await conn`INSERT INTO tenants (id, slug, business_name, status, asaas_customer_id, asaas_subscription_id) VALUES
+                 (31, 'devendo', 'Devendo', 'active', 'cus_dev', 'sub_dev')`;
+    await conn`INSERT INTO barbers (tenant_id, id, name, slug, role, password_hash, active, phone) VALUES
+                 (31, 310, 'Dono Devendo', 'dono', 'admin', 'x', true, '84990000310')`;
+    await carregarTenants(true);
+    // A cobrança falha: atrasada, pelo webhook.
+    await enviar({ id: 'evt_dev_1', event: 'PAYMENT_OVERDUE', payment: { id: 'pay_dev', customer: 'cus_dev', subscription: 'sub_dev' } });
+    expect((await linha(31)).status).toBe('past_due');
+    // Cancela: fica no ar até o fim da carência, como antes.
+    responder = (c) => (c.metodo === 'GET'
+      ? { corpo: { id: 'sub_dev', status: 'ACTIVE', nextDueDate: diaNoFuso(new Date(Date.now() + 25 * DIA)), deleted: false } }
+      : { corpo: { deleted: true, id: 'sub_dev' } });
+    expect((await pedir(CANCELAR, { barberId: 310, role: 'admin', tenantId: 31 })).status).toBe(200);
+    const cancelada = await linha(31);
+    expect(cancelada.subscription_ends_at.getTime()).toBeGreaterThan(Date.now());
+    await carregarTenants(true);
+
+    // Assina de novo na hora: a primeira cobrança é HOJE.
+    chamadas.length = 0;
+    responder = () => ({ corpo: { id: 'chk_dev', link: 'https://x/chk_dev' } });
+    expect((await pedir(CARTAO, { barberId: 310, role: 'admin', tenantId: 31 })).status).toBe(200);
+    expect((chamadas[0].corpo as { subscription: { nextDueDate: string } }).subscription.nextDueDate).toBe(diaNoFuso(new Date()));
+
+    // Controle: a que cancelou EM DIA continua do fim do período pago — a 22, do caso de cima.
+    chamadas.length = 0;
+    responder = () => ({ corpo: { id: 'chk_sp', link: 'https://x/chk_sp' } });
+    expect((await pedir(CARTAO, { barberId: 220, role: 'admin', tenantId: 22 })).status).toBe(200);
+    expect((chamadas[0].corpo as { subscription: { nextDueDate: string } }).subscription.nextDueDate)
+      .toBe(diaNoFuso(new Date(Date.now() + 9 * DIA)));
+
+    // E a cobrança que falhou, paga depois, tira a dívida: volta a valer o fim do período.
+    await enviar({ id: 'evt_dev_2', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_dev', customer: 'cus_dev', subscription: 'sub_dev' } });
+    chamadas.length = 0;
+    responder = () => ({ corpo: { id: 'chk_dev2', link: 'https://x/chk_dev2' } });
+    expect((await pedir(CARTAO, { barberId: 310, role: 'admin', tenantId: 31 })).status).toBe(200);
+    expect((chamadas[0].corpo as { subscription: { nextDueDate: string } }).subscription.nextDueDate)
+      .toBe(formatInTimeZone(cancelada.subscription_ends_at, TZ, 'yyyy-MM-dd'));
+  });
+
   it('fora do ar pela cobrança: cancela pela sessão de fora do ar — e o site continua fora, agora como cancelado', async () => {
     responder = (c) => (c.metodo === 'GET'
       ? { corpo: { id: 'sub_fora', status: 'ACTIVE', nextDueDate: diaNoFuso(new Date(Date.now() + 20 * DIA)), deleted: false } }
