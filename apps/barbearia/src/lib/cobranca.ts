@@ -137,11 +137,15 @@ export function podeCadastrarCartao(s: Situacao): boolean {
  *   nova continua a antiga, sem cobrar duas vezes o mesmo mês.
  * - Na carência, fora do ar, com a cobrança atrasada: hoje.
  *
+ * - Cancelou DEVENDO — com cobrança que falhou e nunca foi paga (`deve`): hoje. O prazo até a
+ *   saída, nesse caso, é o da carência, não um período pago; continuar dele deixava cancelar e
+ *   reassinar a cada carência, no ar sem nunca pagar (19/11/2026).
+ *
  * ⚠️ Dia no fuso da barbearia, por `formatInTimeZone` — nunca conta de offset.
  */
-export function dataDaPrimeiraCobranca(s: Situacao, fuso: string, agora: Date = new Date()): string {
+export function dataDaPrimeiraCobranca(s: Situacao, fuso: string, agora: Date = new Date(), deve = false): string {
   if (s.fase === 'teste') return formatInTimeZone(s.ate, fuso, 'yyyy-MM-dd');
-  if (s.fase === 'ativa' && s.encerraEm && s.encerraEm.getTime() > agora.getTime()) {
+  if (!deve && s.fase === 'ativa' && s.encerraEm && s.encerraEm.getTime() > agora.getTime()) {
     return formatInTimeZone(s.encerraEm, fuso, 'yyyy-MM-dd');
   }
   return formatInTimeZone(agora, fuso, 'yyyy-MM-dd');
@@ -234,7 +238,7 @@ export async function abrirCheckout(o: {
       value: PRECO_MENSAL,
       imageBase64: IMAGEM_DO_ITEM,
     }],
-    subscription: { cycle: 'MONTHLY', nextDueDate: dataDaPrimeiraCobranca(s, fusoDaLinha(t), agora) },
+    subscription: { cycle: 'MONTHLY', nextDueDate: dataDaPrimeiraCobranca(s, fusoDaLinha(t), agora, await deveCobrancaQueFalhou(t.id)) },
     // Cliente que já existe na Asaas continua o mesmo — é a chave dos eventos.
     // Novo: os dados que o cadastro tem; o CPF ou CNPJ, a página pede.
     ...(t.asaas_customer_id
@@ -385,6 +389,30 @@ export async function processarEventoDaAsaas(e: EventoAsaas, agora: Date = new D
     await tx`UPDATE webhook_events SET tenant_id = ${t?.id ?? null}, outcome = ${desfecho} WHERE id = ${novo.id}`;
     return { duplicado: false, tenantId: t?.id ?? null, desfecho, efeitos } as const;
   }) as Promise<ResultadoDoEvento>;
+}
+
+/**
+ * A barbearia tem cobrança que falhou e nenhum evento deu como paga, desde a última vez que ficou em
+ * dia — de QUALQUER assinatura dela: o cancelar remove a assinatura, e a cobrança que falhou some da
+ * Asaas com ela, mas não do registro do webhook. É o que `dataDaPrimeiraCobranca` precisa para não
+ * dar ao cancelamento feito devendo o prazo de um período pago (19/11/2026).
+ */
+export async function deveCobrancaQueFalhou(tenantId: number): Promise<boolean> {
+  const [linha] = await sqlConn<{ deve: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM webhook_events f
+       WHERE f.tenant_id = ${tenantId}
+         AND f.event IN ('PAYMENT_OVERDUE', 'PAYMENT_CREDIT_CARD_CAPTURE_REFUSED')
+         AND (f.outcome LIKE 'atrasada%' OR f.outcome LIKE 'continua atrasada%')
+         AND f.payload->'payment'->>'id' IS NOT NULL
+         AND f.id > COALESCE((SELECT max(d.id) FROM webhook_events d
+                               WHERE d.tenant_id = ${tenantId} AND d.outcome LIKE 'em dia%'), 0)
+         AND NOT EXISTS (SELECT 1 FROM webhook_events p
+                          WHERE p.tenant_id = ${tenantId}
+                            AND p.event IN ('PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED')
+                            AND p.payload->'payment'->>'id' = f.payload->'payment'->>'id')
+    ) AS deve`;
+  return Boolean(linha?.deve);
 }
 
 /**

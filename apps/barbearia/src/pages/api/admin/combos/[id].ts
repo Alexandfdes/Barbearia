@@ -74,8 +74,11 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 
   await db.update(combos).set(updates).where(and(eq(combos.id, id), eq(combos.tenantId, tenant.id)));
   // Mudou o que entra no desconto máximo: as promoções ativas deixam de valer (`lib/promocoesDaBarbearia.ts`).
-  if ((updates.serviceId !== undefined && updates.serviceId !== current.serviceId)
-      || (updates.productId !== undefined && updates.productId !== current.productId)) {
+  // E o desconto ou os dias do combo (19/11/2026): com o combo dando mais que a promoção, o painel
+  // mostrava o preço dela e o site cobrava o do combo; sem o dia, ela aparecia ativa e não valia.
+  const mudou = (k: 'serviceId' | 'productId' | 'discountPct' | 'weekdays') =>
+    updates[k] !== undefined && updates[k] !== current[k];
+  if (mudou('serviceId') || mudou('productId') || mudou('discountPct') || mudou('weekdays')) {
     await desativarPromocoesAfetadas(tenant.id, { comboId: id });
   }
   if (oldImageToRemove) await apagarFotoProduto(oldImageToRemove, tenant);

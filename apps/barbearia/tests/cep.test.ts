@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, globSync } from 'node:fs';
 import {
-  BRASILAPI, VIACEP, avisoDoCep, buscarCep, digitosDoCep, ligarBuscaDoCep, mascaraDoCep, ruaNoCampo,
+  BRASILAPI, VIACEP, avisoDoCep, buscarCep, digitosDoCep, ligarBuscaDoCep, mascaraDoCep, posicaoDepoisDosNumeros, ruaNoCampo,
   type Buscador, type ResultadoDoCep,
 } from '../src/lib/cep.js';
 
@@ -211,6 +211,28 @@ describe('a rua no campo "Rua e número"', () => {
     expect(ruaNoCampo('Rua das Flores', 'Rua das Flores')).toBe('Rua das Flores, ');
   });
 
+  it('a rua abreviada é a mesma: "R. das Flores, 42" fica, com o número (19/11/2026)', () => {
+    for (const atual of ['R. das Flores, 42', 'r das flores 42', 'R.das Flores, 42', 'R.  Das Flôres - 42']) {
+      expect(ruaNoCampo(atual, 'Rua das Flores'), atual).toBeNull();
+    }
+    expect(ruaNoCampo('Av. Brasil, 900', 'Avenida Brasil')).toBeNull();
+    expect(ruaNoCampo('Tv. São José, 3', 'Travessa São José')).toBeNull();
+    // O CEP abreviado e o campo por extenso também.
+    expect(ruaNoCampo('Avenida Brasil, 900', 'Av. Brasil')).toBeNull();
+    // Abreviação de outro tipo continua sendo outra rua; e a que só começa igual, também.
+    expect(ruaNoCampo('Av. das Flores, 42', 'Rua das Flores')).toBe('Rua das Flores, ');
+    expect(ruaNoCampo('R. das Flores Altas, 10', 'Rua das Flores')).toBe('Rua das Flores, ');
+    // Palavra que não é tipo abreviado fica como está: "Rodovia" não é "Rod." de ninguém aqui.
+    expect(ruaNoCampo('Ruazinha das Flores, 1', 'Rua das Flores')).toBe('Rua das Flores, ');
+  });
+
+  it('rua de número: "Rua 10" não é a "Rua 1" do CEP — e "Rua 1, 42" é (19/11/2026)', () => {
+    expect(ruaNoCampo('Rua 10, 42', 'Rua 1')).toBe('Rua 1, ');
+    expect(ruaNoCampo('R. 10, 42', 'Rua 1')).toBe('Rua 1, ');
+    expect(ruaNoCampo('Rua 1, 42', 'Rua 1')).toBeNull();
+    expect(ruaNoCampo('Rua 1 - 42', 'Rua 1')).toBeNull();
+  });
+
   it('CEP de cidade inteira: a rua é de quem digita', () => {
     expect(ruaNoCampo('Rua que ele escreveu, 5', '')).toBeNull();
     expect(ruaNoCampo('', '')).toBeNull();
@@ -236,7 +258,7 @@ describe('o que a tela diz', () => {
 
 // ── A ligação com a tela, com campos de mentira ──────────────────────────────
 
-type Evento = { key?: string; preventDefault?: () => void };
+type Evento = { key?: string; inputType?: string; preventDefault?: () => void };
 
 function campo(valor = '') {
   const ouvintes = new Map<string, ((e: Evento) => void)[]>();
@@ -277,6 +299,44 @@ function tela(ruaAntes = '') {
 }
 
 describe('a ligação com a tela', () => {
+  it('corrigir um número no meio: a máscara devolve o cursor ao lugar, não ao fim (19/11/2026)', () => {
+    const t = tela();
+    const c = t.cep as typeof t.cep & { selectionStart?: number };
+    // "59600-123", e a pessoa apaga o "6" (cursor depois do "59"): o navegador deixa "5900-123", cursor em 2.
+    c.value = '5900-123'; c.selectionStart = 2; c.emitir('input');
+    expect(c.value).toBe('59001-23');
+    expect(c.selecao).toEqual([2, 2]);
+    // E digita o "7" ali: "597001-23", cursor em 3 — a máscara dá "59700-123", e o cursor fica depois do 7.
+    c.value = '597001-23'; c.selectionStart = 3; c.emitir('input');
+    expect(c.value).toBe('59700-123');
+    expect(c.selecao).toEqual([3, 3]);
+    // Digitando no fim, o cursor fica no fim, como antes — inclusive passando o traço.
+    c.value = '596001'; c.selectionStart = 6; c.emitir('input');
+    expect(c.value).toBe('59600-1');
+    expect(c.selecao).toEqual([7, 7]);
+  });
+
+  it('o Delete no traço não prende o cursor: ele passa para depois do traço; o Backspace fica antes (19/11/2026)', () => {
+    const t = tela();
+    const c = t.cep as typeof t.cep & { selectionStart?: number };
+    c.digitar('12345-678');
+    // Delete com o cursor antes do traço: o navegador apaga o traço, cursor em 5.
+    c.value = '12345678'; c.selectionStart = 5; c.emitir('input', { inputType: 'deleteContentForward' });
+    expect(c.value).toBe('12345-678');
+    expect(c.selecao).toEqual([6, 6]);
+    // Backspace com o cursor depois do traço: o mesmo texto some, e o cursor fica antes — o próximo apaga o 5.
+    c.value = '12345678'; c.selectionStart = 5; c.emitir('input', { inputType: 'deleteContentBackward' });
+    expect(c.value).toBe('12345-678');
+    expect(c.selecao).toEqual([5, 5]);
+  });
+
+  it('o cursor depois do n-ésimo número', () => {
+    expect(posicaoDepoisDosNumeros('59600-123', 0)).toBe(0);
+    expect(posicaoDepoisDosNumeros('59600-123', 5)).toBe(5);
+    expect(posicaoDepoisDosNumeros('59600-123', 6)).toBe(7);
+    expect(posicaoDepoisDosNumeros('59600-123', 99)).toBe(9);
+  });
+
   it('máscara enquanto digita; no oitavo número, busca — e diz que está buscando', () => {
     const t = tela();
     t.cep.digitar('5960');

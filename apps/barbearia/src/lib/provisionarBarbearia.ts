@@ -346,9 +346,17 @@ export async function provisionarBarbearia(
 
   // `@fulano`, `instagram.com/fulano` e a URL inteira chegam aqui. Guardamos as
   // duas formas porque o site usa o arroba no texto e a URL no link.
-  const arroba = (dados.instagram ?? '').trim()
-    .replace(/^(https?:\/\/)?(www\.)?instagram\.com\//i, '')
-    .replace(/^@/, '').replace(/\/.*$/, '').trim();
+  const instagramDigitado = (dados.instagram ?? '').trim();
+  // Qualquer subdomínio (www., m. do celular) e o `_u/` do link que abre o aplicativo (19/11/2026):
+  // antes, `https://m.instagram.com/fulano` virava "@https:".
+  const PREFIXO_DO_INSTAGRAM = /^(https?:\/\/)?([a-z0-9-]+\.)?instagram\.com\/(_u\/)?/i;
+  // Link de outro site ("facebook.com/fulano") não é @: cortado no "/", virava "@facebook.com".
+  const linkDeOutroSite = !PREFIXO_DO_INSTAGRAM.test(instagramDigitado) && /[/:]/.test(instagramDigitado.replace(/\/+$/, ''));
+  const arroba = instagramDigitado
+    .replace(PREFIXO_DO_INSTAGRAM, '')
+    // O "Compartilhar" do Instagram copia `instagram.com/fulano?igsh=…`: corta também no `?` e no `#`
+    // (19/11/2026) — antes, o site mostrava "@fulano?igsh=…" e o link levava o rastreio.
+    .replace(/^@/, '').replace(/[/?#].*$/, '').trim();
   const instagramHandle = arroba ? `@${arroba}` : null;
   const instagramUrl = arroba ? `https://instagram.com/${arroba}` : null;
   const sobre = (dados.sobre ?? '').trim() || null;
@@ -372,7 +380,9 @@ export async function provisionarBarbearia(
   if (sobre && sobre.length > L.sobre) {
     return { ok: false, campo: 'sobre', erro: `O texto sobre a barbearia passa de ${L.sobre} caracteres.` };
   }
-  if (instagramHandle && instagramHandle.length > L.instagram) {
+  // O @ do Instagram só tem letras, números, ponto e sublinhado: o resto é um link que a limpeza
+  // não entendeu, e iria para o site como lixo — melhor dizer na hora (19/11/2026).
+  if (instagramHandle && (linkDeOutroSite || instagramHandle.length > L.instagram || !/^[A-Za-z0-9._]+$/.test(arroba))) {
     return { ok: false, campo: 'instagram', erro: 'Confira o Instagram: escreva só o @ da barbearia.' };
   }
 

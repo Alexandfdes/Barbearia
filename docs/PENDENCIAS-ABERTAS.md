@@ -3408,7 +3408,29 @@ espera este job também. ✅ **Provado no GitHub em 25/10/2026**, no push do `28
 então só tinha rodado sem Docker, sobre o build (13 conferências), porque o ambiente onde foi escrito
 não pode ligá-lo.
 
-### 3.3 🔴 `[TÉCNICO]` Backup — um só para todas as barbearias; saiu da VPS de 04 a 10/11/2026 — desde a tarde de 10/11, o envio é recusado —, e o arquivo de lá nunca voltou
+### 3.3 🟠 `[TÉCNICO]` Backup — um só para todas as barbearias; o envio para fora voltou em 19/11/2026 — e o arquivo de lá nunca voltou
+
+> ✅ **19/11/2026, 00:09 UTC: o envio para fora voltou.** A recusa de 10 a 18/11 ("The request body was too
+> small", `IncompleteBody`) era **a chave do Backblaze, que não assinava**: um pedido sem corpo nenhum — listar o
+> bucket, com o cliente do backup, no Console — voltou `SignatureDoesNotMatch` (HTTP 403), e o diagnóstico de
+> 19/11 00:01 mostrou o mesmo nos envios pequenos ("Signature validation failed", de 16 e 600 bytes). O
+> "corpo pequeno demais" dos maiores era a primeira coisa que o Backblaze conferia, não a causa. **Descartados,
+> medidos:** o cliente (na imagem de produção, Node 22.23.5, contra um servidor de eco local, os envios de 16, 1200
+> e 50 098 bytes chegaram inteiros, com o hash assinado conferindo), o IPv6 (com IPv4 forçado, igual) e a rede da
+> VPS (12 000 bytes a um eco público chegaram inteiros, sem proxy no caminho). **O conserto:** uma chave nova, só do
+> bucket `fadeline-backups`, de leitura e escrita, no Environment do app; o diagnóstico passou em todos os tamanhos,
+> e `node scripts/backup.mjs` subiu o banco e as fotos. Por que a chave antiga parou de assinar, daqui não se sabe —
+> foi trocada, apagada, ou o segredo foi colado com algo a mais. **Fica com você:** apagar no Backblaze a chave
+> antiga (depois de conferir que nada mais a usa) e os `backups/diagnostico-*.bin` dos dois diagnósticos. Ainda
+> falta, como antes, **restaurar o arquivo de lá** uma vez (a nota de 05/11, abaixo).
+>
+> **E para não voltar a enganar (19/11, no código, sobe no próximo deploy):** o `diagnosticar-envio.mjs` confere a chave
+> primeiro, num pedido sem corpo (`conferirChave`, em `apps/barbearia/scripts/backup.mjs`), e, se ela não assina, para
+> ali e diz para trocar a chave — antes, mandava ao suporte do armazenamento. E o cliente do envio tira o espaço e a
+> quebra de linha das pontas da chave, do segredo, do endereço e do bucket, colados assim no Environment. Guarda:
+> `apps/barbearia/tests/diagnosticar-envio.test.ts`, com 5 defeitos reintroduzidos, os 5 vermelhos.
+>
+> *(Até 19/11 este título dizia "desde a tarde de 10/11, o envio é recusado", com 🔴.)*
 
 > ✏️ **05/11/2026 (revisão de 05/11):** o envio para fora funciona em produção desde 04/11 — a nota de 10/10
 > abaixo ("no app novo em produção, não") ficou para trás —, e a tela de Sistema diz o último envio e acusa a
