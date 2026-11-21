@@ -14,6 +14,7 @@ import { ehFusoDoBrasil, fusoDe } from '../../../lib/timezone.js';
 import { definirFusoDaBarbearia } from '../../../lib/fusoDaBarbearia.js';
 import { FORMA_DA_NOTA } from '../../../lib/avaliacao.js';
 import { CLIENTES_NOVOS } from '../../../lib/promocoes.js';
+import { desativarPromocoesAfetadas } from '../../../lib/promocoesDaBarbearia.js';
 
 /**
  * O teto de um campo de texto, dito em português. Sem a mensagem, o zod responde "Too big:
@@ -139,15 +140,26 @@ export const PATCH: APIRoute = async ({ request }) => {
   }
 
   if (Object.keys(updates).length > 0) {
-    const existe = await first( db.select({ id: settings.id }).from(settings).where(eq(settings.tenantId, tenant.id)));
+    const existe = await first( db.select({ id: settings.id, promoClientesNovos: settings.promoClientesNovos }).from(settings).where(eq(settings.tenantId, tenant.id)));
     if (!existe) return json({ error: 'Configuração não encontrada (migration 0009 aplicada?)' }, 404);
 
     updates.updatedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
     try {
-      await db.update(settings).set(updates).where(eq(settings.tenantId, tenant.id));
+      // Numa transação (19/11/2026): gravado o g menor e falhada a desativação, o g ficava e as
+      // promoções do g antigo seguiam ativas — e salvar de novo não as pegava mais (o g já era o novo).
+      await db.transaction(async (tx) => {
+        await tx.update(settings).set(updates).where(eq(settings.tenantId, tenant.id));
+        // Menos clientes novos por promoção, limite menor para todas: as ativas foram confirmadas com o
+        // de antes e venderiam abaixo do lucro (19/11/2026). Mais clientes só aumenta o limite.
+        if (d.promoClientesNovos !== undefined && d.promoClientesNovos < existe.promoClientesNovos) {
+          await desativarPromocoesAfetadas(tenant.id, { todas: true }, new Date(), tx);
+        }
+      });
     } catch (err) {
       console.error('[api/admin/settings PATCH]', err);
+      // O cache nunca fica diferente do banco, nem na falha.
+      invalidateSettings();
       return json({ error: 'Falha ao salvar a configuração' }, 500);
     }
   }

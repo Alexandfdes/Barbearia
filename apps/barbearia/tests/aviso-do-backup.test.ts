@@ -169,6 +169,26 @@ describe('quando algo falha', () => {
     expect(enviados).toHaveLength(1);
   });
 
+  it('a trava só vale depois que o e-mail saiu: o processo que cai no meio não deixa o dia "avisado" (19/11/2026)', async () => {
+    falhou('2026-11-11T06:02:25.000Z');
+    let travadoDuranteOEnvio: boolean | null = null;
+    // O envio que "cai no meio": olha a trava e não volta — como o container que reinicia antes do fim.
+    const cai = async () => { travadoDuranteOEnvio = existsSync(trava()); throw new Error('o processo caiu'); };
+    const erro = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      expect(await avisarBackupQueNaoSobe(new Date('2026-11-11T07:00:00Z'), { env: ambiente(), enviar: cai })).toBe(false);
+    } finally {
+      erro.mockRestore();
+    }
+    expect(travadoDuranteOEnvio).toBe(false);
+    expect(existsSync(trava())).toBe(false);
+    // Na hora seguinte, o aviso sai.
+    const { enviados, enviar } = caixa();
+    expect(await avisarBackupQueNaoSobe(new Date('2026-11-11T08:00:00Z'), { env: ambiente(), enviar })).toBe(true);
+    expect(enviados).toHaveLength(1);
+    expect(readdirSync(pasta).filter((n) => n.endsWith('.parcial'))).toEqual([]);
+  });
+
   it('sem como gravar a trava, nada sai: sem ela, o aviso sairia a cada hora', async () => {
     falhou('2026-11-11T06:02:25.000Z');
     // Uma pasta no lugar do arquivo temporário da trava: gravar falha mesmo para o root.

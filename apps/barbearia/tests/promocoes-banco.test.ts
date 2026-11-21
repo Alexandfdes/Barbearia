@@ -12,7 +12,7 @@
 //    das duas faixas se trocariam.
 //
 // Precisa de Postgres. Sem DATABASE_URL a suíte é pulada.
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import postgres from 'postgres';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { exigirBancoDeTeste } from './guardaBanco.js';
@@ -567,5 +567,87 @@ describe.skipIf(!TEM_BANCO)('mudou o que entra na conta: a promoção ativa deix
     const remarcado = await remarcar(a.manage_token, as(alvo, '13:30'));
     expect(remarcado.status).toBe(200);
     expect((await sql`SELECT price_cents FROM appointments WHERE manage_token = ${a.manage_token}`)[0].price_cents).toBe(a.price_cents);
+  });
+
+  // ── 19/11/2026: o que a varredura achou ──
+
+  it('o desconto do combo mudou: desativada — o painel mostrava o preço dela e o site cobrava o do combo', async () => {
+    const id = await promocaoAtiva();
+    expect(await comFormulario(rotasDeEdicao.combo.PATCH, 'PATCH', { discountPct: '35' }, 1)).toBe(200);
+    expect(await ativa(id)).toBe(false);
+    expect(await comFormulario(rotasDeEdicao.combo.PATCH, 'PATCH', { discountPct: '10' }, 1)).toBe(200);
+  });
+
+  it('os dias do combo mudaram: desativada; o mesmo desconto e os mesmos dias, não', async () => {
+    const [{ weekdays, discount_pct }] = await sql`SELECT weekdays, discount_pct FROM combos WHERE id = 1`;
+    const id = await promocaoAtiva();
+    // Reenviar o que já está gravado não muda a conta.
+    expect(await comFormulario(rotasDeEdicao.combo.PATCH, 'PATCH', { discountPct: String(discount_pct), weekdays: String(weekdays) }, 1)).toBe(200);
+    expect(await ativa(id)).toBe(true);
+    expect(await comFormulario(rotasDeEdicao.combo.PATCH, 'PATCH', { weekdays: String(weekdays & ~(1 << DIA)) }, 1)).toBe(200);
+    expect(await ativa(id)).toBe(false);
+    expect(await comFormulario(rotasDeEdicao.combo.PATCH, 'PATCH', { weekdays: String(weekdays) }, 1)).toBe(200);
+  });
+
+  it('menos clientes novos: as ativas desta barbearia saem; mais clientes, ou o mesmo, não — e a outra barbearia não é tocada', async () => {
+    const [deDois] = await sql`INSERT INTO promocoes (tenant_id, combo_id, dia_da_semana, inicio_min, fim_min, desconto_pct, ativa, ativada_por, ativada_em)
+      VALUES (2, 3, ${(DIA + 1) % 7}, ${TARDE}, ${FIM}, 30, true, 3, now()) RETURNING id`;
+    await sql`UPDATE settings SET promo_clientes_novos = 4 WHERE tenant_id = 1`;
+    const id = await promocaoAtiva();
+    const g = async (n: number) => (await noPainel(um, cookies.donaUm, rotas.configuracoes.PATCH, 'PATCH', { promoClientesNovos: n })).status;
+    expect(await g(4)).toBe(200);
+    expect(await g(5)).toBe(200);
+    expect(await ativa(id)).toBe(true);
+    expect(await g(3)).toBe(200);
+    expect(await ativa(id)).toBe(false);
+    expect(await ativa(deDois.id)).toBe(true);
+    expect(await g(4)).toBe(200);
+  });
+
+  it('menos clientes novos com a desativação falhando: nada fica gravado pela metade, e a tela e o banco concordam', async () => {
+    await sql`UPDATE settings SET promo_clientes_novos = 4 WHERE tenant_id = 1`;
+    await noPainel(um, cookies.donaUm, rotas.configuracoes.PATCH, 'PATCH', { promoClientesNovos: 4 }); // o cache com 4
+    const id = await promocaoAtiva();
+    await sql`CREATE FUNCTION recusar_desativar() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'o banco caiu'; END $$`;
+    await sql`CREATE TRIGGER recusar_desativar BEFORE UPDATE ON promocoes FOR EACH ROW EXECUTE FUNCTION recusar_desativar()`;
+    const erro = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let r: Awaited<ReturnType<typeof noPainel>>;
+    try {
+      r = await noPainel(um, cookies.donaUm, rotas.configuracoes.PATCH, 'PATCH', { promoClientesNovos: 2 });
+    } finally {
+      erro.mockRestore();
+      await sql`DROP TRIGGER recusar_desativar ON promocoes`;
+      await sql`DROP FUNCTION recusar_desativar()`;
+    }
+    expect(r.status).toBe(500);
+    // O g menor não ficou: a transação desfez. Salvar de novo pega a promoção.
+    expect((await sql`SELECT promo_clientes_novos AS g FROM settings WHERE tenant_id = 1`)[0].g).toBe(4);
+    expect(await ativa(id)).toBe(true);
+    expect((await noPainel(um, cookies.donaUm, rotas.promocoes.GET, 'GET')).corpo.clientesNovos).toBe(4);
+    expect((await noPainel(um, cookies.donaUm, rotas.configuracoes.PATCH, 'PATCH', { promoClientesNovos: 2 })).status).toBe(200);
+    expect(await ativa(id)).toBe(false);
+    expect((await noPainel(um, cookies.donaUm, rotas.configuracoes.PATCH, 'PATCH', { promoClientesNovos: 4 })).status).toBe(200);
+  });
+
+  it('o custo mudou enquanto a promoção era ativada: ela sai na hora, com 409 — a conta era a de antes', async () => {
+    // A outra aba, simulada pelo banco: logo depois do INSERT da promoção, o custo do produto muda.
+    await sql`CREATE FUNCTION mudar_custo_no_meio() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN UPDATE products SET cost_cents = cost_cents + 500 WHERE id = 1 AND tenant_id = 1; RETURN NEW; END $$`;
+    await sql`CREATE TRIGGER mudar_custo_no_meio AFTER INSERT ON promocoes FOR EACH ROW EXECUTE FUNCTION mudar_custo_no_meio()`;
+    let r: Awaited<ReturnType<typeof noPainel>>;
+    try {
+      r = await noPainel(um, cookies.donaUm, rotas.promocoes.POST, 'POST',
+        { comboId: 1, diaDaSemana: DIA, faixa: 'tarde', descontoPct: 11, confirmacao: true });
+    } finally {
+      await sql`DROP TRIGGER mudar_custo_no_meio ON promocoes`;
+      await sql`DROP FUNCTION mudar_custo_no_meio()`;
+    }
+    expect(r.status).toBe(409);
+    expect(r.corpo.error).toMatch(/mudou enquanto a promoção era ativada/);
+    expect(await sql`SELECT id FROM promocoes WHERE combo_id = 1 AND dia_da_semana = ${DIA} AND inicio_min = ${TARDE} AND ativa`).toHaveLength(0);
+    // Controle: sem a mudança no meio, a mesma ativação passa.
+    const ok = await noPainel(um, cookies.donaUm, rotas.promocoes.POST, 'POST',
+      { comboId: 1, diaDaSemana: DIA, faixa: 'tarde', descontoPct: 11, confirmacao: true });
+    expect(ok.status).toBe(201);
   });
 });

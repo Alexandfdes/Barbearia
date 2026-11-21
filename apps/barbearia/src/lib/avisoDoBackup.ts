@@ -22,8 +22,9 @@
  * de barbearia nenhuma, e `avisos_enviados` é por barbearia. O nome fica fora dos padrões que a
  * retenção apaga e que quem procura backup lê (`.sql.gz`, `-fotos.tar.gz`).
  *
- * A reserva vem antes do envio e é desfeita se ele falha, como nos avisos do dono. Se a trava não se
- * grava, o aviso não sai: sem ela, sairia a cada hora.
+ * A trava se grava em `.parcial` antes do envio — se a pasta não a aceita, o aviso não sai: sem ela,
+ * sairia a cada hora — e só vira a trava depois que o e-mail saiu (19/11/2026): o processo que cai no
+ * meio manda um aviso a mais, nunca nenhum.
  *
  * ⚠️ O texto leva só o que o sistema monta: as horas, a situação e o motivo que o `backup.mjs`
  * registrou — a mensagem do provedor e o que o SDK sabe dela, sem credencial (`detalheDaFalha`).
@@ -117,12 +118,6 @@ function diaDaTrava(conteudo: string | null): string | null {
   }
 }
 
-/** Grava em `.parcial` e renomeia, como os registros do `backup.mjs`: quem lê nunca pega pela metade. */
-function gravarTrava(caminho: string, conteudo: string): void {
-  writeFileSync(`${caminho}.parcial`, conteudo);
-  renameSync(`${caminho}.parcial`, caminho);
-}
-
 /**
  * Avisa o operador, uma vez por dia, enquanto o backup não sobe para fora do servidor. Devolve se o
  * e-mail saiu nesta rodada. Nunca lança por falha de envio ou de disco: o resto da tarefa já rodou.
@@ -150,8 +145,13 @@ export async function avisarBackupQueNaoSobe(
   const anterior = lerTrava(trava);
   if (diaDaTrava(anterior) === dia) return false; // já avisado hoje
 
+  // A trava se grava DEPOIS do envio (19/11/2026). Gravada antes, o processo que caísse entre as duas
+  // coisas — o deploy, a memória — deixava o dia "avisado" sem e-mail nenhum, justo no dia de servidor com
+  // problema. Agora o pior caso é o contrário: um aviso a mais. A prova de que a pasta aceita a trava vem
+  // antes, como antes: sem ela, sairia a cada hora.
+  const conteudo = `${JSON.stringify({ dia, situacao, em: agora.toISOString() })}\n`;
   try {
-    gravarTrava(trava, `${JSON.stringify({ dia, situacao, em: agora.toISOString() })}\n`);
+    writeFileSync(`${trava}.parcial`, conteudo);
   } catch (erro) {
     console.error(`[avisos] o aviso do backup ao operador não saiu: a trava não se grava em ${trava} —`,
       erro instanceof Error ? erro.message : erro);
@@ -161,13 +161,16 @@ export async function avisarBackupQueNaoSobe(
   try {
     // Sai da parte do operador, sem barbearia (`lib/email.ts`), como o lembrete do site que espera.
     await (opcoes.enviar ?? enviarEmail)({ para, ...textoDoAvisoDoBackup(dados), barbearia: null, tipo: 'operador' });
-    return true;
   } catch (erro) {
-    try {
-      if (anterior === null) unlinkSync(trava);
-      else gravarTrava(trava, anterior);
-    } catch { /* a trava fica: o aviso de hoje se perde, e o de amanhã sai */ }
+    try { unlinkSync(`${trava}.parcial`); } catch { /* sobra um .parcial, que ninguém lê */ }
     console.error('[avisos] o aviso do backup ao operador não saiu —', erro instanceof Error ? erro.message : erro);
     return false;
   }
+  try {
+    renameSync(`${trava}.parcial`, trava);
+  } catch (erro) {
+    console.error(`[avisos] o aviso do backup saiu, mas a trava não se gravou em ${trava} — pode repetir na próxima hora:`,
+      erro instanceof Error ? erro.message : erro);
+  }
+  return true;
 }

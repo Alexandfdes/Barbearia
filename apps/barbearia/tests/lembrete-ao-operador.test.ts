@@ -129,6 +129,29 @@ describe.skipIf(!TEM_BANCO)('a tarefa, contra o banco', () => {
     expect((await sql`SELECT count(*)::int AS n FROM avisos_enviados`)[0].n).toBe(0);
   });
 
+  it('o banco que falha ao desfazer a reserva não faz a função lançar — e o log diz qual site ficou (19/11/2026)', async () => {
+    const depois = new Date(CADASTRO.getTime() + 21 * HORA);
+    const recusa = async () => { throw new Error('o provedor recusou'); };
+    // O banco recusa o DELETE de verdade, só durante este caso: um gatilho.
+    await sql`CREATE FUNCTION recusar_apagar() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'o banco caiu'; END $$`;
+    await sql`CREATE TRIGGER recusar_apagar BEFORE DELETE ON avisos_enviados FOR EACH ROW EXECUTE FUNCTION recusar_apagar()`;
+    const erro = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      // Antes, a exceção do delete escapava e parava a rodada de avisos no meio.
+      await expect(avisos.lembrarSitesQueEsperam(depois, { env: ENV, enviar: recusa })).resolves.toBe(0);
+      // As duas reservas ficaram — e o log diz cada uma (o Drizzle embrulha a recusa em "Failed query").
+      const naoDesfeitas = erro.mock.calls.map(([m]) => String(m)).filter((m) => /reserva do lembrete da barbearia \d+ não se desfez/.test(m));
+      expect(naoDesfeitas).toHaveLength(2);
+      expect((await sql`SELECT count(*)::int AS n FROM avisos_enviados`)[0].n).toBe(2);
+    } finally {
+      erro.mockRestore();
+      await sql`DROP TRIGGER recusar_apagar ON avisos_enviados`;
+      await sql`DROP FUNCTION recusar_apagar()`;
+      // As reservas que ficaram saem à mão, para os casos seguintes começarem do zero.
+      await sql`DELETE FROM avisos_enviados`;
+    }
+  });
+
   it('depois de 20 horas: um e-mail só, com os que passaram da hora, o mais antigo primeiro — para o operador', async () => {
     const depois = new Date(CADASTRO.getTime() + 21 * HORA);
     expect(await avisos.lembrarSitesQueEsperam(depois, { env: ENV })).toBe(2);

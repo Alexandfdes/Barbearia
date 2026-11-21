@@ -350,8 +350,15 @@ export async function lembrarSitesQueEsperam(
     await (opcoes.enviar ?? enviarEmail)({ para, ...conteudo, barbearia: null, tipo: 'operador' });
     return reservados.length;
   } catch (erro) {
+    // Desfazer as reservas não pode lançar (19/11/2026): a função nunca lança, e a rodada de avisos
+    // seguiria parada no meio. A que não se desfaz fica — o site perde o lembrete, e o log diz qual.
     for (const r of reservas) {
-      await dbDono.delete(avisosEnviados).where(and(eq(avisosEnviados.id, r.id), eq(avisosEnviados.tenantId, r.tenantId)));
+      try {
+        await dbDono.delete(avisosEnviados).where(and(eq(avisosEnviados.id, r.id), eq(avisosEnviados.tenantId, r.tenantId)));
+      } catch (e) {
+        console.error(`[avisos] a reserva do lembrete da barbearia ${r.tenantId} não se desfez — ele não sai mais por si:`,
+          e instanceof Error ? e.message : e);
+      }
     }
     console.error(`[avisos] o lembrete ao operador de ${reservados.length} site(s) esperando não saiu —`, erro instanceof Error ? erro.message : erro);
     return 0;
