@@ -32,7 +32,9 @@ export const POST: APIRoute = async ({ request, params }) => {
   }
 
   const now = new Date().toISOString();
-  await db.update(appointments)
+  // A condição está no UPDATE, e agora a resposta também a lê (21/11/2026): com dois pedidos ao mesmo
+  // tempo, o segundo não mudava nada e ainda dizia "ok" — como o cancelar do link do cliente já faz.
+  const feitos = await db.update(appointments)
     .set({
       status:           'cancelled',
       cancelledAt:      now,
@@ -40,7 +42,9 @@ export const POST: APIRoute = async ({ request, params }) => {
       lastModifiedById: session.barberId,
       lastModifiedAt:   now,
     })
-    .where(and(eq(appointments.id, id), eq(appointments.status, 'confirmed'), eq(appointments.tenantId, tenant.id)));
+    .where(and(eq(appointments.id, id), eq(appointments.status, 'confirmed'), eq(appointments.tenantId, tenant.id)))
+    .returning({ id: appointments.id });
+  if (feitos.length === 0) return json({ error: 'Este horário já não está confirmado. Atualize a agenda.' }, 409);
 
   return json({ ok: true });
 };
