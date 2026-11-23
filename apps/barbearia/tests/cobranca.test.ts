@@ -675,8 +675,9 @@ describe.skipIf(!TEM_BANCO)('o Checkout', () => {
     expect(corpo.externalReference).toBe('barbearia:4');
     expect(corpo.callback.successUrl).toMatch(/\/admin\/assinatura\?cartao=ok$/);
     expect(corpo.callback.cancelUrl).toMatch(/\/admin\/assinatura\?cartao=cancelado$/);
-    // Cliente novo: os dados que o cadastro tem. O cartão e o CPF, a página da Asaas pede.
-    expect(corpo.customerData).toEqual({ name: 'Dono Novo', email: 'dono@novo.com.br', phone: '84990000040' });
+    // Cliente novo: NADA do cliente — a página da Asaas pede tudo. No sandbox (23/11/2026), o
+    // `customerData` pela metade (nome, e-mail, telefone) era recusado com 400: exige o pacote inteiro.
+    expect(corpo.customerData).toBeUndefined();
     expect(corpo.customer).toBeUndefined();
     expect(JSON.stringify(corpo)).not.toMatch(/card(Number|Holder)|ccv|cvv/i);
     expect((await linha(4)).asaas_checkout_ids).toEqual(['chk_novo']);

@@ -240,16 +240,12 @@ export async function abrirCheckout(o: {
     }],
     subscription: { cycle: 'MONTHLY', nextDueDate: dataDaPrimeiraCobranca(s, fusoDaLinha(t), agora, await deveCobrancaQueFalhou(t.id)) },
     // Cliente que já existe na Asaas continua o mesmo — é a chave dos eventos.
-    // Novo: os dados que o cadastro tem; o CPF ou CNPJ, a página pede.
-    ...(t.asaas_customer_id
-      ? { customer: t.asaas_customer_id }
-      : {
-          customerData: {
-            name: o.dono.nome,
-            ...(o.dono.email ? { email: o.dono.email } : {}),
-            ...(o.dono.telefone ? { phone: o.dono.telefone } : {}),
-          },
-        }),
+    // Novo: NADA do cliente — a página da Asaas pede tudo ao titular. Conferido no sandbox em
+    // 23/11/2026: com `customerData`, a Asaas exige o pacote inteiro (e-mail, CPF ou CNPJ, telefone,
+    // rua, número, CEP e bairro) e recusa com 400 o que vier pela metade — era o que ia, o nome, o
+    // e-mail e o telefone, e nenhum dono conseguia cadastrar o cartão. Sem `customerData`, aceita
+    // (`docs/PENDENCIAS-ABERTAS.md` §4.14). O cliente que a página cria chega no CHECKOUT_PAID.
+    ...(t.asaas_customer_id ? { customer: t.asaas_customer_id } : {}),
   };
 
   const checkout = await asaas.criarCheckout(o.cfg, corpo);
