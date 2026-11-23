@@ -71,7 +71,7 @@
 | **15/10** | **Datas em português**, achadas no caminho: a área do cliente dizia "20 de Oct · Tue", e o Início, "16 de Oct" | `PENDENCIAS-ABERTAS.md` §2.44 |
 | **15/10** | **Configurações em quatro abas**, escolhidas por você entre três formas — a tela era uma rolagem só, com nove blocos. Um Salvar só; os links do Início e do medidor levam ao bloco certo; a recusa do Salvar abre a aba do campo | `PENDENCIAS-ABERTAS.md` §2.45 |
 | **15/10** | **A barra lateral presa na tela**, pedido por você: rolava junto com a página, e no fim de uma tela longa o menu tinha sumido. No computador, agora fica presa — o menu que não cabe rola por dentro, e o Sair fica sempre à vista; no celular, nada muda. A do painel do operador também | `PENDENCIAS-ABERTAS.md` §2.46 |
-| **16/10** | **A revisão do projeto, conferida no GitHub e rodando a árvore do `22ecd85`**: o código verde (1156 de 1156, zero erro de tipo, o CI do GitHub verde), e a `main` — de onde a produção constrói — parada em 10/10, 61 commits atrás. **Decidido por você:** os commits deixam de levar as linhas `Co-Authored-By` e `Claude-Session` (os já publicados ficam), e a pasta `Design/` fica no repositório. **Consertados em 17/10, os achados dela:** o backup antes das migrations (§3.2), a fila do webhook parada visível no painel do operador (§3.13), o rodapé que não acendia o dia (§2.47) e a raiz do painel em 404 (§2.48) | `PENDENCIAS-ABERTAS.md` §3.2, `PENDENCIAS-ABERTAS.md` §3.13 e `CLAUDE.md` |
+| **16/10** | **A revisão do projeto, conferida no GitHub e rodando a árvore do `881b969`**: o código verde (1156 de 1156, zero erro de tipo, o CI do GitHub verde), e a `main` — de onde a produção constrói — parada em 10/10, 61 commits atrás. **Decidido por você:** os commits deixam de levar as linhas `Co-Authored-By` e `Claude-Session` (os já publicados ficam), e a pasta `Design/` fica no repositório. **Consertados em 17/10, os achados dela:** o backup antes das migrations (§3.2), a fila do webhook parada visível no painel do operador (§3.13), o rodapé que não acendia o dia (§2.47) e a raiz do painel em 404 (§2.48) | `PENDENCIAS-ABERTAS.md` §3.2, `PENDENCIAS-ABERTAS.md` §3.13 e `CLAUDE.md` |
 
 **Ainda pendente dentro dos itens acima:** ~~registrar `fadeline.com.br`~~ — ✅ **registrado pelo
 dono** (vale até 14/10/2027) e em uso desde 29/10/2026, com o DNS na Hostinger; ⚠️ **não conferido**
@@ -2309,7 +2309,7 @@ se lê sem dúvida não acende.
 cadastro voltam com os dias certos (`apps/barbearia/tests/rodape-dia-de-hoje.test.ts`); e, contra
 o build, num navegador com o relógio parado: o sábado acendendo "Segunda — Sábado", o domingo
 acendendo "Sábado — Domingo", o domingo às 23:30 da barbearia — já segunda em UTC — ainda
-domingo, e a segunda acendendo "Segunda — Sexta". O build do `22ecd85` reprova as quatro.
+domingo, e a segunda acendendo "Segunda — Sexta". O build do `881b969` reprova as quatro.
 
 ### 2.48 ✅ `[TÉCNICO]` O endereço do painel sem o `/admin` dava "Barbearia não encontrada" — RESOLVIDO em 17/10/2026
 
@@ -2537,7 +2537,7 @@ dono que editar alguém da Equipe sem WhatsApp precisa preenchê-lo — é por e
 
 ### 2.56 ✅ `[TÉCNICO]` A varredura de 26/10/2026 — os escolhidos por você, CONSERTADOS no mesmo dia
 
-Cinco revisões em paralelo sobre o `a3cc57b` — o código de 18 a 26/10, o cadastro e o site de vendas,
+Cinco revisões em paralelo sobre o `1b44f44` — o código de 18 a 26/10, o cadastro e o site de vendas,
 o painel do dono, a operação e os documentos —, cada achado conferido no código e quase todos
 reproduzidos. **O escopo por barbearia aguentou em tudo:** nenhum achado vaza dado de cliente de uma
 barbearia para outra. Você escolheu os três primeiros grupos:
@@ -3403,8 +3403,8 @@ na 0009 — o estado de produção —, sobe o container com o CMD dele e confer
 tem de fazer: o backup de antes das migrations no volume, as migrations aplicadas, o papel do app,
 a saúde, só as dependências de produção na imagem, o provisionador rodando dentro dele e o site da
 barbearia nova abrindo; reiniciado, nada pendente e nenhum backup a mais. O deploy pelo CI (§3.8)
-espera este job também. ✅ **Provado no GitHub em 25/10/2026**, no push do `28ea4aa`, e de novo em
-26/10 (`4e88e3e`): a imagem construída de verdade, com o Docker, e todas as conferências verdes. Até
+espera este job também. ✅ **Provado no GitHub em 25/10/2026**, no push do `96aadd4`, e de novo em
+26/10 (`deda22c`): a imagem construída de verdade, com o Docker, e todas as conferências verdes. Até
 então só tinha rodado sem Docker, sobre o build (13 conferências), porque o ambiente onde foi escrito
 não pode ligá-lo.
 
@@ -4025,7 +4025,7 @@ contra a documentação e uma Asaas de mentira, como o resto da cobrança (§4.1
 vermelhas — e uma oitava trocada por ser equivalente: comparar o nome sem minúsculas, que o `URL`
 já devolve em minúsculas. Contra o build, com uma Asaas de mentira: a fila interrompida no Início e
 no Sistema, as 15 falhas, a fila reativada e o aviso sumindo, e a Asaas fora do ar virando atenção
-sem travar a tela. O build do `22ecd85` reprova sete delas.
+sem travar a tela. O build do `881b969` reprova sete delas.
 
 ## 4. Especificações que faltam escrever
 
@@ -5190,7 +5190,7 @@ presa na tela, pedida por você (§2.46).
 **25 e 26/10/2026, ✅ feitos:** o primeiro push depois de 17/10 provou a imagem do Docker no
 GitHub (§3.2) — e achou a suíte vermelha sozinha: um teste de `tests/senha-nova.test.ts` dava à
 barbearia de teste um prazo cravado em 14/10 e usava o relógio de verdade; vencido o prazo, a sessão
-caía. Consertado em `4e88e3e`. **Procurados os outros:** a suíte inteira rodou com o relógio do app
+caía. Consertado em `deda22c`. **Procurados os outros:** a suíte inteira rodou com o relógio do app
 e o do banco adiantados 30 e 180 dias — nenhum outro teste vence; as quatro falhas que aparecem são
 do próprio experimento (a retenção do backup compara a data do arquivo, que o relógio adiantado não
 alcança). E as dependências com falha publicada depois de 09/10, nos dois apps (§2.29).

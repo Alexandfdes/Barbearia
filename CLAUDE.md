@@ -187,7 +187,9 @@ Fonte de verdade em `docs/`, na raiz do monorepo:
   `docs/PENDENCIAS-ABERTAS.md` §3.3). O envio recusado se diagnostica com `node scripts/diagnosticar-envio.mjs`, no
   Console — pelo mesmo `enviarParaS3`, com o cliente de `clienteDoS3`; `S3_SO_IPV4=1` força o backup por IPv4.
 - **Commit sem as linhas `Co-Authored-By` e `Claude-Session`** — decisão do dono em 16/10/2026.
-  Os commits anteriores ficam como estão.
+  Em 23/11/2026 o histórico da `main` e da `monorepo` foi reescrito para tirá-las também dos commits
+  anteriores (e o Claude como autor de 7 commits de 06/09): todo hash de antes dessa data mudou
+  (`docs/ESTADO-ATUAL.md` §8).
 - **CI:** `.github/workflows/testes.yml` roda a suíte com banco a cada push na `main` e na
   `monorepo` — e teste pulado reprova. Desde 17/10/2026, o job `imagem` constrói o Dockerfile e o
   sobe sobre um banco na 0009 — o de produção quando o job nasceu; produção já passou dela: mexeu no Dockerfile,
