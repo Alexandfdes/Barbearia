@@ -1,0 +1,4 @@
+# As migrations sempre com fim de linha LF, em qualquer máquina (23/11/2026): o `scripts/startup.mjs`
+# confere o hash de cada uma, e no Windows, com core.autocrlf, o checkout as gravava com CRLF — o hash
+# mudava e o boot avisava "a migration MUDOU" sem o conteúdo ter mudado.
+apps/barbearia/drizzle/*.sql text eol=lf
