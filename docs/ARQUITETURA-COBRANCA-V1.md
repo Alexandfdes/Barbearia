@@ -474,7 +474,10 @@ não toca. Consertado, e a migration 0014 converte as linhas antigas (`PENDENCIA
 seguinte ao fim do teste; hoje, para quem está na carência ou fora do ar; e, para quem cancelou e
 reativa ainda no ar, no dia em que a antiga acabaria — o mesmo mês não é cobrado duas vezes. O
 número do cartão é digitado na página da Asaas e nunca passa pelo servidor. Cliente que já
-existe vai pelo id; novo, com o nome, o e-mail e o telefone do cadastro — o CPF, a página pede.
+existe vai pelo id; novo, ~~com o nome, o e-mail e o telefone do cadastro — o CPF, a página pede~~
+*sem dado nenhum, desde 23/11/2026: o sandbox recusava (400) o cliente pela metade, e a página
+pede tudo ao titular (`PENDENCIAS-ABERTAS.md` §4.14)*. A tela de assinatura promete o mesmo dia
+que o Checkout manda, pela mesma função (`primeiraCobrancaDaBarbearia`, desde 23/11/2026).
 
 **Como o evento acha a barbearia.** A Asaas não garante a ordem, e cada evento traz uma chave
 diferente. Na ordem: o Checkout (`checkout.id`, ou o `checkoutSession` da assinatura) entre os
@@ -484,11 +487,11 @@ evento não escolhe nenhuma. Cada evento ensina as chaves que faltam.
 
 | Evento | Efeito |
 |---|---|
-| `CHECKOUT_PAID` | Em dia — inclusive quem estava fora do ar ou tinha cancelado. Guarda o cliente e desliga as notificações da Asaas para ele |
-| `SUBSCRIPTION_CREATED` | Liga a assinatura à barbearia. Se havia outra — o cartão trocado —, a antiga é removida na Asaas, com as cobranças em aberto dela, se ainda existir |
-| `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED` | Em dia. Atrasada, só quando é paga a cobrança que FALHOU — desde 17/10/2026: no cartão o `PAYMENT_RECEIVED` chega ~32 dias depois, e o do mês passado tirava do atraso quem não pagou este (`PENDENCIAS-ABERTAS.md` §2.53) |
+| `CHECKOUT_PAID` | Em dia — inclusive quem estava fora do ar ou tinha cancelado. Se trouxer o cliente, guarda e desliga as notificações da Asaas para ele — no sandbox, o do dono novo vem com `customer` nulo (23/11/2026) |
+| `SUBSCRIPTION_CREATED` | Liga a assinatura à barbearia. Se havia outra — o cartão trocado —, a antiga é removida na Asaas, com as cobranças em aberto dela, se ainda existir. O cliente que a barbearia não conhecia é guardado, e as notificações da Asaas saem dele aqui (desde 23/11/2026) |
+| `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED` | Em dia. Atrasada, só quando é paga a cobrança que FALHOU — desde 17/10/2026: no cartão o `PAYMENT_RECEIVED` chega ~32 dias depois, e o do mês passado tirava do atraso quem não pagou este (`PENDENCIAS-ABERTAS.md` §2.53). O `PAYMENT_CONFIRMED` de uma assinatura que não é mais a em vigor pede olho: é o dono pagando duas (desde 23/11/2026) |
 | `PAYMENT_OVERDUE`, `PAYMENT_CREDIT_CARD_CAPTURE_REFUSED` | Atrasada desde a PRIMEIRA falha: começam os 3 dias de carência (`apps/barbearia/src/lib/situacao.ts`) |
-| `SUBSCRIPTION_DELETED`, `SUBSCRIPTION_INACTIVATED` | A assinatura em vigor removida por fora do painel: no ar até o fim do período pago. Removida pelo cancelar do painel, a data já está gravada e não muda. Com a barbearia fora do `active`, pede olho ao operador — e, tirada do ar ou encerrada, a saída fica marcada para valer se ela for reativada (desde 17/10/2026) |
+| `SUBSCRIPTION_DELETED`, `SUBSCRIPTION_INACTIVATED` | A assinatura em vigor removida por fora do painel: no ar até o fim do período pago — desde 23/11/2026, um mês depois do vencimento da última cobrança paga que o webhook registrou, ou o fim do teste; não mais o `nextDueDate`, que o sandbox mostrou dois meses à frente. Removida pelo cancelar do painel, a data já está gravada e não muda. Com a barbearia fora do `active`, pede olho ao operador — e, tirada do ar ou encerrada, a saída fica marcada para valer se ela for reativada (desde 17/10/2026) |
 | Estorno e contestação | Alerta no log e no "pede olho" do operador (desde 17/10/2026); nada muda sozinho (§4) |
 | Qualquer outro | Guardado, e mais nada |
 
@@ -509,7 +512,8 @@ barbearia em dia. Rejeitado no mesmo dia: remover a assinatura depois de 30 dias
 
 **Quando o processamento falha.** O erro que é do próprio evento — um dado em conflito, um dado
 que o banco recusa — se repetiria em toda reentrega: fica guardado com o motivo e responde 200,
-porque 15 falhas seguidas interrompem a fila do webhook inteiro. O resto — o banco fora do ar, um
+porque as falhas seguidas interrompem a fila do webhook inteiro (15, pela documentação; no sandbox,
+em 23/11/2026, parou com 2). O resto — o banco fora do ar, um
 erro de programa — responde 500 e volta para a fila: o erro de programa quebraria todos os
 eventos iguais, e aí a fila parar é o certo; conserta-se o programa e religa-se a fila. Religa-se em Integrações → Webhooks, no painel
 da Asaas, ou por `PUT /v3/webhooks/{id}` com `interrupted: false`; os avisos parados há menos de

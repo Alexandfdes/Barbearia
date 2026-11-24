@@ -4561,7 +4561,71 @@ Desde 25/09/2026 o dono sobe galeria, logo, capa e fotos de produto no painel lo
 do cadastro — isso muda o segundo dia, não o primeiro minuto. E cada layout tem que tratar
 a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`).
 
-### 4.14 🔴 `[TÉCNICO]` A cobrança — FEITA no código em 10/10/2026; falta a prova no sandbox
+### 4.14 🔴 `[TÉCNICO]` A cobrança — FEITA no código em 10/10/2026; a prova no sandbox começou em 23/11/2026, e falta o resto do roteiro
+
+> **23/11/2026 — a prova começou: o cadastro do cartão, ponta a ponta, no sandbox.** Pela máquina do
+> dono — `npm run dev` e um túnel do `cloudflared` (a saída 2 do roteiro abaixo) —, com a Bayron do
+> banco de desenvolvimento no teste. Respondido:
+>
+> - **Que evento chega no dia do cadastro:** o `CHECKOUT_PAID` e, depois, o `SUBSCRIPTION_CREATED`,
+>   nessa ordem. **Nada é cobrado no cadastro**: a página da Asaas diz "Pagamento confirmado", mas
+>   a primeira cobrança fica `PENDING` para o fim do teste.
+> - **O `CHECKOUT_PAID` NÃO traz o cliente:** `checkout.customer` e `checkout.customerData` vêm
+>   nulos; vem o `externalReference` ("barbearia:N"). O cliente chega no `SUBSCRIPTION_CREATED`.
+> - **O `SUBSCRIPTION_CREATED` traz o `checkoutSession`** (o id do Checkout) e o cliente; o
+>   `externalReference` vem nulo — nele, no cliente e nas cobranças.
+> - **Os dados do titular:** com `customerData`, a Asaas exige o pacote inteiro (e-mail, CPF ou
+>   CNPJ, telefone, rua, número, CEP e bairro) e recusa com 400 o que vier pela metade — era o que
+>   ia, e nenhum dono conseguia cadastrar o cartão. Sem ele, a página pede tudo ao titular. Consertado
+>   (`abrirCheckout`, commit `86e2905`).
+> - **O `nextDueDate` corre na frente:** logo depois do cadastro, a assinatura já tinha a primeira
+>   cobrança (no fim do teste) e o `nextDueDate` um mês depois; horas depois, duas cobranças pendentes
+>   e o `nextDueDate` **dois** meses depois — sem nada pago.
+> - **A fila do webhook parou com 2 falhas**, não 15 (o túnel caiu, provavelmente com a máquina
+>   dormindo), e o
+>   contador de falhas (`penalizedRequestsCount`) voltou a 0 quando um envio passou. Retomada, os
+>   avisos guardados chegaram em segundos, em ordem.
+>
+> **O que isso desmentiu no código — consertado no mesmo dia**, cada um com o defeito desfeito e o
+> caso certo vermelho (15 mutações, as 15 pegas — 4 delas dos três problemas que uma revisão
+> independente achou no próprio conserto):
+>
+> 1. **As notificações da Asaas nunca eram desligadas para o dono novo:** o desligar só saía do
+>    `CHECKOUT_PAID`, que vem sem cliente — conferido no sandbox, o cliente ficou com
+>    `notificationDisabled: false`. Agora sai também do `SUBSCRIPTION_CREATED`, quando o cliente é
+>    novo para a barbearia.
+> 2. **A assinatura removida na Asaas, por fora do painel, deixava o site no ar até o `nextDueDate`**
+>    — até dois meses sem pagar. Agora o fim é um mês depois do vencimento da última cobrança paga
+>    registrada pelo webhook, ou o fim do teste se nada foi pago (`fimDoQueFoiPago`). O cancelar do
+>    painel já não usava o `nextDueDate` desde 18/10.
+> 3. **A tela de assinatura prometia "até lá, nada é cobrado" a quem cancelou devendo**, e o Checkout
+>    cobrava no dia: ela fazia a conta sem a dívida. Agora usa a mesma função do Checkout
+>    (`primeiraCobrancaDaBarbearia`).
+> 4. **O pagamento numa assinatura que não é mais a em vigor passava em silêncio** — o dono cobrado
+>    duas vezes, se a remoção da antiga falhou. Agora o `PAYMENT_CONFIRMED` dela pede olho — só se
+>    ela já foi desta barbearia: a NOVA, cujo `SUBSCRIPTION_CREATED` ainda não chegou, também é
+>    "outra", e o alerta mandaria remover a que vai valer (achado da revisão).
+> 5. **O alerta da fila prometia folga de 15 falhas.** Agora qualquer falha, com a fila andando, é
+>    problema — e o quadro Cobrança do Sistema diz o mesmo: ele continuava verde, "os avisos de
+>    pagamento chegam", logo abaixo do alerta (achado da revisão). Com a fila já parada, só o alerta
+>    dela.
+>
+> **Ficaram para depois, sem conserto** — achados na mesma varredura, menos graves:
+>
+> - *Cancelar com a cobrança vencida que o webhook ainda não trouxe* (a fila parada): o cancelar só
+>   pergunta à Asaas pelas `PENDING`, ignora a `OVERDUE`, e o fim pula um mês (`vencimentoQueNaoVaiHaver`).
+> - *Com a fila parada, a tela do dono volta a pedir o cartão que ele acabou de cadastrar* — só a URL
+>   (`?cartao=ok`) sabe que ele voltou do Checkout; cadastrando de novo, nasce uma segunda assinatura.
+>
+> **Falta responder:** se a Asaas reaproveita o cliente pelo CPF; o `GET` de assinatura removida;
+> se o `PUT /customers/{id}` desliga as notificações; o `PAYMENT_RECEIVED` ~32 dias depois do
+> `PAYMENT_CONFIRMED`; se o Checkout aceita `nextDueDate` de hoje. É o resto do roteiro: cancelar,
+> reativar, uma cobrança vencida (os cartões de teste que a Asaas recusa), cancelar devendo e assinar
+> de novo.
+>
+> ⚠️ **O túnel rápido do `cloudflared` não aguenta a máquina dormir:** a Cloudflare apaga o túnel, o
+> endereço muda, e a fila da Asaas para. Na prova, manter o computador acordado e conferir a fila
+> (`interrupted`) antes de cada passo; a URL nova do webhook se troca no painel do sandbox.
 
 > **10/10/2026 — feita no código, NÃO testada no sandbox.** O dono cadastra o cartão no
 > Checkout da Asaas pela tela de assinatura, o webhook mantém a barbearia em dia, e o cancelar
@@ -4612,8 +4676,9 @@ a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`
 >    então o termo tem de dizer, com todas as letras, que sair do ar não cancela (§1.2); e o
 >    cancelar abre também fora do ar, para quem quiser parar.
 >
-> ⚠️ **As notificações da Asaas são desligadas a cada `CHECKOUT_PAID`** — a proposta 3 de
-> 10/10, abaixo: quem avisa é o app. Sem o `SMTP_URL` em produção (§4.17), então, ninguém avisa
+> ⚠️ **As notificações da Asaas são desligadas ~~a cada `CHECKOUT_PAID`~~** — *desde 23/11/2026,
+> no `SUBSCRIPTION_CREATED` do cliente novo também: o `CHECKOUT_PAID` real vem sem o cliente* — a
+> proposta 3 de 10/10, abaixo: quem avisa é o app. Sem o `SMTP_URL` em produção (§4.17), então, ninguém avisa
 > o dono por e-mail de cobrança nenhuma; só a faixa do painel. Mais um motivo de o cadastro não
 > abrir sem ele (§2.31).
 >

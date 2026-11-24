@@ -18,10 +18,23 @@ alguém pagando e saindo do ar, ou alguém sem pagar e ficando. Onde mora:
 
 ## 1. A documentação da Asaas não é o sandbox
 
-**O código foi escrito pelos exemplos da documentação, e o sandbox ainda não foi testado.** Tudo
-o que a documentação diz e o código assume vira pergunta no `docs/PENDENCIAS-ABERTAS.md` §4.14 — e o
-que o sandbox desmentir volta para o código. Fato conferido na documentação vai com a data
-("conferido em 17/10/2026"), nunca de memória.
+**O código foi escrito pelos exemplos da documentação; o sandbox começou a ser testado em
+23/11/2026, e desmentiu de saída.** Tudo o que a documentação diz e o código assume vira pergunta no
+`docs/PENDENCIAS-ABERTAS.md` §4.14 — e o que o sandbox desmentir volta para o código. Fato conferido
+na documentação vai com a data ("conferido em 17/10/2026"), nunca de memória. Teste que imita a
+Asaas imita o que o sandbox MANDOU, não o exemplo da documentação: os casos com `checkout.customer`
+preenchido passavam e escondiam que as notificações nunca eram desligadas.
+
+O que o sandbox mostrou em 23/11/2026 (o cadastro do cartão do dono novo):
+
+- **O `CHECKOUT_PAID` vem SEM o cliente** (`checkout.customer` e `customerData` nulos). O cliente
+  chega no `SUBSCRIPTION_CREATED`, com o `checkoutSession`. Nada que dependa do cliente pode
+  morar só no `CHECKOUT_PAID`.
+- **O `externalReference` não passa do Checkout** para o cliente, a assinatura e as cobranças: a
+  barbearia se acha pelo id do Checkout.
+- **O `nextDueDate` pode estar DOIS ciclos à frente** da primeira cobrança não paga, sem nada pago.
+  Nunca é "o fim do período pago".
+- **A fila parou com 2 falhas, não 15**, e o contador de falhas zera quando um envio passa.
 
 Os três que já viraram defeito, conferidos na documentação em 17/10/2026:
 
@@ -38,8 +51,8 @@ Os três que já viraram defeito, conferidos na documentação em 17/10/2026:
 
 1. **O evento é gravado cru antes de tudo**, na mesma transação, e o id dele é único: a Asaas
    entrega "pelo menos uma vez". Repetido, não faz nada.
-2. **200 ou 500 decide a fila de todas as barbearias.** 15 falhas seguidas interrompem a fila do
-   webhook inteiro; a Asaas guarda os avisos por 14 dias e reenvia ao reativar (Integrações →
+2. **200 ou 500 decide a fila de todas as barbearias.** Poucas falhas seguidas interrompem a fila
+   do webhook inteiro (15, pela documentação; 2, no sandbox); a Asaas guarda os avisos por 14 dias e reenvia ao reativar (Integrações →
    Webhooks). Erro do próprio evento — que se repetiria em toda reentrega — fica guardado com o
    motivo e responde 200. Banco fora ou erro de programa: 500, e a fila parar é o certo.
 3. **O token é comparado em tempo constante**, e sem `ASAAS_WEBHOOK_TOKEN` a rota recusa tudo.
