@@ -4610,12 +4610,19 @@ a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`
 >    pagamento chegam", logo abaixo do alerta (achado da revisão). Com a fila já parada, só o alerta
 >    dela.
 >
-> **Ficaram para depois, sem conserto** — achados na mesma varredura, menos graves:
+> **Os dois que ficaram — achados na mesma varredura, menos graves:**
 >
-> - *Cancelar com a cobrança vencida que o webhook ainda não trouxe* (a fila parada): o cancelar só
->   pergunta à Asaas pelas `PENDING`, ignora a `OVERDUE`, e o fim pula um mês (`vencimentoQueNaoVaiHaver`).
-> - *Com a fila parada, a tela do dono volta a pedir o cartão que ele acabou de cadastrar* — só a URL
+> - ✅ *Cancelar com a cobrança vencida que o webhook ainda não trouxe* (a fila parada) — consertado
+>   no mesmo dia, mais tarde: o cancelar só perguntava à Asaas pelas `PENDING`, ignorava a `OVERDUE`,
+>   e o fim pulava um mês. Agora pergunta pelas vencidas também, e com uma delas é cancelar devendo — o
+>   que restava da carência, contada do dia em que ela venceu. E o aviso da falha que chega DEPOIS do
+>   cancelar, que virava "nada muda", agora encurta a saída até a carência (nunca a alonga) e grava
+>   "atrasada": quem assinar de novo paga no dia (`falhaDeQuemJaCancelou`).
+> - 🟡 *Com a fila parada, a tela do dono volta a pedir o cartão que ele acabou de cadastrar* — só a URL
 >   (`?cartao=ok`) sabe que ele voltou do Checkout; cadastrando de novo, nasce uma segunda assinatura.
+>   A Asaas não ajuda: o filtro `checkoutSession` da lista de assinaturas é ignorado calado (no
+>   sandbox, um id inventado devolveu a assinatura de verdade). O conserto pede guardar a volta na
+>   barbearia — uma migration, que espera a sua revisão.
 >
 > **Falta responder:** se a Asaas reaproveita o cliente pelo CPF; o `GET` de assinatura removida;
 > se o `PUT /customers/{id}` desliga as notificações; o `PAYMENT_RECEIVED` ~32 dias depois do

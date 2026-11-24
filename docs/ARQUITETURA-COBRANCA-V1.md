@@ -502,7 +502,10 @@ uma antiga, removida quando o cartão foi trocado, não atrasa ninguém.
 ou fora do ar —, só o que restava da carência (a estendida pelo operador, se foi), e a mensalidade
 que falhou some com a assinatura. *Desde 18/10/2026* o fim do período pago é o vencimento da
 cobrança pendente mais antiga, lida na Asaas antes de remover — o `nextDueDate` já está um mês à
-frente, porque a Asaas gera cada cobrança 40 dias antes —; e o cancelar só remove a assinatura
+frente, porque a Asaas gera cada cobrança 40 dias antes —; *desde 23/11/2026*, com uma cobrança
+VENCIDA que o webhook não trouxe (a fila parada), é cancelar devendo — o que restava da carência,
+contada do dia em que ela venceu —, e o aviso dessa falha, se chegar depois do cancelar, encurta a
+saída até a carência e faz quem assinar de novo pagar no dia; e o cancelar só remove a assinatura
 comprovadamente da barbearia: cada uma é independente, mesmo com o mesmo dono
 (`PENDENCIAS-ABERTAS.md` §2.55).
 As duas regras foram decididas na implementação e confirmadas pelo dono em 10/10/2026
