@@ -156,7 +156,18 @@ export interface CobrancaAsaas {
  */
 export async function cobrancasPendentes(cfg: ConfigAsaas, assinaturaId: string): Promise<CobrancaAsaas[]> {
   const r = await pedir<{ data?: CobrancaAsaas[] }>(cfg, 'GET', `/subscriptions/${id(assinaturaId)}/payments?status=PENDING`);
-  return r?.data ?? [];
+  return (r?.data ?? []).filter((c) => !c.status || c.status === 'PENDING');
+}
+
+/**
+ * As cobranças VENCIDAS de uma assinatura — as que falharam e ninguém pagou. O filtro `status` é
+ * respeitado no sandbox (23/11/2026: `OVERDUE` devolveu 0 de 2 pendentes); o `status` de cada uma
+ * é conferido aqui também, porque a Asaas ignora calada o filtro que não conhece (o
+ * `checkoutSession` das assinaturas, no mesmo dia).
+ */
+export async function cobrancasVencidas(cfg: ConfigAsaas, assinaturaId: string): Promise<CobrancaAsaas[]> {
+  const r = await pedir<{ data?: CobrancaAsaas[] }>(cfg, 'GET', `/subscriptions/${id(assinaturaId)}/payments?status=OVERDUE`);
+  return (r?.data ?? []).filter((c) => c.status === 'OVERDUE');
 }
 
 export async function assinatura(cfg: ConfigAsaas, assinaturaId: string): Promise<AssinaturaAsaas> {

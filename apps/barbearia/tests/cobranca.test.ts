@@ -892,7 +892,8 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
     const r = await pedir(CANCELAR, { barberId: 70, role: 'admin', tenantId: 7 });
     expect(r.status).toBe(200);
     expect(chamadas.map((c) => `${c.metodo} ${c.caminho}`)).toEqual([
-      'GET /subscriptions/sub_emdia', 'GET /subscriptions/sub_emdia/payments?status=PENDING', 'DELETE /subscriptions/sub_emdia',
+      'GET /subscriptions/sub_emdia', 'GET /subscriptions/sub_emdia/payments?status=OVERDUE',
+      'GET /subscriptions/sub_emdia/payments?status=PENDING', 'DELETE /subscriptions/sub_emdia',
     ]);
     expect((await linha(7)).subscription_ends_at.toISOString()).toBe(meiaNoite(dia).toISOString());
     expect(r.corpo.noArAte).toBe(formatInTimeZone(new Date(meiaNoite(dia).getTime() - 1), TZ, 'dd/MM'));
@@ -1050,6 +1051,62 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
       .toBe(formatInTimeZone(cancelada.subscription_ends_at, TZ, 'yyyy-MM-dd'));
     // E a tela volta a prometer o fim do período, junto.
     expect(await primeiraCobrancaDaBarbearia(31, naTela, TZ)).toBe(fimDaCarenciaDela);
+  });
+
+  it('em dia pelo app, com uma cobrança VENCIDA que o webhook não trouxe (a fila parada): é cancelar devendo — fica só a carência, e o aviso que chega depois cobra no dia quem voltar (23/11/2026)', async () => {
+    // Até 23/11/2026 o cancelar perguntava à Asaas só pelas PENDENTES: o fim era a do mês seguinte,
+    // um mês no ar sem pagar o que falhou; e o aviso atrasado da falha virava "nada muda".
+    await conn`INSERT INTO tenants (id, slug, business_name, status, asaas_customer_id, asaas_subscription_id) VALUES
+                 (23, 'venceu-calada', 'Venceu Calada', 'active', 'cus_vc', 'sub_vc')`;
+    await conn`INSERT INTO barbers (tenant_id, id, name, slug, role, password_hash, active, phone) VALUES
+                 (23, 230, 'Dono VC', 'dono', 'admin', 'x', true, '84990000230')`;
+    await carregarTenants(true);
+    const ontem = diaNoFuso(new Date(Date.now() - DIA));
+    const mesQueVem = diaNoFuso(new Date(Date.now() + 30 * DIA));
+    responder = (c) => (c.metodo !== 'GET' ? { corpo: { deleted: true, id: 'sub_vc' } }
+      : c.caminho.endsWith('status=OVERDUE') ? { corpo: { data: [{ id: 'pay_vc', status: 'OVERDUE', dueDate: ontem }] } }
+      : c.caminho.includes('/payments') ? { corpo: { data: [{ id: 'pay_vc_2', status: 'PENDING', dueDate: mesQueVem }] } }
+      : { corpo: { id: 'sub_vc', status: 'ACTIVE', nextDueDate: mesQueVem, deleted: false } });
+    expect((await pedir(CANCELAR, { barberId: 230, role: 'admin', tenantId: 23 })).status).toBe(200);
+    expect(chamadas.map((c) => `${c.metodo} ${c.caminho}`)).toEqual([
+      'GET /subscriptions/sub_vc', 'GET /subscriptions/sub_vc/payments?status=OVERDUE', 'DELETE /subscriptions/sub_vc',
+    ]);
+    // A carência conta do dia em que a cobrança virou vencida — hoje —, como se o aviso tivesse chegado.
+    const fimDaCarenciaDela = fimDaCarencia(meiaNoite(diaNoFuso(new Date())), TZ);
+    const cancelada = await linha(23);
+    expect(cancelada.subscription_ends_at.toISOString()).toBe(fimDaCarenciaDela.toISOString());
+
+    // O aviso da falha chega quando a fila volta: é dívida — quem assinar de novo paga no dia.
+    const naTela = situacaoDe({ status: 'active', encerraEm: cancelada.subscription_ends_at, fuso: TZ });
+    expect(await primeiraCobrancaDaBarbearia(23, naTela, TZ)).toBe(diaNoFuso(fimDaCarenciaDela)); // antes do aviso
+    await enviar({ id: 'evt_vc_1', event: 'PAYMENT_OVERDUE', payment: { id: 'pay_vc', customer: 'cus_vc', subscription: 'sub_vc', dueDate: ontem } });
+    expect((await desfecho('evt_vc_1')).outcome).toMatch(/^atrasada, já cancelada: /);
+    expect((await linha(23)).subscription_ends_at.toISOString()).toBe(fimDaCarenciaDela.toISOString());
+    expect(await primeiraCobrancaDaBarbearia(23, naTela, TZ)).toBe(diaNoFuso(new Date()));
+  });
+
+  it('o aviso atrasado da falha, depois de um cancelar que não a viu: encurta a saída até a carência — nunca alonga — e o repetido não conta duas vezes', async () => {
+    // A 24 cancelou EM DIA, com a saída daqui a 25 dias; a cobrança de hoje falhou, e o aviso só
+    // chegou depois do cancelar. A 25 cancelou com a saída daqui a uma hora: a carência não a alonga.
+    const longe = new Date(Date.now() + 25 * DIA);
+    const logo = new Date(Date.now() + 60 * 60 * 1000);
+    await conn`INSERT INTO tenants (id, slug, business_name, status, asaas_customer_id, asaas_subscription_id, subscription_ends_at) VALUES
+                 (24, 'falhou-depois', 'Falhou Depois', 'active', 'cus_fd', 'sub_fd', ${longe}),
+                 (25, 'sai-logo', 'Sai Logo', 'active', 'cus_sl', 'sub_sl', ${logo})`;
+    const hoje = diaNoFuso(new Date());
+    await enviar({ id: 'evt_fd_1', event: 'PAYMENT_CREDIT_CARD_CAPTURE_REFUSED', payment: { id: 'pay_fd', customer: 'cus_fd', subscription: 'sub_fd', dueDate: hoje } });
+    expect((await desfecho('evt_fd_1')).outcome).toMatch(/^atrasada, já cancelada: /);
+    const amanha = diaNoFuso(new Date(Date.now() + DIA));
+    const encurtada = (await linha(24)).subscription_ends_at;
+    expect(encurtada.toISOString()).toBe(fimDaCarencia(meiaNoite(amanha), TZ).toISOString());
+    // O PAYMENT_OVERDUE da MESMA cobrança, depois: já sabida — nada muda.
+    await enviar({ id: 'evt_fd_2', event: 'PAYMENT_OVERDUE', payment: { id: 'pay_fd', customer: 'cus_fd', subscription: 'sub_fd', dueDate: hoje } });
+    expect((await desfecho('evt_fd_2')).outcome).toBe('nada muda: a barbearia está active');
+    expect((await linha(24)).subscription_ends_at.toISOString()).toBe(encurtada.toISOString());
+
+    await enviar({ id: 'evt_sl_1', event: 'PAYMENT_CREDIT_CARD_CAPTURE_REFUSED', payment: { id: 'pay_sl', customer: 'cus_sl', subscription: 'sub_sl', dueDate: hoje } });
+    expect((await desfecho('evt_sl_1')).outcome).toMatch(/^atrasada, já cancelada: /);
+    expect((await linha(25)).subscription_ends_at.toISOString()).toBe(logo.toISOString());
   });
 
   it('fora do ar pela cobrança: cancela pela sessão de fora do ar — e o site continua fora, agora como cancelado', async () => {

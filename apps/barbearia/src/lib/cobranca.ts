@@ -55,7 +55,7 @@ import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import type { TransactionSql } from 'postgres';
 import { sqlConn } from '../db/index.js';
 import { fusoDe } from './timezone.js';
-import { fimDaCarenciaDoAtraso, situacaoDe, type Situacao, type StatusDaBarbearia } from './situacao.js';
+import { fimDaCarenciaDoAtraso, situacaoDe, somarDias, type Situacao, type StatusDaBarbearia } from './situacao.js';
 import { NOME_PRODUTO, PRECO_MENSAL } from './produto.js';
 import { TELA_DE_ASSINATURA } from './assinatura.js';
 import { invalidarTenants } from './tenant.js';
@@ -536,7 +536,8 @@ async function aplicar(tx: Tx, e: EventoAsaas, t: LinhaDaBarbearia, agora: Date,
       return 'em dia: a cobrança foi paga';
     }
     if (t.status === 'past_due') return 'continua atrasada desde a primeira falha';
-    if (t.status !== 'active' || t.subscription_ends_at) return `nada muda: a barbearia está ${t.status}`;
+    if (t.status === 'active' && t.subscription_ends_at) return falhaDeQuemJaCancelou(tx, e, t, agora);
+    if (t.status !== 'active') return `nada muda: a barbearia está ${t.status}`;
     await tx`UPDATE tenants SET status = 'past_due', past_due_since = ${agora.toISOString()} WHERE id = ${t.id}`;
     return 'atrasada: a cobrança não passou — começa a carência';
   }
@@ -573,6 +574,36 @@ async function aplicar(tx: Tx, e: EventoAsaas, t: LinhaDaBarbearia, agora: Date,
   }
 
   return 'registrado';
+}
+
+/**
+ * A cobrança da assinatura dela falhou, e ela JÁ cancelou. Se a falha já estava registrada — o
+ * cancelar foi feito na carência —, nada de novo. Se não, é o aviso que a fila do webhook atrasou:
+ * a falha veio antes do cancelar, que não a viu e marcou a saída como de quem estava em dia. É
+ * dívida (23/11/2026): o site fica só o que restava da carência — nunca mais do que o cancelar
+ * marcou —, e o desfecho "atrasada" é o que faz quem assinar de novo pagar no dia
+ * (`deveCobrancaQueFalhou`). Até então virava "nada muda", e a dívida sumia.
+ */
+async function falhaDeQuemJaCancelou(tx: Tx, e: EventoAsaas, t: LinhaDaBarbearia, agora: Date): Promise<string> {
+  const cobranca = textoOuNulo(e.payment?.id);
+  if (!cobranca) return `nada muda: a barbearia está ${t.status}`;
+  const [ja] = await tx<{ sabida: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM webhook_events
+       WHERE tenant_id = ${t.id}
+         AND payload->'payment'->>'id' = ${cobranca}
+         AND (outcome LIKE 'atrasada%' OR outcome LIKE 'continua atrasada%')
+    ) AS sabida`;
+  if (ja?.sabida) return `nada muda: a barbearia está ${t.status}`;
+  const fuso = fusoDaLinha(t);
+  const vencimento = textoOuNulo(e.payment?.dueDate);
+  const desde = vencimento && /^\d{4}-\d{2}-\d{2}$/.test(vencimento) ? atrasoDesdeOVencimento(vencimento, fuso) : agora;
+  const carencia = fimDaCarenciaDoAtraso({ atrasadaDesde: desde, carenciaAte: comoData(t.carencia_ate), fuso });
+  const fim = carencia.getTime() > agora.getTime() ? carencia : agora;
+  await tx`
+    UPDATE tenants SET subscription_ends_at = LEAST(subscription_ends_at, ${fim.toISOString()}::timestamptz)
+    WHERE id = ${t.id}`;
+  return 'atrasada, já cancelada: a cobrança falhou antes do cancelar, e o aviso chegou depois — no ar só até o fim da carência, e quem assinar de novo paga no dia';
 }
 
 /**
@@ -715,6 +746,15 @@ export async function registrarEventoComFalha(e: EventoAsaas, erro: unknown): Pr
  * até 16/11 ficava no ar até 16/12 de graça. Agora: o da cobrança pendente mais antiga; sem
  * nenhuma pendente, o `nextDueDate`, como antes.
  */
+/**
+ * Desde quando conta o atraso de uma cobrança que venceu sem pagar, sabido só pelo vencimento: a
+ * meia-noite do dia seguinte a ele, no fuso — o dia em que ela vira vencida. Dá o mesmo fim de
+ * carência que o aviso da falha daria, chegando no próprio dia do vencimento (`fimDaCarencia`).
+ */
+function atrasoDesdeOVencimento(vencimento: string, fuso: string): Date {
+  return fromZonedTime(`${somarDias(vencimento, 1)}T00:00:00`, fuso);
+}
+
 async function vencimentoQueNaoVaiHaver(cfg: asaas.ConfigAsaas, a: asaas.AssinaturaAsaas): Promise<string | undefined> {
   const pendentes = (await asaas.cobrancasPendentes(cfg, a.id))
     .map((c) => c.dueDate)
@@ -754,13 +794,23 @@ export async function cancelarAssinatura(tenantId: number, cfg: asaas.ConfigAsaa
   alvos = alvos.filter((a) => a && !a.deleted);
 
   const maior = (a: Date, b: Date) => (b.getTime() > a.getTime() ? b : a);
+  const fuso = fusoDaLinha(t);
   const atrasadaDesde = comoData(t.past_due_since);
-  const fim = t.status === 'past_due'
-    ? (atrasadaDesde
-      ? maior(agora, fimDaCarenciaDoAtraso({ atrasadaDesde, carenciaAte: comoData(t.carencia_ate), fuso: fusoDaLinha(t) }))
-      : agora)
-    : (await Promise.all(alvos.map((a) => vencimentoQueNaoVaiHaver(cfg, a))))
-      .reduce((m, dia) => maior(m, fimDoPeriodoPago(dia, fusoDaLinha(t), agora)), agora);
+  let fim: Date;
+  if (t.status === 'past_due') {
+    fim = atrasadaDesde ? maior(agora, fimDaCarenciaDoAtraso({ atrasadaDesde, carenciaAte: comoData(t.carencia_ate), fuso })) : agora;
+  } else {
+    // Em dia, pelo que o app sabe — mas a cobrança pode ter falhado sem o aviso ter chegado: a fila
+    // do webhook parada (no sandbox, parou com 2 falhas). A Asaas sabe. Com uma VENCIDA, é cancelar
+    // devendo: o que restava da carência, contada como se o aviso tivesse chegado. Até 23/11/2026 o
+    // cancelar olhava só as pendentes, e o fim era a do mês seguinte: um mês no ar sem pagar o que falhou.
+    const vencidas = (await Promise.all(alvos.map((a) => asaas.cobrancasVencidas(cfg, a.id)))).flat()
+      .map((c) => c.dueDate).filter((d): d is string => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+    fim = vencidas.length
+      ? maior(agora, fimDaCarenciaDoAtraso({ atrasadaDesde: atrasoDesdeOVencimento(vencidas[0], fuso), carenciaAte: comoData(t.carencia_ate), fuso }))
+      : (await Promise.all(alvos.map((a) => vencimentoQueNaoVaiHaver(cfg, a))))
+        .reduce((m, dia) => maior(m, fimDoPeriodoPago(dia, fuso, agora)), agora);
+  }
 
   for (const a of alvos) await asaas.removerAssinatura(cfg, a.id);
   // Só se nada mudou desde a leitura: um pagamento que chegou no meio já pôs a
