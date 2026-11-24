@@ -17,8 +17,8 @@
 // no dia seguinte ao fim do teste, e a chave da Asaas não aparece em lugar nenhum.
 //
 // A Asaas daqui é de mentira (`fetch` trocado). Os eventos seguem os exemplos da
-// documentação de 10/10/2026 — o sandbox de verdade ainda não foi testado
-// (`docs/PENDENCIAS-ABERTAS.md` §4.14).
+// documentação de 10/10/2026 — menos os do bloco "como no sandbox", que seguem o que o sandbox
+// de verdade mandou em 23/11/2026 (`docs/PENDENCIAS-ABERTAS.md` §4.14).
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import postgres from 'postgres';
@@ -28,7 +28,8 @@ import { recriarSchema } from './migrations.js';
 import { fimDaCarencia, situacaoDe, type Situacao } from '../src/lib/situacao';
 import { TZ_PADRAO as TZ } from '../src/lib/timezone';
 import {
-  CHECKOUTS_GUARDADOS, dataDaPrimeiraCobranca, erroDefinitivo, fimDoPeriodoPago, podeCadastrarCartao, referenciaDaBarbearia,
+  CHECKOUTS_GUARDADOS, dataDaPrimeiraCobranca, erroDefinitivo, fimDoPeriodoPago, podeCadastrarCartao, primeiraCobrancaDaBarbearia,
+  referenciaDaBarbearia, umMesDepois,
 } from '../src/lib/cobranca';
 import { configDaAsaas } from '../src/lib/asaas';
 import { tokenConfere } from '../src/pages/api/asaas/webhook';
@@ -118,6 +119,25 @@ describe('o dia da primeira cobrança', () => {
   it('o dia é o do fuso, não o do servidor: 23h de Fortaleza já é amanhã em UTC', () => {
     const noite = fromZonedTime('2026-10-10T23:30:00', TZ);
     expect(dataDaPrimeiraCobranca({ fase: 'carencia', motivo: 'teste', ate: noite }, TZ, noite)).toBe('2026-10-10');
+  });
+
+  it('a tela de assinatura promete o dia pela MESMA função do Checkout — a que sabe da dívida (23/11/2026)', () => {
+    // Ela chamava `dataDaPrimeiraCobranca` sem o `deve`: a quem cancelou devendo, prometia "até lá,
+    // nada é cobrado" no fim da carência, e o Checkout cobrava no mesmo dia. O caso com banco, lá
+    // embaixo ("cancelou DEVENDO"), prova a função; este, que a tela usa a função.
+    const tela = readFileSync('src/pages/admin/assinatura.astro', 'utf8');
+    expect(tela).toMatch(/await primeiraCobrancaDaBarbearia\(tenant\.id, situacao, fuso\)/);
+    expect(tela).not.toMatch(/dataDaPrimeiraCobranca/);
+  });
+});
+
+describe('um mês depois do vencimento pago', () => {
+  it('o mesmo dia no mês seguinte — e o último dia, quando o mês seguinte não tem aquele', () => {
+    expect(umMesDepois('2026-11-26')).toBe('2026-12-26');
+    expect(umMesDepois('2026-12-26')).toBe('2027-01-26');
+    expect(umMesDepois('2026-10-31')).toBe('2026-11-30');
+    expect(umMesDepois('2027-01-31')).toBe('2027-02-28');
+    expect(umMesDepois('2028-01-31')).toBe('2028-02-29');
   });
 });
 
@@ -240,7 +260,8 @@ beforeAll(async () => {
     (11, 'fora',     'Fora pela Cobrança', 'past_due', NULL,      ${ha10},   'cus_fora',   'sub_fora',   '{}'),
     (12, 'prazo-paga',   'Prazo e Pagou',     'past_due', NULL,   ${ha10},   'cus_pp',     'sub_pp',     '{}'),
     (13, 'prazo-cancela', 'Prazo e Cancelou', 'past_due', NULL,   ${ha10},   'cus_pc',     'sub_pc',     '{}'),
-    (14, 'espera',   'Esperando Aprovação', 'trial',   ${daqui7}, NULL,      NULL,         NULL,         '{}')`;
+    (14, 'espera',   'Esperando Aprovação', 'trial',   ${daqui7}, NULL,      NULL,         NULL,         '{}'),
+    (15, 'real',     'Como no Sandbox',   'trial',     ${daqui7}, NULL,      NULL,         NULL,         '{chk_real}')`;
   // A 14 veio do cadastro pela web e espera a aprovação do operador (migration 0020).
   await conn`UPDATE tenants SET site_aprovado_em = NULL WHERE id = 14`;
   // As duas com a carência estendida pelo operador (migration 0016): a cobrança
@@ -420,10 +441,34 @@ describe.skipIf(!TEM_BANCO)('o webhook mantém a barbearia em dia', () => {
     expect((await desfecho('evt_7')).outcome).toMatch(/não é mais a desta barbearia/);
   });
 
+  it('o PAGAMENTO numa assinatura antiga — que devia ter sido removida — pede olho: é o dono pagando duas (23/11/2026)', async () => {
+    // A remoção da antiga é um efeito depois do commit: falhou (a Asaas fora, um reinício), e ela
+    // continuou cobrando o cartão antigo. Até 23/11/2026 o pagamento dela virava "nada muda", fora
+    // do "pede olho" do operador — e quem descobria a cobrança em dobro era o dono, pela fatura.
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { DESFECHOS_QUE_PEDEM_OLHO } = await import('../src/lib/operadorBarbearias');
+    await enviar({ id: 'evt_7b', event: 'PAYMENT_CONFIRMED', payment: { id: 'pay_dobro', customer: 'cus_ze', subscription: 'sub_ze_1', dueDate: '2026-01-10' } });
+    const d = (await desfecho('evt_7b')).outcome as string;
+    expect(d).toMatch(/^alerta: pagamento numa assinatura que não é mais a desta barbearia \(sub_ze_1\)/);
+    expect(DESFECHOS_QUE_PEDEM_OLHO.some((p) => d.startsWith(p))).toBe(true);
+    expect(aviso).toHaveBeenCalledWith(expect.stringMatching(/pay_dobro na assinatura sub_ze_1, que não é mais a da barbearia 1/));
+    // O PAYMENT_RECEIVED de um mês pago ANTES da troca chega ~32 dias depois do CONFIRMED: normal.
+    await enviar({ id: 'evt_7c', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1', customer: 'cus_ze', subscription: 'sub_ze_1' } });
+    expect((await desfecho('evt_7c')).outcome).toBe('nada muda: cobrança de uma assinatura que não é mais a desta barbearia');
+    // E a assinatura NOVA, cujo SUBSCRIPTION_CREATED ainda não chegou, também é "outra" — mas nunca
+    // foi desta barbearia: alertar mandaria o operador remover a que vai valer (revisão de 23/11/2026).
+    await enviar({ id: 'evt_7d', event: 'PAYMENT_CONFIRMED', payment: { id: 'pay_nova', customer: 'cus_ze', subscription: 'sub_ze_nova' } });
+    expect((await desfecho('evt_7d')).outcome).toBe('nada muda: cobrança de uma assinatura que não é mais a desta barbearia');
+    expect(await linha(1)).toMatchObject({ status: 'active', asaas_subscription_id: 'sub_ze_2' });
+    aviso.mockRestore();
+  });
+
   it('a assinatura antiga que já foi removida — quem cancelou e assinou de novo — não é removida outra vez, nem gera alarme', async () => {
     const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
     responder = (c) => (c.caminho === '/subscriptions/sub_v1' ? { corpo: { id: 'sub_v1', deleted: true } } : { status: 404, corpo: { errors: [{ code: 'not_found' }] } });
-    await conn`UPDATE tenants SET asaas_subscription_id = 'sub_v1' WHERE id = 2`;
+    // O cliente ela já conhece: o assunto aqui é a assinatura, e o desligar das notificações
+    // (que o cliente novo pede no SUBSCRIPTION_CREATED, desde 23/11/2026) não entra na conta.
+    await conn`UPDATE tenants SET asaas_subscription_id = 'sub_v1', asaas_customer_id = 'cus_v' WHERE id = 2`;
     await enviar({ id: 'evt_v2', event: 'SUBSCRIPTION_CREATED', subscription: { id: 'sub_v2', customer: 'cus_v', externalReference: 'barbearia:2' } });
     await enviar({ id: 'evt_v3', event: 'SUBSCRIPTION_CREATED', subscription: { id: 'sub_v3', customer: 'cus_v', externalReference: 'barbearia:2' } });
     await vi.waitFor(() => expect(chamadas).toHaveLength(2));
@@ -483,13 +528,23 @@ describe.skipIf(!TEM_BANCO)('o webhook mantém a barbearia em dia', () => {
     expect((await desfecho('evt_17')).outcome).toBe('registrado');
   });
 
-  it('assinatura em vigor removida — aqui ou na Asaas: no ar até o fim do período pago; a de uma antiga não muda nada', async () => {
-    const dia = diaNoFuso(new Date(Date.now() + 20 * DIA));
-    await enviar({ id: 'evt_18', event: 'SUBSCRIPTION_DELETED', subscription: { id: 'sub_ze_1', customer: 'cus_ze', nextDueDate: dia } });
+  it('assinatura em vigor removida na Asaas, por fora do painel: no ar até um mês depois da última cobrança PAGA — não até o nextDueDate; a de uma antiga não muda nada', async () => {
+    // A cobrança paga vence no dia 10 do mês que vem; o período pago acaba no dia 10 do outro.
+    // Dia 10: o "um mês depois" não depende do tamanho do mês (esse caso está em `umMesDepois`).
+    const [ano, mes] = diaNoFuso(new Date()).split('-').map(Number);
+    const dia10 = (n: number) => {
+      const m = mes - 1 + n;
+      return `${ano + Math.floor(m / 12)}-${String((m % 12) + 1).padStart(2, '0')}-10`;
+    };
+    // O `nextDueDate` que a Asaas manda já está DOIS ciclos à frente (sandbox, 23/11/2026): até
+    // 23/11 era ele o fim, e o site ficava um mês a mais no ar sem pagar.
+    await enviar({ id: 'evt_18a', event: 'PAYMENT_CONFIRMED', payment: { id: 'pay_ze_pago', customer: 'cus_ze', subscription: 'sub_ze_2', dueDate: dia10(1) } });
+    await enviar({ id: 'evt_18', event: 'SUBSCRIPTION_DELETED', subscription: { id: 'sub_ze_1', customer: 'cus_ze', nextDueDate: dia10(3) } });
     expect((await linha(1)).subscription_ends_at).toBeNull();
 
-    await enviar({ id: 'evt_19', event: 'SUBSCRIPTION_DELETED', subscription: { id: 'sub_ze_2', customer: 'cus_ze', nextDueDate: dia } });
-    expect((await linha(1)).subscription_ends_at.toISOString()).toBe(meiaNoite(dia).toISOString());
+    await enviar({ id: 'evt_19', event: 'SUBSCRIPTION_DELETED', subscription: { id: 'sub_ze_2', customer: 'cus_ze', nextDueDate: dia10(3) } });
+    expect((await desfecho('evt_19')).outcome).toBe('assinatura encerrada: no ar até o fim do período pago');
+    expect((await linha(1)).subscription_ends_at.toISOString()).toBe(meiaNoite(dia10(2)).toISOString());
 
     await carregarTenants(true);
     const req = new Request('https://ze.fadeline.com.br/', { headers: { host: 'ze.fadeline.com.br' } });
@@ -502,6 +557,70 @@ describe.skipIf(!TEM_BANCO)('o webhook mantém a barbearia em dia', () => {
       await tx`SELECT set_config('app.tenant_id', '1', true)`;
       await tx`SELECT count(*) FROM webhook_events`;
     })).rejects.toThrow(/permission denied/);
+  });
+});
+
+// ── Os eventos como o sandbox da Asaas mandou (23/11/2026) ──────────────────
+//
+// O dono novo vai ao Checkout sem cliente, e a página da Asaas o cria. O que chegou, nesta ordem
+// (as chaves e os nulos são os do sandbox; os valores pessoais, não):
+//  - CHECKOUT_PAID com `checkout.customer` e `checkout.customerData` NULOS — o evento não diz quem
+//    é o cliente;
+//  - SUBSCRIPTION_CREATED com o cliente, o `checkoutSession` e o `externalReference` nulo, e o
+//    `nextDueDate` já dois ciclos à frente da primeira cobrança (26/01, com a primeira em 26/11).
+// Os casos de cima usam `checkout.customer` preenchido — o formato da documentação —, e por isso
+// não pegavam as notificações nunca desligadas nem a saída pelo `nextDueDate`.
+
+describe.skipIf(!TEM_BANCO)('como no sandbox: o cartão do dono novo, e a assinatura removida no teste', () => {
+  const doisCiclos = () => diaNoFuso(new Date(Date.now() + 62 * DIA));
+
+  it('CHECKOUT_PAID sem cliente: em dia, achada pelo Checkout — e nada a desligar ainda', async () => {
+    const r = await enviar({
+      id: 'evt_real_1', event: 'CHECKOUT_PAID', dateCreated: '2026-11-23 20:24:31', account: { id: 'acc_teste' },
+      checkout: {
+        id: 'chk_real', link: null, status: 'PAID', customer: null, customerData: null, externalReference: 'barbearia:15',
+        billingTypes: ['CREDIT_CARD'], chargeTypes: ['RECURRENT'], minutesToExpire: 60, installment: null, split: null,
+        callback: { successUrl: 'https://painel.fadeline.com.br/admin/assinatura?cartao=ok' }, items: [{ name: 'Fadeline — mensal', value: 100, quantity: 1 }],
+        subscription: { cycle: 'MONTHLY', nextDueDate: '2026-11-26T03:00:00+0000', endDate: null },
+      },
+    });
+    expect(r).toEqual({ status: 200, corpo: { ok: true } });
+    expect(await desfecho('evt_real_1')).toMatchObject({ tenant_id: 15, outcome: 'em dia: o cartão foi cadastrado' });
+    expect(await linha(15)).toMatchObject({ status: 'active', asaas_customer_id: null, asaas_subscription_id: null });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it('SUBSCRIPTION_CREATED traz o cliente: liga a assinatura e o cliente, e desliga as notificações da Asaas para ele', async () => {
+    const evento = {
+      id: 'evt_real_2', event: 'SUBSCRIPTION_CREATED', dateCreated: '2026-11-23 20:24:33', account: { id: 'acc_teste' },
+      subscription: {
+        object: 'subscription', id: 'sub_real', dateCreated: '2026-11-23', customer: 'cus_real', paymentLink: null,
+        value: 100, nextDueDate: doisCiclos(), cycle: 'MONTHLY', description: 'Fadeline — mensal', billingType: 'CREDIT_CARD',
+        deleted: false, status: 'ACTIVE', externalReference: null, checkoutSession: 'chk_real', sendPaymentByPostalService: false,
+        fine: { value: 0 }, interest: { value: 0 }, split: null, creditCard: { creditCardNumber: '0000', creditCardBrand: 'VISA' },
+        pixAutomaticAuthorizationMode: null,
+      },
+    };
+    expect(await enviar(evento)).toEqual({ status: 200, corpo: { ok: true } });
+    expect(await linha(15)).toMatchObject({ status: 'active', asaas_customer_id: 'cus_real', asaas_subscription_id: 'sub_real' });
+    await vi.waitFor(() => expect(chamadas).toHaveLength(1));
+    expect(chamadas[0]).toMatchObject({ metodo: 'PUT', caminho: '/customers/cus_real', corpo: { notificationDisabled: true } });
+
+    // A reentrega não pede de novo.
+    chamadas.length = 0;
+    expect(await enviar(evento)).toEqual({ status: 200, corpo: { ok: true, duplicado: true } });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it('a assinatura removida na Asaas ainda no teste, sem nada pago: no ar até o fim do TESTE — não dois meses, pelo nextDueDate', async () => {
+    await enviar({
+      id: 'evt_real_3', event: 'SUBSCRIPTION_DELETED',
+      subscription: { object: 'subscription', id: 'sub_real', customer: 'cus_real', nextDueDate: doisCiclos(), deleted: true, status: 'INACTIVE', externalReference: null, checkoutSession: 'chk_real' },
+    });
+    const [{ trial_ends_at }] = await conn`SELECT trial_ends_at FROM tenants WHERE id = 15`;
+    expect((await linha(15)).subscription_ends_at.toISOString()).toBe(trial_ends_at.toISOString());
   });
 });
 
@@ -610,6 +729,8 @@ describe.skipIf(!TEM_BANCO)('estorno, contestação e assinatura removida fora d
     expect(l.status).toBe('suspended');
     // Reativada pelo operador, ela sai do ar no fim do período pago — e não fica em dia sem assinatura.
     expect(l.subscription_ends_at).not.toBeNull();
+    // Nada pago registrado e sem teste: o fim é agora — não os 12 dias do nextDueDate (23/11/2026).
+    expect(l.subscription_ends_at.getTime()).toBeLessThanOrEqual(Date.now());
     expect((await desfecho('evt_del_manual')).outcome).toMatch(/^alerta: a assinatura em vigor foi removida na Asaas com a barbearia suspended/);
   });
 
@@ -900,6 +1021,13 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
     expect(cancelada.subscription_ends_at.getTime()).toBeGreaterThan(Date.now());
     await carregarTenants(true);
 
+    // O que a tela de assinatura promete antes do botão: hoje, como o Checkout. A conta sem a
+    // dívida — a que a tela fazia até 23/11/2026 — dava o fim da carência, com "até lá, nada é cobrado".
+    const naTela = situacaoDe({ status: 'active', encerraEm: cancelada.subscription_ends_at, fuso: TZ });
+    const fimDaCarenciaDela = formatInTimeZone(cancelada.subscription_ends_at, TZ, 'yyyy-MM-dd');
+    expect(dataDaPrimeiraCobranca(naTela, TZ)).toBe(fimDaCarenciaDela);
+    expect(await primeiraCobrancaDaBarbearia(31, naTela, TZ)).toBe(diaNoFuso(new Date()));
+
     // Assina de novo na hora: a primeira cobrança é HOJE.
     chamadas.length = 0;
     responder = () => ({ corpo: { id: 'chk_dev', link: 'https://x/chk_dev' } });
@@ -920,6 +1048,8 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
     expect((await pedir(CARTAO, { barberId: 310, role: 'admin', tenantId: 31 })).status).toBe(200);
     expect((chamadas[0].corpo as { subscription: { nextDueDate: string } }).subscription.nextDueDate)
       .toBe(formatInTimeZone(cancelada.subscription_ends_at, TZ, 'yyyy-MM-dd'));
+    // E a tela volta a prometer o fim do período, junto.
+    expect(await primeiraCobrancaDaBarbearia(31, naTela, TZ)).toBe(fimDaCarenciaDela);
   });
 
   it('fora do ar pela cobrança: cancela pela sessão de fora do ar — e o site continua fora, agora como cancelado', async () => {

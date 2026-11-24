@@ -176,9 +176,10 @@ export async function removerAssinatura(cfg: ConfigAsaas, assinaturaId: string):
 
 /**
  * Um webhook da conta, como `GET /webhooks` devolve (documentação da Asaas, conferida em
- * 17/10/2026; não testado no sandbox). O que importa aqui é a fila: com 15 falhas de
- * entrega seguidas, a Asaas a interrompe (`interrupted`), e os avisos param até alguém
- * reativá-la — guardados por 14 dias, e depois apagados (`ARQUITETURA-COBRANCA-V1.md` §5.3).
+ * 17/10/2026; lido no sandbox em 23/11/2026, com esses campos). O que importa aqui é a fila:
+ * depois de algumas falhas de entrega seguidas — 15, pela documentação; no sandbox, 2 —, a
+ * Asaas a interrompe (`interrupted`), e os avisos param até alguém reativá-la — guardados
+ * por 14 dias, e depois apagados (`ARQUITETURA-COBRANCA-V1.md` §5.3).
  */
 export interface WebhookAsaas {
   id: string;

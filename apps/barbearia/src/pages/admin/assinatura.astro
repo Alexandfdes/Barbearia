@@ -30,7 +30,7 @@ import { appointments, barbers, services } from '../../db/schema.js';
 import { situacaoDe, ultimoDia } from '../../lib/situacao.js';
 import { explicacaoDaSituacao, ROTA_DO_CANCELAMENTO, ROTA_DO_CARTAO } from '../../lib/assinatura.js';
 import { configDaAsaas } from '../../lib/asaas.js';
-import { dataDaPrimeiraCobranca, podeCadastrarCartao, temAssinaturaNaAsaas } from '../../lib/cobranca.js';
+import { podeCadastrarCartao, primeiraCobrancaDaBarbearia, temAssinaturaNaAsaas } from '../../lib/cobranca.js';
 import { linkDoSuporte, NOME_PRODUTO, PRAZO_DA_CONFERENCIA, PRECO_MENSAL } from '../../lib/produto.js';
 import { fusoDe } from '../../lib/timezone.js';
 import { waPhone, waLink } from '../../lib/whatsapp.js';
@@ -102,8 +102,9 @@ const rotuloDoBotao =
   : (situacao.fase === 'carencia' || situacao.fase === 'suspensa') && situacao.motivo === 'cobranca' ? 'Atualizar o cartão'
   : 'Cadastrar o cartão';
 
-// Quando cobra, dito antes de ele ir para a página de pagamento.
-const primeira = podeCartao ? dataDaPrimeiraCobranca(situacao, fuso) : null;
+// Quando cobra, dito antes de ele ir para a página de pagamento — o mesmo dia que o Checkout
+// manda à Asaas, com a dívida dela: quem cancelou devendo é cobrado hoje (23/11/2026).
+const primeira = podeCartao ? await primeiraCobrancaDaBarbearia(tenant.id, situacao, fuso) : null;
 const hoje = formatInTimeZone(new Date(), fuso, 'yyyy-MM-dd');
 const quandoCobra = !primeira ? ''
   : primeira <= hoje ? 'A mensalidade é cobrada hoje, ao cadastrar o cartão.'

@@ -14,8 +14,9 @@ export const prerender = false;
  *    se ela falha, a resposta é 500 e a Asaas reenvia. Repetido responde 200 sem
  *    fazer nada.
  * 3. **Evento que não interessa também responde 200.** Recusar faria a Asaas
- *    reenviar, e 15 falhas seguidas interrompem a fila do webhook inteiro
- *    (documentação) — os pagamentos de todas as barbearias param de chegar. Pelo
+ *    reenviar, e as falhas seguidas interrompem a fila do webhook inteiro (15, pela
+ *    documentação; no sandbox, em 23/11/2026, parou com 2) — os pagamentos de todas as
+ *    barbearias param de chegar. Pelo
  *    mesmo motivo, o evento que falha por causa dele mesmo — um dado em conflito,
  *    um dado que o banco recusa — fica gravado com o erro e responde 200. Volta
  *    para a fila (500) a falha passageira, como o banco fora do ar, e o erro de

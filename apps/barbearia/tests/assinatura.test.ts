@@ -71,6 +71,8 @@ describe('quem cancelou (10/10/2026)', () => {
     expect(texto).toMatch(/temporariamente indisponível/);
     expect(texto).toMatch(/Reative antes disso/);
     expect(texto).not.toMatch(/em dia/);
+    // Não promete que "nada muda": quem cancelou devendo, reativando, paga no dia (23/11/2026).
+    expect(texto).not.toMatch(/nada muda/);
   });
 
   it('depois do fim: fora do ar desde o dia, nada apagado, e assinando de novo volta — sem falar em cobrança', () => {

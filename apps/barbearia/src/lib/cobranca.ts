@@ -35,9 +35,10 @@
  * - **O Checkout pago não é o último aberto.** O dono que clica duas vezes abre
  *   dois, e paga no que estiver na frente: a barbearia guarda os últimos 20.
  * - **Erro que se repetiria a cada reentrega** — um dado em conflito, um dado
- *   que o banco recusa — não volta para a fila: 15 falhas seguidas interrompem o
- *   webhook inteiro, e um evento torto pararia os pagamentos de todas as
- *   barbearias. Ele fica gravado com o erro, para tratar à mão (`erroDefinitivo`).
+ *   que o banco recusa — não volta para a fila: as falhas seguidas interrompem o
+ *   webhook inteiro (15, pela documentação; no sandbox, em 23/11/2026, a fila parou
+ *   com 2), e um evento torto pararia os pagamentos de todas as barbearias. Ele fica
+ *   gravado com o erro, para tratar à mão (`erroDefinitivo`).
  * - **A cobrança de uma assinatura antiga.** Quem troca o cartão ganha uma
  *   assinatura nova, e a antiga é removida — com a cobrança vencida dela. Um
  *   evento atrasado da antiga não pode marcar a barbearia como atrasada: só conta
@@ -45,9 +46,10 @@
  * - **Suspensa à mão continua suspensa.** Pagamento nenhum desfaz o que você
  *   fez à mão.
  *
- * Conferido na documentação da Asaas em 10/10/2026. **Não testado no sandbox:**
- * os eventos daqui são os do exemplo da documentação. A prova é a do
- * `docs/PENDENCIAS-ABERTAS.md` §4.14.
+ * Conferido na documentação da Asaas em 10/10/2026, e no sandbox a partir de 23/11/2026
+ * (`docs/PENDENCIAS-ABERTAS.md` §4.14): o cadastro do cartão manda o CHECKOUT_PAID SEM o
+ * cliente (`checkout.customer` nulo) e, depois, o SUBSCRIPTION_CREATED com ele, com o
+ * `checkoutSession` e com o `externalReference` nulo. O resto ainda é o da documentação.
  */
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import type { TransactionSql } from 'postgres';
@@ -151,6 +153,29 @@ export function dataDaPrimeiraCobranca(s: Situacao, fuso: string, agora: Date = 
   return formatInTimeZone(agora, fuso, 'yyyy-MM-dd');
 }
 
+/**
+ * O dia da primeira cobrança do Checkout que ESTA barbearia abrir agora — com a dívida dela.
+ * É o que `abrirCheckout` manda à Asaas e o que a tela de assinatura promete antes do botão:
+ * uma função só para os dois. Até 23/11/2026 a tela chamava `dataDaPrimeiraCobranca` sem o
+ * `deve`, e a quem cancelou devendo prometia "até lá, nada é cobrado" — e o Checkout cobrava
+ * no mesmo dia.
+ */
+export async function primeiraCobrancaDaBarbearia(tenantId: number, s: Situacao, fuso: string, agora: Date = new Date()): Promise<string> {
+  return dataDaPrimeiraCobranca(s, fuso, agora, await deveCobrancaQueFalhou(tenantId));
+}
+
+/**
+ * O mesmo dia, um mês depois ("AAAA-MM-DD"). No dia que o mês seguinte não tem — 31/01 —, o
+ * último dele (28/02). Conta de calendário, sem fuso: o dia já é o da barbearia.
+ */
+export function umMesDepois(dia: string): string {
+  const [a, m, d] = dia.split('-').map(Number);
+  const ano = m === 12 ? a + 1 : a;
+  const mes = m === 12 ? 1 : m + 1;
+  const ultimoDoMes = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+  return `${ano}-${String(mes).padStart(2, '0')}-${String(Math.min(d, ultimoDoMes)).padStart(2, '0')}`;
+}
+
 /** Como a Asaas guarda de quem é o Checkout: o número da barbearia. */
 export const referenciaDaBarbearia = (id: number) => `barbearia:${id}`;
 
@@ -238,13 +263,14 @@ export async function abrirCheckout(o: {
       value: PRECO_MENSAL,
       imageBase64: IMAGEM_DO_ITEM,
     }],
-    subscription: { cycle: 'MONTHLY', nextDueDate: dataDaPrimeiraCobranca(s, fusoDaLinha(t), agora, await deveCobrancaQueFalhou(t.id)) },
+    subscription: { cycle: 'MONTHLY', nextDueDate: await primeiraCobrancaDaBarbearia(t.id, s, fusoDaLinha(t), agora) },
     // Cliente que já existe na Asaas continua o mesmo — é a chave dos eventos.
     // Novo: NADA do cliente — a página da Asaas pede tudo ao titular. Conferido no sandbox em
     // 23/11/2026: com `customerData`, a Asaas exige o pacote inteiro (e-mail, CPF ou CNPJ, telefone,
     // rua, número, CEP e bairro) e recusa com 400 o que vier pela metade — era o que ia, o nome, o
     // e-mail e o telefone, e nenhum dono conseguia cadastrar o cartão. Sem `customerData`, aceita
-    // (`docs/PENDENCIAS-ABERTAS.md` §4.14). O cliente que a página cria chega no CHECKOUT_PAID.
+    // (`docs/PENDENCIAS-ABERTAS.md` §4.14). O cliente que a página cria NÃO vem no CHECKOUT_PAID
+    // (`checkout.customer` nulo, no sandbox): chega no SUBSCRIPTION_CREATED.
     ...(t.asaas_customer_id ? { customer: t.asaas_customer_id } : {}),
   };
 
@@ -465,6 +491,12 @@ async function aplicar(tx: Tx, e: EventoAsaas, t: LinhaDaBarbearia, agora: Date,
       UPDATE tenants SET asaas_subscription_id = ${nova},
              asaas_customer_id = COALESCE(asaas_customer_id, ${cliente})
       WHERE id = ${t.id}`;
+    // O cliente que a barbearia ainda não conhecia: as notificações da Asaas saem dele AQUI.
+    // O dono novo vai ao Checkout sem cliente, e o CHECKOUT_PAID chega com `customer` nulo — no
+    // sandbox, em 23/11/2026, é este o primeiro evento que diz quem é. Até então o desligar só
+    // saía do CHECKOUT_PAID, e nenhum dono novo tinha as notificações desligadas. O cliente que
+    // ela já conhecia passou pelo CHECKOUT_PAID ou por aqui antes: não se pede duas vezes.
+    if (cliente && cliente !== t.asaas_customer_id) efeitos.push({ tipo: 'desligar-notificacoes', cliente });
     return 'assinatura ligada à barbearia';
   }
 
@@ -472,6 +504,15 @@ async function aplicar(tx: Tx, e: EventoAsaas, t: LinhaDaBarbearia, agora: Date,
     const daAssinatura = textoOuNulo(e.payment?.subscription);
     if (!daAssinatura) return 'nada muda: cobrança avulsa, fora da assinatura';
     if (t.asaas_subscription_id && t.asaas_subscription_id !== daAssinatura) {
+      // A assinatura antiga COBROU: a remoção dela, quando o cartão foi trocado, falhou (o efeito
+      // vira só log) — e o dono paga as duas. Pede olho (23/11/2026). Só o PAYMENT_CONFIRMED: o
+      // PAYMENT_RECEIVED chega ~32 dias depois dele, e o de um mês pago ANTES da troca é normal.
+      // E só a que JÁ FOI desta barbearia: a NOVA cujo SUBSCRIPTION_CREATED ainda não chegou também
+      // é "outra", e o alerta mandaria remover a assinatura que está valendo (revisão de 23/11/2026).
+      if (e.event === 'PAYMENT_CONFIRMED' && await jaFoiDaBarbearia(tx, t.id, daAssinatura)) {
+        console.warn(`[cobrança] ⚠️ pagamento ${e.payment?.id ?? 'sem id'} na assinatura ${daAssinatura}, que não é mais a da barbearia ${t.id}: confira se o dono foi cobrado em dobro.`);
+        return `alerta: pagamento numa assinatura que não é mais a desta barbearia (${daAssinatura}) — confira cobrança em dobro e remova-a na Asaas; tratar à mão`;
+      }
       return 'nada muda: cobrança de uma assinatura que não é mais a desta barbearia';
     }
     // O evento da cobrança chegou antes do da assinatura: ele ensina qual é.
@@ -517,7 +558,7 @@ async function aplicar(tx: Tx, e: EventoAsaas, t: LinhaDaBarbearia, agora: Date,
       // Tirada do ar ou encerrada: a saída fica marcada para o fim do período pago, que vale
       // se ela for reativada. Atrasada: a carência já decide. Nos dois casos, pede olho.
       if ((t.status === 'suspended' || t.status === 'cancelled') && !t.subscription_ends_at) {
-        const fim = fimDoPeriodoPago(e.subscription?.nextDueDate, fusoDaLinha(t), agora);
+        const fim = await fimDoQueFoiPago(tx, t, agora);
         await tx`UPDATE tenants SET subscription_ends_at = ${fim.toISOString()}::timestamptz WHERE id = ${t.id}`;
       }
       return `alerta: a assinatura em vigor foi removida na Asaas com a barbearia ${t.status} — sem assinatura, ela não é mais cobrada; tratar à mão`;
@@ -526,12 +567,55 @@ async function aplicar(tx: Tx, e: EventoAsaas, t: LinhaDaBarbearia, agora: Date,
     // com a cobrança atrasada, que é o fim da carência, não o próximo vencimento.
     if (t.subscription_ends_at) return 'nada muda: a saída já estava marcada pelo cancelamento no painel';
     // Removida na Asaas, por fora do painel: no ar até o fim do período pago.
-    const fim = fimDoPeriodoPago(e.subscription?.nextDueDate, fusoDaLinha(t), agora);
+    const fim = await fimDoQueFoiPago(tx, t, agora);
     await tx`UPDATE tenants SET subscription_ends_at = ${fim.toISOString()}::timestamptz WHERE id = ${t.id}`;
     return 'assinatura encerrada: no ar até o fim do período pago';
   }
 
   return 'registrado';
+}
+
+/**
+ * A assinatura já foi ligada a esta barbearia antes — algum evento anterior dela, processado,
+ * ficou registrado com esta barbearia? O evento que está chegando ainda não tem `tenant_id`
+ * (ele é gravado no fim da transação): não conta a si mesmo.
+ */
+async function jaFoiDaBarbearia(tx: Tx, tenantId: number, assinatura: string): Promise<boolean> {
+  const [linha] = await tx<{ foi: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM webhook_events
+       WHERE tenant_id = ${tenantId}
+         AND (payload->'subscription'->>'id' = ${assinatura} OR payload->'payment'->>'subscription' = ${assinatura})
+    ) AS foi`;
+  return Boolean(linha?.foi);
+}
+
+/**
+ * Até quando a barbearia pagou, pelo que o próprio webhook registrou — para a assinatura
+ * removida POR FORA do painel (o SUBSCRIPTION_DELETED e o SUBSCRIPTION_INACTIVATED).
+ *
+ * Um mês depois do vencimento da última cobrança paga (de qualquer assinatura dela); sem
+ * nenhuma paga, o fim do teste; e nunca antes de agora.
+ *
+ * Até 23/11/2026 era o `nextDueDate` do evento. Só que a Asaas gera cada cobrança ~40 dias antes
+ * do vencimento, e o `nextDueDate` é o da próxima a GERAR: no sandbox, horas depois do cadastro do
+ * cartão, sem nada pago, ele já estava DOIS ciclos à frente (primeira cobrança em 26/11,
+ * `nextDueDate` em 26/01). Removida a assinatura no teste, o site ficava dois meses no ar de
+ * graça. O cancelar do painel já não usava o `nextDueDate` desde 18/10 (`vencimentoQueNaoVaiHaver`),
+ * mas ele pergunta à Asaas, e aqui a assinatura já foi removida — com as cobranças pendentes.
+ */
+async function fimDoQueFoiPago(tx: Tx, t: LinhaDaBarbearia, agora: Date): Promise<Date> {
+  const [linha] = await tx<{ vencimento: string | null }[]>`
+    SELECT max(payload->'payment'->>'dueDate') AS vencimento
+      FROM webhook_events
+     WHERE tenant_id = ${t.id}
+       AND event IN ('PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED')
+       AND payload->'payment'->>'subscription' IS NOT NULL
+       AND payload->'payment'->>'dueDate' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`;
+  const fuso = fusoDaLinha(t);
+  const pago = linha?.vencimento ? fimDoPeriodoPago(umMesDepois(linha.vencimento), fuso, agora) : agora;
+  const teste = comoData(t.trial_ends_at);
+  return teste && teste.getTime() > pago.getTime() ? teste : pago;
 }
 
 /**

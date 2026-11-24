@@ -89,7 +89,7 @@ export function explicacaoDaSituacao(s: Situacao, fuso: string, agora: Date = ne
       if (s.encerraEm) {
         return `Assinatura cancelada. O site e o painel funcionam até ${ultimoDia(s.encerraEm, fuso)}; depois disso, ` +
           'quem abrir o seu site vai ver que o agendamento online está temporariamente indisponível, com o seu ' +
-          'WhatsApp para contato. Mudou de ideia? Reative antes disso e nada muda.';
+          'WhatsApp para contato. Mudou de ideia? Reative antes disso e o site segue sem interrupção.';
       }
       return 'Assinatura em dia. O site e o painel estão funcionando normalmente.';
     case 'teste':

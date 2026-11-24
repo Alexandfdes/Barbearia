@@ -135,7 +135,9 @@ function migrationsNoBuild(): number | null {
  * O aviso de pagamento chega pelo webhook. Com o app fora do ar — ou recusando —, a Asaas
  * tenta de novo e, com 15 falhas seguidas, INTERROMPE a fila: os avisos novos param de
  * sair até alguém reativá-la, e os parados há mais de 14 dias são apagados (documentação
- * da Asaas, conferida em 17/10/2026). Enquanto isso, quem pôs o cartão no fim do teste ou
+ * da Asaas, conferida em 17/10/2026). ⚠️ No sandbox, em 23/11/2026, a fila parou com 2
+ * falhas, e o `penalizedRequestsCount` voltou a 0 quando a entrega passou (`alertasDaFila`).
+ * Enquanto isso, quem pôs o cartão no fim do teste ou
  * pagou na carência continua com o prazo correndo e sai do ar tendo pago. A Asaas manda
  * e-mail; esta tela é o segundo lugar onde dá para ver (`ARQUITETURA-COBRANCA-V1.md` §5.3).
  *
@@ -299,6 +301,25 @@ export function comAFila(alertas: AlertaDoSistema[], fila: FilaDoWebhook): Alert
   return [...alertas, ...alertasDaFila(fila)].sort((x, y) => (x.estado === y.estado ? 0 : x.estado === 'problema' ? -1 : 1));
 }
 
+/**
+ * A linha da fila no quadro Cobrança do Sistema do operador — com o mesmo juízo dos alertas: a
+ * fila "ativa" com envio falhando não entrega, e não fica verde (23/11/2026; até então o quadro
+ * dizia "os avisos de pagamento chegam" logo abaixo do alerta que dizia que não chegavam).
+ */
+export function linhaDaFila(f: FilaDoWebhook): { valor: string; estado: 'ok' | 'atencao' | 'problema' | 'neutro' } {
+  switch (f.estado) {
+    case 'ativa':
+      return (f.penalizados ?? 0) > 0
+        ? { valor: 'ativa, mas o último envio falhou — os avisos de pagamento não estão chegando', estado: 'problema' }
+        : { valor: 'ativa — os avisos de pagamento chegam', estado: 'ok' };
+    case 'interrompida': return { valor: 'interrompida — os avisos de pagamento estão parados', estado: 'problema' };
+    case 'desligada': return { valor: 'o webhook está desligado na Asaas', estado: 'problema' };
+    case 'sem-webhook': return { valor: `nenhum webhook aponta para ${f.endereco || 'este app'}`, estado: 'problema' };
+    case 'sem-resposta': return { valor: 'a Asaas não respondeu em 4 s', estado: 'atencao' };
+    case 'nao-consultada': return { valor: '—', estado: 'neutro' };
+  }
+}
+
 /** O que a fila do webhook pede — nada quando ela não foi consultada (a cobrança desligada). */
 export function alertasDaFila(f: FilaDoWebhook): AlertaDoSistema[] {
   const a: AlertaDoSistema[] = [];
@@ -313,8 +334,12 @@ export function alertasDaFila(f: FilaDoWebhook): AlertaDoSistema[] {
   }
   if (f.comToken === false) a.push({ estado: 'problema', texto: 'O webhook na Asaas está sem o token: o app recusa todo aviso de pagamento.' });
   if (f.sequencial === false) a.push({ estado: 'atencao', texto: 'O webhook na Asaas não está em envio sequencial: os avisos podem chegar fora de ordem.' });
-  if ((f.penalizados ?? 0) > 0) {
-    a.push({ estado: 'atencao', texto: `A Asaas marcou ${f.penalizados} ${f.penalizados === 1 ? 'envio' : 'envios'} do webhook como falha: com 15 seguidas, a fila para.` });
+  // Problema, e não atenção, desde 23/11/2026: a documentação diz que a fila para com 15 falhas
+  // seguidas, mas no sandbox ela parou com 2 — e o contador voltou a 0 quando um envio passou,
+  // então o que ele mostra é falha AGORA, não lembrança de uma antiga. Só com a fila andando:
+  // interrompida ou desligada, o alerta dela já diz tudo, e "pode parar no próximo" seria falso.
+  if (f.estado === 'ativa' && (f.penalizados ?? 0) > 0) {
+    a.push({ estado: 'problema', texto: `A Asaas marcou ${f.penalizados} ${f.penalizados === 1 ? 'envio' : 'envios'} do webhook como falha: os avisos de pagamento não estão chegando, e a fila pode parar no próximo — no sandbox, parou com 2. Veja o motivo no log do app.` });
   }
   return a;
 }
