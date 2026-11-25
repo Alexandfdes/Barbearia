@@ -479,6 +479,27 @@ existe vai pelo id; novo, ~~com o nome, o e-mail e o telefone do cadastro — o 
 pede tudo ao titular (`PENDENCIAS-ABERTAS.md` §4.14)*. A tela de assinatura promete o mesmo dia
 que o Checkout manda, pela mesma função (`primeiraCobrancaDaBarbearia`, desde 23/11/2026).
 
+**A volta do Checkout** *(desde 25/11/2026, migration 0023)*. Quem confirma o cartão é o webhook,
+nunca a volta. Mas, com a fila dele parada — no sandbox, a confirmação atrasou horas —, saindo da
+tela de assinatura o painel voltava a pedir o cartão, e cadastrar de novo criava uma segunda
+assinatura. Agora a volta do dono (`?cartao=ok`) fica gravada em `tenants.cartao_voltou_em`
+(`registrarVoltaDoCartao`), se a barbearia ainda não está em dia e já abriu um Checkout — e só com o
+**selo da ida**: o `successUrl` leva `&volta=<hora>.<assinatura>`, a hora da ida assinada com a
+barbearia pelo `SESSION_SECRET` (`seloDaVolta`), e a tela só grava se ele confere e tem no máximo 2
+horas (`seloConfere`). Sem o selo, qualquer link para `?cartao=ok` — mandado por alguém, ou aberto
+do histórico — trancava o cartão (revisão de 25/11/2026). Que a Asaas devolve esse segundo parâmetro
+na volta **não foi provado no sandbox**; se não devolver, a volta só não é gravada, e o painel fica
+como era antes. Por
+**48 horas** (`HORAS_ESPERANDO_A_CONFIRMACAO`, decisão do dono em 25/11/2026), a faixa e a tela
+dizem que o cartão chegou, o botão some, os e-mails de aviso não saem e o Checkout não abre (409).
+Na carência, ou para quem cancelou, a faixa diz também o dia em que o site sai do ar, e o prazo
+para falar com o suporte não passa dele; o parágrafo de cima da tela para de pedir o cartão.
+Depois, o botão volta, com o aviso de falar com o suporte antes. A volta sai quando a barbearia
+fica em dia pelo webhook e quando o dono abre um Checkout novo (só a volta que ele leu: a gravada
+por outra aba no meio fica); recarregar a tela não empurra a espera, e a tela tira o `?cartao=ok`
+e o selo do endereço quando para de conferir. **A fase não muda:** se o
+teste acaba antes da confirmação, a carência corre como sempre.
+
 **Como o evento acha a barbearia.** A Asaas não garante a ordem, e cada evento traz uma chave
 diferente. Na ordem: o Checkout (`checkout.id`, ou o `checkoutSession` da assinatura) entre os
 últimos 20 da barbearia; a referência `barbearia:N`, se a Asaas a repassar à assinatura; a
@@ -487,7 +508,7 @@ evento não escolhe nenhuma. Cada evento ensina as chaves que faltam.
 
 | Evento | Efeito |
 |---|---|
-| `CHECKOUT_PAID` | Em dia — inclusive quem estava fora do ar ou tinha cancelado. Se trouxer o cliente, guarda e desliga as notificações da Asaas para ele — no sandbox, o do dono novo vem com `customer` nulo (23/11/2026) |
+| `CHECKOUT_PAID` | Em dia — inclusive quem estava fora do ar ou tinha cancelado — e a volta do Checkout guardada sai (migration 0023). Se trouxer o cliente, guarda e desliga as notificações da Asaas para ele — no sandbox, o do dono novo vem com `customer` nulo (23/11/2026) |
 | `SUBSCRIPTION_CREATED` | Liga a assinatura à barbearia. Se havia outra — o cartão trocado —, a antiga é removida na Asaas, com as cobranças em aberto dela, se ainda existir. O cliente que a barbearia não conhecia é guardado, e as notificações da Asaas saem dele aqui (desde 23/11/2026) |
 | `PAYMENT_CONFIRMED`, `PAYMENT_RECEIVED` | Em dia. Atrasada, só quando é paga a cobrança que FALHOU — desde 17/10/2026: no cartão o `PAYMENT_RECEIVED` chega ~32 dias depois, e o do mês passado tirava do atraso quem não pagou este (`PENDENCIAS-ABERTAS.md` §2.53). O `PAYMENT_CONFIRMED` de uma assinatura que não é mais a em vigor pede olho: é o dono pagando duas (desde 23/11/2026) |
 | `PAYMENT_OVERDUE`, `PAYMENT_CREDIT_CARD_CAPTURE_REFUSED` | Atrasada desde a PRIMEIRA falha: começam os 3 dias de carência (`apps/barbearia/src/lib/situacao.ts`) |

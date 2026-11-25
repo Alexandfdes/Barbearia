@@ -4618,11 +4618,32 @@ a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`
 >   que restava da carência, contada do dia em que ela venceu. E o aviso da falha que chega DEPOIS do
 >   cancelar, que virava "nada muda", agora encurta a saída até a carência (nunca a alonga) e grava
 >   "atrasada": quem assinar de novo paga no dia (`falhaDeQuemJaCancelou`).
-> - 🟡 *Com a fila parada, a tela do dono volta a pedir o cartão que ele acabou de cadastrar* — só a URL
->   (`?cartao=ok`) sabe que ele voltou do Checkout; cadastrando de novo, nasce uma segunda assinatura.
+> - ✅ *Com a fila parada, a tela do dono volta a pedir o cartão que ele acabou de cadastrar* — só a URL
+>   (`?cartao=ok`) sabia que ele voltou do Checkout; cadastrando de novo, nascia uma segunda assinatura.
 >   A Asaas não ajuda: o filtro `checkoutSession` da lista de assinaturas é ignorado calado (no
->   sandbox, um id inventado devolveu a assinatura de verdade). O conserto pede guardar a volta na
->   barbearia — uma migration, que espera a sua revisão.
+>   sandbox, um id inventado devolveu a assinatura de verdade). **Consertado em 25/11/2026**, com a
+>   migration 0023 e as 48 horas aprovadas por você nesse dia: a volta do dono fica gravada
+>   (`tenants.cartao_voltou_em`), e por 48 horas a faixa e a tela dizem que o cartão chegou, o botão
+>   some, os e-mails de aviso não saem e o Checkout recusa (409); depois, o botão volta, com "fale com
+>   o suporte antes de cadastrar de novo". A fase não muda — quem decide continua sendo o webhook. O
+>   desenho: `ARQUITETURA-COBRANCA-V1.md` §5.3. Três cuidados que não estavam na proposta: só a volta
+>   do DONO grava (um barbeiro abrindo `?cartao=ok` trancaria o cartão dele); só quem já abriu um
+>   Checkout (a volta sem ida é URL digitada); e a tela tira o `?cartao=ok` do endereço quando para de
+>   conferir — senão, recarregada dias depois, gravaria de novo uma volta que não houve.
+>   **A revisão independente do mesmo dia** (38 agentes, cada achado com dois verificadores tentando
+>   derrubá-lo) achou que qualquer link para `?cartao=ok`, aberto com a sessão do dono, gravava a
+>   volta — o GET passa sem conferir a origem. Consertado sem migration: a volta leva o **selo da
+>   ida**, a hora assinada com a barbearia pelo segredo do servidor, e só grava com ele, de no máximo
+>   2 horas. Isso fechou também a URL aberta pelo histórico, que ficava como risco. ⚠️ Que a Asaas
+>   devolve o segundo parâmetro (`&volta=`) na volta **não foi provado no sandbox** — é o próximo
+>   cartão de teste que confirma; se ela não devolver, a volta só não é gravada. Consertados também: a
+>   faixa da própria volta, que mandava cadastrar; o parágrafo de cima, que continuava pedindo o
+>   cartão; a data de saída do ar, que a faixa da espera escondia; o texto do barbeiro que não é dono;
+>   e o pagamento que não põe em dia, que apagava a volta de quem reativa.
+>   ⚠️ *Resta:* quem está com a cobrança atrasada, atualiza o cartão e *cancela durante a espera*
+>   não alcança a assinatura nova, que o app ainda não conhece: o `CHECKOUT_PAID` que chega depois põe a
+>   barbearia em dia de novo, e a assinatura nova cobra (lido no código, não provado num caso). Espera
+>   a sua decisão.
 >
 > **Falta responder:** se a Asaas reaproveita o cliente pelo CPF; o `GET` de assinatura removida;
 > se o `PUT /customers/{id}` desliga as notificações; o `PAYMENT_RECEIVED` ~32 dias depois do

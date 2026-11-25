@@ -85,6 +85,13 @@ Asaas — assinatura, cobrança — pode agir sobre "todas as do cliente".
   pagar passa pelas duas situações. Com o cadastro aberto e a cobrança desligada, todo teste termina no
   suporte — e o site sai do ar depois da carência, a menos que o operador estenda o teste na ficha.
 
+- **A volta do Checkout não confirma nada, mas fica guardada** (25/11/2026, migration 0023): com a fila
+  do webhook parada, a confirmação atrasa horas, e o painel que voltava a pedir o cartão criava uma
+  segunda assinatura. Por 48 horas depois da volta (`esperaDoCartao`, em `apps/barbearia/src/lib/assinatura.ts`),
+  nada pede o cartão — a faixa, a tela, os e-mails — e o Checkout recusa. Caminho novo que põe a
+  barbearia EM DIA apaga `cartao_voltou_em`, como o `CHECKOUT_PAID` e o pagamento que tira do atraso;
+  texto novo que peça o cartão passa por `esperaDoCartao` (`docs/PENDENCIAS-ABERTAS.md` §4.14).
+
 ## 5. As armadilhas do código
 
 - **Data em SQL cru vai como texto ISO e volta como texto** (`comoData`): o Drizzle desliga a
