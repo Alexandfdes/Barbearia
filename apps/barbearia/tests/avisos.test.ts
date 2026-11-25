@@ -208,7 +208,7 @@ describe.skipIf(!TEM_BANCO)('a tarefa, contra o banco', () => {
     const resumo = await avisos.enviarAvisosPendentes(AGORA);
     // 2, 3, 4, 5, 6, 7 e 10 têm prazo correndo; a ativa, a manual e a encerrada nem entram.
     // Nenhum site espera a aprovação (o padrão da coluna é aprovado): nenhum lembrete ao operador.
-    expect(resumo).toEqual({ avaliadas: 7, enviados: 4, falhas: 1, semDestinatario: 1, lembradosAoOperador: 0, avisoDoBackup: false });
+    expect(resumo).toEqual({ avaliadas: 7, enviados: 4, falhas: 1, semDestinatario: 1, esperandoOCartao: 0, lembradosAoOperador: 0, avisoDoBackup: false });
 
     const recebidos = email.caixaDeSaida.map((e) => `${e.para} | ${e.assunto}`).sort();
     expect(recebidos).toEqual([
@@ -298,5 +298,30 @@ describe.skipIf(!TEM_BANCO)('a tarefa, contra o banco', () => {
     const res = await chamar(`Bearer ${tokenDasTarefas()}`);
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true, avaliadas: expect.any(Number), enviados: expect.any(Number) });
+  });
+
+  it('o dono que voltou do Checkout com o cartão, e a confirmação não chegou: nenhum e-mail por 48 horas (migration 0023)', async () => {
+    // Com a fila do webhook parada, a confirmação atrasou horas no sandbox (23/11/2026). O e-mail
+    // "cadastre o cartão" levava a um segundo cadastro — e a uma segunda assinatura.
+    await sql`INSERT INTO tenants (id, slug, business_name, status, trial_ends_at, cartao_voltou_em) VALUES
+      (11, 'voltou', 'Barbearia Voltou', 'trial', ${FIM_DO_TESTE.toISOString()}, ${new Date(AGORA.getTime() - 60 * 60 * 1000).toISOString()})`;
+    await sql`INSERT INTO barbers (tenant_id, name, slug, role, password_hash, active, email, email_confirmado_em) VALUES
+      (11, 'Dono Voltou', 'dono', 'admin', 'x', true, 'dono@voltou.com', now())`;
+    const doVoltou = () => email.caixaDeSaida.filter((e) => e.para === 'dono@voltou.com');
+
+    const esperando = await avisos.enviarAvisosPendentes(AGORA);
+    expect(esperando.esperandoOCartao).toBe(1);
+    expect(doVoltou()).toHaveLength(0);
+    // Nada fica reservado: passada a espera, o aviso da fase sai.
+    const [{ n }] = await sql`SELECT count(*)::int AS n FROM avisos_enviados WHERE tenant_id = 11`;
+    expect(n).toBe(0);
+
+    const passou = await avisos.enviarAvisosPendentes(new Date(AGORA.getTime() + 46 * 60 * 60 * 1000)); // 47 h da volta
+    expect(passou.esperandoOCartao).toBe(1);
+    expect(doVoltou()).toHaveLength(0);
+
+    const demorou = await avisos.enviarAvisosPendentes(new Date(AGORA.getTime() + 47 * 60 * 60 * 1000)); // 48 h
+    expect(demorou.esperandoOCartao).toBe(0);
+    expect(doVoltou().map((e) => e.assunto)).toEqual(['Barbearia Voltou: o teste grátis termina hoje']);
   });
 });

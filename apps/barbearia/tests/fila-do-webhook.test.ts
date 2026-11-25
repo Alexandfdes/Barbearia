@@ -2,14 +2,15 @@
 //
 // Com 15 falhas de entrega seguidas, a Asaas interrompe a fila do webhook: os avisos de
 // pagamento param até alguém reativá-la, e os parados há mais de 14 dias são apagados
-// (documentação da Asaas, conferida em 17/10/2026). Quem pagou continua com o prazo
+// (documentação da Asaas, conferida em 17/10/2026). No sandbox, em 23/11/2026, parou com 2 —
+// e o contador de falhas voltou a 0 quando um envio passou. Quem pagou continua com o prazo
 // correndo e sai do ar. O Início e o Sistema do operador passam a perguntar à Asaas
 // como está a fila (`filaDoWebhook`, em `src/lib/operadorSistema.ts`).
 //
 // Sem rede: a Asaas aqui é de mentira — a `fetch` trocada, como em `tests/cobranca.test.ts`.
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { filaDoWebhook, alertasDaFila, comAFila, type FilaDoWebhook } from '../src/lib/operadorSistema';
+import { filaDoWebhook, alertasDaFila, comAFila, linhaDaFila, type FilaDoWebhook } from '../src/lib/operadorSistema';
 import { configDaAsaas, webhooksDaConta, ErroDaAsaas, type WebhookAsaas } from '../src/lib/asaas';
 
 const CHAVE = '$aact_SEGREDO-chave-que-nunca-aparece';
@@ -52,7 +53,33 @@ describe('como a fila está', () => {
       estado: 'problema',
       texto: 'A fila do webhook está interrompida na Asaas: os avisos de pagamento estão parados. Conserte o motivo e reative em Integrações → Webhooks — a Asaas guarda os avisos por 14 dias.',
     });
-    expect(a.map((x) => x.texto).join(' ')).toMatch(/15 envios do webhook como falha/);
+    // Só o alerta dela: com a fila já parada, o dos envios com falha diria que ela "pode parar no
+    // próximo" — falso, e em dobro (revisão de 23/11/2026).
+    expect(a).toHaveLength(1);
+    expect(JSON.stringify(a)).not.toMatch(/pode parar/);
+  });
+
+  it('a linha do quadro Cobrança tem o mesmo juízo do alerta: ativa com envio falhando não fica verde', async () => {
+    const falhando = await filaDoWebhook(ENV, com(webhook({ penalizedRequestsCount: 2 })));
+    expect(linhaDaFila(falhando)).toEqual({ valor: 'ativa, mas o último envio falhou — os avisos de pagamento não estão chegando', estado: 'problema' });
+    expect(linhaDaFila(await filaDoWebhook(ENV, com(webhook())))).toEqual({ valor: 'ativa — os avisos de pagamento chegam', estado: 'ok' });
+    expect(linhaDaFila(await filaDoWebhook(ENV, com(webhook({ interrupted: true, penalizedRequestsCount: 2 })))).estado).toBe('problema');
+    // A tela usa a função — e nenhuma tabela própria que diga "chegam" sem olhar as falhas.
+    const tela = readFileSync('src/pages/operador/sistema.astro', 'utf8');
+    expect(tela).toMatch(/linhaDaFila\(fila\)/);
+    expect(tela).not.toMatch(/os avisos de pagamento chegam/);
+    expect(tela).toMatch(/rotulo: 'Envios com falha', valor: `\$\{fila\.penalizados\}, pela Asaas`, estado: 'problema'/);
+  });
+
+  it('uma falha só, com a fila ainda andando, já é problema — no sandbox, a fila parou com 2 (23/11/2026)', async () => {
+    const f = await filaDoWebhook(ENV, com(webhook({ penalizedRequestsCount: 1 })));
+    expect(f.estado).toBe('ativa');
+    expect(alertasDaFila(f)).toEqual([{
+      estado: 'problema',
+      texto: 'A Asaas marcou 1 envio do webhook como falha: os avisos de pagamento não estão chegando, e a fila pode parar no próximo — no sandbox, parou com 2. Veja o motivo no log do app.',
+    }]);
+    // E nada promete a folga de 15 que o sandbox desmentiu.
+    expect(JSON.stringify(alertasDaFila(f))).not.toMatch(/15/);
   });
 
   it('desligado na Asaas: problema', async () => {
@@ -81,7 +108,7 @@ describe('como a fila está', () => {
     expect(alertasDaFila(f).map((x) => `${x.estado}: ${x.texto}`)).toEqual([
       'problema: O webhook na Asaas está sem o token: o app recusa todo aviso de pagamento.',
       'atencao: O webhook na Asaas não está em envio sequencial: os avisos podem chegar fora de ordem.',
-      'atencao: A Asaas marcou 1 envio do webhook como falha: com 15 seguidas, a fila para.',
+      'problema: A Asaas marcou 1 envio do webhook como falha: os avisos de pagamento não estão chegando, e a fila pode parar no próximo — no sandbox, parou com 2. Veja o motivo no log do app.',
     ]);
   });
 

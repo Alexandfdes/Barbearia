@@ -17,8 +17,8 @@
 // no dia seguinte ao fim do teste, e a chave da Asaas não aparece em lugar nenhum.
 //
 // A Asaas daqui é de mentira (`fetch` trocado). Os eventos seguem os exemplos da
-// documentação de 10/10/2026 — o sandbox de verdade ainda não foi testado
-// (`docs/PENDENCIAS-ABERTAS.md` §4.14).
+// documentação de 10/10/2026 — menos os do bloco "como no sandbox", que seguem o que o sandbox
+// de verdade mandou em 23/11/2026 (`docs/PENDENCIAS-ABERTAS.md` §4.14).
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import postgres from 'postgres';
@@ -28,7 +28,8 @@ import { recriarSchema } from './migrations.js';
 import { fimDaCarencia, situacaoDe, type Situacao } from '../src/lib/situacao';
 import { TZ_PADRAO as TZ } from '../src/lib/timezone';
 import {
-  CHECKOUTS_GUARDADOS, dataDaPrimeiraCobranca, erroDefinitivo, fimDoPeriodoPago, podeCadastrarCartao, referenciaDaBarbearia,
+  CHECKOUTS_GUARDADOS, dataDaPrimeiraCobranca, erroDefinitivo, fimDoPeriodoPago, podeCadastrarCartao, primeiraCobrancaDaBarbearia,
+  referenciaDaBarbearia, umMesDepois,
 } from '../src/lib/cobranca';
 import { configDaAsaas } from '../src/lib/asaas';
 import { tokenConfere } from '../src/pages/api/asaas/webhook';
@@ -118,6 +119,25 @@ describe('o dia da primeira cobrança', () => {
   it('o dia é o do fuso, não o do servidor: 23h de Fortaleza já é amanhã em UTC', () => {
     const noite = fromZonedTime('2026-10-10T23:30:00', TZ);
     expect(dataDaPrimeiraCobranca({ fase: 'carencia', motivo: 'teste', ate: noite }, TZ, noite)).toBe('2026-10-10');
+  });
+
+  it('a tela de assinatura promete o dia pela MESMA função do Checkout — a que sabe da dívida (23/11/2026)', () => {
+    // Ela chamava `dataDaPrimeiraCobranca` sem o `deve`: a quem cancelou devendo, prometia "até lá,
+    // nada é cobrado" no fim da carência, e o Checkout cobrava no mesmo dia. O caso com banco, lá
+    // embaixo ("cancelou DEVENDO"), prova a função; este, que a tela usa a função.
+    const tela = readFileSync('src/pages/admin/assinatura.astro', 'utf8');
+    expect(tela).toMatch(/await primeiraCobrancaDaBarbearia\(tenant\.id, situacao, fuso\)/);
+    expect(tela).not.toMatch(/dataDaPrimeiraCobranca/);
+  });
+});
+
+describe('um mês depois do vencimento pago', () => {
+  it('o mesmo dia no mês seguinte — e o último dia, quando o mês seguinte não tem aquele', () => {
+    expect(umMesDepois('2026-11-26')).toBe('2026-12-26');
+    expect(umMesDepois('2026-12-26')).toBe('2027-01-26');
+    expect(umMesDepois('2026-10-31')).toBe('2026-11-30');
+    expect(umMesDepois('2027-01-31')).toBe('2027-02-28');
+    expect(umMesDepois('2028-01-31')).toBe('2028-02-29');
   });
 });
 
@@ -240,7 +260,8 @@ beforeAll(async () => {
     (11, 'fora',     'Fora pela Cobrança', 'past_due', NULL,      ${ha10},   'cus_fora',   'sub_fora',   '{}'),
     (12, 'prazo-paga',   'Prazo e Pagou',     'past_due', NULL,   ${ha10},   'cus_pp',     'sub_pp',     '{}'),
     (13, 'prazo-cancela', 'Prazo e Cancelou', 'past_due', NULL,   ${ha10},   'cus_pc',     'sub_pc',     '{}'),
-    (14, 'espera',   'Esperando Aprovação', 'trial',   ${daqui7}, NULL,      NULL,         NULL,         '{}')`;
+    (14, 'espera',   'Esperando Aprovação', 'trial',   ${daqui7}, NULL,      NULL,         NULL,         '{}'),
+    (15, 'real',     'Como no Sandbox',   'trial',     ${daqui7}, NULL,      NULL,         NULL,         '{chk_real}')`;
   // A 14 veio do cadastro pela web e espera a aprovação do operador (migration 0020).
   await conn`UPDATE tenants SET site_aprovado_em = NULL WHERE id = 14`;
   // As duas com a carência estendida pelo operador (migration 0016): a cobrança
@@ -420,10 +441,34 @@ describe.skipIf(!TEM_BANCO)('o webhook mantém a barbearia em dia', () => {
     expect((await desfecho('evt_7')).outcome).toMatch(/não é mais a desta barbearia/);
   });
 
+  it('o PAGAMENTO numa assinatura antiga — que devia ter sido removida — pede olho: é o dono pagando duas (23/11/2026)', async () => {
+    // A remoção da antiga é um efeito depois do commit: falhou (a Asaas fora, um reinício), e ela
+    // continuou cobrando o cartão antigo. Até 23/11/2026 o pagamento dela virava "nada muda", fora
+    // do "pede olho" do operador — e quem descobria a cobrança em dobro era o dono, pela fatura.
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { DESFECHOS_QUE_PEDEM_OLHO } = await import('../src/lib/operadorBarbearias');
+    await enviar({ id: 'evt_7b', event: 'PAYMENT_CONFIRMED', payment: { id: 'pay_dobro', customer: 'cus_ze', subscription: 'sub_ze_1', dueDate: '2026-01-10' } });
+    const d = (await desfecho('evt_7b')).outcome as string;
+    expect(d).toMatch(/^alerta: pagamento numa assinatura que não é mais a desta barbearia \(sub_ze_1\)/);
+    expect(DESFECHOS_QUE_PEDEM_OLHO.some((p) => d.startsWith(p))).toBe(true);
+    expect(aviso).toHaveBeenCalledWith(expect.stringMatching(/pay_dobro na assinatura sub_ze_1, que não é mais a da barbearia 1/));
+    // O PAYMENT_RECEIVED de um mês pago ANTES da troca chega ~32 dias depois do CONFIRMED: normal.
+    await enviar({ id: 'evt_7c', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1', customer: 'cus_ze', subscription: 'sub_ze_1' } });
+    expect((await desfecho('evt_7c')).outcome).toBe('nada muda: cobrança de uma assinatura que não é mais a desta barbearia');
+    // E a assinatura NOVA, cujo SUBSCRIPTION_CREATED ainda não chegou, também é "outra" — mas nunca
+    // foi desta barbearia: alertar mandaria o operador remover a que vai valer (revisão de 23/11/2026).
+    await enviar({ id: 'evt_7d', event: 'PAYMENT_CONFIRMED', payment: { id: 'pay_nova', customer: 'cus_ze', subscription: 'sub_ze_nova' } });
+    expect((await desfecho('evt_7d')).outcome).toBe('nada muda: cobrança de uma assinatura que não é mais a desta barbearia');
+    expect(await linha(1)).toMatchObject({ status: 'active', asaas_subscription_id: 'sub_ze_2' });
+    aviso.mockRestore();
+  });
+
   it('a assinatura antiga que já foi removida — quem cancelou e assinou de novo — não é removida outra vez, nem gera alarme', async () => {
     const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
     responder = (c) => (c.caminho === '/subscriptions/sub_v1' ? { corpo: { id: 'sub_v1', deleted: true } } : { status: 404, corpo: { errors: [{ code: 'not_found' }] } });
-    await conn`UPDATE tenants SET asaas_subscription_id = 'sub_v1' WHERE id = 2`;
+    // O cliente ela já conhece: o assunto aqui é a assinatura, e o desligar das notificações
+    // (que o cliente novo pede no SUBSCRIPTION_CREATED, desde 23/11/2026) não entra na conta.
+    await conn`UPDATE tenants SET asaas_subscription_id = 'sub_v1', asaas_customer_id = 'cus_v' WHERE id = 2`;
     await enviar({ id: 'evt_v2', event: 'SUBSCRIPTION_CREATED', subscription: { id: 'sub_v2', customer: 'cus_v', externalReference: 'barbearia:2' } });
     await enviar({ id: 'evt_v3', event: 'SUBSCRIPTION_CREATED', subscription: { id: 'sub_v3', customer: 'cus_v', externalReference: 'barbearia:2' } });
     await vi.waitFor(() => expect(chamadas).toHaveLength(2));
@@ -483,13 +528,23 @@ describe.skipIf(!TEM_BANCO)('o webhook mantém a barbearia em dia', () => {
     expect((await desfecho('evt_17')).outcome).toBe('registrado');
   });
 
-  it('assinatura em vigor removida — aqui ou na Asaas: no ar até o fim do período pago; a de uma antiga não muda nada', async () => {
-    const dia = diaNoFuso(new Date(Date.now() + 20 * DIA));
-    await enviar({ id: 'evt_18', event: 'SUBSCRIPTION_DELETED', subscription: { id: 'sub_ze_1', customer: 'cus_ze', nextDueDate: dia } });
+  it('assinatura em vigor removida na Asaas, por fora do painel: no ar até um mês depois da última cobrança PAGA — não até o nextDueDate; a de uma antiga não muda nada', async () => {
+    // A cobrança paga vence no dia 10 do mês que vem; o período pago acaba no dia 10 do outro.
+    // Dia 10: o "um mês depois" não depende do tamanho do mês (esse caso está em `umMesDepois`).
+    const [ano, mes] = diaNoFuso(new Date()).split('-').map(Number);
+    const dia10 = (n: number) => {
+      const m = mes - 1 + n;
+      return `${ano + Math.floor(m / 12)}-${String((m % 12) + 1).padStart(2, '0')}-10`;
+    };
+    // O `nextDueDate` que a Asaas manda já está DOIS ciclos à frente (sandbox, 23/11/2026): até
+    // 23/11 era ele o fim, e o site ficava um mês a mais no ar sem pagar.
+    await enviar({ id: 'evt_18a', event: 'PAYMENT_CONFIRMED', payment: { id: 'pay_ze_pago', customer: 'cus_ze', subscription: 'sub_ze_2', dueDate: dia10(1) } });
+    await enviar({ id: 'evt_18', event: 'SUBSCRIPTION_DELETED', subscription: { id: 'sub_ze_1', customer: 'cus_ze', nextDueDate: dia10(3) } });
     expect((await linha(1)).subscription_ends_at).toBeNull();
 
-    await enviar({ id: 'evt_19', event: 'SUBSCRIPTION_DELETED', subscription: { id: 'sub_ze_2', customer: 'cus_ze', nextDueDate: dia } });
-    expect((await linha(1)).subscription_ends_at.toISOString()).toBe(meiaNoite(dia).toISOString());
+    await enviar({ id: 'evt_19', event: 'SUBSCRIPTION_DELETED', subscription: { id: 'sub_ze_2', customer: 'cus_ze', nextDueDate: dia10(3) } });
+    expect((await desfecho('evt_19')).outcome).toBe('assinatura encerrada: no ar até o fim do período pago');
+    expect((await linha(1)).subscription_ends_at.toISOString()).toBe(meiaNoite(dia10(2)).toISOString());
 
     await carregarTenants(true);
     const req = new Request('https://ze.fadeline.com.br/', { headers: { host: 'ze.fadeline.com.br' } });
@@ -502,6 +557,70 @@ describe.skipIf(!TEM_BANCO)('o webhook mantém a barbearia em dia', () => {
       await tx`SELECT set_config('app.tenant_id', '1', true)`;
       await tx`SELECT count(*) FROM webhook_events`;
     })).rejects.toThrow(/permission denied/);
+  });
+});
+
+// ── Os eventos como o sandbox da Asaas mandou (23/11/2026) ──────────────────
+//
+// O dono novo vai ao Checkout sem cliente, e a página da Asaas o cria. O que chegou, nesta ordem
+// (as chaves e os nulos são os do sandbox; os valores pessoais, não):
+//  - CHECKOUT_PAID com `checkout.customer` e `checkout.customerData` NULOS — o evento não diz quem
+//    é o cliente;
+//  - SUBSCRIPTION_CREATED com o cliente, o `checkoutSession` e o `externalReference` nulo, e o
+//    `nextDueDate` já dois ciclos à frente da primeira cobrança (26/01, com a primeira em 26/11).
+// Os casos de cima usam `checkout.customer` preenchido — o formato da documentação —, e por isso
+// não pegavam as notificações nunca desligadas nem a saída pelo `nextDueDate`.
+
+describe.skipIf(!TEM_BANCO)('como no sandbox: o cartão do dono novo, e a assinatura removida no teste', () => {
+  const doisCiclos = () => diaNoFuso(new Date(Date.now() + 62 * DIA));
+
+  it('CHECKOUT_PAID sem cliente: em dia, achada pelo Checkout — e nada a desligar ainda', async () => {
+    const r = await enviar({
+      id: 'evt_real_1', event: 'CHECKOUT_PAID', dateCreated: '2026-11-23 20:24:31', account: { id: 'acc_teste' },
+      checkout: {
+        id: 'chk_real', link: null, status: 'PAID', customer: null, customerData: null, externalReference: 'barbearia:15',
+        billingTypes: ['CREDIT_CARD'], chargeTypes: ['RECURRENT'], minutesToExpire: 60, installment: null, split: null,
+        callback: { successUrl: 'https://painel.fadeline.com.br/admin/assinatura?cartao=ok' }, items: [{ name: 'Fadeline — mensal', value: 100, quantity: 1 }],
+        subscription: { cycle: 'MONTHLY', nextDueDate: '2026-11-26T03:00:00+0000', endDate: null },
+      },
+    });
+    expect(r).toEqual({ status: 200, corpo: { ok: true } });
+    expect(await desfecho('evt_real_1')).toMatchObject({ tenant_id: 15, outcome: 'em dia: o cartão foi cadastrado' });
+    expect(await linha(15)).toMatchObject({ status: 'active', asaas_customer_id: null, asaas_subscription_id: null });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it('SUBSCRIPTION_CREATED traz o cliente: liga a assinatura e o cliente, e desliga as notificações da Asaas para ele', async () => {
+    const evento = {
+      id: 'evt_real_2', event: 'SUBSCRIPTION_CREATED', dateCreated: '2026-11-23 20:24:33', account: { id: 'acc_teste' },
+      subscription: {
+        object: 'subscription', id: 'sub_real', dateCreated: '2026-11-23', customer: 'cus_real', paymentLink: null,
+        value: 100, nextDueDate: doisCiclos(), cycle: 'MONTHLY', description: 'Fadeline — mensal', billingType: 'CREDIT_CARD',
+        deleted: false, status: 'ACTIVE', externalReference: null, checkoutSession: 'chk_real', sendPaymentByPostalService: false,
+        fine: { value: 0 }, interest: { value: 0 }, split: null, creditCard: { creditCardNumber: '0000', creditCardBrand: 'VISA' },
+        pixAutomaticAuthorizationMode: null,
+      },
+    };
+    expect(await enviar(evento)).toEqual({ status: 200, corpo: { ok: true } });
+    expect(await linha(15)).toMatchObject({ status: 'active', asaas_customer_id: 'cus_real', asaas_subscription_id: 'sub_real' });
+    await vi.waitFor(() => expect(chamadas).toHaveLength(1));
+    expect(chamadas[0]).toMatchObject({ metodo: 'PUT', caminho: '/customers/cus_real', corpo: { notificationDisabled: true } });
+
+    // A reentrega não pede de novo.
+    chamadas.length = 0;
+    expect(await enviar(evento)).toEqual({ status: 200, corpo: { ok: true, duplicado: true } });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it('a assinatura removida na Asaas ainda no teste, sem nada pago: no ar até o fim do TESTE — não dois meses, pelo nextDueDate', async () => {
+    await enviar({
+      id: 'evt_real_3', event: 'SUBSCRIPTION_DELETED',
+      subscription: { object: 'subscription', id: 'sub_real', customer: 'cus_real', nextDueDate: doisCiclos(), deleted: true, status: 'INACTIVE', externalReference: null, checkoutSession: 'chk_real' },
+    });
+    const [{ trial_ends_at }] = await conn`SELECT trial_ends_at FROM tenants WHERE id = 15`;
+    expect((await linha(15)).subscription_ends_at.toISOString()).toBe(trial_ends_at.toISOString());
   });
 });
 
@@ -610,6 +729,8 @@ describe.skipIf(!TEM_BANCO)('estorno, contestação e assinatura removida fora d
     expect(l.status).toBe('suspended');
     // Reativada pelo operador, ela sai do ar no fim do período pago — e não fica em dia sem assinatura.
     expect(l.subscription_ends_at).not.toBeNull();
+    // Nada pago registrado e sem teste: o fim é agora — não os 12 dias do nextDueDate (23/11/2026).
+    expect(l.subscription_ends_at.getTime()).toBeLessThanOrEqual(Date.now());
     expect((await desfecho('evt_del_manual')).outcome).toMatch(/^alerta: a assinatura em vigor foi removida na Asaas com a barbearia suspended/);
   });
 
@@ -673,10 +794,12 @@ describe.skipIf(!TEM_BANCO)('o Checkout', () => {
     expect(corpo.items[0].name.length).toBeLessThanOrEqual(30);
     expect(corpo.items[0].imageBase64).toMatch(/^iVBOR/); // um PNG — a Asaas exige imagem
     expect(corpo.externalReference).toBe('barbearia:4');
-    expect(corpo.callback.successUrl).toMatch(/\/admin\/assinatura\?cartao=ok$/);
+    // A volta leva o selo da ida: só ela grava (`seloConfere`, revisão de 25/11/2026).
+    expect(corpo.callback.successUrl).toMatch(/\/admin\/assinatura\?cartao=ok&volta=\d+\.[\w-]+$/);
     expect(corpo.callback.cancelUrl).toMatch(/\/admin\/assinatura\?cartao=cancelado$/);
-    // Cliente novo: os dados que o cadastro tem. O cartão e o CPF, a página da Asaas pede.
-    expect(corpo.customerData).toEqual({ name: 'Dono Novo', email: 'dono@novo.com.br', phone: '84990000040' });
+    // Cliente novo: NADA do cliente — a página da Asaas pede tudo. No sandbox (23/11/2026), o
+    // `customerData` pela metade (nome, e-mail, telefone) era recusado com 400: exige o pacote inteiro.
+    expect(corpo.customerData).toBeUndefined();
     expect(corpo.customer).toBeUndefined();
     expect(JSON.stringify(corpo)).not.toMatch(/card(Number|Holder)|ccv|cvv/i);
     expect((await linha(4)).asaas_checkout_ids).toEqual(['chk_novo']);
@@ -770,7 +893,8 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
     const r = await pedir(CANCELAR, { barberId: 70, role: 'admin', tenantId: 7 });
     expect(r.status).toBe(200);
     expect(chamadas.map((c) => `${c.metodo} ${c.caminho}`)).toEqual([
-      'GET /subscriptions/sub_emdia', 'GET /subscriptions/sub_emdia/payments?status=PENDING', 'DELETE /subscriptions/sub_emdia',
+      'GET /subscriptions/sub_emdia', 'GET /subscriptions/sub_emdia/payments?status=OVERDUE',
+      'GET /subscriptions/sub_emdia/payments?status=PENDING', 'DELETE /subscriptions/sub_emdia',
     ]);
     expect((await linha(7)).subscription_ends_at.toISOString()).toBe(meiaNoite(dia).toISOString());
     expect(r.corpo.noArAte).toBe(formatInTimeZone(new Date(meiaNoite(dia).getTime() - 1), TZ, 'dd/MM'));
@@ -899,6 +1023,13 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
     expect(cancelada.subscription_ends_at.getTime()).toBeGreaterThan(Date.now());
     await carregarTenants(true);
 
+    // O que a tela de assinatura promete antes do botão: hoje, como o Checkout. A conta sem a
+    // dívida — a que a tela fazia até 23/11/2026 — dava o fim da carência, com "até lá, nada é cobrado".
+    const naTela = situacaoDe({ status: 'active', encerraEm: cancelada.subscription_ends_at, fuso: TZ });
+    const fimDaCarenciaDela = formatInTimeZone(cancelada.subscription_ends_at, TZ, 'yyyy-MM-dd');
+    expect(dataDaPrimeiraCobranca(naTela, TZ)).toBe(fimDaCarenciaDela);
+    expect(await primeiraCobrancaDaBarbearia(31, naTela, TZ)).toBe(diaNoFuso(new Date()));
+
     // Assina de novo na hora: a primeira cobrança é HOJE.
     chamadas.length = 0;
     responder = () => ({ corpo: { id: 'chk_dev', link: 'https://x/chk_dev' } });
@@ -919,6 +1050,64 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
     expect((await pedir(CARTAO, { barberId: 310, role: 'admin', tenantId: 31 })).status).toBe(200);
     expect((chamadas[0].corpo as { subscription: { nextDueDate: string } }).subscription.nextDueDate)
       .toBe(formatInTimeZone(cancelada.subscription_ends_at, TZ, 'yyyy-MM-dd'));
+    // E a tela volta a prometer o fim do período, junto.
+    expect(await primeiraCobrancaDaBarbearia(31, naTela, TZ)).toBe(fimDaCarenciaDela);
+  });
+
+  it('em dia pelo app, com uma cobrança VENCIDA que o webhook não trouxe (a fila parada): é cancelar devendo — fica só a carência, e o aviso que chega depois cobra no dia quem voltar (23/11/2026)', async () => {
+    // Até 23/11/2026 o cancelar perguntava à Asaas só pelas PENDENTES: o fim era a do mês seguinte,
+    // um mês no ar sem pagar o que falhou; e o aviso atrasado da falha virava "nada muda".
+    await conn`INSERT INTO tenants (id, slug, business_name, status, asaas_customer_id, asaas_subscription_id) VALUES
+                 (23, 'venceu-calada', 'Venceu Calada', 'active', 'cus_vc', 'sub_vc')`;
+    await conn`INSERT INTO barbers (tenant_id, id, name, slug, role, password_hash, active, phone) VALUES
+                 (23, 230, 'Dono VC', 'dono', 'admin', 'x', true, '84990000230')`;
+    await carregarTenants(true);
+    const ontem = diaNoFuso(new Date(Date.now() - DIA));
+    const mesQueVem = diaNoFuso(new Date(Date.now() + 30 * DIA));
+    responder = (c) => (c.metodo !== 'GET' ? { corpo: { deleted: true, id: 'sub_vc' } }
+      : c.caminho.endsWith('status=OVERDUE') ? { corpo: { data: [{ id: 'pay_vc', status: 'OVERDUE', dueDate: ontem }] } }
+      : c.caminho.includes('/payments') ? { corpo: { data: [{ id: 'pay_vc_2', status: 'PENDING', dueDate: mesQueVem }] } }
+      : { corpo: { id: 'sub_vc', status: 'ACTIVE', nextDueDate: mesQueVem, deleted: false } });
+    expect((await pedir(CANCELAR, { barberId: 230, role: 'admin', tenantId: 23 })).status).toBe(200);
+    expect(chamadas.map((c) => `${c.metodo} ${c.caminho}`)).toEqual([
+      'GET /subscriptions/sub_vc', 'GET /subscriptions/sub_vc/payments?status=OVERDUE', 'DELETE /subscriptions/sub_vc',
+    ]);
+    // A carência conta do dia em que a cobrança virou vencida — hoje —, como se o aviso tivesse chegado.
+    const fimDaCarenciaDela = fimDaCarencia(meiaNoite(diaNoFuso(new Date())), TZ);
+    const cancelada = await linha(23);
+    expect(cancelada.subscription_ends_at.toISOString()).toBe(fimDaCarenciaDela.toISOString());
+
+    // O aviso da falha chega quando a fila volta: é dívida — quem assinar de novo paga no dia.
+    const naTela = situacaoDe({ status: 'active', encerraEm: cancelada.subscription_ends_at, fuso: TZ });
+    expect(await primeiraCobrancaDaBarbearia(23, naTela, TZ)).toBe(diaNoFuso(fimDaCarenciaDela)); // antes do aviso
+    await enviar({ id: 'evt_vc_1', event: 'PAYMENT_OVERDUE', payment: { id: 'pay_vc', customer: 'cus_vc', subscription: 'sub_vc', dueDate: ontem } });
+    expect((await desfecho('evt_vc_1')).outcome).toMatch(/^atrasada, já cancelada: /);
+    expect((await linha(23)).subscription_ends_at.toISOString()).toBe(fimDaCarenciaDela.toISOString());
+    expect(await primeiraCobrancaDaBarbearia(23, naTela, TZ)).toBe(diaNoFuso(new Date()));
+  });
+
+  it('o aviso atrasado da falha, depois de um cancelar que não a viu: encurta a saída até a carência — nunca alonga — e o repetido não conta duas vezes', async () => {
+    // A 24 cancelou EM DIA, com a saída daqui a 25 dias; a cobrança de hoje falhou, e o aviso só
+    // chegou depois do cancelar. A 25 cancelou com a saída daqui a uma hora: a carência não a alonga.
+    const longe = new Date(Date.now() + 25 * DIA);
+    const logo = new Date(Date.now() + 60 * 60 * 1000);
+    await conn`INSERT INTO tenants (id, slug, business_name, status, asaas_customer_id, asaas_subscription_id, subscription_ends_at) VALUES
+                 (24, 'falhou-depois', 'Falhou Depois', 'active', 'cus_fd', 'sub_fd', ${longe}),
+                 (25, 'sai-logo', 'Sai Logo', 'active', 'cus_sl', 'sub_sl', ${logo})`;
+    const hoje = diaNoFuso(new Date());
+    await enviar({ id: 'evt_fd_1', event: 'PAYMENT_CREDIT_CARD_CAPTURE_REFUSED', payment: { id: 'pay_fd', customer: 'cus_fd', subscription: 'sub_fd', dueDate: hoje } });
+    expect((await desfecho('evt_fd_1')).outcome).toMatch(/^atrasada, já cancelada: /);
+    const amanha = diaNoFuso(new Date(Date.now() + DIA));
+    const encurtada = (await linha(24)).subscription_ends_at;
+    expect(encurtada.toISOString()).toBe(fimDaCarencia(meiaNoite(amanha), TZ).toISOString());
+    // O PAYMENT_OVERDUE da MESMA cobrança, depois: já sabida — nada muda.
+    await enviar({ id: 'evt_fd_2', event: 'PAYMENT_OVERDUE', payment: { id: 'pay_fd', customer: 'cus_fd', subscription: 'sub_fd', dueDate: hoje } });
+    expect((await desfecho('evt_fd_2')).outcome).toBe('nada muda: a barbearia está active');
+    expect((await linha(24)).subscription_ends_at.toISOString()).toBe(encurtada.toISOString());
+
+    await enviar({ id: 'evt_sl_1', event: 'PAYMENT_CREDIT_CARD_CAPTURE_REFUSED', payment: { id: 'pay_sl', customer: 'cus_sl', subscription: 'sub_sl', dueDate: hoje } });
+    expect((await desfecho('evt_sl_1')).outcome).toMatch(/^atrasada, já cancelada: /);
+    expect((await linha(25)).subscription_ends_at.toISOString()).toBe(logo.toISOString());
   });
 
   it('fora do ar pela cobrança: cancela pela sessão de fora do ar — e o site continua fora, agora como cancelado', async () => {
@@ -951,5 +1140,200 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
 
   it('o barbeiro que não é o dono não cancela', async () => {
     expect((await pedir(CANCELAR, { barberId: 41, role: 'barber', tenantId: 4 })).status).toBe(403);
+  });
+});
+
+// ── A volta do Checkout que o webhook não confirmou (migration 0023, 25/11/2026) ──
+//
+// No sandbox, em 23/11/2026, a fila do webhook parou com 2 falhas, e a confirmação do cartão atrasou
+// horas. Só a URL da volta (`?cartao=ok`) sabia que o dono tinha cadastrado: saindo da tela, o painel
+// pedia o cartão de novo — e o segundo Checkout criava uma SEGUNDA assinatura, que também cobraria.
+
+describe.skipIf(!TEM_BANCO)('a volta do Checkout que o webhook não confirmou', () => {
+  let registrarVoltaDoCartao: typeof import('../src/lib/cobranca').registrarVoltaDoCartao;
+  let seloDaVolta: typeof import('../src/lib/cobranca').seloDaVolta;
+  let seloConfere: typeof import('../src/lib/cobranca').seloConfere;
+  let tenantPorIdMesmoForaDoAr: typeof import('../src/lib/tenant').tenantPorIdMesmoForaDoAr;
+  const HORA = 60 * 60 * 1000;
+  const voltou = async (id: number) =>
+    ((await conn`SELECT cartao_voltou_em FROM tenants WHERE id = ${id}`)[0].cartao_voltou_em as Date | null);
+  /** O selo que a ida desta barbearia mandaria à Asaas, emitido em `quando`. */
+  const selo = (id: number, quando: Date = new Date()) => seloDaVolta(id, quando.getTime());
+
+  beforeAll(async () => {
+    ({ registrarVoltaDoCartao, seloDaVolta, seloConfere } = await import('../src/lib/cobranca'));
+    ({ tenantPorIdMesmoForaDoAr } = await import('../src/lib/tenant'));
+    const daqui7 = new Date(Date.now() + 7 * DIA);
+    const daqui10 = new Date(Date.now() + 10 * DIA);
+    await conn`INSERT INTO tenants (id, slug, business_name, status, trial_ends_at, past_due_since, subscription_ends_at, asaas_customer_id, asaas_subscription_id, asaas_checkout_ids) VALUES
+      (40, 'volta',       'Voltou do Checkout', 'trial',     ${daqui7}, NULL,          NULL,      NULL,      NULL,      '{chk_v40}'),
+      (41, 'sem-ida',     'Nunca Abriu',        'trial',     ${daqui7}, NULL,          NULL,      NULL,      NULL,      '{}'),
+      (42, 'volta-emdia', 'Já Em Dia',          'active',    NULL,      NULL,          NULL,      'cus_v42', 'sub_v42', '{chk_v42}'),
+      (43, 'volta-mao',   'Tirada à Mão',       'suspended', NULL,      NULL,          NULL,      'cus_v43', 'sub_v43', '{chk_v43}'),
+      (44, 'volta-prep',  'Em Preparação',      'trial',     ${daqui7}, NULL,          NULL,      NULL,      NULL,      '{chk_v44}'),
+      (45, 'volta-corre', 'Corrida',            'trial',     ${daqui7}, NULL,          NULL,      NULL,      NULL,      '{chk_v45}'),
+      (46, 'volta-atr',   'Atrasada Volta',     'past_due',  NULL,      ${new Date()}, NULL,      'cus_v46', 'sub_v46', '{chk_v46}'),
+      (47, 'volta-reat',  'Reativando',         'active',    NULL,      NULL,          ${daqui10}, 'cus_v47', 'sub_v47', '{chk_v47}'),
+      (48, 'volta-selo',  'Selo Conferido',     'trial',     ${daqui7}, NULL,          NULL,      NULL,      NULL,      '{chk_v48}')`;
+    await conn`UPDATE tenants SET site_aprovado_em = NULL WHERE id = 44`;
+    await conn`INSERT INTO barbers (tenant_id, id, name, slug, role, password_hash, active, phone, email) VALUES
+      (40, 400, 'Dono Volta', 'dono', 'admin', 'x', true, '84990000400', NULL),
+      (46, 460, 'Dono Atr',   'dono', 'admin', 'x', true, '84990000460', NULL)`;
+    await carregarTenants(true);
+  });
+
+  it('a volta fica gravada — e recarregar a tela não empurra a espera', async () => {
+    const agora = new Date();
+    expect(await registrarVoltaDoCartao(40, selo(40, agora), agora)).toEqual(agora);
+    expect(await voltou(40)).toEqual(agora);
+    // A tela confere de novo sozinha a cada 4 s, e o dono pode recarregar: a espera conta da PRIMEIRA volta.
+    expect(await registrarVoltaDoCartao(40, selo(40, agora), new Date(agora.getTime() + HORA))).toEqual(agora);
+    expect(await voltou(40)).toEqual(agora);
+    // O painel lê do cache: gravar a volta o descarta, e a faixa da tela seguinte já sabe.
+    await carregarTenants();
+    expect(tenantPorIdMesmoForaDoAr(40)?.cartaoVoltouEm).toEqual(agora);
+  });
+
+  it('sem o selo desta ida, nada é gravado: o link mandado por alguém, o do histórico, o de outra barbearia', async () => {
+    // Um GET grava a volta, e o cookie da sessão vai em todo link aberto de fora (SameSite=Lax): sem o
+    // selo, qualquer `?cartao=ok` trancava o cartão do dono por 48 horas (revisão de 25/11/2026).
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const agora = new Date();
+    expect(await registrarVoltaDoCartao(48, null, agora)).toBeNull();
+    expect(await registrarVoltaDoCartao(48, selo(40, agora), agora)).toBeNull();                 // de outra barbearia
+    expect(await registrarVoltaDoCartao(48, selo(48, new Date(agora.getTime() - 3 * HORA)), agora)).toBeNull(); // velho
+    const [quando, assinatura] = selo(48, agora).split('.');
+    expect(await registrarVoltaDoCartao(48, `${quando}.${assinatura.slice(0, -2)}xx`, agora)).toBeNull(); // adulterado
+    expect(await registrarVoltaDoCartao(48, `${Number(quando) + 1}.${assinatura}`, agora)).toBeNull();     // hora trocada
+    expect(await voltou(48)).toBeNull();
+    expect(aviso).toHaveBeenCalledTimes(5);
+    aviso.mockRestore();
+    // Controle: o selo desta ida, de 1h50 atrás — o Checkout vale 60 minutos —, grava.
+    expect(seloConfere(48, selo(48, new Date(agora.getTime() - 110 * 60 * 1000)), agora)).toBe(true);
+    expect(await registrarVoltaDoCartao(48, selo(48, agora), agora)).toEqual(agora);
+  });
+
+  it('sem Checkout aberto, já em dia, tirada do ar à mão ou esperando a aprovação: nada é gravado', async () => {
+    const agora = new Date();
+    for (const id of [41, 42, 43, 44]) {
+      expect(await registrarVoltaDoCartao(id, selo(id, agora), agora), String(id)).toBeNull();
+      expect(await voltou(id), String(id)).toBeNull();
+    }
+  });
+
+  it('atrasada e reativando também esperam — e o Checkout da atrasada recusa', async () => {
+    const agora = new Date();
+    expect(await registrarVoltaDoCartao(46, selo(46, agora), agora)).toEqual(agora);
+    expect(await registrarVoltaDoCartao(47, selo(47, agora), agora)).toEqual(agora);
+    await carregarTenants(true);
+    const r = await pedir(CARTAO, { barberId: 460, role: 'admin', tenantId: 46 });
+    expect(r.status).toBe(409);
+    expect(String(r.corpo.error)).toMatch(/não precisa cadastrar de novo/);
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it('o CHECKOUT_PAID que chega no meio vence: a condição está no próprio UPDATE', async () => {
+    // A tela leu a barbearia ainda no teste; antes do UPDATE dela, o webhook a pôs em dia. Sem a
+    // condição no UPDATE, a volta ficava gravada numa barbearia em dia — e voltava a trancar o cartão
+    // no dia em que ela atrasasse.
+    const outra = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
+    let soltar!: () => void;
+    const segurando = new Promise<void>((r) => { soltar = r; });
+    let travou!: () => void;
+    const travada = new Promise<void>((r) => { travou = r; });
+    const webhook = outra.begin(async (tx) => {
+      await tx`UPDATE tenants SET status = 'active', subscription_ends_at = NULL WHERE id = 45`;
+      travou();
+      await segurando;
+    });
+    try {
+      await travada;
+      const registro = registrarVoltaDoCartao(45, selo(45), new Date());
+      // Espera o UPDATE da volta ficar preso na trava da linha, NESTE banco — só então o webhook termina.
+      let preso = false;
+      for (let i = 0; i < 200 && !preso; i++) {
+        const [{ n }] = await conn`SELECT count(*)::int AS n FROM pg_stat_activity
+          WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%cartao_voltou_em = %'`;
+        preso = n > 0;
+        if (!preso) await new Promise((r) => setTimeout(r, 20));
+      }
+      expect(preso).toBe(true);
+      soltar();
+      await webhook;
+      expect(await registro).toBeNull();
+      expect(await voltou(45)).toBeNull();
+    } finally {
+      soltar();
+      await webhook.catch(() => {});
+      await outra.end({ timeout: 5 });
+    }
+  });
+
+  it('esperando, o Checkout não abre — a Asaas nem é chamada', async () => {
+    await conn`UPDATE tenants SET cartao_voltou_em = ${new Date(Date.now() - 47 * HORA)} WHERE id = 40`;
+    await carregarTenants(true);
+    const r = await pedir(CARTAO, { barberId: 400, role: 'admin', tenantId: 40 });
+    expect(r.status).toBe(409);
+    expect(String(r.corpo.error)).toMatch(/não precisa cadastrar de novo/);
+    expect(String(r.corpo.error)).toMatch(/fale com o suporte/);
+    expect(chamadas).toHaveLength(0);
+    expect((await linha(40)).asaas_checkout_ids).toEqual(['chk_v40']);
+  });
+
+  it('passadas as 48 horas, o Checkout abre com o selo da ida — e a volta antiga sai, para a deste ser gravada', async () => {
+    await conn`UPDATE tenants SET cartao_voltou_em = ${new Date(Date.now() - 49 * HORA)} WHERE id = 40`;
+    await carregarTenants(true);
+    responder = () => ({ corpo: { id: 'chk_v40b', link: 'https://x/chk_v40b' } });
+    const r = await pedir(CARTAO, { barberId: 400, role: 'admin', tenantId: 40 });
+    expect(r.status).toBe(200);
+    expect(await voltou(40)).toBeNull();
+    const volta = new URL((chamadas[0].corpo as { callback: { successUrl: string } }).callback.successUrl);
+    expect(volta.searchParams.get('cartao')).toBe('ok');
+    expect(seloConfere(40, volta.searchParams.get('volta'))).toBe(true);
+    // Sem apagar a antiga, a volta deste Checkout não se gravaria (só grava sobre nulo), e a tela
+    // diria "a confirmação não chegou" a quem acabou de cadastrar.
+    const agora = new Date();
+    expect(await registrarVoltaDoCartao(40, volta.searchParams.get('volta'), agora)).toEqual(agora);
+  });
+
+  it('o Checkout novo apaga só a volta que leu: a gravada por outra aba enquanto a Asaas respondia fica', async () => {
+    await conn`UPDATE tenants SET cartao_voltou_em = ${new Date(Date.now() - 49 * HORA)} WHERE id = 48`;
+    await carregarTenants(true);
+    const outraAba = new Date();
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      // A outra aba voltou do Checkout anterior e gravou — entre a leitura e o UPDATE deste.
+      await conn`UPDATE tenants SET cartao_voltou_em = ${outraAba} WHERE id = 48`;
+      return new Response(JSON.stringify({ id: 'chk_v48b', link: 'https://x/chk_v48b' }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    await conn`INSERT INTO barbers (tenant_id, id, name, slug, role, password_hash, active, phone, email)
+               VALUES (48, 480, 'Dono Selo', 'dono', 'admin', 'x', true, '84990000480', NULL)`;
+    expect((await pedir(CARTAO, { barberId: 480, role: 'admin', tenantId: 48 })).status).toBe(200);
+    expect(await voltou(48)).toEqual(outraAba);
+  });
+
+  it('a confirmação apaga a volta: o CHECKOUT_PAID, e o pagamento que tira do atraso', async () => {
+    await conn`UPDATE tenants SET cartao_voltou_em = now(), asaas_checkout_ids = '{chk_v40b}' WHERE id = 40`;
+    await enviar({ id: 'evt_v40_pago', event: 'CHECKOUT_PAID', checkout: { id: 'chk_v40b', customer: null, externalReference: 'barbearia:40' } });
+    expect(await desfecho('evt_v40_pago')).toMatchObject({ tenant_id: 40, outcome: 'em dia: o cartão foi cadastrado' });
+    expect(await voltou(40)).toBeNull();
+
+    // Atrasada, o dono trocou o cartão; antes de o CHECKOUT_PAID chegar, a Asaas cobrou de novo o
+    // cartão antigo, e passou: em dia por outro caminho. A volta não pode sobrar para trancar o
+    // cartão — nem dizer "a confirmação não chegou" — no próximo atraso.
+    await conn`UPDATE tenants SET cartao_voltou_em = now() WHERE id = 46`;
+    await enviar({ id: 'evt_v46_falhou', event: 'PAYMENT_OVERDUE', payment: { id: 'pay_v46', customer: 'cus_v46', subscription: 'sub_v46' } });
+    await enviar({ id: 'evt_v46_pago', event: 'PAYMENT_CONFIRMED', payment: { id: 'pay_v46', customer: 'cus_v46', subscription: 'sub_v46' } });
+    expect(await desfecho('evt_v46_pago')).toMatchObject({ tenant_id: 46, outcome: 'em dia: a cobrança foi paga' });
+    expect(await voltou(46)).toBeNull();
+  });
+
+  it('o pagamento que NÃO põe em dia não apaga a volta: quem cancelou e reativa continua esperando', async () => {
+    // Um pagamento antigo da assinatura cancelada — o PAYMENT_RECEIVED chega ~32 dias depois do
+    // CONFIRMED — não reativa ninguém: a saída continua marcada, e a volta tem de continuar.
+    await conn`UPDATE tenants SET cartao_voltou_em = now() WHERE id = 47`;
+    await enviar({ id: 'evt_v47_recebido', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_v47', customer: 'cus_v47', subscription: 'sub_v47' } });
+    const [t] = await conn`SELECT subscription_ends_at, cartao_voltou_em FROM tenants WHERE id = 47`;
+    expect(t.subscription_ends_at).not.toBeNull();
+    expect(t.cartao_voltou_em).not.toBeNull();
   });
 });

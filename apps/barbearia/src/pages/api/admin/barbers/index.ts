@@ -151,6 +151,11 @@ export const POST: APIRoute = async ({ request }) => {
     if (violouUnico(err, 'barbers_phone_ativo_uq')) {
       return json({ error: 'Este telefone já está cadastrado para outro barbeiro.' }, 409);
     }
+    // Dois pedidos com o mesmo nome ao mesmo tempo: a conferência do slug, lá em cima, deixa os dois
+    // passarem, e o índice pega o segundo — era 500 até 21/11/2026.
+    if (violouUnico(err, 'barbers_tenant_slug_uq')) {
+      return json({ error: `O slug "${slug}" já está em uso. Escolha outro.` }, 409);
+    }
     console.error('[api/admin/barbers]', err);
     return json({ error: 'Erro ao criar barbeiro' }, 500);
   }

@@ -71,7 +71,7 @@
 | **15/10** | **Datas em português**, achadas no caminho: a área do cliente dizia "20 de Oct · Tue", e o Início, "16 de Oct" | `PENDENCIAS-ABERTAS.md` §2.44 |
 | **15/10** | **Configurações em quatro abas**, escolhidas por você entre três formas — a tela era uma rolagem só, com nove blocos. Um Salvar só; os links do Início e do medidor levam ao bloco certo; a recusa do Salvar abre a aba do campo | `PENDENCIAS-ABERTAS.md` §2.45 |
 | **15/10** | **A barra lateral presa na tela**, pedido por você: rolava junto com a página, e no fim de uma tela longa o menu tinha sumido. No computador, agora fica presa — o menu que não cabe rola por dentro, e o Sair fica sempre à vista; no celular, nada muda. A do painel do operador também | `PENDENCIAS-ABERTAS.md` §2.46 |
-| **16/10** | **A revisão do projeto, conferida no GitHub e rodando a árvore do `22ecd85`**: o código verde (1156 de 1156, zero erro de tipo, o CI do GitHub verde), e a `main` — de onde a produção constrói — parada em 10/10, 61 commits atrás. **Decidido por você:** os commits deixam de levar as linhas `Co-Authored-By` e `Claude-Session` (os já publicados ficam), e a pasta `Design/` fica no repositório. **Consertados em 17/10, os achados dela:** o backup antes das migrations (§3.2), a fila do webhook parada visível no painel do operador (§3.13), o rodapé que não acendia o dia (§2.47) e a raiz do painel em 404 (§2.48) | `PENDENCIAS-ABERTAS.md` §3.2, `PENDENCIAS-ABERTAS.md` §3.13 e `CLAUDE.md` |
+| **16/10** | **A revisão do projeto, conferida no GitHub e rodando a árvore do `881b969`**: o código verde (1156 de 1156, zero erro de tipo, o CI do GitHub verde), e a `main` — de onde a produção constrói — parada em 10/10, 61 commits atrás. **Decidido por você:** os commits deixam de levar as linhas `Co-Authored-By` e `Claude-Session` (os já publicados ficam), e a pasta `Design/` fica no repositório. **Consertados em 17/10, os achados dela:** o backup antes das migrations (§3.2), a fila do webhook parada visível no painel do operador (§3.13), o rodapé que não acendia o dia (§2.47) e a raiz do painel em 404 (§2.48) | `PENDENCIAS-ABERTAS.md` §3.2, `PENDENCIAS-ABERTAS.md` §3.13 e `CLAUDE.md` |
 
 **Ainda pendente dentro dos itens acima:** ~~registrar `fadeline.com.br`~~ — ✅ **registrado pelo
 dono** (vale até 14/10/2027) e em uso desde 29/10/2026, com o DNS na Hostinger; ⚠️ **não conferido**
@@ -2309,7 +2309,7 @@ se lê sem dúvida não acende.
 cadastro voltam com os dias certos (`apps/barbearia/tests/rodape-dia-de-hoje.test.ts`); e, contra
 o build, num navegador com o relógio parado: o sábado acendendo "Segunda — Sábado", o domingo
 acendendo "Sábado — Domingo", o domingo às 23:30 da barbearia — já segunda em UTC — ainda
-domingo, e a segunda acendendo "Segunda — Sexta". O build do `22ecd85` reprova as quatro.
+domingo, e a segunda acendendo "Segunda — Sexta". O build do `881b969` reprova as quatro.
 
 ### 2.48 ✅ `[TÉCNICO]` O endereço do painel sem o `/admin` dava "Barbearia não encontrada" — RESOLVIDO em 17/10/2026
 
@@ -2537,7 +2537,7 @@ dono que editar alguém da Equipe sem WhatsApp precisa preenchê-lo — é por e
 
 ### 2.56 ✅ `[TÉCNICO]` A varredura de 26/10/2026 — os escolhidos por você, CONSERTADOS no mesmo dia
 
-Cinco revisões em paralelo sobre o `a3cc57b` — o código de 18 a 26/10, o cadastro e o site de vendas,
+Cinco revisões em paralelo sobre o `1b44f44` — o código de 18 a 26/10, o cadastro e o site de vendas,
 o painel do dono, a operação e os documentos —, cada achado conferido no código e quase todos
 reproduzidos. **O escopo por barbearia aguentou em tudo:** nenhum achado vaza dado de cliente de uma
 barbearia para outra. Você escolheu os três primeiros grupos:
@@ -3403,8 +3403,8 @@ na 0009 — o estado de produção —, sobe o container com o CMD dele e confer
 tem de fazer: o backup de antes das migrations no volume, as migrations aplicadas, o papel do app,
 a saúde, só as dependências de produção na imagem, o provisionador rodando dentro dele e o site da
 barbearia nova abrindo; reiniciado, nada pendente e nenhum backup a mais. O deploy pelo CI (§3.8)
-espera este job também. ✅ **Provado no GitHub em 25/10/2026**, no push do `28ea4aa`, e de novo em
-26/10 (`4e88e3e`): a imagem construída de verdade, com o Docker, e todas as conferências verdes. Até
+espera este job também. ✅ **Provado no GitHub em 25/10/2026**, no push do `96aadd4`, e de novo em
+26/10 (`deda22c`): a imagem construída de verdade, com o Docker, e todas as conferências verdes. Até
 então só tinha rodado sem Docker, sobre o build (13 conferências), porque o ambiente onde foi escrito
 não pode ligá-lo.
 
@@ -4025,7 +4025,7 @@ contra a documentação e uma Asaas de mentira, como o resto da cobrança (§4.1
 vermelhas — e uma oitava trocada por ser equivalente: comparar o nome sem minúsculas, que o `URL`
 já devolve em minúsculas. Contra o build, com uma Asaas de mentira: a fila interrompida no Início e
 no Sistema, as 15 falhas, a fila reativada e o aviso sumindo, e a Asaas fora do ar virando atenção
-sem travar a tela. O build do `22ecd85` reprova sete delas.
+sem travar a tela. O build do `881b969` reprova sete delas.
 
 ## 4. Especificações que faltam escrever
 
@@ -4561,7 +4561,99 @@ Desde 25/09/2026 o dono sobe galeria, logo, capa e fotos de produto no painel lo
 do cadastro — isso muda o segundo dia, não o primeiro minuto. E cada layout tem que tratar
 a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`).
 
-### 4.14 🔴 `[TÉCNICO]` A cobrança — FEITA no código em 10/10/2026; falta a prova no sandbox
+### 4.14 🔴 `[TÉCNICO]` A cobrança — FEITA no código em 10/10/2026; a prova no sandbox começou em 23/11/2026, e falta o resto do roteiro
+
+> **23/11/2026 — a prova começou: o cadastro do cartão, ponta a ponta, no sandbox.** Pela máquina do
+> dono — `npm run dev` e um túnel do `cloudflared` (a saída 2 do roteiro abaixo) —, com a Bayron do
+> banco de desenvolvimento no teste. Respondido:
+>
+> - **Que evento chega no dia do cadastro:** o `CHECKOUT_PAID` e, depois, o `SUBSCRIPTION_CREATED`,
+>   nessa ordem. **Nada é cobrado no cadastro**: a página da Asaas diz "Pagamento confirmado", mas
+>   a primeira cobrança fica `PENDING` para o fim do teste.
+> - **O `CHECKOUT_PAID` NÃO traz o cliente:** `checkout.customer` e `checkout.customerData` vêm
+>   nulos; vem o `externalReference` ("barbearia:N"). O cliente chega no `SUBSCRIPTION_CREATED`.
+> - **O `SUBSCRIPTION_CREATED` traz o `checkoutSession`** (o id do Checkout) e o cliente; o
+>   `externalReference` vem nulo — nele, no cliente e nas cobranças.
+> - **Os dados do titular:** com `customerData`, a Asaas exige o pacote inteiro (e-mail, CPF ou
+>   CNPJ, telefone, rua, número, CEP e bairro) e recusa com 400 o que vier pela metade — era o que
+>   ia, e nenhum dono conseguia cadastrar o cartão. Sem ele, a página pede tudo ao titular. Consertado
+>   (`abrirCheckout`, commit `86e2905`).
+> - **O `nextDueDate` corre na frente:** logo depois do cadastro, a assinatura já tinha a primeira
+>   cobrança (no fim do teste) e o `nextDueDate` um mês depois; horas depois, duas cobranças pendentes
+>   e o `nextDueDate` **dois** meses depois — sem nada pago.
+> - **A fila do webhook parou com 2 falhas**, não 15 (o túnel caiu, provavelmente com a máquina
+>   dormindo), e o
+>   contador de falhas (`penalizedRequestsCount`) voltou a 0 quando um envio passou. Retomada, os
+>   avisos guardados chegaram em segundos, em ordem.
+>
+> **O que isso desmentiu no código — consertado no mesmo dia**, cada um com o defeito desfeito e o
+> caso certo vermelho (15 mutações, as 15 pegas — 4 delas dos três problemas que uma revisão
+> independente achou no próprio conserto):
+>
+> 1. **As notificações da Asaas nunca eram desligadas para o dono novo:** o desligar só saía do
+>    `CHECKOUT_PAID`, que vem sem cliente — conferido no sandbox, o cliente ficou com
+>    `notificationDisabled: false`. Agora sai também do `SUBSCRIPTION_CREATED`, quando o cliente é
+>    novo para a barbearia.
+> 2. **A assinatura removida na Asaas, por fora do painel, deixava o site no ar até o `nextDueDate`**
+>    — até dois meses sem pagar. Agora o fim é um mês depois do vencimento da última cobrança paga
+>    registrada pelo webhook, ou o fim do teste se nada foi pago (`fimDoQueFoiPago`). O cancelar do
+>    painel já não usava o `nextDueDate` desde 18/10.
+> 3. **A tela de assinatura prometia "até lá, nada é cobrado" a quem cancelou devendo**, e o Checkout
+>    cobrava no dia: ela fazia a conta sem a dívida. Agora usa a mesma função do Checkout
+>    (`primeiraCobrancaDaBarbearia`).
+> 4. **O pagamento numa assinatura que não é mais a em vigor passava em silêncio** — o dono cobrado
+>    duas vezes, se a remoção da antiga falhou. Agora o `PAYMENT_CONFIRMED` dela pede olho — só se
+>    ela já foi desta barbearia: a NOVA, cujo `SUBSCRIPTION_CREATED` ainda não chegou, também é
+>    "outra", e o alerta mandaria remover a que vai valer (achado da revisão).
+> 5. **O alerta da fila prometia folga de 15 falhas.** Agora qualquer falha, com a fila andando, é
+>    problema — e o quadro Cobrança do Sistema diz o mesmo: ele continuava verde, "os avisos de
+>    pagamento chegam", logo abaixo do alerta (achado da revisão). Com a fila já parada, só o alerta
+>    dela.
+>
+> **Os dois que ficaram — achados na mesma varredura, menos graves:**
+>
+> - ✅ *Cancelar com a cobrança vencida que o webhook ainda não trouxe* (a fila parada) — consertado
+>   no mesmo dia, mais tarde: o cancelar só perguntava à Asaas pelas `PENDING`, ignorava a `OVERDUE`,
+>   e o fim pulava um mês. Agora pergunta pelas vencidas também, e com uma delas é cancelar devendo — o
+>   que restava da carência, contada do dia em que ela venceu. E o aviso da falha que chega DEPOIS do
+>   cancelar, que virava "nada muda", agora encurta a saída até a carência (nunca a alonga) e grava
+>   "atrasada": quem assinar de novo paga no dia (`falhaDeQuemJaCancelou`).
+> - ✅ *Com a fila parada, a tela do dono volta a pedir o cartão que ele acabou de cadastrar* — só a URL
+>   (`?cartao=ok`) sabia que ele voltou do Checkout; cadastrando de novo, nascia uma segunda assinatura.
+>   A Asaas não ajuda: o filtro `checkoutSession` da lista de assinaturas é ignorado calado (no
+>   sandbox, um id inventado devolveu a assinatura de verdade). **Consertado em 25/11/2026**, com a
+>   migration 0023 e as 48 horas aprovadas por você nesse dia: a volta do dono fica gravada
+>   (`tenants.cartao_voltou_em`), e por 48 horas a faixa e a tela dizem que o cartão chegou, o botão
+>   some, os e-mails de aviso não saem e o Checkout recusa (409); depois, o botão volta, com "fale com
+>   o suporte antes de cadastrar de novo". A fase não muda — quem decide continua sendo o webhook. O
+>   desenho: `ARQUITETURA-COBRANCA-V1.md` §5.3. Três cuidados que não estavam na proposta: só a volta
+>   do DONO grava (um barbeiro abrindo `?cartao=ok` trancaria o cartão dele); só quem já abriu um
+>   Checkout (a volta sem ida é URL digitada); e a tela tira o `?cartao=ok` do endereço quando para de
+>   conferir — senão, recarregada dias depois, gravaria de novo uma volta que não houve.
+>   **A revisão independente do mesmo dia** (38 agentes, cada achado com dois verificadores tentando
+>   derrubá-lo) achou que qualquer link para `?cartao=ok`, aberto com a sessão do dono, gravava a
+>   volta — o GET passa sem conferir a origem. Consertado sem migration: a volta leva o **selo da
+>   ida**, a hora assinada com a barbearia pelo segredo do servidor, e só grava com ele, de no máximo
+>   2 horas. Isso fechou também a URL aberta pelo histórico, que ficava como risco. ⚠️ Que a Asaas
+>   devolve o segundo parâmetro (`&volta=`) na volta **não foi provado no sandbox** — é o próximo
+>   cartão de teste que confirma; se ela não devolver, a volta só não é gravada. Consertados também: a
+>   faixa da própria volta, que mandava cadastrar; o parágrafo de cima, que continuava pedindo o
+>   cartão; a data de saída do ar, que a faixa da espera escondia; o texto do barbeiro que não é dono;
+>   e o pagamento que não põe em dia, que apagava a volta de quem reativa.
+>   ⚠️ *Resta:* quem está com a cobrança atrasada, atualiza o cartão e *cancela durante a espera*
+>   não alcança a assinatura nova, que o app ainda não conhece: o `CHECKOUT_PAID` que chega depois põe a
+>   barbearia em dia de novo, e a assinatura nova cobra (lido no código, não provado num caso). Espera
+>   a sua decisão.
+>
+> **Falta responder:** se a Asaas reaproveita o cliente pelo CPF; o `GET` de assinatura removida;
+> se o `PUT /customers/{id}` desliga as notificações; o `PAYMENT_RECEIVED` ~32 dias depois do
+> `PAYMENT_CONFIRMED`; se o Checkout aceita `nextDueDate` de hoje. É o resto do roteiro: cancelar,
+> reativar, uma cobrança vencida (os cartões de teste que a Asaas recusa), cancelar devendo e assinar
+> de novo.
+>
+> ⚠️ **O túnel rápido do `cloudflared` não aguenta a máquina dormir:** a Cloudflare apaga o túnel, o
+> endereço muda, e a fila da Asaas para. Na prova, manter o computador acordado e conferir a fila
+> (`interrupted`) antes de cada passo; a URL nova do webhook se troca no painel do sandbox.
 
 > **10/10/2026 — feita no código, NÃO testada no sandbox.** O dono cadastra o cartão no
 > Checkout da Asaas pela tela de assinatura, o webhook mantém a barbearia em dia, e o cancelar
@@ -4612,8 +4704,9 @@ a galeria como opcional: abaixo de 3 fotos ela não existe (`src/lib/galeria.ts`
 >    então o termo tem de dizer, com todas as letras, que sair do ar não cancela (§1.2); e o
 >    cancelar abre também fora do ar, para quem quiser parar.
 >
-> ⚠️ **As notificações da Asaas são desligadas a cada `CHECKOUT_PAID`** — a proposta 3 de
-> 10/10, abaixo: quem avisa é o app. Sem o `SMTP_URL` em produção (§4.17), então, ninguém avisa
+> ⚠️ **As notificações da Asaas são desligadas ~~a cada `CHECKOUT_PAID`~~** — *desde 23/11/2026,
+> no `SUBSCRIPTION_CREATED` do cliente novo também: o `CHECKOUT_PAID` real vem sem o cliente* — a
+> proposta 3 de 10/10, abaixo: quem avisa é o app. Sem o `SMTP_URL` em produção (§4.17), então, ninguém avisa
 > o dono por e-mail de cobrança nenhuma; só a faixa do painel. Mais um motivo de o cadastro não
 > abrir sem ele (§2.31).
 >
@@ -5190,7 +5283,7 @@ presa na tela, pedida por você (§2.46).
 **25 e 26/10/2026, ✅ feitos:** o primeiro push depois de 17/10 provou a imagem do Docker no
 GitHub (§3.2) — e achou a suíte vermelha sozinha: um teste de `tests/senha-nova.test.ts` dava à
 barbearia de teste um prazo cravado em 14/10 e usava o relógio de verdade; vencido o prazo, a sessão
-caía. Consertado em `4e88e3e`. **Procurados os outros:** a suíte inteira rodou com o relógio do app
+caía. Consertado em `deda22c`. **Procurados os outros:** a suíte inteira rodou com o relógio do app
 e o do banco adiantados 30 e 180 dias — nenhum outro teste vence; as quatro falhas que aparecem são
 do próprio experimento (a retenção do backup compara a data do arquivo, que o relógio adiantado não
 alcança). E as dependências com falha publicada depois de 09/10, nos dois apps (§2.29).

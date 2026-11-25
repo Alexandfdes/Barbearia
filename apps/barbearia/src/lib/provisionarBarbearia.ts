@@ -158,6 +158,24 @@ export interface BarbeariaCriada {
   siteEmPreparacao: boolean;
 }
 
+/**
+ * A recusa de quem perdeu a corrida para outro cadastro: o índice do banco pegou o que a conferência
+ * de antes da transação não viu. A mesma mensagem da conferência; outro índice, `null` (o erro sobe).
+ * Sem importar `lib/api.ts`: este arquivo roda também no script de provisionar, fora do Astro.
+ */
+function recusaDoIndice(err: unknown, slug: string): RecusaDeProvisionamento | null {
+  type ErroPg = { code?: string; constraint_name?: string; cause?: ErroPg };
+  const e = err as ErroPg | undefined;
+  const indice = [e, e?.cause].find((x) => x?.code === '23505')?.constraint_name;
+  if (indice === 'tenants_slug_key') {
+    return { ok: false, campo: 'slug', conflito: true, erro: `Já existe uma barbearia no endereço "${slug}".` };
+  }
+  if (indice === 'barbers_phone_ativo_uq') {
+    return { ok: false, campo: 'telefone-dono', conflito: true, erro: 'Este WhatsApp já é o login de outro barbeiro.' };
+  }
+  return null;
+}
+
 export interface RecusaDeProvisionamento {
   ok: false;
   /** Qual campo recusou, para a tela poder apontar o erro no lugar certo. */
@@ -480,7 +498,13 @@ export async function provisionarBarbearia(
   // Tudo numa transação: barbearia meio criada — com tenant e sem dono, por
   // exemplo — é pior que criação nenhuma, porque o slug fica ocupado e o
   // provisionamento não pode simplesmente rodar de novo.
-  const resultado = await sql.begin(async (tx) => {
+  //
+  // As conferências do endereço e do telefone, lá em cima, ficam fora da transação: dois cadastros
+  // ao mesmo tempo passam pelas duas, e o segundo cai no índice do banco. Até 21/11/2026, isso era 500;
+  // agora é a mesma recusa de quem chegou depois (`recusaDoIndice`, logo abaixo).
+  let resultado: { tenantId: number; barbeiroId: number; ativos: number };
+  try {
+  resultado = await sql.begin(async (tx) => {
     // ⚠️ Toda barbearia nasce NO TESTE, com a data de fim gravada — não `active`,
     // o padrão da coluna, que daria o produto de graça para sempre a quem se
     // cadastrasse. A fase de cada dia sai de `lib/situacao.ts`.
@@ -556,7 +580,12 @@ export async function provisionarBarbearia(
     }
 
     return { tenantId: Number(tenant.id), barbeiroId: Number(barbeiro.id), ativos };
-  });
+  }) as { tenantId: number; barbeiroId: number; ativos: number };
+  } catch (err) {
+    const recusa = recusaDoIndice(err, slug);
+    if (recusa) return recusa;
+    throw err;
+  }
 
   return {
     ok: true,

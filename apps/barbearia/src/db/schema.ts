@@ -61,6 +61,12 @@ export const tenants = pgTable('tenants', {
    */
   termosVersao: text('termos_versao'),
   termosAceitosEm: timestamp('termos_aceitos_em', { withTimezone: true }),
+  /**
+   * Quando o dono voltou do Checkout da Asaas com o cartão cadastrado, e a confirmação do webhook
+   * ainda não tinha chegado (migration 0023). Nulo: não voltou, ou já confirmou. Não muda a
+   * situação de ninguém: só o que o painel diz e se ele abre outro Checkout (`esperaDoCartao`).
+   */
+  cartaoVoltouEm: timestamp('cartao_voltou_em', { withTimezone: true }),
 });
 
 /**
