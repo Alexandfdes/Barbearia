@@ -16,6 +16,8 @@ interface Props {
   barberName: string;
   /** Aceito para ter a mesma assinatura do `AdminLayout`; aqui não muda nada. */
   role?: 'admin' | 'barber';
+  /** Aceito para ter a mesma assinatura do `AdminLayout`; aqui não há faixa. */
+  cartao?: 'esperando' | 'demorou' | null;
 }
 const { title = 'Assinatura', barberName } = Astro.props;
 const s = await getSettings();

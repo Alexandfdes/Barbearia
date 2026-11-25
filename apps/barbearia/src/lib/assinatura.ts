@@ -43,6 +43,63 @@ export const ROTA_DO_CARTAO = '/api/admin/assinatura/cartao';
  */
 export const ROTA_DO_CANCELAMENTO = '/api/admin/assinatura/cancelar';
 
+/**
+ * Quantas horas, depois da volta do Checkout com o cartão, o painel espera a confirmação do webhook
+ * sem pedir o cartão de novo (decisão do dono em 25/11/2026). Com a fila do webhook parada — no
+ * sandbox, em 23/11/2026, ela parou com 2 falhas —, a confirmação atrasa, e saindo da tela de
+ * assinatura o painel, a faixa e os e-mails voltavam a pedir o cartão: cadastrar de novo criava uma
+ * SEGUNDA assinatura (`docs/PENDENCIAS-ABERTAS.md` §4.14).
+ */
+export const HORAS_ESPERANDO_A_CONFIRMACAO = 48;
+
+/**
+ * Onde está a volta do Checkout que o webhook não confirmou (`tenants.cartao_voltou_em`, migration
+ * 0023): `esperando`, nas primeiras `HORAS_ESPERANDO_A_CONFIRMACAO` — o painel não pede o cartão, os
+ * e-mails não saem e o Checkout não abre —; `demorou`, depois delas — o cartão volta a ser pedido,
+ * com o aviso de falar com o suporte antes; `null`, sem volta guardada, ou com a barbearia em dia.
+ *
+ * Não muda a fase: quem decide se o site fica no ar continua sendo o webhook (`lib/situacao.ts`).
+ */
+export type EsperaDoCartao = 'esperando' | 'demorou' | null;
+
+export function esperaDoCartao(voltouEm: Date | null | undefined, s: Situacao, agora: Date): EsperaDoCartao {
+  if (!voltouEm) return null;
+  // Em dia, a confirmação chegou — por qualquer caminho. Encerrada ou tirada do ar à mão, o cartão
+  // não se cadastra pelo painel (`podeCadastrarCartao`): não há o que esperar.
+  if (s.fase === 'ativa' && !s.encerraEm) return null;
+  if (s.fase === 'cancelada' || (s.fase === 'suspensa' && s.motivo === 'manual')) return null;
+  return agora.getTime() - voltouEm.getTime() < HORAS_ESPERANDO_A_CONFIRMACAO * 60 * 60 * 1000 ? 'esperando' : 'demorou';
+}
+
+/** Até quando a volta do cartão espera a confirmação — o que a tela promete ao dono. */
+export function fimDaEsperaDoCartao(voltouEm: Date): Date {
+  return new Date(voltouEm.getTime() + HORAS_ESPERANDO_A_CONFIRMACAO * 60 * 60 * 1000);
+}
+
+/**
+ * O dia em que o site sai do ar se a confirmação nunca chegar: o fim da carência, ou o fim do período
+ * de quem cancelou. `null` no teste — depois dele ainda vem a carência — e fora do ar.
+ */
+export function saidaDoAr(s: Situacao): Date | null {
+  if (s.fase === 'carencia') return s.ate;
+  if (s.fase === 'ativa' && s.encerraEm) return s.encerraEm;
+  return null;
+}
+
+/**
+ * Até quando falar com o suporte, se a confirmação não chegar: o fim da espera, ou antes, o dia em
+ * que o site sai do ar. Prometer as 48 horas a quem sai do ar amanhã deixava o site cair antes do
+ * prazo dito (revisão de 25/11/2026).
+ */
+export function limiteParaOSuporte(voltouEm: Date, s: Situacao): Date {
+  const fim = fimDaEsperaDoCartao(voltouEm);
+  const sai = saidaDoAr(s);
+  return sai && sai.getTime() < fim.getTime() ? sai : fim;
+}
+
+/** O que a faixa e a tela dizem enquanto a confirmação do cartão não chega. */
+export const CARTAO_RECEBIDO = 'Recebemos o seu cartão, e a confirmação da Asaas está atrasada: não precisa cadastrar de novo.';
+
 export interface AvisoDoPainel {
   /** `alerta` quando falta 1 dia ou menos, ou o prazo já venceu. */
   tom: 'info' | 'alerta';
@@ -54,8 +111,21 @@ export interface AvisoDoPainel {
 /**
  * A faixa do topo do painel. `null` quando não há nada a dizer — barbearia
  * pagando — ou quando o painel nem abre — fora do ar, encerrada.
+ *
+ * `cartao`: a volta do Checkout que o webhook ainda não confirmou (`esperaDoCartao`). Esperando, a
+ * faixa diz que o cartão chegou, em vez de pedi-lo de novo (25/11/2026).
  */
-export function avisoDoPainel(s: Situacao, fuso: string, agora: Date = new Date(), ligada = true): AvisoDoPainel | null {
+export function avisoDoPainel(
+  s: Situacao, fuso: string, agora: Date = new Date(), ligada = true, cartao: EsperaDoCartao = null,
+): AvisoDoPainel | null {
+  if (cartao === 'esperando' && (s.fase === 'teste' || s.fase === 'carencia' || (s.fase === 'ativa' && s.encerraEm))) {
+    // Com o site saindo do ar num dia marcado, a faixa não pode esconder a data (revisão de 25/11/2026).
+    const sai = saidaDoAr(s);
+    return sai
+      ? { tom: 'alerta', acao: 'Ver a assinatura',
+          texto: `${CARTAO_RECEBIDO} O site fica no ar até ${ultimoDia(sai, fuso)}: se a confirmação não chegar antes, fale com o suporte.` }
+      : { tom: 'info', texto: CARTAO_RECEBIDO, acao: 'Ver a assinatura' };
+  }
   if (s.fase === 'ativa' && s.encerraEm) {
     return { tom: 'info', texto: `Assinatura cancelada: o site fica no ar até ${ultimoDia(s.encerraEm, fuso)}.`, acao: 'Reativar' };
   }
@@ -82,23 +152,29 @@ export function avisoDoPainel(s: Situacao, fuso: string, agora: Date = new Date(
 /**
  * O parágrafo de cima da tela de assinatura: onde ele está e o que acontece
  * depois. Fala do site do jeito que o cliente dele o vê — sem dívida exposta.
+ *
+ * `cartao`: esperando a confirmação do cartão que voltou do Checkout, o parágrafo não manda
+ * cadastrar nem reativar — o botão sumiu, e a tela diz logo abaixo que não precisa (25/11/2026).
  */
-export function explicacaoDaSituacao(s: Situacao, fuso: string, agora: Date = new Date(), ligada = true): string {
+export function explicacaoDaSituacao(
+  s: Situacao, fuso: string, agora: Date = new Date(), ligada = true, cartao: EsperaDoCartao = null,
+): string {
+  const esperando = cartao === 'esperando';
   switch (s.fase) {
     case 'ativa':
       if (s.encerraEm) {
         return `Assinatura cancelada. O site e o painel funcionam até ${ultimoDia(s.encerraEm, fuso)}; depois disso, ` +
           'quem abrir o seu site vai ver que o agendamento online está temporariamente indisponível, com o seu ' +
-          'WhatsApp para contato. Mudou de ideia? Reative antes disso e o site segue sem interrupção.';
+          'WhatsApp para contato.' + (esperando ? '' : ' Mudou de ideia? Reative antes disso e o site segue sem interrupção.');
       }
       return 'Assinatura em dia. O site e o painel estão funcionando normalmente.';
     case 'teste':
       return (diasAte(s.ate, fuso, agora) > 0
         ? `Você está no teste grátis, até ${ultimoDia(s.ate, fuso)}.`
         : `Hoje, ${ultimoDia(s.ate, fuso)}, é o último dia do seu teste grátis.`) +
-        ' Até lá, nada é cobrado. ' + (ligada
-          ? 'Para o site continuar no ar depois disso, cadastre o cartão antes do fim do teste.'
-          : PELO_SUPORTE);
+        ' Até lá, nada é cobrado.' + (esperando ? ''
+          : ligada ? ' Para o site continuar no ar depois disso, cadastre o cartão antes do fim do teste.'
+          : ` ${PELO_SUPORTE}`);
     case 'carencia':
       return (s.motivo === 'teste' ? 'O teste acabou' : 'A cobrança do cartão não passou') +
         `. O site continua no ar até ${ultimoDia(s.ate, fuso)}. Depois disso, quem abrir o seu site vai ver que ` +
@@ -111,12 +187,14 @@ export function explicacaoDaSituacao(s: Situacao, fuso: string, agora: Date = ne
       if (s.motivo === 'cancelada') {
         return 'A assinatura foi cancelada' + (s.desde ? `, e desde ${diaDe(s.desde, fuso)}` : ', e agora') +
           ' quem abre o seu site vê que o agendamento online está temporariamente indisponível, com o seu ' +
-          'WhatsApp para contato. Nada foi apagado: assinando de novo, o site volta na hora.';
+          'WhatsApp para contato. Nada foi apagado: ' + (esperando
+            ? 'quando a confirmação do cartão chegar, o site volta na hora.' : 'assinando de novo, o site volta na hora.');
       }
-      return (s.motivo === 'teste' ? 'O teste acabou sem o cartão cadastrado' : 'A cobrança do cartão não passou') +
+      return (s.motivo === 'teste' ? (esperando ? 'O teste acabou' : 'O teste acabou sem o cartão cadastrado') : 'A cobrança do cartão não passou') +
         (s.desde ? `, e desde ${diaDe(s.desde, fuso)}` : ', e agora') +
         ' quem abre o seu site vê que o agendamento online está temporariamente indisponível, com o seu ' +
-        'WhatsApp para contato. ' + (s.motivo === 'teste' && !ligada
+        'WhatsApp para contato. ' + (esperando ? 'Nada foi apagado: quando a confirmação do cartão chegar, o site volta na hora.'
+          : s.motivo === 'teste' && !ligada
           ? 'Nada foi apagado: fale com o suporte pelo WhatsApp, e o site volta.'
           : 'Nada foi apagado: regularizou, o site volta na hora.');
     case 'cancelada':

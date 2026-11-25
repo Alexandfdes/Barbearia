@@ -177,9 +177,10 @@ describe('a prévia: o link do painel e o cookie do endereço', () => {
     expect(tela).toMatch(/const podeCartao = podeCadastrarCartao\(situacao\) && !emPreparacao;/);
     expect(tela).toMatch(/\{emPreparacao\s*\? `O seu site ainda não está no ar: [^`]*os 7 dias de teste começam nesse dia\./);
     expect(tela).toMatch(/const titulo = foraDoAr && !emPreparacao \? 'O site está fora do ar' : 'Assinatura';/);
-    // Controle: o cartão continua oferecido por `podeCartao`, e a explicação de sempre continua lá.
-    expect(tela).toMatch(/\{!manual && podeCartao && \(/);
-    expect(tela).toMatch(/: explicacaoDaSituacao\(situacao, fuso, new Date\(\), cobrancaLigada\)\}/);
+    // Controle: o cartão continua oferecido por `podeCartao` — menos enquanto o que voltou do Checkout
+    // espera a confirmação (migration 0023) —, e a explicação de sempre continua lá.
+    expect(tela).toMatch(/\{!manual && podeCartao && espera !== 'esperando' && \(/);
+    expect(tela).toMatch(/: explicacaoDaSituacao\(situacao, fuso, new Date\(\), cobrancaLigada, espera\)\}/);
   });
 });
 

@@ -37,7 +37,7 @@ import { and, asc, eq, inArray, isNotNull, isNull, lte, notInArray } from 'drizz
 import { dbDono } from '../db/index.js';
 import { avisosEnviados, barbers, tenants } from '../db/schema.js';
 import { diaDe, diasAte, situacaoDe, type Situacao } from './situacao.js';
-import { cobrancaLigada, explicacaoDaSituacao, TELA_DE_ASSINATURA } from './assinatura.js';
+import { cobrancaLigada, esperaDoCartao, explicacaoDaSituacao, TELA_DE_ASSINATURA } from './assinatura.js';
 import { enviarEmail, transporteDeEmail, type Email } from './email.js';
 import { urlDoPainel } from './tenant.js';
 import { linkDoSuporte, NOME_PRODUTO, PRAZO_DA_CONFERENCIA } from './produto.js';
@@ -146,6 +146,8 @@ export interface ResumoDosAvisos {
   falhas: number;
   /** Aviso devido, e nenhum dono ativo com e-mail para receber. */
   semDestinatario: number;
+  /** Aviso devido, e segurado: o dono voltou do Checkout com o cartão, e a confirmação não chegou. */
+  esperandoOCartao: number;
   /** Sites lembrados ao operador nesta rodada (`lembrarSitesQueEsperam`). */
   lembradosAoOperador: number;
   /** O operador recebeu nesta rodada o aviso do backup que não sobe para fora (`lib/avisoDoBackup.ts`). */
@@ -167,7 +169,7 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
   }
 
   const resumo: ResumoDosAvisos = {
-    avaliadas: 0, enviados: 0, falhas: 0, semDestinatario: 0, lembradosAoOperador: 0, avisoDoBackup: false,
+    avaliadas: 0, enviados: 0, falhas: 0, semDestinatario: 0, esperandoOCartao: 0, lembradosAoOperador: 0, avisoDoBackup: false,
   };
 
   // Pagando em dia, encerrada e tirada do ar à mão não têm prazo correndo. Nem o site que
@@ -182,6 +184,7 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
       atrasadaDesde: tenants.pastDueSince,
       carenciaAte: tenants.carenciaAte,
       fuso: tenants.timezone,
+      cartaoVoltouEm: tenants.cartaoVoltouEm,
     })
     .from(tenants)
     .where(and(inArray(tenants.status, ['trial', 'past_due']), isNotNull(tenants.siteAprovadoEm)))
@@ -192,6 +195,13 @@ export async function enviarAvisosPendentes(agora: Date = new Date()): Promise<R
     const s = situacaoDe(b, agora);
     const devido = avisoDevido(s, b.fuso, agora);
     if (!devido) continue;
+    // O dono voltou do Checkout com o cartão, e a confirmação do webhook não chegou (migration 0023):
+    // nas primeiras horas, nenhum e-mail pede o cartão de novo — cadastrar duas vezes vira duas
+    // assinaturas. Nada é reservado: passada a espera sem confirmação, o aviso da fase sai.
+    if (esperaDoCartao(b.cartaoVoltouEm, s, agora) === 'esperando') {
+      resumo.esperandoOCartao++;
+      continue;
+    }
 
     const donos = await dbDono
       .select({ nome: barbers.name, email: barbers.email })

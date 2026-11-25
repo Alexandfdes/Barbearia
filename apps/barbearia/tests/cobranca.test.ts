@@ -794,7 +794,8 @@ describe.skipIf(!TEM_BANCO)('o Checkout', () => {
     expect(corpo.items[0].name.length).toBeLessThanOrEqual(30);
     expect(corpo.items[0].imageBase64).toMatch(/^iVBOR/); // um PNG — a Asaas exige imagem
     expect(corpo.externalReference).toBe('barbearia:4');
-    expect(corpo.callback.successUrl).toMatch(/\/admin\/assinatura\?cartao=ok$/);
+    // A volta leva o selo da ida: só ela grava (`seloConfere`, revisão de 25/11/2026).
+    expect(corpo.callback.successUrl).toMatch(/\/admin\/assinatura\?cartao=ok&volta=\d+\.[\w-]+$/);
     expect(corpo.callback.cancelUrl).toMatch(/\/admin\/assinatura\?cartao=cancelado$/);
     // Cliente novo: NADA do cliente — a página da Asaas pede tudo. No sandbox (23/11/2026), o
     // `customerData` pela metade (nome, e-mail, telefone) era recusado com 400: exige o pacote inteiro.
@@ -1139,5 +1140,200 @@ describe.skipIf(!TEM_BANCO)('o cancelar', () => {
 
   it('o barbeiro que não é o dono não cancela', async () => {
     expect((await pedir(CANCELAR, { barberId: 41, role: 'barber', tenantId: 4 })).status).toBe(403);
+  });
+});
+
+// ── A volta do Checkout que o webhook não confirmou (migration 0023, 25/11/2026) ──
+//
+// No sandbox, em 23/11/2026, a fila do webhook parou com 2 falhas, e a confirmação do cartão atrasou
+// horas. Só a URL da volta (`?cartao=ok`) sabia que o dono tinha cadastrado: saindo da tela, o painel
+// pedia o cartão de novo — e o segundo Checkout criava uma SEGUNDA assinatura, que também cobraria.
+
+describe.skipIf(!TEM_BANCO)('a volta do Checkout que o webhook não confirmou', () => {
+  let registrarVoltaDoCartao: typeof import('../src/lib/cobranca').registrarVoltaDoCartao;
+  let seloDaVolta: typeof import('../src/lib/cobranca').seloDaVolta;
+  let seloConfere: typeof import('../src/lib/cobranca').seloConfere;
+  let tenantPorIdMesmoForaDoAr: typeof import('../src/lib/tenant').tenantPorIdMesmoForaDoAr;
+  const HORA = 60 * 60 * 1000;
+  const voltou = async (id: number) =>
+    ((await conn`SELECT cartao_voltou_em FROM tenants WHERE id = ${id}`)[0].cartao_voltou_em as Date | null);
+  /** O selo que a ida desta barbearia mandaria à Asaas, emitido em `quando`. */
+  const selo = (id: number, quando: Date = new Date()) => seloDaVolta(id, quando.getTime());
+
+  beforeAll(async () => {
+    ({ registrarVoltaDoCartao, seloDaVolta, seloConfere } = await import('../src/lib/cobranca'));
+    ({ tenantPorIdMesmoForaDoAr } = await import('../src/lib/tenant'));
+    const daqui7 = new Date(Date.now() + 7 * DIA);
+    const daqui10 = new Date(Date.now() + 10 * DIA);
+    await conn`INSERT INTO tenants (id, slug, business_name, status, trial_ends_at, past_due_since, subscription_ends_at, asaas_customer_id, asaas_subscription_id, asaas_checkout_ids) VALUES
+      (40, 'volta',       'Voltou do Checkout', 'trial',     ${daqui7}, NULL,          NULL,      NULL,      NULL,      '{chk_v40}'),
+      (41, 'sem-ida',     'Nunca Abriu',        'trial',     ${daqui7}, NULL,          NULL,      NULL,      NULL,      '{}'),
+      (42, 'volta-emdia', 'Já Em Dia',          'active',    NULL,      NULL,          NULL,      'cus_v42', 'sub_v42', '{chk_v42}'),
+      (43, 'volta-mao',   'Tirada à Mão',       'suspended', NULL,      NULL,          NULL,      'cus_v43', 'sub_v43', '{chk_v43}'),
+      (44, 'volta-prep',  'Em Preparação',      'trial',     ${daqui7}, NULL,          NULL,      NULL,      NULL,      '{chk_v44}'),
+      (45, 'volta-corre', 'Corrida',            'trial',     ${daqui7}, NULL,          NULL,      NULL,      NULL,      '{chk_v45}'),
+      (46, 'volta-atr',   'Atrasada Volta',     'past_due',  NULL,      ${new Date()}, NULL,      'cus_v46', 'sub_v46', '{chk_v46}'),
+      (47, 'volta-reat',  'Reativando',         'active',    NULL,      NULL,          ${daqui10}, 'cus_v47', 'sub_v47', '{chk_v47}'),
+      (48, 'volta-selo',  'Selo Conferido',     'trial',     ${daqui7}, NULL,          NULL,      NULL,      NULL,      '{chk_v48}')`;
+    await conn`UPDATE tenants SET site_aprovado_em = NULL WHERE id = 44`;
+    await conn`INSERT INTO barbers (tenant_id, id, name, slug, role, password_hash, active, phone, email) VALUES
+      (40, 400, 'Dono Volta', 'dono', 'admin', 'x', true, '84990000400', NULL),
+      (46, 460, 'Dono Atr',   'dono', 'admin', 'x', true, '84990000460', NULL)`;
+    await carregarTenants(true);
+  });
+
+  it('a volta fica gravada — e recarregar a tela não empurra a espera', async () => {
+    const agora = new Date();
+    expect(await registrarVoltaDoCartao(40, selo(40, agora), agora)).toEqual(agora);
+    expect(await voltou(40)).toEqual(agora);
+    // A tela confere de novo sozinha a cada 4 s, e o dono pode recarregar: a espera conta da PRIMEIRA volta.
+    expect(await registrarVoltaDoCartao(40, selo(40, agora), new Date(agora.getTime() + HORA))).toEqual(agora);
+    expect(await voltou(40)).toEqual(agora);
+    // O painel lê do cache: gravar a volta o descarta, e a faixa da tela seguinte já sabe.
+    await carregarTenants();
+    expect(tenantPorIdMesmoForaDoAr(40)?.cartaoVoltouEm).toEqual(agora);
+  });
+
+  it('sem o selo desta ida, nada é gravado: o link mandado por alguém, o do histórico, o de outra barbearia', async () => {
+    // Um GET grava a volta, e o cookie da sessão vai em todo link aberto de fora (SameSite=Lax): sem o
+    // selo, qualquer `?cartao=ok` trancava o cartão do dono por 48 horas (revisão de 25/11/2026).
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const agora = new Date();
+    expect(await registrarVoltaDoCartao(48, null, agora)).toBeNull();
+    expect(await registrarVoltaDoCartao(48, selo(40, agora), agora)).toBeNull();                 // de outra barbearia
+    expect(await registrarVoltaDoCartao(48, selo(48, new Date(agora.getTime() - 3 * HORA)), agora)).toBeNull(); // velho
+    const [quando, assinatura] = selo(48, agora).split('.');
+    expect(await registrarVoltaDoCartao(48, `${quando}.${assinatura.slice(0, -2)}xx`, agora)).toBeNull(); // adulterado
+    expect(await registrarVoltaDoCartao(48, `${Number(quando) + 1}.${assinatura}`, agora)).toBeNull();     // hora trocada
+    expect(await voltou(48)).toBeNull();
+    expect(aviso).toHaveBeenCalledTimes(5);
+    aviso.mockRestore();
+    // Controle: o selo desta ida, de 1h50 atrás — o Checkout vale 60 minutos —, grava.
+    expect(seloConfere(48, selo(48, new Date(agora.getTime() - 110 * 60 * 1000)), agora)).toBe(true);
+    expect(await registrarVoltaDoCartao(48, selo(48, agora), agora)).toEqual(agora);
+  });
+
+  it('sem Checkout aberto, já em dia, tirada do ar à mão ou esperando a aprovação: nada é gravado', async () => {
+    const agora = new Date();
+    for (const id of [41, 42, 43, 44]) {
+      expect(await registrarVoltaDoCartao(id, selo(id, agora), agora), String(id)).toBeNull();
+      expect(await voltou(id), String(id)).toBeNull();
+    }
+  });
+
+  it('atrasada e reativando também esperam — e o Checkout da atrasada recusa', async () => {
+    const agora = new Date();
+    expect(await registrarVoltaDoCartao(46, selo(46, agora), agora)).toEqual(agora);
+    expect(await registrarVoltaDoCartao(47, selo(47, agora), agora)).toEqual(agora);
+    await carregarTenants(true);
+    const r = await pedir(CARTAO, { barberId: 460, role: 'admin', tenantId: 46 });
+    expect(r.status).toBe(409);
+    expect(String(r.corpo.error)).toMatch(/não precisa cadastrar de novo/);
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it('o CHECKOUT_PAID que chega no meio vence: a condição está no próprio UPDATE', async () => {
+    // A tela leu a barbearia ainda no teste; antes do UPDATE dela, o webhook a pôs em dia. Sem a
+    // condição no UPDATE, a volta ficava gravada numa barbearia em dia — e voltava a trancar o cartão
+    // no dia em que ela atrasasse.
+    const outra = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
+    let soltar!: () => void;
+    const segurando = new Promise<void>((r) => { soltar = r; });
+    let travou!: () => void;
+    const travada = new Promise<void>((r) => { travou = r; });
+    const webhook = outra.begin(async (tx) => {
+      await tx`UPDATE tenants SET status = 'active', subscription_ends_at = NULL WHERE id = 45`;
+      travou();
+      await segurando;
+    });
+    try {
+      await travada;
+      const registro = registrarVoltaDoCartao(45, selo(45), new Date());
+      // Espera o UPDATE da volta ficar preso na trava da linha, NESTE banco — só então o webhook termina.
+      let preso = false;
+      for (let i = 0; i < 200 && !preso; i++) {
+        const [{ n }] = await conn`SELECT count(*)::int AS n FROM pg_stat_activity
+          WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%cartao_voltou_em = %'`;
+        preso = n > 0;
+        if (!preso) await new Promise((r) => setTimeout(r, 20));
+      }
+      expect(preso).toBe(true);
+      soltar();
+      await webhook;
+      expect(await registro).toBeNull();
+      expect(await voltou(45)).toBeNull();
+    } finally {
+      soltar();
+      await webhook.catch(() => {});
+      await outra.end({ timeout: 5 });
+    }
+  });
+
+  it('esperando, o Checkout não abre — a Asaas nem é chamada', async () => {
+    await conn`UPDATE tenants SET cartao_voltou_em = ${new Date(Date.now() - 47 * HORA)} WHERE id = 40`;
+    await carregarTenants(true);
+    const r = await pedir(CARTAO, { barberId: 400, role: 'admin', tenantId: 40 });
+    expect(r.status).toBe(409);
+    expect(String(r.corpo.error)).toMatch(/não precisa cadastrar de novo/);
+    expect(String(r.corpo.error)).toMatch(/fale com o suporte/);
+    expect(chamadas).toHaveLength(0);
+    expect((await linha(40)).asaas_checkout_ids).toEqual(['chk_v40']);
+  });
+
+  it('passadas as 48 horas, o Checkout abre com o selo da ida — e a volta antiga sai, para a deste ser gravada', async () => {
+    await conn`UPDATE tenants SET cartao_voltou_em = ${new Date(Date.now() - 49 * HORA)} WHERE id = 40`;
+    await carregarTenants(true);
+    responder = () => ({ corpo: { id: 'chk_v40b', link: 'https://x/chk_v40b' } });
+    const r = await pedir(CARTAO, { barberId: 400, role: 'admin', tenantId: 40 });
+    expect(r.status).toBe(200);
+    expect(await voltou(40)).toBeNull();
+    const volta = new URL((chamadas[0].corpo as { callback: { successUrl: string } }).callback.successUrl);
+    expect(volta.searchParams.get('cartao')).toBe('ok');
+    expect(seloConfere(40, volta.searchParams.get('volta'))).toBe(true);
+    // Sem apagar a antiga, a volta deste Checkout não se gravaria (só grava sobre nulo), e a tela
+    // diria "a confirmação não chegou" a quem acabou de cadastrar.
+    const agora = new Date();
+    expect(await registrarVoltaDoCartao(40, volta.searchParams.get('volta'), agora)).toEqual(agora);
+  });
+
+  it('o Checkout novo apaga só a volta que leu: a gravada por outra aba enquanto a Asaas respondia fica', async () => {
+    await conn`UPDATE tenants SET cartao_voltou_em = ${new Date(Date.now() - 49 * HORA)} WHERE id = 48`;
+    await carregarTenants(true);
+    const outraAba = new Date();
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      // A outra aba voltou do Checkout anterior e gravou — entre a leitura e o UPDATE deste.
+      await conn`UPDATE tenants SET cartao_voltou_em = ${outraAba} WHERE id = 48`;
+      return new Response(JSON.stringify({ id: 'chk_v48b', link: 'https://x/chk_v48b' }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    await conn`INSERT INTO barbers (tenant_id, id, name, slug, role, password_hash, active, phone, email)
+               VALUES (48, 480, 'Dono Selo', 'dono', 'admin', 'x', true, '84990000480', NULL)`;
+    expect((await pedir(CARTAO, { barberId: 480, role: 'admin', tenantId: 48 })).status).toBe(200);
+    expect(await voltou(48)).toEqual(outraAba);
+  });
+
+  it('a confirmação apaga a volta: o CHECKOUT_PAID, e o pagamento que tira do atraso', async () => {
+    await conn`UPDATE tenants SET cartao_voltou_em = now(), asaas_checkout_ids = '{chk_v40b}' WHERE id = 40`;
+    await enviar({ id: 'evt_v40_pago', event: 'CHECKOUT_PAID', checkout: { id: 'chk_v40b', customer: null, externalReference: 'barbearia:40' } });
+    expect(await desfecho('evt_v40_pago')).toMatchObject({ tenant_id: 40, outcome: 'em dia: o cartão foi cadastrado' });
+    expect(await voltou(40)).toBeNull();
+
+    // Atrasada, o dono trocou o cartão; antes de o CHECKOUT_PAID chegar, a Asaas cobrou de novo o
+    // cartão antigo, e passou: em dia por outro caminho. A volta não pode sobrar para trancar o
+    // cartão — nem dizer "a confirmação não chegou" — no próximo atraso.
+    await conn`UPDATE tenants SET cartao_voltou_em = now() WHERE id = 46`;
+    await enviar({ id: 'evt_v46_falhou', event: 'PAYMENT_OVERDUE', payment: { id: 'pay_v46', customer: 'cus_v46', subscription: 'sub_v46' } });
+    await enviar({ id: 'evt_v46_pago', event: 'PAYMENT_CONFIRMED', payment: { id: 'pay_v46', customer: 'cus_v46', subscription: 'sub_v46' } });
+    expect(await desfecho('evt_v46_pago')).toMatchObject({ tenant_id: 46, outcome: 'em dia: a cobrança foi paga' });
+    expect(await voltou(46)).toBeNull();
+  });
+
+  it('o pagamento que NÃO põe em dia não apaga a volta: quem cancelou e reativa continua esperando', async () => {
+    // Um pagamento antigo da assinatura cancelada — o PAYMENT_RECEIVED chega ~32 dias depois do
+    // CONFIRMED — não reativa ninguém: a saída continua marcada, e a volta tem de continuar.
+    await conn`UPDATE tenants SET cartao_voltou_em = now() WHERE id = 47`;
+    await enviar({ id: 'evt_v47_recebido', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_v47', customer: 'cus_v47', subscription: 'sub_v47' } });
+    const [t] = await conn`SELECT subscription_ends_at, cartao_voltou_em FROM tenants WHERE id = 47`;
+    expect(t.subscription_ends_at).not.toBeNull();
+    expect(t.cartao_voltou_em).not.toBeNull();
   });
 });

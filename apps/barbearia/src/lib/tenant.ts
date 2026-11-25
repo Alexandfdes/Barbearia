@@ -63,6 +63,11 @@ export interface Tenant {
    * aprovado — o caso de toda barbearia que não veio do cadastro pela web.
    */
   emPreparacao?: boolean;
+  /**
+   * O dono voltou do Checkout com o cartão, e a confirmação do webhook não chegou
+   * (`cartao_voltou_em`, migration 0023). Quem lê é `esperaDoCartao` (`lib/assinatura.ts`).
+   */
+  cartaoVoltouEm?: Date | null;
 }
 
 /** No ar AGORA: pagando, no teste ou na carência. */
@@ -117,6 +122,7 @@ export async function carregarTenants(forcar = false): Promise<void> {
     encerraEm: tenantsTable.subscriptionEndsAt,
     fuso: tenantsTable.timezone,
     siteAprovadoEm: tenantsTable.siteAprovadoEm,
+    cartaoVoltouEm: tenantsTable.cartaoVoltouEm,
   }).from(tenantsTable);
 
   const id = new Map<number, Tenant>();
@@ -135,6 +141,7 @@ export async function carregarTenants(forcar = false): Promise<void> {
       encerraEm: l.encerraEm ?? null,
       fuso: l.fuso,
       emPreparacao: l.siteAprovadoEm == null,
+      cartaoVoltouEm: l.cartaoVoltouEm ?? null,
     };
     id.set(t.id, t);
     slug.set(t.slug, t);

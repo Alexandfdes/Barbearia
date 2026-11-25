@@ -4,7 +4,7 @@ import { getSettings } from '../lib/settings';
 import { tenantAtual, urlDoSite } from '../lib/tenant.js';
 import { iconeDaAba } from '../lib/iconeDaAba.js';
 import { situacaoDe } from '../lib/situacao.js';
-import { avisoDoPainel, cobrancaLigada, TELA_DE_ASSINATURA } from '../lib/assinatura.js';
+import { avisoDoPainel, cobrancaLigada, esperaDoCartao, TELA_DE_ASSINATURA, type EsperaDoCartao } from '../lib/assinatura.js';
 import { formatInTimeZone } from 'date-fns-tz';
 import { fusoDe } from '../lib/timezone.js';
 import { PRAZO_DA_CONFERENCIA } from '../lib/produto.js';
@@ -20,13 +20,25 @@ const enderecoDoSite = urlDoSite(barbearia);
 const emPreparacao = barbearia.emPreparacao === true;
 // A faixa do teste e da carência, em toda tela do painel: o prazo que ele não
 // vê é o prazo que ele perde (decisão de 08/10/2026, `lib/assinatura.ts`). Esperando a
-// aprovação, a faixa é a dela: o teste recomeça a contar quando o site for ao ar.
-const aviso = emPreparacao ? null : avisoDoPainel(situacaoDe(barbearia), fuso, new Date(), cobrancaLigada());
+// aprovação, a faixa é a dela: o teste recomeça a contar quando o site for ao ar. O dono que
+// voltou do Checkout com o cartão, e a confirmação não chegou, não é mandado cadastrar de novo
+// (migration 0023, `esperaDoCartao`).
+// A tela de assinatura passa a espera que ela mesma calculou (`cartao`): a barbearia daqui foi lida
+// antes de a volta ser gravada, e a faixa mandava cadastrar o cartão na própria volta. Lá, esperando,
+// a faixa sai — a tela já diz o que ela diria (revisão de 25/11/2026).
+const agora = new Date();
+const situacao = situacaoDe(barbearia, agora);
+const naAssinatura = Astro.url.pathname.replace(/\/+$/, '') === TELA_DE_ASSINATURA;
+const espera = Astro.props.cartao !== undefined ? Astro.props.cartao : esperaDoCartao(barbearia.cartaoVoltouEm, situacao, agora);
+const aviso = emPreparacao ? null : avisoDoPainel(situacao, fuso, agora, cobrancaLigada(), espera);
+const mostraAviso = aviso !== null && !(naAssinatura && espera === 'esperando');
 
 interface Props {
   title?:     string;
   barberName: string;
   role:       'admin' | 'barber';
+  /** A espera do cartão, quando a tela já a calculou — a de assinatura (`esperaDoCartao`). */
+  cartao?:    EsperaDoCartao;
 }
 const { title = 'Painel', barberName, role } = Astro.props;
 const path = Astro.url.pathname;
@@ -174,7 +186,7 @@ const grupos: { titulo: string; itens: { href: string; label: string; ativo: boo
           </div>
         )}
 
-        {aviso && (
+        {mostraAviso && aviso && (
           <div id="aviso-assinatura" role="status"
             class:list={['px-4 sm:px-6 py-2.5 text-sm flex flex-wrap items-center gap-x-4 gap-y-1 border-b',
                          aviso.tom === 'alerta'
