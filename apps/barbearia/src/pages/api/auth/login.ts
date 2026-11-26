@@ -22,7 +22,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { compare, hash } from 'bcryptjs';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 /**
  * ⚠️ `dbDono` e não `db`, e este é UM DOS DOIS lugares onde isso é certo.
  *
@@ -41,7 +41,7 @@ import { situacaoDe, noAr } from '../../../lib/situacao.js';
 import { LIMITE_DA_CONTA, chavesDaConta, checkRateLimit, devolverTentativa, resetRateLimit } from '../../../lib/rateLimit.js';
 import { aparelhoConhecido, cookieDoAparelho } from '../../../lib/aparelhoConhecido.js';
 import { getClientIp } from '../../../lib/clientIp.js';
-import { normalizePhone } from '../../../lib/phone.js';
+import { formasDoTelefone, normalizePhone } from '../../../lib/phone.js';
 
 /**
  * O limite por CONTA, de qualquer endereço (17/10/2026). Até aqui só havia o por IP: com
@@ -126,7 +126,12 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
   if (telefone) {
     // O ativo: desde a migration 0017 o número pode estar também em linhas de barbeiros
     // desligados, e só um ativo por número.
-    barbeiro = await first(dbDono.select(colunas).from(barbers).where(and(eq(barbers.phone, telefone), eq(barbers.active, true))));
+    // Pelas duas formas do celular — com e sem o 9: quem ficou gravado sem ele antes de 25/11/2026
+    // não entrava digitando o número certo. Se as duas existem, vence a digitada.
+    const achados = await dbDono.select({ ...colunas, phone: barbers.phone }).from(barbers)
+      .where(and(inArray(barbers.phone, formasDoTelefone(telefone)), eq(barbers.active, true)));
+    const achado = achados.find((b) => b.phone === telefone) ?? achados[0];
+    if (achado) { const { phone: _telefone, ...resto } = achado; barbeiro = resto; }
 
     // (3) Por conta, de qualquer IP — a força bruta distribuída. ⚠️ NÃO vale no aparelho
     // onde este barbeiro já entrou depois da última troca de senha (`lib/aparelhoConhecido.ts`):
