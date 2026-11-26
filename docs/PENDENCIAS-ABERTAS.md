@@ -3332,6 +3332,41 @@ no `npm run dev` da sua máquina depois de trocar para essa branch e reiniciar.
   cascata), ficava entre 4,8 e 6,1 s no Windows — a tabela nova entra na cascata. Ganhou prazo de 20 s.
 ---
 
+### 2.73 ✅ `[TÉCNICO]` O celular digitado sem o 9 virava fixo — e outra conta — CONSERTADO em 25/11/2026
+
+> **Achado pelo dono no teste em produção de 25/11/2026.** Ele cadastrou "(84) 9965-8951" — o celular
+> dele, sem o 9 da frente — e o cadastro aceitou: 10 dígitos é o formato do telefone **fixo**. Já
+> existia uma barbearia dele com o MESMO celular escrito com o 9, e a trava de telefone repetido
+> (migration 0017) não viu, porque compara os dígitos.
+
+**O que quebrava.** O login procura o telefone exatamente como foi gravado: o dono que digitasse o
+número certo, com o 9, não entrava na barbearia nova (lido no código; com as duas formas gravadas,
+cada uma abria uma barbearia). O link do WhatsApp saía sem o 9. E a mesma pessoa ficava com duas
+contas.
+
+**A regra.** Número local de 8 dígitos começando de 6 a 9 é celular sem o 9 — todo celular do
+Brasil tem 9 dígitos depois do DDD desde 2016; fixo começa de 2 a 5 (`celularSemONove`, em
+`apps/barbearia/src/lib/phone.ts`).
+
+**O conserto.** O cadastro (o login e o WhatsApp da barbearia) e a Equipe (criar e editar) recusam o
+celular sem o 9, com o número certo já escrito: "Celular tem o 9 na frente: (84) 99965-8951." A
+trava de repetido do cadastro compara as duas formas (`formasDoTelefone`). O login e a senha
+esquecida acham quem ficou gravado sem o 9 pelas duas formas; com as duas gravadas, vence a
+digitada. *Rejeitado:* pôr o 9 sozinho no `normalizePhone` — ele também é a chave dos telefones dos
+clientes nos agendamentos, e mudar a forma gravada desencontrava o histórico de quem já agendou.
+
+**Verificado:** 9 casos em `tests/celular-sem-o-nove.test.ts`; 9 mutações, as 9 pegas.
+
+⚠️ **Falta:** os números já gravados sem o 9 em produção continuam como estão — entram, mas a trava
+do banco (o índice da 0017) não os junta à forma com o 9. Quantos são, se vê no banco de produção:
+
+```sql
+SELECT count(*) FROM barbers WHERE active AND phone ~ '^[0-9]{2}[6-9][0-9]{7}$';
+```
+
+Se houver algum fora dos testes, acertá-los é uma migration — que passa pela sua revisão. E a
+barbearia de teste de 25/11, com o celular sem o 9, se acerta na Equipe dela.
+
 ## 3. Operação com vários clientes
 
 ### 3.1 🟠 `[DECISÃO]` Onde o app e o banco rodam
