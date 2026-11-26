@@ -27,10 +27,10 @@
  */
 import { createHash, randomBytes } from 'node:crypto';
 import bcrypt from 'bcryptjs';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull } from 'drizzle-orm';
 import { dbDono, first } from '../db/index.js';
 import { barbers, redefinicoesDeSenha, tenants } from '../db/schema.js';
-import { normalizePhone } from './phone.js';
+import { formasDoTelefone, normalizePhone } from './phone.js';
 import { situacaoDe } from './situacao.js';
 import { enviarEmail } from './email.js';
 import { urlDoPainel } from './tenant.js';
@@ -92,7 +92,10 @@ export async function pedirRedefinicao(whatsapp: string, agora: Date = new Date(
   };
   // O ATIVO dono do telefone: desde a migration 0017 o mesmo número pode estar em linhas de
   // barbeiros desligados.
-  const quem = await first(dbDono.select(colunas).from(barbers).where(and(eq(barbers.phone, telefone), eq(barbers.active, true))));
+  // Pelas duas formas do celular, como o login (25/11/2026); se as duas existem, vence a digitada.
+  const achados = await dbDono.select({ ...colunas, phone: barbers.phone }).from(barbers)
+    .where(and(inArray(barbers.phone, formasDoTelefone(telefone)), eq(barbers.active, true)));
+  const quem = achados.find((b) => b.phone === telefone) ?? achados[0];
   if (!quem || !quem.ativo) return 'sem-cadastro';
 
   const barbearia = await first(

@@ -8,7 +8,7 @@ import { db, first } from '../../../../db/index.js';
 import { barbers, barberServices, services, workingHours } from '../../../../db/schema.js';
 import { json, violouUnico } from '../../../../lib/api.js';
 import { recusaDoTeto } from '../../../../lib/tetos.js';
-import { normalizePhone } from '../../../../lib/phone.js';
+import { celularSemONove, normalizePhone, recusaDoCelularSemONove } from '../../../../lib/phone.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { emailValido, normalizarEmail } from '../../../../lib/email.js';
@@ -83,6 +83,8 @@ export const POST: APIRoute = async ({ request }) => {
 
   const phone = normalizePhone(parsed.data.phone);
   if (!phone) return json({ error: 'Telefone inválido: informe DDD + número.' }, 400);
+  // Celular sem o 9 passava como fixo, e virava outro login (25/11/2026, `celularSemONove`).
+  if (celularSemONove(phone)) return json({ error: recusaDoCelularSemONove(phone) }, 400);
 
   const email = normalizarEmail(parsed.data.email);
   if (email && !emailValido(email)) {

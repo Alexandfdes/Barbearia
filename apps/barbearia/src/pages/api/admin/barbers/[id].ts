@@ -9,7 +9,7 @@ import { fusoDe } from '../../../../lib/timezone.js';
 import { quandoCurto } from '../../../../lib/avisoDeAgenda.js';
 import { json, violouUnico } from '../../../../lib/api.js';
 import { recusaDoTeto } from '../../../../lib/tetos.js';
-import { normalizePhone } from '../../../../lib/phone.js';
+import { celularSemONove, normalizePhone, recusaDoCelularSemONove } from '../../../../lib/phone.js';
 import { getSession } from '../../../../lib/session.js';
 import { tenantDaSessao } from '../../../../lib/tenant.js';
 import { emailValido, normalizarEmail } from '../../../../lib/email.js';
@@ -76,6 +76,8 @@ export const PUT: APIRoute = async ({ request, params }) => {
 
   const phone = parsed.data.phone === undefined ? undefined : normalizePhone(parsed.data.phone);
   if (phone === '') return json({ error: 'WhatsApp inválido: use DDD + número, 10 ou 11 dígitos.' }, 400);
+  // Celular sem o 9 passava como fixo, e virava outro login (25/11/2026, `celularSemONove`).
+  if (phone && celularSemONove(phone)) return json({ error: recusaDoCelularSemONove(phone) }, 400);
 
   const target = await first(db.select({ id: barbers.id, role: barbers.role, name: barbers.name, email: barbers.email,
     emailConfirmadoEm: barbers.emailConfirmadoEm, active: barbers.active })

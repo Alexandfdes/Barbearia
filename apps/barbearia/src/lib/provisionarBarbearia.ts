@@ -31,7 +31,7 @@
 import type postgres from 'postgres';
 import bcrypt from 'bcryptjs';
 import { derivarAccent, ACCENT_PADRAO, isHex, type Accent } from './accent.js';
-import { formatarTelefone } from './phone.js';
+import { celularSemONove, formasDoTelefone, formatarTelefone, recusaDoCelularSemONove } from './phone.js';
 import { enderecoReservado } from './enderecosReservados.js';
 import { fimDoTeste } from './situacao.js';
 import { ehFusoDoBrasil, fusoDoEstado } from './timezone.js';
@@ -415,6 +415,10 @@ export async function provisionarBarbearia(
       erro: `"${dados.telefone}" não tem 10 ou 11 dígitos depois de limpo.`,
     };
   }
+  // Celular sem o 9 passava como fixo (25/11/2026, `celularSemONove`).
+  if (celularSemONove(telefoneDigitos)) {
+    return { ok: false, campo: 'telefone', erro: recusaDoCelularSemONove(telefoneDigitos) };
+  }
 
   const telefoneLogin = soDigitos(dados.telefoneDono ?? dados.telefone);
   if (telefoneLogin.length < 10 || telefoneLogin.length > 11) {
@@ -422,6 +426,9 @@ export async function provisionarBarbearia(
       ok: false, campo: 'telefone-dono',
       erro: `"${dados.telefoneDono}" não tem 10 ou 11 dígitos depois de limpo.`,
     };
+  }
+  if (celularSemONove(telefoneLogin)) {
+    return { ok: false, campo: 'telefone-dono', erro: recusaDoCelularSemONove(telefoneLogin) };
   }
 
   const jaExiste = await sql`SELECT slug FROM tenants WHERE slug = ${slug}`;
@@ -468,7 +475,8 @@ export async function provisionarBarbearia(
   // vinha antes, e um formulário com dois serviços de mesmo nome perguntava "este telefone
   // tem conta?" sem criar nada (409 com conta, 400 sem). Agora só chega aqui o formulário
   // que, sem conta, cria a barbearia (`tests/cadastro.test.ts`).
-  const telefoneEmUso = await sql`SELECT 1 FROM barbers WHERE phone = ${telefoneLogin} AND active`;
+  // As duas formas do celular: o gravado sem o 9 antes de 25/11/2026 é o mesmo número.
+  const telefoneEmUso = await sql`SELECT 1 FROM barbers WHERE phone = ANY(${formasDoTelefone(telefoneLogin)}::text[]) AND active`;
   if (telefoneEmUso.length) {
     return {
       ok: false, campo: 'telefone-dono', conflito: true,
